@@ -1,0 +1,197 @@
+#include "share/atspre_define.hats"
+#include "share/atspre_staload.hats"
+
+staload "mem.sats"
+staload "os/fs.sats"
+staload "core_platform/platform.sats"
+staload "core_platform/x11.sats"
+staload "core_render/render.sats"
+staload "core_render/gl.sats"
+staload "data_font/font.sats"
+staload "data_ast/doc.sats"
+staload "data_image/image.sats"
+staload "ui_workspace/ui.sats"
+
+fun is0(n: int): bool = n = 0
+fun is1(n: int): bool = n = 1
+
+fun ms_between(a: lint, b: lint): int = anth_ms(a, b)
+
+fun drain(p: !Plat, a: !App, f: !Font, r: !Rend): void =
+  if plat_pending(p) = 0 then ()
+  else let
+    var ev: event
+    var w: int = 0
+    var h: int = 0
+    val () = plat_next(p, ev)
+    val () = plat_wh(p, w, h)
+    val k = ev_kind(ev)
+    val () = if k = EV_KEY then plat_ensure_im(p) else ()
+    val () = if k = EV_CLOSE then plat_stop(p) else ()
+    val () = if k = EV_RESIZE then plat_set_wh(p, ev_w(ev), ev_h(ev)) else ()
+    val () = app_event(a, p, f, r, ev, w, h)
+  in
+    if plat_running(p) = 0 then () else drain(p, a, f, r)
+  end
+
+fun frame(p: !Plat, a: !App, f: !Font, r: !Rend, loaded: int): void =
+  if plat_running(p) = 0 then ()
+  else let
+    val () = drain(p, a, f, r)
+  in
+    if plat_running(p) = 0 then ()
+    else let
+      val loaded2 = if loaded = 0 then font_load_default(f) else loaded
+      var w: int = 0
+      var h: int = 0
+      val () = plat_wh(p, w, h)
+      val () = rend_begin(r, w, h)
+      val () = app_draw(a, f, r, w, h)
+      val () = rend_flush(r)
+      val () = plat_swap(p)
+      val _wait = plat_wait(p, ~1)
+    in
+      frame(p, a, f, r, loaded2)
+    end
+  end
+
+fun take_sel(p: !Plat, ev: &event, data: ptr, n: int, dst: &Buf >> _, got: &int >> _): void =
+  if ev_kind(ev) = EV_SEL_REQ then let
+    val () = plat_reply(p, ev, data, n)
+    val () = touch_dst(dst)
+  in
+    ()
+  end else if ev_kind(ev) = EV_SEL_NOTIFY then let
+    val cap = buf_cap(dst)
+    val nr = plat_read(p, ev, buf_ptr(dst), cap)
+    val () = buf_set_len(dst, if nr > 0 then nr else 0)
+  in
+    got := nr
+  end else touch_dst(dst)
+
+and touch_dst(dst: &Buf >> _): void = ()
+
+fun clip_round(p: !Plat, data: ptr, n: int, dst: &Buf >> _, got: &int >> _, spins: int): void =
+  if spins <= 0 then touch_dst(dst)
+  else if got > 0 then touch_dst(dst)
+  else if plat_pending(p) = 0 then let
+    val _w = plat_wait(p, 20)
+  in
+    clip_round(p, data, n, dst, got, spins - 1)
+  end else let
+    var ev: event
+    val () = plat_next(p, ev)
+    val () = take_sel(p, ev, data, n, dst, got)
+  in
+    clip_round(p, data, n, dst, got, spins - 1)
+  end
+
+fun same_text(b: !Buf, s: string, i: int): int =
+  if i >= c_strlen(s) then 1
+  else if buf_get(b, i) <> c_str_byte(s, i) then 0
+  else same_text(b, s, i + 1)
+
+fun clip_match(b: !Buf, s: string, n: int): int =
+  if buf_len(b) <> n then 0 else same_text(b, s, 0)
+
+fun vault_at(cwd: !Buf, use_arg: int): string =
+  if use_arg = 1 then let
+    val _n = buf_len(cwd)
+  in
+    c_argv(1)
+  end else ""
+
+fun run_self(p: !Plat, r: !Rend, t0: lint): void = let
+  val f = font_open()
+  var w: int = 0
+  var h: int = 0
+  val () = plat_wh(p, w, h)
+  val () = rend_begin(r, w, h)
+  val () = rend_rect(r, 0, 0, w, h, col_bg())
+  val _fd = font_draw(f, r, 24, 48, c_str_ptr("Anthracite"), 10, col_text())
+  val () = rend_flush(r)
+  val () = plat_swap(p)
+  val t1 = mono_ns()
+  val start = ms_between(t0, t1)
+  val n = font_selftest(r)
+  val m = doc_selftest()
+  val q = img_selftest()
+  val u = app_selftest(r)
+  val () = println! ("font_selftest=", n)
+  val () = println! ("doc_selftest=", m)
+  val () = println! ("img_selftest=", q)
+  val () = println! ("app_selftest=", u)
+  val text = "anthracite"
+  var dst = buf_make(64)
+  var got: int = 0
+  val () = plat_own(p, 0)
+  val () = plat_paste(p, 0)
+  val () = clip_round(p, c_str_ptr(text), c_strlen(text), dst, got, 40)
+  val clip_ok = clip_match(dst, text, got)
+  val () = buf_free(dst)
+  val tw = mono_ns()
+  val _poll = plat_wait(p, 100)
+  val tw2 = mono_ns()
+  val waited = ms_between(tw, tw2)
+  val rss = rss_kb()
+  val live = mem_live()
+  val poll_ok = if waited >= 80 then 1 else 0
+  val rss_ok = if live > 0 andalso live < 12582912 then 1 else 0
+  val () = print("budget start_ms=")
+  val () = print_int(start)
+  val () = print(" rss_kb=")
+  val () = print_int(rss)
+  val () = print(" live=")
+  val () = print_int(live)
+  val () = print(" poll_ms=")
+  val () = print_int(waited)
+  val () = print(" clip=")
+  val () = print_int(clip_ok)
+  val () = print(" poll_ok=")
+  val () = print_int(poll_ok)
+  val () = print(" rss_ok=")
+  val () = print_int(rss_ok)
+  val () = print_newline()
+  val () = font_free(f)
+in
+  plat_stop(p)
+end
+
+fun run_app(p: !Plat, r: !Rend): void = let
+  var cwd = buf_make(4096)
+  val _nc = c_cwd(buf_ptr(cwd), 4095)
+  val () = buf_set(cwd, 4095, 0)
+  val use_arg = if c_argc() > 1 then 1 else 0
+  val vault = vault_at(cwd, use_arg)
+  val a = app_open(vault)
+  val () = buf_free(cwd)
+  val f = font_open()
+  val _ = font_load_default(f)
+  val () = frame(p, a, f, r, 1)
+  val () = font_free(f)
+in
+  app_free(a)
+end
+
+fun launch(p: !Plat, r: !Rend, t0: lint, self: int): void =
+  if is1(self) then run_self(p, r, t0) else run_app(p, r)
+
+implement main0() = let
+  val t0 = mono_ns()
+  val p = plat_open()
+in
+  if plat_ok(p) = 0 then let
+    val () = println! ("display acilamadi")
+    val () = plat_close(p)
+  in
+    ()
+  end else let
+    val r = rend_open()
+    val self = if c_argc() > 1 andalso is0(c_strcmp(c_argv(1), "--selftest")) then 1 else 0
+    val () = launch(p, r, t0, self)
+    val () = rend_close(r)
+    val () = plat_close(p)
+  in
+    ()
+  end
+end
