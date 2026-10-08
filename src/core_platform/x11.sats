@@ -14,6 +14,23 @@ macdef EV_WHEEL = $extval(int, "ANTH_EV_WHEEL")
 macdef EV_SEL_REQ = $extval(int, "ANTH_EV_SEL_REQ")
 macdef EV_SEL_NOTIFY = $extval(int, "ANTH_EV_SEL_NOTIFY")
 
+datatype Ev =
+  | EvNone
+  | EvClose
+  | EvResize
+  | EvKey
+  | EvDown
+  | EvUp
+  | EvMotion
+  | EvWheel
+  | EvSelReq
+  | EvSelNotify
+
+fun event_of(n: int): Ev
+fun is_ev(a: Ev, b: Ev): bool
+
+fun ev_kind(ev: &event): int = "mac#anth_ev_kind"
+
 macdef KEY_LEFT = $extval(int, "ANTH_KEY_LEFT")
 macdef KEY_RIGHT = $extval(int, "ANTH_KEY_RIGHT")
 macdef KEY_UP = $extval(int, "ANTH_KEY_UP")
@@ -61,7 +78,6 @@ fun x_fd(dpy: ptr): int = "mac#ConnectionNumber"
 fun x_poll(fd: int, ms: int): int = "mac#anth_poll"
 fun x_next(dpy: ptr, ic: ptr, wm: ulint, ev: &event? >> event): void = "mac#anth_next"
 
-fun ev_kind(ev: &event): int = "mac#anth_ev_kind"
 fun ev_x(ev: &event): int = "mac#anth_ev_x"
 fun ev_y(ev: &event): int = "mac#anth_ev_y"
 fun ev_w(ev: &event): int = "mac#anth_ev_w"

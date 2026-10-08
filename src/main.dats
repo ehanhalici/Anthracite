@@ -32,10 +32,10 @@ fun drain_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, a: !App,
       var h: int = 0
       val () = plat_next(p, ev)
       val () = plat_wh(p, w, h)
-      val k = ev_kind(ev)
-      val () = if k = EV_KEY then plat_ensure_im(p) else ()
-      val () = if k = EV_CLOSE then plat_stop(p) else ()
-      val () = if k = EV_RESIZE then plat_set_wh(p, ev_w(ev), ev_h(ev)) else ()
+      val k = event_of(ev_kind(ev))
+      val () = if is_ev(k, EvKey) then plat_ensure_im(p) else ()
+      val () = if is_ev(k, EvClose) then plat_stop(p) else ()
+      val () = if is_ev(k, EvResize) then plat_set_wh(p, ev_w(ev), ev_h(ev)) else ()
       val () = app_event(a, p, f, r, ev, w, h)
     in
       if plat_running(p) = 0 then () else drain_m(recfuel - 1, p, a, f, r)
@@ -71,19 +71,22 @@ fun frame_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, a: !App,
 
 fun frame(p: !Plat, a: !App, f: !Font, r: !Rend, loaded: int): void = frame_m(airlock_nat(MAX_REC_FUEL), p, a, f, r, loaded)
 
-fun take_sel(p: !Plat, ev: &event, data: ptr, n: int, dst: &Buf >> _, got: &int >> _): void =
-  if ev_kind(ev) = EV_SEL_REQ then let
+fun take_sel(p: !Plat, ev: &event, data: ptr, n: int, dst: &Buf >> _, got: &int >> _): void = let
+  val k = event_of(ev_kind(ev))
+in
+  if is_ev(k, EvSelReq) then let
     val () = plat_reply(p, ev, data, n)
     val () = touch_dst(dst)
   in
     ()
-  end else if ev_kind(ev) = EV_SEL_NOTIFY then let
+  end else if is_ev(k, EvSelNotify) then let
     val cap = buf_cap(dst)
     val nr = plat_read_buf(p, ev, dst, cap)
     val () = buf_set_len(dst, if nr > 0 then nr else 0)
   in
     got := nr
   end else touch_dst(dst)
+end
 
 and touch_dst(dst: &Buf >> _): void = ()
 

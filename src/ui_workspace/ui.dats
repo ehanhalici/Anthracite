@@ -1765,24 +1765,24 @@ end
 fun on_sel(a: !App, p: !Plat, ev: &event): void =
   case+ a of
   | @APP(s) => let
-      val k = ev_kind(ev)
+      val k = event_of(ev_kind(ev))
       val nclip = buf_len(s.clip)
-      val () = if k = EV_SEL_REQ then plat_reply_buf(p, ev, s.clip, nclip)
-        else if k = EV_SEL_NOTIFY andalso is_on(s.paste) then on_sel_paste(s, p, ev)
+      val () = if is_ev(k, EvSelReq) then plat_reply_buf(p, ev, s.clip, nclip)
+        else if is_ev(k, EvSelNotify) andalso is_on(s.paste) then on_sel_paste(s, p, ev)
         else ()
     in
       fold@(a)
     end
 
 implement app_event(a, p, f, r, ev, w, h) = let
-  val k = ev_kind(ev)
+  val k = event_of(ev_kind(ev))
 in
-  if k = EV_KEY then on_key(a, p, f, ev)
-  else if k = EV_DOWN then on_down(a, p, f, r, ev, w, h)
-  else if k = EV_UP then on_up(a, f, r, ev, w)
-  else if k = EV_MOTION then on_motion(a, ev)
-  else if k = EV_WHEEL then on_wheel(a, ev, w, h)
-  else if k = EV_SEL_REQ orelse k = EV_SEL_NOTIFY then on_sel(a, p, ev)
+  if is_ev(k, EvKey) then on_key(a, p, f, ev)
+  else if is_ev(k, EvDown) then on_down(a, p, f, r, ev, w, h)
+  else if is_ev(k, EvUp) then on_up(a, f, r, ev, w)
+  else if is_ev(k, EvMotion) then on_motion(a, ev)
+  else if is_ev(k, EvWheel) then on_wheel(a, ev, w, h)
+  else if is_ev(k, EvSelReq) orelse is_ev(k, EvSelNotify) then on_sel(a, p, ev)
   else ()
 end
 extern fun find_img_exh(doc: !Doc, i: int): int = "mac#anth_die_int"

@@ -5,6 +5,32 @@
 staload "core_platform/x11.sats"
 staload "core_platform/platform.sats"
 
+implement event_of(n) =
+  if n = EV_CLOSE then EvClose
+  else if n = EV_RESIZE then EvResize
+  else if n = EV_KEY then EvKey
+  else if n = EV_DOWN then EvDown
+  else if n = EV_UP then EvUp
+  else if n = EV_MOTION then EvMotion
+  else if n = EV_WHEEL then EvWheel
+  else if n = EV_SEL_REQ then EvSelReq
+  else if n = EV_SEL_NOTIFY then EvSelNotify
+  else EvNone
+
+fun ev_code(k: Ev): int = case+ k of
+  | EvNone() => 0
+  | EvClose() => 1
+  | EvResize() => 2
+  | EvKey() => 4
+  | EvDown() => 5
+  | EvUp() => 6
+  | EvMotion() => 7
+  | EvWheel() => 8
+  | EvSelReq() => 9
+  | EvSelNotify() => 10
+
+implement is_ev(a, b) = ev_code(a) = ev_code(b)
+
 datavtype Plat_ = PLAT of @{
   dpy= ptr
 , win= ulint
