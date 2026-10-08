@@ -113,7 +113,7 @@ datavtype Doc_ = DOC of @{
 , lo= int, hi= int, len= int
 , caret= int, anchor= int
 , nlines= int, nnodes= int, span= int
-, last_op= int, typing_cnt= int, is_md= int
+, last_op= int, typing_cnt= int, is_md= Toggle
 }
 (* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
 assume Doc = Doc_
@@ -124,7 +124,7 @@ implement doc_open() = DOC(@{
 , lo= 0, hi= 256, len= 0
 , caret= 0, anchor= 0
 , nlines= 1, nnodes= 0, span= 0
-, last_op= 0, typing_cnt= 0, is_md= 1
+, last_op= 0, typing_cnt= 0, is_md= On
 })
 
 implement doc_is_md(d) =
@@ -521,19 +521,19 @@ implement doc_node_kind(d, i) = nget(d, i, NF_KIND)
 implement doc_node_start(d, i) = nget(d, i, NF_START)
 implement doc_node_end(d, i) = nget(d, i, NF_END)
 implement doc_node_depth(d, i) = nget(d, i, NF_DEPTH)
-implement doc_node_collapsed(d, i) = nget(d, i, NF_COLLAPSED)
+implement doc_node_collapsed(d, i) = toggle_of(ieq(nget(d, i, NF_COLLAPSED), 1))
 implement doc_node_height(d, i) = nget(d, i, NF_HEIGHT)
 implement doc_node_parent(d, i) = nget(d, i, NF_PARENT)
-implement doc_node_hidden(d, i) = nget(d, i, NF_HIDDEN)
+implement doc_node_hidden(d, i) = toggle_of(ieq(nget(d, i, NF_HIDDEN), 1))
 implement doc_node_aux(d, i) = nget(d, i, NF_AUX)
 implement doc_node_y(d, i) = nget(d, i, NF_Y)
 
-fun doc_node_set_collapsed(d: !Doc, i: int, v: int): void = nset(d, i, NF_COLLAPSED, v)
+fun doc_node_set_collapsed(d: !Doc, i: int, v: Toggle): void = nset(d, i, NF_COLLAPSED, toggle_int(v))
 fun doc_node_set_height(d: !Doc, i: int, h: int): void = nset(d, i, NF_HEIGHT, h)
 fun doc_node_set_parent(d: !Doc, i: int, p: int): void = nset(d, i, NF_PARENT, p)
 fun doc_node_set_next_sib(d: !Doc, i: int, s: int): void = nset(d, i, NF_NEXT_SIB, s)
 fun doc_node_set_first_child(d: !Doc, i: int, c: int): void = nset(d, i, NF_FIRST_CHILD, c)
-fun doc_node_set_hidden(d: !Doc, i: int, v: int): void = nset(d, i, NF_HIDDEN, v)
+fun doc_node_set_hidden(d: !Doc, i: int, v: Toggle): void = nset(d, i, NF_HIDDEN, toggle_int(v))
 fun doc_node_set_y(d: !Doc, i: int, y: int): void = nset(d, i, NF_Y, y)
 fun doc_node_first_child(d: !Doc, i: int): int = nget(d, i, NF_FIRST_CHILD)
 
@@ -572,7 +572,7 @@ fun copy_node(src: !Buf, i: int, d: !Doc, delta: int): void = let
   val col = buf_get32(src, iadd(imul(i, NS), NF_COLLAPSED))
   val () = npush(d, kind, st, en, depth, aux)
   val id = isub(d_nnodes(d), 1)
-  val () = doc_node_set_collapsed(d, id, col)
+  val () = doc_node_set_collapsed(d, id, toggle_of(ieq(col, 1)))
 in
 end
 
@@ -603,7 +603,7 @@ fun copy_kept(old: !Buf, d: !Doc, i: int, n: int, rs: int, re: int, delta: int, 
 fun salvage(d: !Doc, rs: int, re: int, delta: int): void = let
   val is_md = doc_is_md(d)
 in
-  if ieq(is_md, 0) then let
+  if is_off(is_md) then let
     val () = d_set_nnodes(d, 0)
   in
   end else let
@@ -709,7 +709,7 @@ fun relink_next(d: !Doc, n: int, i: int): void = relink_next_m(airlock_nat(MAX_R
 fun relink(d: !Doc): void = let
   val is_md = doc_is_md(d)
 in
-  if ieq(is_md, 0) then ()
+  if is_off(is_md) then ()
   else let
     val n = d_nnodes(d)
     val () = relink_clear(d, n, 0)
@@ -732,7 +732,7 @@ fun hide_until_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: i
     in
       if ige(k, NK_H1) andalso ile(k, NK_H6) andalso ile(k, hk) then ()
       else let
-        val () = doc_node_set_hidden(d, i, 1)
+        val () = doc_node_set_hidden(d, i, On)
         val () = doc_node_set_height(d, i, 0)
       in
         hide_until_m(recfuel - 1, d, iadd(i, 1), n, hk)
@@ -754,7 +754,7 @@ fun hide_list_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: in
       if (ieq(k, NK_LI) orelse ieq(k, NK_TASK) orelse ieq(k, NK_UL) orelse ieq(k, NK_OL)) andalso ile(dp, depth) then ()
       else if block_kind(k) = 1 andalso ile(dp, depth) andalso ine(k, NK_TEXT) then ()
       else let
-        val () = doc_node_set_hidden(d, i, 1)
+        val () = doc_node_set_hidden(d, i, On)
         val () = doc_node_set_height(d, i, 0)
       in
         hide_list_m(recfuel - 1, d, iadd(i, 1), n, depth)
@@ -780,7 +780,7 @@ fun clear_hide_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, n: i
   if recfuel > 0 then (
     if ige(i, n) then ()
     else let
-      val () = doc_node_set_hidden(d, i, 0)
+      val () = doc_node_set_hidden(d, i, Off)
     in
       clear_hide_m(recfuel - 1, d, n, iadd(i, 1))
     end
@@ -792,7 +792,7 @@ fun node_height(d: !Doc, i: int, lh: int): int = let
   val k = doc_node_kind(d, i)
   val lines = count_nl(d, doc_node_start(d, i), doc_node_end(d, i), 1)
 in
-  if ine(doc_node_hidden(d, i), 0) then 0
+  if is_on(doc_node_hidden(d, i)) then 0
   else if ieq(k, NK_EMBED) then let
     val a = doc_node_aux(d, i)
   in
@@ -818,8 +818,8 @@ fun place_one_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, n: in
       val h = node_height(d, i, lh)
       val () = doc_node_set_height(d, i, h)
       val () =
-        if ige(k, NK_H1) andalso ile(k, NK_H6) andalso ine(doc_node_collapsed(d, i), 0) then hide_until(d, iadd(i, 1), n, k)
-        else if (ieq(k, NK_LI) orelse ieq(k, NK_TASK)) andalso ine(doc_node_collapsed(d, i), 0) then hide_list(d, iadd(i, 1), n, doc_node_depth(d, i))
+        if ige(k, NK_H1) andalso ile(k, NK_H6) andalso is_on(doc_node_collapsed(d, i)) then hide_until(d, iadd(i, 1), n, k)
+        else if (ieq(k, NK_LI) orelse ieq(k, NK_TASK)) andalso is_on(doc_node_collapsed(d, i)) then hide_list(d, iadd(i, 1), n, doc_node_depth(d, i))
         else ()
     in
       place_one_m(recfuel - 1, d, n, iadd(i, 1), lh)
@@ -852,7 +852,7 @@ fun line_hidden_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st:
       val ne = doc_node_end(d, i)
       val hit = if ilt(ns, en) andalso igt(ne, st) then 1 else 0
     in
-      if ieq(hit, 1) andalso ieq(doc_node_hidden(d, i), 0) then 0
+      if ieq(hit, 1) andalso is_off(doc_node_hidden(d, i)) then 0
       else line_hidden_m(recfuel - 1, d, st, en, iadd(i, 1), n, if ieq(hit, 1) then On else saw)
     end
   ) else line_hidden_exh(d, st, en, i, n, saw)
@@ -868,7 +868,7 @@ fun widget_h_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: in
       val k = doc_node_kind(d, i)
       val ns = doc_node_start(d, i)
       val h = doc_node_height(d, i)
-      val use = if ieq(doc_node_hidden(d, i), 0) andalso ige(ns, st) andalso ilt(ns, en) andalso (ieq(k, NK_IMAGE) orelse ieq(k, NK_EMBED)) andalso igt(h, acc) then h else acc
+      val use = if is_off(doc_node_hidden(d, i)) andalso ige(ns, st) andalso ilt(ns, en) andalso (ieq(k, NK_IMAGE) orelse ieq(k, NK_EMBED)) andalso igt(h, acc) then h else acc
     in
       widget_h_m(recfuel - 1, d, st, en, iadd(i, 1), n, use)
     end
@@ -938,7 +938,7 @@ implement doc_layout(d, lh0) = let
   val is_md = doc_is_md(d)
   val n = d_nnodes(d)
 in
-  if ieq(is_md, 0) orelse ieq(n, 0) then let
+  if is_off(is_md) orelse ieq(n, 0) then let
     val nlines = d_nlines(d)
     val () = fill_plain_lines(d, lh, nlines)
   in
@@ -1605,12 +1605,12 @@ in
   if ieq(has_vfs, 1) then vp else path
 end
 
-fun is_markdown_path(path: string): int = let
+fun is_markdown_path(path: string): bool = let
   val plen = c_strlen(path)
 in
-  if plen >= 3 andalso c_str_byte(path, isub(plen, 3)) = 46 andalso (c_str_byte(path, isub(plen, 2)) = 109 orelse c_str_byte(path, isub(plen, 2)) = 77) andalso (c_str_byte(path, isub(plen, 1)) = 100 orelse c_str_byte(path, isub(plen, 1)) = 68) then 1
-  else if plen >= 9 andalso c_str_byte(path, isub(plen, 9)) = 46 then 1
-  else 0
+  if plen >= 3 andalso c_str_byte(path, isub(plen, 3)) = 46 andalso (c_str_byte(path, isub(plen, 2)) = 109 orelse c_str_byte(path, isub(plen, 2)) = 77) andalso (c_str_byte(path, isub(plen, 1)) = 100 orelse c_str_byte(path, isub(plen, 1)) = 68) then true
+  else if plen >= 9 andalso c_str_byte(path, isub(plen, 9)) = 46 then true
+  else false
 end
 
 fun read_doc_bytes(d: !Doc, path: string, fd: int, sz: int): int = let
@@ -1618,7 +1618,7 @@ fun read_doc_bytes(d: !Doc, path: string, fd: int, sz: int): int = let
   val n = fs_read_buf(fd, b, sz)
   val () = fs_close(fd)
   val () = buf_set_len(b, if n > 0 then n else 0)
-  val () = doc_set_md(d, is_markdown_path(path))
+  val () = doc_set_md(d, toggle_of(is_markdown_path(path)))
   val () = replace_all_buf(d, b, if n > 0 then n else 0)
   val () = buf_free(b)
 in
@@ -1663,7 +1663,11 @@ implement doc_toggle(d, i) = let
   val n = d_nnodes(d)
 in
   if i < 0 orelse i >= n then ()
-  else doc_node_set_collapsed(d, i, (if ieq(doc_node_collapsed(d, i), 0) then 1 else 0))
+  else let
+    val c = doc_node_collapsed(d, i)
+  in
+    doc_node_set_collapsed(d, i, (if is_off(c) then On else Off))
+  end
 end
 
 extern fun task_box_find_exh(d: !Doc, st: int, en: int, p: int): int = "mac#anth_die_int"

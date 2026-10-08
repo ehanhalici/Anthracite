@@ -380,8 +380,8 @@ fun count_before(d: !Doc, a: int, p: int, k0: int): int = count_before_m(airlock
 fun draw_arrow(f: !Font, r: !Rend, d: !Doc, i: int, k: int, colx: int, y: int): void =
   if (ige(k, NK_H1) andalso ile(k, NK_H6)) orelse ieq(k, NK_LI) orelse ieq(k, NK_TASK) then let
     val folded = doc_node_collapsed(d, i)
-    val arr = if ieq(folded, 1) then ">" else "v"
-    val acol = if ieq(folded, 1) then col_accent() else col_muted()
+    val arr = if is_on(folded) then ">" else "v"
+    val acol = if is_on(folded) then col_accent() else col_muted()
     val () = draw_s(f, r, isub(colx, 16), y, arr, acol)
   in
   end else ()
@@ -732,7 +732,7 @@ fun draw_node(f: !Font, r: !Rend, d: !Doc, i: int, ox: int, oy: int, pw: int, ph
   val p_k = if ige(p_idx, 0) then doc_node_kind(d, p_idx) else 0
   val in_heading = if ige(p_k, NK_H1) andalso ile(p_k, NK_H6) then 1 else 0
 in
-  if ine(hidden, 0) orelse (ieq(in_heading, 1) andalso is_view_read(viewmode)) then ()
+  if is_on(hidden) orelse (ieq(in_heading, 1) andalso is_view_read(viewmode)) then ()
   else let
     val () = draw_arrow(f, r, d, i, k, colx, y)
   in

@@ -1,4 +1,5 @@
 staload "mem.sats"
+staload "flag.sats"
 
 absviewtype Doc = ptr
 
@@ -57,16 +58,16 @@ fun doc_node_kind(d: !Doc, i: int): int
 fun doc_node_start(d: !Doc, i: int): int
 fun doc_node_end(d: !Doc, i: int): int
 fun doc_node_depth(d: !Doc, i: int): int
-fun doc_node_collapsed(d: !Doc, i: int): int
+fun doc_node_collapsed(d: !Doc, i: int): Toggle
 fun doc_node_height(d: !Doc, i: int): int
 fun doc_node_parent(d: !Doc, i: int): int
-fun doc_node_hidden(d: !Doc, i: int): int
+fun doc_node_hidden(d: !Doc, i: int): Toggle
 fun doc_node_aux(d: !Doc, i: int): int
 fun doc_node_y(d: !Doc, i: int): int
 
 fun doc_open(): Doc
-fun doc_is_md(d: !Doc): int
-fun doc_set_md(d: !Doc, is_md: int): void
+fun doc_is_md(d: !Doc): Toggle
+fun doc_set_md(d: !Doc, is_md: Toggle): void
 fun doc_free(d: Doc): void
 fun doc_len(d: !Doc): int
 fun doc_touch(d: !Doc): void
