@@ -623,7 +623,7 @@ extern fun find_wiki_exh(doc: !Doc, caret: int, k: int): int = "mac#anth_die_int
 fun find_wiki_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), doc: !Doc, caret: int, k: int): int =
   if recfuel > 0 then (
     if ige(k, doc_nnodes(doc)) then ~1
-    else if ile(doc_node_start(doc, k), caret) andalso ilt(caret, doc_node_end(doc, k)) andalso ieq(doc_node_kind(doc, k), NK_WIKI) then k
+    else if ile(doc_node_start(doc, k), caret) andalso ilt(caret, doc_node_end(doc, k)) andalso is_kind(doc_node_kind(doc, k), KWiki) then k
     else find_wiki_m(recfuel - 1, doc, caret, iadd(k, 1))
   ) else find_wiki_exh(doc, caret, k)
 
@@ -1430,7 +1430,7 @@ fun editor_click_hit(f: !Font, r: !Rend, s: &App_record >> _, ts: Tabs, ev: &eve
   val ts4 = click_go(f, r, ts, idx2, x, y, ox, half, font_line_h(f), s.scratch, toggle_of(ieq(keep, 1)), s.hitk, s.hiti, editor)
   val colx_hit = column_x(ox, half)
   val on_arrow = if is_on(editor) andalso ige(x, isub(colx_hit, 24)) andalso ilt(x, colx_hit) andalso ige(s.hiti, 0) then 1 else 0
-  val on_task = if is_on(editor) andalso ieq(s.hitk, NK_TASK) andalso ige(x, colx_hit) andalso ilt(x, iadd(colx_hit, 36)) andalso ige(s.hiti, 0) then 1 else 0
+  val on_task = if is_on(editor) andalso is_kind(kind_of(s.hitk), KTask) andalso ige(x, colx_hit) andalso ilt(x, iadd(colx_hit, 36)) andalso ige(s.hiti, 0) then 1 else 0
   val ts4_a = toggle_go(ts4, idx2, s.hiti, toggle_of(ieq(on_arrow, 1)))
   val ts4_b = toggle_task_go(ts4_a, idx2, s.hiti, toggle_of(ieq(on_task, 1)))
 in
@@ -1576,7 +1576,7 @@ fun handle_down_context_menu_open(
       val valid_row = if ige(y, 72) andalso ige(row, 0) andalso ilt(row, s.tn) then 1 else 0
     in
       s.sel := (if ieq(valid_row, 1) then row else ~1)
-    end else s.menu := (if ieq(s.hitk, NK_IMAGE) then MenuImage else MenuText)
+    end else s.menu := (if is_kind(kind_of(s.hitk), KImage) then MenuImage else MenuText)
   end else ()
 
 fun on_down_tabs(s: &App_record >> _, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int, x: int, y: int, sidew: int, skip: Toggle, onbar: Toggle, onside: Toggle, button: int, inside: Toggle, item: int): void = let
@@ -1790,7 +1790,7 @@ extern fun find_img_exh(doc: !Doc, i: int): int = "mac#anth_die_int"
 fun find_img_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), doc: !Doc, i: int): int =
   if recfuel > 0 then (
     if ige(i, doc_nnodes(doc)) then ~1
-    else if ieq(doc_node_kind(doc, i), NK_IMAGE) then i
+    else if is_kind(doc_node_kind(doc, i), KImage) then i
     else find_img_m(recfuel - 1, doc, iadd(i, 1))
   ) else find_img_exh(doc, i)
 

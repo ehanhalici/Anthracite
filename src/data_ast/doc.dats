@@ -517,7 +517,148 @@ fun nset(d: !Doc, i: int, f: int, v: int): void =
 implement doc_get(d, i, f) = nget(d, i, f)
 implement doc_set(d, i, f, v) = nset(d, i, f, v)
 
-implement doc_node_kind(d, i) = nget(d, i, NF_KIND)
+implement kind_of(n) =
+  if ieq(n, 1) then KPara
+  else if ieq(n, 2) then KH1
+  else if ieq(n, 3) then KH2
+  else if ieq(n, 4) then KH3
+  else if ieq(n, 5) then KH4
+  else if ieq(n, 6) then KH5
+  else if ieq(n, 7) then KH6
+  else if ieq(n, 8) then KUl
+  else if ieq(n, 9) then KOl
+  else if ieq(n, 10) then KLi
+  else if ieq(n, 11) then KQuote
+  else if ieq(n, 12) then KCode
+  else if ieq(n, 13) then KHr
+  else if ieq(n, 14) then KTable
+  else if ieq(n, 15) then KText
+  else if ieq(n, 16) then KWiki
+  else if ieq(n, 17) then KEmbed
+  else if ieq(n, 18) then KTag
+  else if ieq(n, 19) then KTask
+  else if ieq(n, 20) then KFn
+  else if ieq(n, 21) then KFndef
+  else if ieq(n, 22) then KHigh
+  else if ieq(n, 23) then KMath
+  else if ieq(n, 24) then KMathb
+  else if ieq(n, 25) then KFm
+  else if ieq(n, 26) then KImage
+  else if ieq(n, 27) then KTd
+  else if ieq(n, 28) then KBold
+  else if ieq(n, 29) then KItalic
+  else if ieq(n, 30) then KStrike
+  else if ieq(n, 31) then KLink
+  else KNone
+
+implement kind_code(k) = case+ k of
+  | KNone() => 0
+  | KPara() => 1
+  | KH1() => 2
+  | KH2() => 3
+  | KH3() => 4
+  | KH4() => 5
+  | KH5() => 6
+  | KH6() => 7
+  | KUl() => 8
+  | KOl() => 9
+  | KLi() => 10
+  | KQuote() => 11
+  | KCode() => 12
+  | KHr() => 13
+  | KTable() => 14
+  | KText() => 15
+  | KWiki() => 16
+  | KEmbed() => 17
+  | KTag() => 18
+  | KTask() => 19
+  | KFn() => 20
+  | KFndef() => 21
+  | KHigh() => 22
+  | KMath() => 23
+  | KMathb() => 24
+  | KFm() => 25
+  | KImage() => 26
+  | KTd() => 27
+  | KBold() => 28
+  | KItalic() => 29
+  | KStrike() => 30
+  | KLink() => 31
+
+implement is_kind(k, expect) = ieq(kind_code(k), kind_code(expect))
+
+implement is_heading(k) = case+ k of
+  | KH1() => true
+  | KH2() => true
+  | KH3() => true
+  | KH4() => true
+  | KH5() => true
+  | KH6() => true
+  | KNone() => false
+  | KPara() => false
+  | KUl() => false
+  | KOl() => false
+  | KLi() => false
+  | KQuote() => false
+  | KCode() => false
+  | KHr() => false
+  | KTable() => false
+  | KText() => false
+  | KWiki() => false
+  | KEmbed() => false
+  | KTag() => false
+  | KTask() => false
+  | KFn() => false
+  | KFndef() => false
+  | KHigh() => false
+  | KMath() => false
+  | KMathb() => false
+  | KFm() => false
+  | KImage() => false
+  | KTd() => false
+  | KBold() => false
+  | KItalic() => false
+  | KStrike() => false
+  | KLink() => false
+
+implement is_inline(k) = case+ k of
+  | KText() => true
+  | KWiki() => true
+  | KEmbed() => true
+  | KTag() => true
+  | KFn() => true
+  | KHigh() => true
+  | KMath() => true
+  | KMathb() => true
+  | KTd() => true
+  | KNone() => false
+  | KPara() => false
+  | KH1() => false
+  | KH2() => false
+  | KH3() => false
+  | KH4() => false
+  | KH5() => false
+  | KH6() => false
+  | KUl() => false
+  | KOl() => false
+  | KLi() => false
+  | KQuote() => false
+  | KCode() => false
+  | KHr() => false
+  | KTable() => false
+  | KTask() => false
+  | KFndef() => false
+  | KFm() => false
+  | KImage() => false
+  | KBold() => false
+  | KItalic() => false
+  | KStrike() => false
+  | KLink() => false
+
+implement heading_stops(k, limit) =
+  is_heading(k) andalso ile(kind_code(k), kind_code(limit))
+
+implement doc_node_kind(d, i) = kind_of(nget(d, i, NF_KIND))
 implement doc_node_start(d, i) = nget(d, i, NF_START)
 implement doc_node_end(d, i) = nget(d, i, NF_END)
 implement doc_node_depth(d, i) = nget(d, i, NF_DEPTH)
@@ -719,18 +860,15 @@ in
   end
 end
 
-fun block_kind(k: int): int =
-  if ieq(k, NK_TEXT) orelse ieq(k, NK_WIKI) orelse ieq(k, NK_EMBED) orelse ieq(k, NK_TAG) orelse ieq(k, NK_FN) orelse ieq(k, NK_HIGH) orelse ieq(k, NK_MATH) orelse ieq(k, NK_MATHB) orelse ieq(k, NK_TD) then 0 else 1
+extern fun hide_until_exh(d: !Doc, i: int, n: int, hk: NodeKind): void = "mac#anth_die_void"
 
-extern fun hide_until_exh(d: !Doc, i: int, n: int, hk: int): void = "mac#anth_die_void"
-
-fun hide_until_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, n: int, hk: int): void =
+fun hide_until_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, n: int, hk: NodeKind): void =
   if recfuel > 0 then (
     if ige(i, n) then ()
     else let
       val k = doc_node_kind(d, i)
     in
-      if ige(k, NK_H1) andalso ile(k, NK_H6) andalso ile(k, hk) then ()
+      if heading_stops(k, hk) then ()
       else let
         val () = doc_node_set_hidden(d, i, On)
         val () = doc_node_set_height(d, i, 0)
@@ -740,7 +878,7 @@ fun hide_until_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: i
     end
   ) else hide_until_exh(d, i, n, hk)
 
-fun hide_until(d: !Doc, i: int, n: int, hk: int): void = hide_until_m(airlock_nat(MAX_REC_FUEL), d, i, n, hk)
+fun hide_until(d: !Doc, i: int, n: int, hk: NodeKind): void = hide_until_m(airlock_nat(MAX_REC_FUEL), d, i, n, hk)
 
 extern fun hide_list_exh(d: !Doc, i: int, n: int, depth: int): void = "mac#anth_die_void"
 
@@ -751,8 +889,8 @@ fun hide_list_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: in
       val k = doc_node_kind(d, i)
       val dp = doc_node_depth(d, i)
     in
-      if (ieq(k, NK_LI) orelse ieq(k, NK_TASK) orelse ieq(k, NK_UL) orelse ieq(k, NK_OL)) andalso ile(dp, depth) then ()
-      else if block_kind(k) = 1 andalso ile(dp, depth) andalso ine(k, NK_TEXT) then ()
+      if (is_kind(k, KLi) orelse is_kind(k, KTask) orelse is_kind(k, KUl) orelse is_kind(k, KOl)) andalso ile(dp, depth) then ()
+      else if not(is_inline(k)) andalso ile(dp, depth) andalso not(is_kind(k, KText)) then ()
       else let
         val () = doc_node_set_hidden(d, i, On)
         val () = doc_node_set_height(d, i, 0)
@@ -793,14 +931,14 @@ fun node_height(d: !Doc, i: int, lh: int): int = let
   val lines = count_nl(d, doc_node_start(d, i), doc_node_end(d, i), 1)
 in
   if is_on(doc_node_hidden(d, i)) then 0
-  else if ieq(k, NK_EMBED) then let
+  else if is_kind(k, KEmbed) then let
     val a = doc_node_aux(d, i)
   in
     if igt(a, 8) then a else 0
   end
-  else if ieq(block_kind(k), 0) then 0
-  else if ieq(k, NK_HR) then 12
-  else if ieq(k, NK_IMAGE) then let
+  else if is_inline(k) then 0
+  else if is_kind(k, KHr) then 12
+  else if is_kind(k, KImage) then let
     val a = doc_node_aux(d, i)
   in
     if igt(a, 8) then a else 96
@@ -818,8 +956,8 @@ fun place_one_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, n: in
       val h = node_height(d, i, lh)
       val () = doc_node_set_height(d, i, h)
       val () =
-        if ige(k, NK_H1) andalso ile(k, NK_H6) andalso is_on(doc_node_collapsed(d, i)) then hide_until(d, iadd(i, 1), n, k)
-        else if (ieq(k, NK_LI) orelse ieq(k, NK_TASK)) andalso is_on(doc_node_collapsed(d, i)) then hide_list(d, iadd(i, 1), n, doc_node_depth(d, i))
+        if is_heading(k) andalso is_on(doc_node_collapsed(d, i)) then hide_until(d, iadd(i, 1), n, k)
+        else if (is_kind(k, KLi) orelse is_kind(k, KTask)) andalso is_on(doc_node_collapsed(d, i)) then hide_list(d, iadd(i, 1), n, doc_node_depth(d, i))
         else ()
     in
       place_one_m(recfuel - 1, d, n, iadd(i, 1), lh)
@@ -868,7 +1006,7 @@ fun widget_h_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: in
       val k = doc_node_kind(d, i)
       val ns = doc_node_start(d, i)
       val h = doc_node_height(d, i)
-      val use = if is_off(doc_node_hidden(d, i)) andalso ige(ns, st) andalso ilt(ns, en) andalso (ieq(k, NK_IMAGE) orelse ieq(k, NK_EMBED)) andalso igt(h, acc) then h else acc
+      val use = if is_off(doc_node_hidden(d, i)) andalso ige(ns, st) andalso ilt(ns, en) andalso (is_kind(k, KImage) orelse is_kind(k, KEmbed)) andalso igt(h, acc) then h else acc
     in
       widget_h_m(recfuel - 1, d, st, en, iadd(i, 1), n, use)
     end
@@ -909,7 +1047,7 @@ fun stamp_nodes_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, lh:
       val line = doc_line_of(d, doc_node_start(d, i))
       val ly = doc_line_y(d, line)
       val k = doc_node_kind(d, i)
-      val y = if ieq(k, NK_IMAGE) orelse ieq(k, NK_EMBED) then iadd(ly, lh) else ly
+      val y = if is_kind(k, KImage) orelse is_kind(k, KEmbed) then iadd(ly, lh) else ly
       val () = doc_node_set_y(d, i, y)
     in
       stamp_nodes_m(recfuel - 1, d, lh, iadd(i, 1))
@@ -1701,7 +1839,7 @@ implement doc_toggle_task(d, i) = let
   val n = d_nnodes(d)
 in
   if i < 0 orelse i >= n then ()
-  else if ine(doc_node_kind(d, i), NK_TASK) then ()
+  else if not(is_kind(doc_node_kind(d, i), KTask)) then ()
   else let
     val st = doc_node_start(d, i)
     val en = doc_node_end(d, i)
@@ -1717,16 +1855,16 @@ implement column_w(avail) =
 
 implement column_x(pane, avail) = iadd(pane, idiv(isub(avail, column_w(avail)), 2))
 
-extern fun has_kind_exh(d: !Doc, k: int, i: int): int = "mac#anth_die_int"
+extern fun has_kind_exh(d: !Doc, k: NodeKind, i: int): int = "mac#anth_die_int"
 
-fun has_kind_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, k: int, i: int): int =
+fun has_kind_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, k: NodeKind, i: int): int =
   if recfuel > 0 then (
     if ige(i, d_nnodes(d)) then 0
-    else if ieq(doc_node_kind(d, i), k) then 1
+    else if is_kind(doc_node_kind(d, i), k) then 1
     else has_kind_m(recfuel - 1, d, k, iadd(i, 1))
   ) else has_kind_exh(d, k, i)
 
-fun has_kind(d: !Doc, k: int, i: int): int = has_kind_m(airlock_nat(MAX_REC_FUEL), d, k, i)
+fun has_kind(d: !Doc, k: NodeKind, i: int): int = has_kind_m(airlock_nat(MAX_REC_FUEL), d, k, i)
 
 fun put_str(d: !Doc, s: string): void =
   doc_insert(d, c_str_ptr(s), c_strlen(s))
@@ -1750,7 +1888,7 @@ extern fun first_heading_exh(d: !Doc, i: int): int = "mac#anth_die_int"
 fun first_heading_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int): int =
   if recfuel > 0 then (
     if ige(i, doc_nnodes(d)) then ~1
-    else if ieq(doc_get(d, i, 0), NK_H1) then i
+    else if is_kind(doc_node_kind(d, i), KH1) then i
     else first_heading_m(recfuel - 1, d, iadd(i, 1))
   ) else first_heading_exh(d, i)
 
@@ -1774,38 +1912,38 @@ end
 fun selftest_fm_check(): int = let
   val d2 = doc_open()
   val () = put_str(d2, "---\ntitle: x\n---\n")
-  val fm = has_kind(d2, NK_FM, 0)
+  val fm = has_kind(d2, KFm, 0)
   val () = doc_free(d2)
 in
   fm
 end
 
 fun selftest_print_kinds_1(d: !Doc, gap_ok: Toggle): int = let
-  val h = has_kind(d, NK_H1, 0)
-  val li = has_kind(d, NK_LI, 0)
-  val task = has_kind(d, NK_TASK, 0)
-  val code = has_kind(d, NK_CODE, 0)
+  val h = has_kind(d, KH1, 0)
+  val li = has_kind(d, KLi, 0)
+  val task = has_kind(d, KTask, 0)
+  val code = has_kind(d, KCode, 0)
   val () = println! ("gap=", toggle_int(gap_ok), " h=", h, " li=", li, " task=", task, " code=", code)
 in
   (if is_on(gap_ok) andalso ieq(h, 1) andalso ieq(li, 1) andalso ieq(task, 1) andalso ieq(code, 1) then 1 else 0)
 end
 
 fun selftest_print_kinds_2(d: !Doc): int = let
-  val table = has_kind(d, NK_TABLE, 0)
-  val quote = has_kind(d, NK_QUOTE, 0)
-  val wiki = has_kind(d, NK_WIKI, 0)
-  val img = has_kind(d, NK_IMAGE, 0)
-  val tag = has_kind(d, NK_TAG, 0)
+  val table = has_kind(d, KTable, 0)
+  val quote = has_kind(d, KQuote, 0)
+  val wiki = has_kind(d, KWiki, 0)
+  val img = has_kind(d, KImage, 0)
+  val tag = has_kind(d, KTag, 0)
   val () = println! ("table=", table, " quote=", quote, " wiki=", wiki, " img=", img, " tag=", tag)
 in
   (if ieq(table, 1) andalso ieq(quote, 1) andalso ieq(wiki, 1) andalso ieq(img, 1) andalso ieq(tag, 1) then 1 else 0)
 end
 
 fun selftest_print_kinds_3(d: !Doc, fm: int): int = let
-  val high = has_kind(d, NK_HIGH, 0)
-  val math = has_kind(d, NK_MATH, 0)
-  val mathb = has_kind(d, NK_MATHB, 0)
-  val fndef = has_kind(d, NK_FNDEF, 0)
+  val high = has_kind(d, KHigh, 0)
+  val math = has_kind(d, KMath, 0)
+  val mathb = has_kind(d, KMathb, 0)
+  val fndef = has_kind(d, KFndef, 0)
   val () = println! ("high=", high, " math=", math, " mathb=", mathb, " fn=", fndef, " fm=", fm)
 in
   (if ieq(high, 1) andalso ieq(math, 1) andalso ieq(mathb, 1) andalso ieq(fndef, 1) andalso ieq(fm, 1) then 1 else 0)
@@ -1836,7 +1974,7 @@ fun selftest_fold_flag(d: !Doc, hi: int): int =
 fun selftest_tagline_check(): int = let
   val d4 = doc_open()
   val () = put_str(d4, "#etiket/alt\n")
-  val tl = (if ieq(has_kind(d4, NK_TAG, 0), 1) andalso ilt(doc_nnodes(d4), 8) then 1 else 0) : int
+  val tl = (if ieq(has_kind(d4, KTag, 0), 1) andalso ilt(doc_nnodes(d4), 8) then 1 else 0) : int
   val () = doc_free(d4)
 in
   tl

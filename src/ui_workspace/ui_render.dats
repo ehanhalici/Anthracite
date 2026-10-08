@@ -203,9 +203,9 @@ fun resolve_media_path(d: !Doc, i: int, vault: !Buf, rel: &Buf >> _, full: &Buf 
 in
 end
 
-fun bind_one_kind(d: !Doc, i: int, k: int, c: &Cache >> _, r: !Rend, lh: int, colw: int, shown: !Buf): void =
-  if ieq(k, NK_IMAGE) then bind_image_height(d, i, c, r, shown, colw)
-  else if ieq(k, NK_EMBED) then bind_embed_height(d, i, shown, lh)
+fun bind_one_kind(d: !Doc, i: int, k: NodeKind, c: &Cache >> _, r: !Rend, lh: int, colw: int, shown: !Buf): void =
+  if is_kind(k, KImage) then bind_image_height(d, i, c, r, shown, colw)
+  else if is_kind(k, KEmbed) then bind_embed_height(d, i, shown, lh)
   else ()
 
 fun bind_one(d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int): void = let
@@ -241,24 +241,24 @@ in
   doc_layout(d, lh)
 end
 
-fun kind_col(k: int): uint =
-  if ige(k, 2) andalso ile(k, 7) then col_heading()
-  else if ieq(k, 16) orelse ieq(k, 17) orelse ieq(k, 31) then col_link()
-  else if ieq(k, 18) then col_tag()
-  else if ieq(k, 22) then col_hightxt()
-  else if ieq(k, 28) then col_white()
-  else if ieq(k, 29) then col_accent()
-  else if ieq(k, 30) then col_muted()
-  else if ieq(k, 23) orelse ieq(k, 24) then col_math()
-  else if ieq(k, 12) then col_code()
-  else if ieq(k, 11) then col_quote()
-  else if ieq(k, 19) then col_task()
-  else if ieq(k, 25) then col_fm()
-  else if ieq(k, 20) orelse ieq(k, 21) then col_accent()
+fun kind_col(k: NodeKind): uint =
+  if is_heading(k) then col_heading()
+  else if is_kind(k, KWiki) orelse is_kind(k, KEmbed) orelse is_kind(k, KLink) then col_link()
+  else if is_kind(k, KTag) then col_tag()
+  else if is_kind(k, KHigh) then col_hightxt()
+  else if is_kind(k, KBold) then col_white()
+  else if is_kind(k, KItalic) then col_accent()
+  else if is_kind(k, KStrike) then col_muted()
+  else if is_kind(k, KMath) orelse is_kind(k, KMathb) then col_math()
+  else if is_kind(k, KCode) then col_code()
+  else if is_kind(k, KQuote) then col_quote()
+  else if is_kind(k, KTask) then col_task()
+  else if is_kind(k, KFm) then col_fm()
+  else if is_kind(k, KFn) orelse is_kind(k, KFndef) then col_accent()
   else col_text()
 
-fun is_box(k: int): int =
-  if ieq(k, 1) orelse (ige(k, 2) andalso ile(k, 7)) orelse ieq(k, 10) orelse ieq(k, 11) orelse ieq(k, 12) orelse ieq(k, 14) orelse ieq(k, 19) orelse ieq(k, 21) orelse ieq(k, 25) then 1 else 0
+fun is_box(k: NodeKind): bool =
+  is_kind(k, KPara) orelse is_heading(k) orelse is_kind(k, KLi) orelse is_kind(k, KQuote) orelse is_kind(k, KCode) orelse is_kind(k, KTable) orelse is_kind(k, KTask) orelse is_kind(k, KFndef) orelse is_kind(k, KFm)
 
 
 fun text_run_end(d: !Doc, i0: int, b: int): int = let
@@ -377,8 +377,8 @@ fun count_before_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, a:
 
 fun count_before(d: !Doc, a: int, p: int, k0: int): int = count_before_m(airlock_nat(MAX_REC_FUEL), d, a, p, k0)
 
-fun draw_arrow(f: !Font, r: !Rend, d: !Doc, i: int, k: int, colx: int, y: int): void =
-  if (ige(k, NK_H1) andalso ile(k, NK_H6)) orelse ieq(k, NK_LI) orelse ieq(k, NK_TASK) then let
+fun draw_arrow(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, colx: int, y: int): void =
+  if is_heading(k) orelse is_kind(k, KLi) orelse is_kind(k, KTask) then let
     val folded = doc_node_collapsed(d, i)
     val arr = if is_on(folded) then ">" else "v"
     val acol = if is_on(folded) then col_accent() else col_muted()
@@ -423,16 +423,16 @@ in
   total_adv
 end
 
-fun heading_scale(k: int, snum: &int >> _, sden: &int >> _): void =
-  if ieq(k, NK_H1) then (snum := 7; sden := 4)
-  else if ieq(k, NK_H2) then (snum := 3; sden := 2)
-  else if ieq(k, NK_H3) then (snum := 5; sden := 4)
-  else if ieq(k, NK_H4) then (snum := 23; sden := 20)
-  else if ieq(k, NK_H5) then (snum := 11; sden := 10)
+fun heading_scale(k: NodeKind, snum: &int >> _, sden: &int >> _): void =
+  if is_kind(k, KH1) then (snum := 7; sden := 4)
+  else if is_kind(k, KH2) then (snum := 3; sden := 2)
+  else if is_kind(k, KH3) then (snum := 5; sden := 4)
+  else if is_kind(k, KH4) then (snum := 23; sden := 20)
+  else if is_kind(k, KH5) then (snum := 11; sden := 10)
   else (snum := 1; sden := 1)
 
 
-fun draw_heading_text(f: !Font, r: !Rend, d: !Doc, a: int, b: int, k: int, colx: int, yy: int, scratch: &Buf >> _): void = let
+fun draw_heading_text(f: !Font, r: !Rend, d: !Doc, a: int, b: int, k: NodeKind, colx: int, yy: int, scratch: &Buf >> _): void = let
   var snum: int = 1
   var sden: int = 1
   val () = heading_scale(k, snum, sden)
@@ -447,7 +447,7 @@ fun draw_heading_text(f: !Font, r: !Rend, d: !Doc, a: int, b: int, k: int, colx:
 in
 end
 
-fun draw_node_heading(f: !Font, r: !Rend, d: !Doc, i: int, k: int,
+fun draw_node_heading(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind,
                       oy: int, ph: int, scroll: int, lh: int, colx: int, y: int,
                       viewmode: ViewMode, scratch: &Buf >> _,
                       py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _): void = let
@@ -465,7 +465,7 @@ in
   else ()
 end
 
-fun draw_node_box(f: !Font, r: !Rend, d: !Doc, i: int, k: int,
+fun draw_node_box(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind,
                   oy: int, scroll: int, lh: int, colx: int, y: int, h: int,
                   scratch: &Buf >> _,
                   py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _): void = let
@@ -476,9 +476,9 @@ fun draw_node_box(f: !Font, r: !Rend, d: !Doc, i: int, k: int,
   val () = pen_line := ~1
   val () = pen_x := colx
 in
-  if ieq(k, NK_CODE) orelse ieq(k, NK_FM) orelse ieq(k, NK_FNDEF) then
+  if is_kind(k, KCode) orelse is_kind(k, KFm) orelse is_kind(k, KFndef) then
     draw_bytes(f, r, d, a, b, colx, oy, scroll, kind_col(k), scratch)
-  else if ieq(k, NK_QUOTE) then
+  else if is_kind(k, KQuote) then
     rend_rect(r, isub(colx, 8), y, 3, imax(h, lh), col_quote())
   else ()
 end
@@ -641,30 +641,30 @@ in
 end
 
 
-fun draw_node_read_text(f: !Font, r: !Rend, d: !Doc, i: int, k: int, oy: int, ph: int, scroll: int,
+fun draw_node_read_text(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, oy: int, ph: int, scroll: int,
                         lh: int, colx: int, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _): void = let
   val a = doc_node_start(d, i)
   val b = doc_node_end(d, i)
-  val c = (if ieq(k, NK_TAG) then col_tag() else col_text()) : uint
+  val c = (if is_kind(k, KTag) then col_tag() else col_text()) : uint
   val () = seen_int(draw_view_slice(f, r, d, a, b, colx, oy, scroll, lh, ph, c, scratch, pen_x, pen_line))
 in
 end
 
-fun draw_node_read_inline(f: !Font, r: !Rend, d: !Doc, i: int, k: int, oy: int, ph: int, scroll: int,
+fun draw_node_read_inline(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, oy: int, ph: int, scroll: int,
                           lh: int, colx: int, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _): void =
-  if ieq(k, NK_LINK) then
+  if is_kind(k, KLink) then
     draw_node_read_link(f, r, d, i, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line)
-  else if ieq(k, NK_WIKI) then
+  else if is_kind(k, KWiki) then
     draw_node_read_wiki(f, r, d, i, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line)
-  else if ieq(k, NK_HIGH) then
+  else if is_kind(k, KHigh) then
     draw_node_read_high(f, r, d, i, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line)
-  else if ieq(k, NK_BOLD) then
+  else if is_kind(k, KBold) then
     draw_node_read_bold(f, r, d, i, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line)
-  else if ieq(k, NK_ITALIC) then
+  else if is_kind(k, KItalic) then
     draw_node_read_italic(f, r, d, i, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line)
-  else if ieq(k, NK_STRIKE) then
+  else if is_kind(k, KStrike) then
     draw_node_read_strike(f, r, d, i, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line)
-  else if ieq(k, NK_MATH) then
+  else if is_kind(k, KMath) then
     draw_node_read_math(f, r, d, i, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line)
   else
     draw_node_read_text(f, r, d, i, k, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line)
@@ -683,10 +683,10 @@ fun edit_highlight_bg(f: !Font, r: !Rend, d: !Doc, a: int, b: int, oy: int, scro
 in
 end
 
-fun draw_node_edit_fallback(f: !Font, r: !Rend, d: !Doc, i: int, k: int,
+fun draw_node_edit_fallback(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind,
                             oy: int, ph: int, scroll: int, lh: int, colx: int,
                             scratch: &Buf >> _): void =
-  if ieq(k, NK_HIGH) then let
+  if is_kind(k, KHigh) then let
     val a = doc_node_start(d, i)
     val b = doc_node_end(d, i)
     val () = edit_highlight_bg(f, r, d, a, b, oy, scroll, lh, colx, scratch)
@@ -702,20 +702,20 @@ fun draw_node_edit_fallback(f: !Font, r: !Rend, d: !Doc, i: int, k: int,
   end
 
 
-fun draw_node_content(f: !Font, r: !Rend, d: !Doc, i: int, k: int, oy: int, pw: int, ph: int, scroll: int,
+fun draw_node_content(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, oy: int, pw: int, ph: int, scroll: int,
                       lh: int, colx: int, y: int, h: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _,
                       py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode): void =
-  if ige(k, NK_H1) andalso ile(k, NK_H6) then
+  if is_heading(k) then
     draw_node_heading(f, r, d, i, k, oy, ph, scroll, lh, colx, y, viewmode, scratch, py, pa, pen_x, pen_line)
-  else if ieq(is_box(k), 1) then
+  else if is_box(k) then
     draw_node_box(f, r, d, i, k, oy, scroll, lh, colx, y, h, scratch, py, pa, pen_x, pen_line)
-  else if ieq(k, NK_HR) then (
+  else if is_kind(k, KHr) then (
     pen_line := ~1; pen_x := colx;
     rend_rect(r, colx, iadd(y, 4), column_w(pw), 2, col_line())
   )
-  else if ieq(k, NK_IMAGE) then
+  else if is_kind(k, KImage) then
     draw_node_image(r, d, i, pw, colx, y, h, vault, c, pen_x, pen_line)
-  else if ieq(k, NK_EMBED) then
+  else if is_kind(k, KEmbed) then
     draw_node_embed(f, r, d, i, colx, y, lh, vault, pen_x, pen_line)
   else if is_view_read(viewmode) then
     draw_node_read_inline(f, r, d, i, k, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line)
@@ -729,10 +729,10 @@ fun draw_node(f: !Font, r: !Rend, d: !Doc, i: int, ox: int, oy: int, pw: int, ph
   val colx = column_x(ox, pw)
   val hidden = doc_node_hidden(d, i)
   val p_idx = doc_node_parent(d, i)
-  val p_k = if ige(p_idx, 0) then doc_node_kind(d, p_idx) else 0
-  val in_heading = if ige(p_k, NK_H1) andalso ile(p_k, NK_H6) then 1 else 0
+  val p_k = if ige(p_idx, 0) then doc_node_kind(d, p_idx) else KNone
+  val in_heading = is_heading(p_k)
 in
-  if is_on(hidden) orelse (ieq(in_heading, 1) andalso is_view_read(viewmode)) then ()
+  if is_on(hidden) orelse (in_heading andalso is_view_read(viewmode)) then ()
   else let
     val () = draw_arrow(f, r, d, i, k, colx, y)
   in
@@ -1048,8 +1048,8 @@ end
 
 fun click_doc(f: !Font, r: !Rend, d: !Doc, x: int, y: int, ox: int, pw: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &int >> _, hiti: &int >> _): void = let
   val ni = node_covering_impl(d, y, oy, scroll, 0, ~1)
-  val hk = if ige(ni, 0) then doc_node_kind(d, ni) else 0
-  val () = hitk := hk
+  val hk = if ige(ni, 0) then doc_node_kind(d, ni) else KNone
+  val () = hitk := kind_code(hk)
   val () = hiti := ni
   val docy = iadd(isub(y, oy), scroll)
   val line0 = line_at_y_fast(d, docy, lh)
@@ -1057,7 +1057,7 @@ fun click_doc(f: !Font, r: !Rend, d: !Doc, x: int, y: int, ox: int, pw: int, oy:
   val colx = column_x(ox, pw)
   val () = seen_int(lh)
 in
-  if ige(ni, 0) andalso (ieq(hk, NK_IMAGE) orelse ieq(hk, NK_EMBED)) then doc_set_caret_move(d, doc_node_start(d, ni))
+  if ige(ni, 0) andalso (is_kind(hk, KImage) orelse is_kind(hk, KEmbed)) then doc_set_caret_move(d, doc_node_start(d, ni))
   else click_place(f, r, d, x, ls, colx, scratch, keep)
 end
 

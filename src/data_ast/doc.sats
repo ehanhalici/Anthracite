@@ -36,6 +36,23 @@ macdef NK_ITALIC = 29
 macdef NK_STRIKE = 30
 macdef NK_LINK = 31
 
+datatype NodeKind =
+  | KNone
+  | KPara
+  | KH1 | KH2 | KH3 | KH4 | KH5 | KH6
+  | KUl | KOl | KLi
+  | KQuote | KCode | KHr | KTable
+  | KText | KWiki | KEmbed | KTag | KTask
+  | KFn | KFndef | KHigh | KMath | KMathb | KFm
+  | KImage | KTd | KBold | KItalic | KStrike | KLink
+
+fun kind_of(n: int): NodeKind
+fun kind_code(k: NodeKind): int
+fun is_kind(k: NodeKind, expect: NodeKind): bool
+fun is_heading(k: NodeKind): bool
+fun is_inline(k: NodeKind): bool
+fun heading_stops(k: NodeKind, limit: NodeKind): bool
+
 macdef NF_KIND = 0
 macdef NF_START = 1
 macdef NF_END = 2
@@ -54,7 +71,7 @@ macdef TASK_STATE_DONE = 120
 macdef TASK_STATE_DONE_UPPER = 88
 macdef TASK_STATE_PROGRESS = 47
 
-fun doc_node_kind(d: !Doc, i: int): int
+fun doc_node_kind(d: !Doc, i: int): NodeKind
 fun doc_node_start(d: !Doc, i: int): int
 fun doc_node_end(d: !Doc, i: int): int
 fun doc_node_depth(d: !Doc, i: int): int
