@@ -41,12 +41,12 @@ vtypedef App_record = @{
   vault= Buf, tabs= Tabs, cache= Cache,
   active= int, righti= int, split= Toggle, focus= Toggle, side= Sidebar, fontpx= int,
   clip= Buf, menu= MenuKind, menux= int, menuy= int, drag= DragKind, dragi= int,
-  prompt= PromptKind, promptb= Buf, query= Buf, qfocus= int,
+  prompt= PromptKind, promptb= Buf, query= Buf, qfocus= Toggle,
   tree= Buf, tmeta= Buf, tn= int, hits= Buf, hmeta= Buf, hn= int,
-  sel= int, treedirty= int, paste= int, hitk= int, hiti= int, downx= int, downy= int,
+  sel= int, treedirty= Toggle, paste= Toggle, hitk= int, hiti= int, downx= int, downy= int,
   scratch= Buf, imgpath= Buf, viewmode= ViewMode, font_idx= int,
   fpaths= Buf, fnames= Buf, fmeta= Buf, fcnt= int, font_path= Buf,
-  vault_select= int, vpaths= Buf, vnames= Buf, vmeta= Buf, vcnt= int,
+  vault_select= Toggle, vpaths= Buf, vnames= Buf, vmeta= Buf, vcnt= int,
   hoverx= int, hovery= int
 }
 datavtype App_ = APP of App_record
@@ -125,9 +125,9 @@ fun vault_switch_finish(s: &App_record >> _, new_t: Tabs, fpx: int, vm: int, sp:
   val () = s.split := toggle_of(ieq(sp, 1))
   val () = s.active := act
   val () = s.righti := 0
-  val () = s.treedirty := 1
+  val () = s.treedirty := On
   val () = bclear(s.promptb)
-  val () = s.vault_select := 0
+  val () = s.vault_select := Off
 in
 end
 
@@ -233,12 +233,12 @@ in
     vault= vb, tabs= tabs, cache= CNil(),
     active= act_idx, righti= 0, split= toggle_of(ieq(sp, 1)), focus= Off, side= SideNone, fontpx= fpx,
     clip= buf_make(64), menu= MenuNone, menux= 0, menuy= 0, drag= DragNone, dragi= ~1,
-    prompt= PromptNone, promptb= buf_make(256), query= buf_make(64), qfocus= 0,
+    prompt= PromptNone, promptb= buf_make(256), query= buf_make(64), qfocus= Off,
     tree= buf_make(64), tmeta= buf_make(64), tn= 0, hits= buf_make(64), hmeta= buf_make(64), hn= 0,
-    sel= ~1, treedirty= 1, paste= 0, hitk= 0, hiti= ~1, downx= ~1, downy= ~1,
+    sel= ~1, treedirty= On, paste= Off, hitk= 0, hiti= ~1, downx= ~1, downy= ~1,
     scratch= buf_make(4096), imgpath= buf_make(64), viewmode= view_mode_of_code(vmode), font_idx= 0,
     fpaths= fpaths, fnames= fnames, fmeta= fmeta, fcnt= fcnt, font_path= fpath,
-    vault_select= f_vsel, vpaths= vpaths, vnames= vnames, vmeta= vmeta, vcnt= vcnt,
+    vault_select= toggle_of(ieq(f_vsel, 1)), vpaths= vpaths, vnames= vnames, vmeta= vmeta, vcnt= vcnt,
     hoverx= ~1, hovery= ~1
   })
 end
@@ -287,14 +287,14 @@ end
 fun pane_of(sfocus: Toggle, active: int, righti: int): int =
   if is_off(sfocus) then active else righti
 fun ensure_tree_fresh(s: &App_record >> _): void =
-  if ieq(s.treedirty, 1) andalso is_side_files(s.side) then let
+  if is_on(s.treedirty) andalso is_side_files(s.side) then let
     val () = bclear(s.tree)
     val () = bclear(s.tmeta)
     val () = s.tn := 0
     val () = scan_dir(s.vault, 0, s.tmeta, s.tree, s.tn)
     val () = if ige(s.sel, s.tn) then s.sel := ~1 else ()
   in
-    s.treedirty := 0
+    s.treedirty := Off
   end else ()
 
 fun draw_search_plain_hit(f: !Font, r: !Rend, hits: !Buf, hmeta: !Buf, row: int): void = let
@@ -322,7 +322,7 @@ fun draw_search_row(f: !Font, r: !Rend, hits: !Buf, hmeta: !Buf, row: int): void
 
 fun draw_sidebar_search(f: !Font, r: !Rend, s: &App_record): void = let
   val qn = buf_len(s.query)
-  val () = ui_line_edit_draw(f, r, 8, 68, 264, 24, s.query, qn, qn, toggle_of(ieq(s.qfocus, 1)), "Aramak icin yazin...")
+  val () = ui_line_edit_draw(f, r, 8, 68, 264, 24, s.query, qn, qn, s.qfocus, "Aramak icin yazin...")
   var row: int = 0
 in
   while (ilt(row, s.hn) andalso ilt(row, 24)) (
@@ -589,7 +589,7 @@ end
 fun draw_vault_select(f: !Font, r: !Rend, a: !App, w: int, h: int): void =
   case+ a of
   | @APP(s) => let
-      val () = if ieq(s.vault_select, 1) then let
+      val () = if is_on(s.vault_select) then let
         val () = rend_rect(r, 0, 0, w, h, col_overlay())
         val mw = 520
         val mh = 360
@@ -774,8 +774,8 @@ in
   ts2
 end
 
-fun apply_key_paste(ts: Tabs, paste: &int >> _, p: !Plat): Tabs = let
-  val () = paste := 1
+fun apply_key_paste(ts: Tabs, paste: &Toggle >> _, p: !Plat): Tabs = let
+  val () = paste := On
   val () = plat_paste(p, 0)
 in
   ts
@@ -796,7 +796,7 @@ in
   ts2
 end
 
-fun apply_key(ts: Tabs, idx: int, cmd: int, vault: !Buf, clip: &Buf >> _, scratch: &Buf >> _, p: !Plat, paste: &int >> _): Tabs =
+fun apply_key(ts: Tabs, idx: int, cmd: int, vault: !Buf, clip: &Buf >> _, scratch: &Buf >> _, p: !Plat, paste: &Toggle >> _): Tabs =
   if ieq(cmd, CMD_SAVE) then tabs_ensure_paths(ts, vault)
   else if ieq(cmd, CMD_COPY) then apply_key_copy(ts, idx, clip, p)
   else if ieq(cmd, CMD_CUT) then apply_key_cut(ts, idx, clip, p)
@@ -806,7 +806,7 @@ fun apply_key(ts: Tabs, idx: int, cmd: int, vault: !Buf, clip: &Buf >> _, scratc
   else if igt(cmd, CMD_NONE) then apply_key_command(ts, idx, cmd)
   else ts
 
-fun key_dispatch(ts: Tabs, idx: int, cmd: int, vault: !Buf, clip: &Buf >> _, scratch: &Buf >> _, p: !Plat, paste: &int >> _, ev: &event): Tabs =
+fun key_dispatch(ts: Tabs, idx: int, cmd: int, vault: !Buf, clip: &Buf >> _, scratch: &Buf >> _, p: !Plat, paste: &Toggle >> _, ev: &event): Tabs =
   if ieq(cmd, CMD_TEXT_INPUT) then
     if ieq(ctrl_on(ev), 1) then ts
     else let
@@ -1112,7 +1112,7 @@ in
     val () = ensure_dir_report(target)
     val () = switch_to_vault(s, target)
   in
-  end else if is_edit_cancel(vr) andalso igt(buf_len(s.vault), 0) then s.vault_select := 0
+  end else if is_edit_cancel(vr) andalso igt(buf_len(s.vault), 0) then s.vault_select := Off
   else ()
 end
 
@@ -1151,7 +1151,7 @@ fun handle_prompt_submission(s: &App_record >> _, pr: EditResult): void =
     val () = if is_prompt_newfile(prompt_kind) then s.active := 0 else ()
     val () = s.prompt := PromptNone
     val () = bclear(s.promptb)
-    val () = s.treedirty := 1
+    val () = s.treedirty := On
     val () = buf_free(dir)
   in
     buf_free(cur)
@@ -1160,7 +1160,7 @@ fun handle_prompt_submission(s: &App_record >> _, pr: EditResult): void =
 
 fun open_search_panel(s: &App_record >> _): void = let
   val () = s.side := SideSearch
-  val () = s.qfocus := 1
+  val () = s.qfocus := On
 in
   bclear(s.query)
 end
@@ -1180,7 +1180,7 @@ end
 
 fun escape_sidebar_state(s: &App_record >> _): void = let
   val () = s.menu := MenuNone
-  val () = s.qfocus := 0
+  val () = s.qfocus := Off
   val () = s.prompt := PromptNone
 in
   bclear(s.promptb)
@@ -1234,13 +1234,13 @@ fun handle_tab_nav_cmd(s: &App_record >> _, cmd: int, ts_inter: !Tabs): void =
   else ()
 
 fun search_query_edit(s: &App_record >> _, qr: EditResult): void = let
-  val () = if ieq(s.qfocus, 1) andalso is_edit_none(qr) then refresh_search(s.vault, s.query, s.hits, s.hmeta, s.hn) else ()
-  val () = if ieq(s.qfocus, 1) andalso is_edit_cancel(qr) then s.qfocus := 0 else ()
+  val () = if is_on(s.qfocus) andalso is_edit_none(qr) then refresh_search(s.vault, s.query, s.hits, s.hmeta, s.hn) else ()
+  val () = if is_on(s.qfocus) andalso is_edit_cancel(qr) then s.qfocus := Off else ()
 in
 end
 
 fun search_hit_focus(s: &App_record >> _): void = let
-  val () = s.qfocus := 0
+  val () = s.qfocus := Off
   val () = s.active := 0
 in
   save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
@@ -1261,18 +1261,18 @@ in
 end
 
 fun key_editor_step(s: &App_record >> _, p: !Plat, f: !Font, ev: &event): void = let
-  val act = if is_prompt_none(s.prompt) andalso ieq(s.qfocus, 0) then 1 else 0
+  val act = if is_prompt_none(s.prompt) andalso is_off(s.qfocus) then 1 else 0
   val pr = if not(is_prompt_none(s.prompt)) then edit_line(s.promptb, ev, s.scratch) else EditNone
-  val qr = if ieq(s.qfocus, 1) andalso is_prompt_none(s.prompt) then edit_line(s.query, ev, s.scratch) else EditNone
+  val qr = if is_on(s.qfocus) andalso is_prompt_none(s.prompt) then edit_line(s.query, ev, s.scratch) else EditNone
   val () = search_query_edit(s, qr)
-  val hit_go = if ieq(s.qfocus, 1) andalso is_edit_submit(qr) andalso igt(s.hn, 0) then 1 else 0
+  val hit_go = if is_on(s.qfocus) andalso is_edit_submit(qr) andalso igt(s.hn, 0) then 1 else 0
   val () = if ieq(hit_go, 1) then search_hit_focus(s) else ()
   val () = handle_prompt_submission(s, pr)
   val cmd = key_code(ev, toggle_of(ieq(act, 1)))
   val () = handle_sidebar_shortcut_cmd(s, cmd)
   val () = key_tabs_step(s, p, ev, cmd, toggle_of(ieq(hit_go, 1)))
   val () = if ieq(cmd, CMD_SAVE) then let
-      val () = s.treedirty := 1
+      val () = s.treedirty := On
       val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
     in
     end else ()
@@ -1283,7 +1283,7 @@ end
 fun on_key(a: !App, p: !Plat, f: !Font, ev: &event): void =
   case+ a of
   | @APP(s) =>
-      if ieq(s.vault_select, 1) then let
+      if is_on(s.vault_select) then let
         val () = handle_vault_select_key(s, ev)
       in
         fold@(a)
@@ -1323,7 +1323,7 @@ fun handle_vault_select_click(s: &App_record >> _, x: int, y: int, w: int, h: in
   val () = if ieq(on_open_btn, 1) andalso igt(buf_len(s.promptb), 0) then vault_open_from_prompt(s) else ()
   val on_cancel_btn = if ige(x, isub(iadd(mx, mw), 116)) andalso ilt(x, isub(iadd(mx, mw), 16)) andalso ige(y, iadd(my, 312)) andalso ilt(y, iadd(my, 342)) then 1 else 0
   val () = if ieq(on_cancel_btn, 1) andalso igt(buf_len(s.vault), 0) then let
-    val () = s.vault_select := 0
+    val () = s.vault_select := Off
   in
   end else ()
 in
@@ -1338,7 +1338,7 @@ fun handle_context_menu_action(s: &App_record >> _, inside: Toggle, item: int): 
       var cur = buf_make(8)
       val () = row_path(s.tree, s.tmeta, s.sel, cur)
       val () = do_delete(cur)
-      val () = s.treedirty := 1
+      val () = s.treedirty := On
     in
       buf_free(cur)
     end else ()
@@ -1352,19 +1352,19 @@ end
 
 fun topbar_toggle_files(s: &App_record >> _): void = let
   val () = s.side := (if is_side_files(s.side) then SideNone else SideFiles)
-  val () = s.qfocus := 0
+  val () = s.qfocus := Off
 in
 end
 
 fun topbar_toggle_search(s: &App_record >> _): void = let
   val () = s.side := (if is_side_search(s.side) then SideNone else SideSearch)
-  val () = s.qfocus := (if is_side_search(s.side) then 1 else 0)
+  val () = s.qfocus := toggle_of(is_side_search(s.side))
 in
 end
 
 fun topbar_toggle_config(s: &App_record >> _): void = let
   val () = s.side := (if is_side_config(s.side) then SideNone else SideConfig)
-  val () = s.qfocus := 0
+  val () = s.qfocus := Off
 in
 end
 
@@ -1411,7 +1411,7 @@ fun handle_sidebar_config_action(s: &App_record >> _, f: !Font, x: int, y: int):
 in
   if ieq(on_kasa_btn, 1) then (
     conf_list_vaults(s.vpaths, s.vnames, s.vmeta, s.vcnt);
-    s.vault_select := 1
+    s.vault_select := On
   )
   else if ieq(on_font_px, 1) then config_cycle_font_px(s)
   else if ieq(on_font_list, 1) then config_select_font(s, f, idiv(isub(y, 205), 22))
@@ -1453,7 +1453,7 @@ fun handle_editor_click(s: &App_record >> _, f: !Font, r: !Rend, ts: Tabs, ev: &
   val ts6 = del_go(ts5, idx, s.hiti, toggle_of(is_on(imgdel)))
   val ts7 = clear_go(ts6, idx, toggle_of(is_on(clear)))
   val () = if ieq(gowiki, 1) then editor_wiki_focus(s) else ()
-  val () = if ieq(editor, 1) then s.qfocus := 0 else ()
+  val () = if ieq(editor, 1) then s.qfocus := Off else ()
 in
   ts7
 end
@@ -1496,7 +1496,7 @@ fun down_menu_clip(s: &App_record >> _, p: !Plat, ts0: !Tabs, idx: int, cut: Tog
   val () = if ieq(own, 1) then plat_own(p, 0) else ()
   val () = if ieq(own, 1) then plat_own(p, 1) else ()
   val () = if is_on(paste) then let
-      val () = s.paste := 1
+      val () = s.paste := On
     in
       plat_paste(p, 0)
     end else ()
@@ -1557,7 +1557,7 @@ fun handle_down_sidebar_click(
   val ts_hit = open_hit(ts, s.hmeta, s.hits, srow, toggle_of(ieq(open_hit_flag, 1)))
   val ts_row = open_row(ts_hit, s.tree, s.tmeta, row, toggle_of(ieq(openf, 1)))
   val () = if ieq(openf, 1) orelse ieq(open_hit_flag, 1) then down_activate_first_tab(s) else ()
-  val () = if is_on(onside) andalso is_side_search(s.side) andalso ieq(open_hit_flag, 0) then s.qfocus := 1 else ()
+  val () = if is_on(onside) andalso is_side_search(s.side) andalso ieq(open_hit_flag, 0) then s.qfocus := On else ()
   val () = if is_on(onside) andalso is_side_config(s.side) then handle_sidebar_config_action(s, f, x, y) else ()
 in
   ts_row
@@ -1621,7 +1621,7 @@ end
 fun on_down(a: !App, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int, h: int): void =
   case+ a of
   | @APP(s) =>
-      if ieq(s.vault_select, 1) then let
+      if is_on(s.vault_select) then let
         val () = handle_vault_select_click(s, ev_x(ev), ev_y(ev), w, h)
       in
         fold@(a)
@@ -1688,7 +1688,7 @@ fun move_dragged_file(s: &App_record >> _, row: int): void = let
   val () = child_path(dstp, name, final)
   val rn = fs_rename(cstr(srcp), cstr(final))
   val () = report_move_failure(rn, srcp)
-  val () = s.treedirty := 1
+  val () = s.treedirty := On
   val () = buf_free(srcp)
   val () = buf_free(dstp)
   val () = buf_free(name)
@@ -1758,7 +1758,7 @@ fun on_sel_paste(s: &App_record >> _, p: !Plat, ev: &event): void = let
   val () = tabs_sync_vfs(ts2, idx)
   val () = s.tabs := ts2
   val () = tabs_free(ph)
-  val () = s.paste := 0
+  val () = s.paste := Off
 in
 end
 
@@ -1768,7 +1768,7 @@ fun on_sel(a: !App, p: !Plat, ev: &event): void =
       val k = ev_kind(ev)
       val nclip = buf_len(s.clip)
       val () = if k = EV_SEL_REQ then plat_reply_buf(p, ev, s.clip, nclip)
-        else if k = EV_SEL_NOTIFY andalso ieq(s.paste, 1) then on_sel_paste(s, p, ev)
+        else if k = EV_SEL_NOTIFY andalso is_on(s.paste) then on_sel_paste(s, p, ev)
         else ()
     in
       fold@(a)
