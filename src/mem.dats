@@ -3,6 +3,7 @@
 #include "share/atspre_staload.hats"
 
 staload "mem.sats"
+staload "airlock.sats"
 
 extern fun c_memcpy(dst: ptr, src: ptr, n: size_t): void = "mac#memcpy"
 extern fun c_memset(dst: ptr, src: int, n: size_t): void = "mac#memset"
@@ -22,23 +23,17 @@ assume Buf = Buf_
 
 fun byte_get{l:addr}{n:nat}(
   A: !arrayptr(byte, l, n), cap: int(n), i: int
-) : int = let
-  val gi = g1ofg0(i)
-in
-  if gi >= 0 then
-    (if gi < cap then byte2int0(arrayptr_get_at(A, g1int2uint_int_size(gi))) else 0)
+) : int =
+  if i >= 0 then
+    (if i < cap then byte2int0(arrayptr_get_at(A, g1int2uint_int_size(airlock_below(i, cap)))) else 0)
   else 0
-end
 
 fun byte_put{l:addr}{n:nat}(
   A: !arrayptr(byte, l, n), cap: int(n), i: int, v: int
-) : void = let
-  val gi = g1ofg0(i)
-in
-  if gi >= 0 then
-    (if gi < cap then arrayptr_set_at(A, g1int2uint_int_size(gi), int2byte0(v)) else ())
+) : void =
+  if i >= 0 then
+    (if i < cap then arrayptr_set_at(A, g1int2uint_int_size(airlock_below(i, cap)), int2byte0(v)) else ())
   else ()
-end
 
 (* little-endian 32-bit word at byte offset 4*i (x86 native layout) *)
 
@@ -67,23 +62,17 @@ end
 
 fun word_get{l:addr}{n:nat}(
   A: !arrayptr(byte, l, n), cap: int(n), i: int
-) : int = let
-  val gi = g1ofg0(i)
-in
-  if gi >= 0 then
-    (if 4*gi+4 <= cap then word_get_at(A, gi) else 0)
+) : int =
+  if i >= 0 then
+    (if 4*i+4 <= cap then word_get_at(A, airlock_word(i, cap)) else 0)
   else 0
-end
 
 fun word_put{l:addr}{n:nat}(
   A: !arrayptr(byte, l, n), cap: int(n), i: int, v: int
-) : void = let
-  val gi = g1ofg0(i)
-in
-  if gi >= 0 then
-    (if 4*gi+4 <= cap then word_put_at(A, gi, v) else ())
+) : void =
+  if i >= 0 then
+    (if 4*i+4 <= cap then word_put_at(A, airlock_word(i, cap), v) else ())
   else ()
-end
 
 (* ---- construction / destruction ---- *)
 
@@ -113,11 +102,8 @@ end
 
 (* ---- public API ---- *)
 
-implement buf_make(n0) = let
-  val n = g1ofg0(n0)
-in
-  if n >= 1 then make_pos(n) else make_pos(1)
-end
+implement buf_make(n0) =
+  if n0 >= 1 then make_pos(airlock_pos(n0)) else make_pos(1)
 
 implement buf_free(b) = let
   val+~BUF(A, cap, len) = b
@@ -207,11 +193,8 @@ implement buf_cstr(b) =
       fold@(b); s
     end
 
-implement buf_resize(b, n0) = let
-  val n = g1ofg0(n0)
-in
-  if n >= 1 then resize_pos(b, n) else ()
-end
+implement buf_resize(b, n0) =
+  if n0 >= 1 then resize_pos(b, airlock_pos(n0)) else ()
 
 implement buf_ensure(b, n) = let
   val cap = buf_cap(b)

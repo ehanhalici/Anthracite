@@ -8,6 +8,9 @@
 %}
 
 fun airlock_nat(n: int): [m:nat] int(m) = "mac#anth_airlock_nat"
+fun airlock_pos(n: int): [m:pos] int(m) = "mac#anth_airlock_pos"
+fun airlock_below {n:nat} (i: int, cap: int(n)): [k:nat | k < n] int(k) = "mac#anth_airlock_below"
+fun airlock_word {n:nat} (i: int, cap: int(n)): [k:nat | 4*k+4 <= n] int(k) = "mac#anth_airlock_word"
 
 (* Span bridge: the remaining step count of a bounded loop, hi - lo.
    Callers must guard lo < hi (or lo <= hi) before the call; the run-time

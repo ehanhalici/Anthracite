@@ -15,6 +15,33 @@ static inline int anth_airlock_nat(int n)
   return n;
 }
 
+static inline int anth_airlock_pos(int n)
+{
+  if (n < 1) {
+    fprintf(stderr, "event=airlock_pos status=failed value=%d\n", n);
+    abort();
+  }
+  return n;
+}
+
+static inline int anth_airlock_below(int i, int cap)
+{
+  if (i < 0 || i >= cap) {
+    fprintf(stderr, "event=airlock_below status=failed i=%d cap=%d\n", i, cap);
+    abort();
+  }
+  return i;
+}
+
+static inline int anth_airlock_word(int i, int cap)
+{
+  if (i < 0 || cap < 4 || i > (cap - 4) / 4) {
+    fprintf(stderr, "event=airlock_word status=failed i=%d cap=%d\n", i, cap);
+    abort();
+  }
+  return i;
+}
+
 static inline int anth_airlock_span(int lo, int hi)
 {
   if (lo > hi) {
