@@ -1,5 +1,6 @@
 staload "mem.sats"
 staload "data_ast/doc.sats"
+staload "ui_workspace/ui_cmd.sats"
 
 datavtype Tabs =
   | TNil of ()
@@ -12,7 +13,7 @@ fun tabs_len(ts: !Tabs): int
 fun tabs_drop(ts: Tabs, i: int): Tabs
 fun tabs_add(ts: Tabs, doc: Doc, path: Buf, title: Buf): Tabs
 fun tabs_append(ts: Tabs, doc: Doc, path: Buf, title: Buf, sc: int): Tabs
-fun tabs_cmd(ts: Tabs, idx: int, cmd: int): Tabs
+fun tabs_cmd(ts: Tabs, idx: int, cmd: Cmd): Tabs
 fun tabs_ins(ts: Tabs, idx: int, p: ptr, n: int): Tabs
 fun tabs_ins_buf(ts: Tabs, idx: int, b: !Buf, n: int): Tabs
 fun tabs_scroll(ts: Tabs, idx: int, dv: int, lim: int): Tabs

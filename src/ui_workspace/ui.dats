@@ -702,7 +702,7 @@ in
   tabs_add(ts, d, p, t)
 end
 
-fun key_code_ctrl_char(c: int, sh: Toggle, ev: &event): int =
+fun key_code_ctrl_char(c: int, sh: Toggle, ev: &event): Cmd =
   if ieq(c, KEY_CHAR_Z) then (if is_on(sh) then CMD_REDO else CMD_UNDO)
   else if ieq(c, KEY_CHAR_Y) then CMD_REDO
   else if ieq(c, KEY_CHAR_S) orelse ieq(c, KEY_CHAR_S_UPPER) orelse ieq(key_is(ev, 15), 1) orelse ieq(key_is(ev, 20), 1) then CMD_SAVE
@@ -720,7 +720,7 @@ fun key_code_ctrl_char(c: int, sh: Toggle, ev: &event): int =
   else if ieq(c, KEY_CHAR_K) then CMD_WRAP_WIKILINK
   else CMD_NONE
 
-fun key_code_ctrl_nav(ev: &event, sh: Toggle): int =
+fun key_code_ctrl_nav(ev: &event, sh: Toggle): Cmd =
   if ieq(key_is(ev, KEY_LEFT), 1) then (if is_on(sh) then CMD_SELECT_WORD_LEFT else CMD_WORD_LEFT)
   else if ieq(key_is(ev, KEY_RIGHT), 1) then (if is_on(sh) then CMD_SELECT_WORD_RIGHT else CMD_WORD_RIGHT)
   else if ieq(key_is(ev, KEY_BACKSPACE), 1) then CMD_DELETE_WORD_LEFT
@@ -730,7 +730,7 @@ fun key_code_ctrl_nav(ev: &event, sh: Toggle): int =
   else if ieq(key_is(ev, KEY_TAB), 1) then (if is_on(sh) then CMD_PREV_TAB else CMD_NEXT_TAB)
   else key_code_ctrl_char(key_char(ev), sh, ev)
 
-fun key_code_non_ctrl(ev: &event, sh: Toggle): int =
+fun key_code_non_ctrl(ev: &event, sh: Toggle): Cmd =
   if ieq(key_is(ev, KEY_ESCAPE), 1) then CMD_ESCAPE
   else if ieq(key_is(ev, KEY_LEFT), 1) then (if is_on(sh) then CMD_SELECT_LEFT else CMD_CARET_LEFT)
   else if ieq(key_is(ev, KEY_RIGHT), 1) then (if is_on(sh) then CMD_SELECT_RIGHT else CMD_CARET_RIGHT)
@@ -746,16 +746,16 @@ fun key_code_non_ctrl(ev: &event, sh: Toggle): int =
   else if ieq(key_is(ev, KEY_TAB), 1) then CMD_INDENT
   else CMD_TEXT_INPUT
 
-fun key_code(ev: &event, act: Toggle): int =
+fun key_code(ev: &event, act: Toggle): Cmd =
   if is_off(act) then (if ieq(key_is(ev, KEY_ESCAPE), 1) then CMD_ESCAPE else CMD_NONE)
   else if ieq(ctrl_on(ev), 1) then key_code_ctrl_nav(ev, toggle_of(ieq(shift_on(ev), 1)))
   else key_code_non_ctrl(ev, toggle_of(ieq(shift_on(ev), 1)))
 
-fun is_modifying_cmd(cmd: int): int =
-  if ieq(cmd, CMD_BACKSPACE) orelse ieq(cmd, CMD_DELETE) orelse ieq(cmd, CMD_DELETE_SELECTION)
-     orelse ieq(cmd, CMD_UNDO) orelse ieq(cmd, CMD_REDO)
-     orelse ieq(cmd, CMD_WRAP_BOLD) orelse ieq(cmd, CMD_WRAP_ITALIC) orelse ieq(cmd, CMD_WRAP_WIKILINK)
-     orelse ieq(cmd, CMD_INDENT) orelse ieq(cmd, CMD_DELETE_WORD_LEFT) orelse ieq(cmd, CMD_DELETE_WORD_RIGHT)
+fun is_modifying_cmd(cmd: Cmd): int =
+  if is_cmd(cmd, CMD_BACKSPACE) orelse is_cmd(cmd, CMD_DELETE) orelse is_cmd(cmd, CMD_DELETE_SELECTION)
+     orelse is_cmd(cmd, CMD_UNDO) orelse is_cmd(cmd, CMD_REDO)
+     orelse is_cmd(cmd, CMD_WRAP_BOLD) orelse is_cmd(cmd, CMD_WRAP_ITALIC) orelse is_cmd(cmd, CMD_WRAP_WIKILINK)
+     orelse is_cmd(cmd, CMD_INDENT) orelse is_cmd(cmd, CMD_DELETE_WORD_LEFT) orelse is_cmd(cmd, CMD_DELETE_WORD_RIGHT)
   then 1 else 0
 
 fun apply_key_copy(ts: Tabs, idx: int, clip: &Buf >> _, p: !Plat): Tabs = let
@@ -789,25 +789,25 @@ in
   ts2
 end
 
-fun apply_key_command(ts: Tabs, idx: int, cmd: int): Tabs = let
+fun apply_key_command(ts: Tabs, idx: int, cmd: Cmd): Tabs = let
   val ts2 = tabs_cmd(ts, idx, cmd)
   val () = if ieq(is_modifying_cmd(cmd), 1) then tabs_sync_vfs(ts2, idx) else ()
 in
   ts2
 end
 
-fun apply_key(ts: Tabs, idx: int, cmd: int, vault: !Buf, clip: &Buf >> _, scratch: &Buf >> _, p: !Plat, paste: &Toggle >> _): Tabs =
-  if ieq(cmd, CMD_SAVE) then tabs_ensure_paths(ts, vault)
-  else if ieq(cmd, CMD_COPY) then apply_key_copy(ts, idx, clip, p)
-  else if ieq(cmd, CMD_CUT) then apply_key_cut(ts, idx, clip, p)
-  else if ieq(cmd, CMD_PASTE) then apply_key_paste(ts, paste, p)
-  else if ieq(cmd, CMD_NEWLINE) then apply_key_newline(ts, idx, scratch)
-  else if ieq(cmd, CMD_ESCAPE) then tabs_cmd(ts, idx, CMD_COLLAPSE_SELECTION)
-  else if igt(cmd, CMD_NONE) then apply_key_command(ts, idx, cmd)
+fun apply_key(ts: Tabs, idx: int, cmd: Cmd, vault: !Buf, clip: &Buf >> _, scratch: &Buf >> _, p: !Plat, paste: &Toggle >> _): Tabs =
+  if is_cmd(cmd, CMD_SAVE) then tabs_ensure_paths(ts, vault)
+  else if is_cmd(cmd, CMD_COPY) then apply_key_copy(ts, idx, clip, p)
+  else if is_cmd(cmd, CMD_CUT) then apply_key_cut(ts, idx, clip, p)
+  else if is_cmd(cmd, CMD_PASTE) then apply_key_paste(ts, paste, p)
+  else if is_cmd(cmd, CMD_NEWLINE) then apply_key_newline(ts, idx, scratch)
+  else if is_cmd(cmd, CMD_ESCAPE) then tabs_cmd(ts, idx, CMD_COLLAPSE_SELECTION)
+  else if not(is_cmd(cmd, CMD_NONE)) then apply_key_command(ts, idx, cmd)
   else ts
 
-fun key_dispatch(ts: Tabs, idx: int, cmd: int, vault: !Buf, clip: &Buf >> _, scratch: &Buf >> _, p: !Plat, paste: &Toggle >> _, ev: &event): Tabs =
-  if ieq(cmd, CMD_TEXT_INPUT) then
+fun key_dispatch(ts: Tabs, idx: int, cmd: Cmd, vault: !Buf, clip: &Buf >> _, scratch: &Buf >> _, p: !Plat, paste: &Toggle >> _, ev: &event): Tabs =
+  if is_cmd(cmd, CMD_TEXT_INPUT) then
     if ieq(ctrl_on(ev), 1) then ts
     else let
       val cap = buf_cap(scratch)
@@ -861,7 +861,7 @@ fun fill_dir(dir: &Buf >> _, cur: !Buf, vault: !Buf, use_dir: Toggle, sel: int):
 fun copy_if(ts: !Tabs, idx: int, clip: &Buf >> _, go: Toggle): void =
   if is_on(go) then tabs_copy(ts, idx, clip) else touchb(clip)
 
-fun cmd_if(ts: Tabs, idx: int, cmd: int, go: Toggle): Tabs =
+fun cmd_if(ts: Tabs, idx: int, cmd: Cmd, go: Toggle): Tabs =
   if is_on(go) then tabs_cmd(ts, idx, cmd) else ts
 
 fun drop_if(ts: Tabs, ti: int, go: Toggle): Tabs =
@@ -1096,9 +1096,9 @@ fun open_created_file(ts: Tabs, dir: !Buf, name: !Buf, kind: PromptKind): Tabs =
     tabs_open(ts, new_file)
   end else ts
 
-fun apply_tab_cmd(ts: Tabs, cmd: int, idx: int): Tabs =
-  if ieq(cmd, CMD_CLOSE_TAB) then close_active_tab(ts, idx)
-  else if ieq(cmd, CMD_NEW_TAB) then new_empty_tab(ts)
+fun apply_tab_cmd(ts: Tabs, cmd: Cmd, idx: int): Tabs =
+  if is_cmd(cmd, CMD_CLOSE_TAB) then close_active_tab(ts, idx)
+  else if is_cmd(cmd, CMD_NEW_TAB) then new_empty_tab(ts)
   else ts
 
 fun hit_open_if(ts: Tabs, hmeta: !Buf, hits: !Buf, hn: int, qf: Toggle, qr: EditResult): Tabs =
@@ -1186,17 +1186,17 @@ in
   bclear(s.promptb)
 end
 
-fun handle_sidebar_shortcut_cmd(s: &App_record >> _, cmd: int): void =
-  if ieq(cmd, CMD_OPEN_SEARCH) then open_search_panel(s)
-  else if ieq(cmd, CMD_NEW_FILE) then begin_prompt(s, PromptNewFile)
-  else if ieq(cmd, CMD_NEW_FOLDER) then begin_prompt(s, PromptNewFolder)
-  else if ieq(cmd, CMD_TOGGLE_VIEW) then toggle_view_mode(s)
-  else if ieq(cmd, CMD_ESCAPE) then escape_sidebar_state(s)
+fun handle_sidebar_shortcut_cmd(s: &App_record >> _, cmd: Cmd): void =
+  if is_cmd(cmd, CMD_OPEN_SEARCH) then open_search_panel(s)
+  else if is_cmd(cmd, CMD_NEW_FILE) then begin_prompt(s, PromptNewFile)
+  else if is_cmd(cmd, CMD_NEW_FOLDER) then begin_prompt(s, PromptNewFolder)
+  else if is_cmd(cmd, CMD_TOGGLE_VIEW) then toggle_view_mode(s)
+  else if is_cmd(cmd, CMD_ESCAPE) then escape_sidebar_state(s)
   else ()
 
-fun tab_select_close_or_new(s: &App_record >> _, cmd: int, ts_inter: !Tabs): void = let
+fun tab_select_close_or_new(s: &App_record >> _, cmd: Cmd, ts_inter: !Tabs): void = let
   val max_i = isub(tabs_len(ts_inter), 1)
-  val () = if ieq(cmd, CMD_NEW_TAB) then s.active := max_i
+  val () = if is_cmd(cmd, CMD_NEW_TAB) then s.active := max_i
            else s.active := imax(0, imin(max_i, s.active))
   val () = s.righti := imax(0, imin(max_i, s.righti))
 in
@@ -1227,10 +1227,10 @@ in
   end else ()
 end
 
-fun handle_tab_nav_cmd(s: &App_record >> _, cmd: int, ts_inter: !Tabs): void =
-  if ieq(cmd, CMD_CLOSE_TAB) orelse ieq(cmd, CMD_NEW_TAB) then tab_select_close_or_new(s, cmd, ts_inter)
-  else if ieq(cmd, CMD_NEXT_TAB) then tab_cycle_next(s, ts_inter)
-  else if ieq(cmd, CMD_PREV_TAB) then tab_cycle_prev(s, ts_inter)
+fun handle_tab_nav_cmd(s: &App_record >> _, cmd: Cmd, ts_inter: !Tabs): void =
+  if is_cmd(cmd, CMD_CLOSE_TAB) orelse is_cmd(cmd, CMD_NEW_TAB) then tab_select_close_or_new(s, cmd, ts_inter)
+  else if is_cmd(cmd, CMD_NEXT_TAB) then tab_cycle_next(s, ts_inter)
+  else if is_cmd(cmd, CMD_PREV_TAB) then tab_cycle_prev(s, ts_inter)
   else ()
 
 fun search_query_edit(s: &App_record >> _, qr: EditResult): void = let
@@ -1246,7 +1246,7 @@ in
   save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
 end
 
-fun key_tabs_step(s: &App_record >> _, p: !Plat, ev: &event, cmd: int, hit_go: Toggle): void = let
+fun key_tabs_step(s: &App_record >> _, p: !Plat, ev: &event, cmd: Cmd, hit_go: Toggle): void = let
   val ts0 = s.tabs
   val () = s.tabs := TNil()
   val ts = hit_open_if(ts0, s.hmeta, s.hits, s.hn, toggle_of(is_on(hit_go)), EditSubmit)
@@ -1271,7 +1271,7 @@ fun key_editor_step(s: &App_record >> _, p: !Plat, f: !Font, ev: &event): void =
   val cmd = key_code(ev, toggle_of(ieq(act, 1)))
   val () = handle_sidebar_shortcut_cmd(s, cmd)
   val () = key_tabs_step(s, p, ev, cmd, toggle_of(ieq(hit_go, 1)))
-  val () = if ieq(cmd, CMD_SAVE) then let
+  val () = if is_cmd(cmd, CMD_SAVE) then let
       val () = s.treedirty := On
       val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
     in

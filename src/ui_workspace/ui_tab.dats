@@ -126,67 +126,67 @@ fun delete_selection(d: !Doc): void =
 fun wrap_selection(d: !Doc, open_mark: string, close_mark: string): void =
   doc_wrap(d, open_mark, c_strlen(open_mark), close_mark, c_strlen(close_mark))
 
-fun run_caret_motion_cmd(d: !Doc, cmd: int): void =
-  if ieq(cmd, CMD_CARET_LEFT) then doc_left_move(d)
-  else if ieq(cmd, CMD_CARET_RIGHT) then doc_right_move(d)
-  else if ieq(cmd, CMD_CARET_UP) then doc_up_move(d)
-  else if ieq(cmd, CMD_CARET_DOWN) then doc_down_move(d)
-  else if ieq(cmd, CMD_CARET_LINE_START) then doc_home_move(d)
-  else if ieq(cmd, CMD_CARET_LINE_END) then doc_end_move(d)
-  else if ieq(cmd, CMD_WORD_LEFT) then doc_word_left_move(d)
-  else if ieq(cmd, CMD_WORD_RIGHT) then doc_word_right_move(d)
-  else if ieq(cmd, CMD_DOC_START) then doc_doc_start_move(d)
-  else if ieq(cmd, CMD_DOC_END) then doc_doc_end_move(d)
-  else if ieq(cmd, CMD_PAGE_UP) then doc_page_up_move(d, PAGE_STEP_LINES)
-  else if ieq(cmd, CMD_PAGE_DOWN) then doc_page_down_move(d, PAGE_STEP_LINES)
+fun run_caret_motion_cmd(d: !Doc, cmd: Cmd): void =
+  if is_cmd(cmd, CMD_CARET_LEFT) then doc_left_move(d)
+  else if is_cmd(cmd, CMD_CARET_RIGHT) then doc_right_move(d)
+  else if is_cmd(cmd, CMD_CARET_UP) then doc_up_move(d)
+  else if is_cmd(cmd, CMD_CARET_DOWN) then doc_down_move(d)
+  else if is_cmd(cmd, CMD_CARET_LINE_START) then doc_home_move(d)
+  else if is_cmd(cmd, CMD_CARET_LINE_END) then doc_end_move(d)
+  else if is_cmd(cmd, CMD_WORD_LEFT) then doc_word_left_move(d)
+  else if is_cmd(cmd, CMD_WORD_RIGHT) then doc_word_right_move(d)
+  else if is_cmd(cmd, CMD_DOC_START) then doc_doc_start_move(d)
+  else if is_cmd(cmd, CMD_DOC_END) then doc_doc_end_move(d)
+  else if is_cmd(cmd, CMD_PAGE_UP) then doc_page_up_move(d, PAGE_STEP_LINES)
+  else if is_cmd(cmd, CMD_PAGE_DOWN) then doc_page_down_move(d, PAGE_STEP_LINES)
   else ()
 
-fun run_select_motion_cmd(d: !Doc, cmd: int): void =
-  if ieq(cmd, CMD_SELECT_ALL) then select_all(d)
-  else if ieq(cmd, CMD_COLLAPSE_SELECTION) then doc_set_caret_move(d, doc_caret(d))
-  else if ieq(cmd, CMD_SELECT_LEFT) then doc_left_select(d)
-  else if ieq(cmd, CMD_SELECT_RIGHT) then doc_right_select(d)
-  else if ieq(cmd, CMD_SELECT_UP) then doc_up_select(d)
-  else if ieq(cmd, CMD_SELECT_DOWN) then doc_down_select(d)
-  else if ieq(cmd, CMD_SELECT_LINE_START) then doc_home_select(d)
-  else if ieq(cmd, CMD_SELECT_LINE_END) then doc_end_select(d)
-  else if ieq(cmd, CMD_SELECT_WORD_LEFT) then doc_word_left_select(d)
-  else if ieq(cmd, CMD_SELECT_WORD_RIGHT) then doc_word_right_select(d)
-  else if ieq(cmd, CMD_SELECT_DOC_START) then doc_doc_start_select(d)
-  else if ieq(cmd, CMD_SELECT_DOC_END) then doc_doc_end_select(d)
-  else if ieq(cmd, CMD_SELECT_PAGE_UP) then doc_page_up_select(d, PAGE_STEP_LINES)
-  else if ieq(cmd, CMD_SELECT_PAGE_DOWN) then doc_page_down_select(d, PAGE_STEP_LINES)
+fun run_select_motion_cmd(d: !Doc, cmd: Cmd): void =
+  if is_cmd(cmd, CMD_SELECT_ALL) then select_all(d)
+  else if is_cmd(cmd, CMD_COLLAPSE_SELECTION) then doc_set_caret_move(d, doc_caret(d))
+  else if is_cmd(cmd, CMD_SELECT_LEFT) then doc_left_select(d)
+  else if is_cmd(cmd, CMD_SELECT_RIGHT) then doc_right_select(d)
+  else if is_cmd(cmd, CMD_SELECT_UP) then doc_up_select(d)
+  else if is_cmd(cmd, CMD_SELECT_DOWN) then doc_down_select(d)
+  else if is_cmd(cmd, CMD_SELECT_LINE_START) then doc_home_select(d)
+  else if is_cmd(cmd, CMD_SELECT_LINE_END) then doc_end_select(d)
+  else if is_cmd(cmd, CMD_SELECT_WORD_LEFT) then doc_word_left_select(d)
+  else if is_cmd(cmd, CMD_SELECT_WORD_RIGHT) then doc_word_right_select(d)
+  else if is_cmd(cmd, CMD_SELECT_DOC_START) then doc_doc_start_select(d)
+  else if is_cmd(cmd, CMD_SELECT_DOC_END) then doc_doc_end_select(d)
+  else if is_cmd(cmd, CMD_SELECT_PAGE_UP) then doc_page_up_select(d, PAGE_STEP_LINES)
+  else if is_cmd(cmd, CMD_SELECT_PAGE_DOWN) then doc_page_down_select(d, PAGE_STEP_LINES)
   else ()
 
-fun run_motion_cmd(d: !Doc, cmd: int): void = let
+fun run_motion_cmd(d: !Doc, cmd: Cmd): void = let
   val () = run_caret_motion_cmd(d, cmd)
 in
   run_select_motion_cmd(d, cmd)
 end
 
-fun run_edit_cmd(d: !Doc, cmd: int): void =
-  if ieq(cmd, CMD_BACKSPACE) then doc_backspace(d)
-  else if ieq(cmd, CMD_DELETE) then doc_delete(d)
-  else if ieq(cmd, CMD_DELETE_SELECTION) then delete_selection(d)
-  else if ieq(cmd, CMD_DELETE_WORD_LEFT) then doc_del_word_left(d)
-  else if ieq(cmd, CMD_DELETE_WORD_RIGHT) then doc_del_word_right(d)
-  else if ieq(cmd, CMD_UNDO) then doc_undo(d)
-  else if ieq(cmd, CMD_REDO) then doc_redo(d)
-  else if ieq(cmd, CMD_WRAP_BOLD) then wrap_selection(d, BOLD_MARK, BOLD_MARK)
-  else if ieq(cmd, CMD_WRAP_ITALIC) then wrap_selection(d, ITALIC_MARK, ITALIC_MARK)
-  else if ieq(cmd, CMD_WRAP_WIKILINK) then wrap_selection(d, WIKILINK_OPEN, WIKILINK_CLOSE)
-  else if ieq(cmd, CMD_INDENT) then doc_insert(d, c_str_ptr(INDENT_TEXT), c_strlen(INDENT_TEXT))
+fun run_edit_cmd(d: !Doc, cmd: Cmd): void =
+  if is_cmd(cmd, CMD_BACKSPACE) then doc_backspace(d)
+  else if is_cmd(cmd, CMD_DELETE) then doc_delete(d)
+  else if is_cmd(cmd, CMD_DELETE_SELECTION) then delete_selection(d)
+  else if is_cmd(cmd, CMD_DELETE_WORD_LEFT) then doc_del_word_left(d)
+  else if is_cmd(cmd, CMD_DELETE_WORD_RIGHT) then doc_del_word_right(d)
+  else if is_cmd(cmd, CMD_UNDO) then doc_undo(d)
+  else if is_cmd(cmd, CMD_REDO) then doc_redo(d)
+  else if is_cmd(cmd, CMD_WRAP_BOLD) then wrap_selection(d, BOLD_MARK, BOLD_MARK)
+  else if is_cmd(cmd, CMD_WRAP_ITALIC) then wrap_selection(d, ITALIC_MARK, ITALIC_MARK)
+  else if is_cmd(cmd, CMD_WRAP_WIKILINK) then wrap_selection(d, WIKILINK_OPEN, WIKILINK_CLOSE)
+  else if is_cmd(cmd, CMD_INDENT) then doc_insert(d, c_str_ptr(INDENT_TEXT), c_strlen(INDENT_TEXT))
   else ()
 
-fun run_cmd(d: !Doc, cmd: int): void = let
+fun run_cmd(d: !Doc, cmd: Cmd): void = let
   val () = run_motion_cmd(d, cmd)
 in
   run_edit_cmd(d, cmd)
 end
 
-extern fun tabs_cmd_impl_exh(ts: Tabs, idx: int, cmd: int): Tabs = "mac#anth_die_box"
+extern fun tabs_cmd_impl_exh(ts: Tabs, idx: int, cmd: Cmd): Tabs = "mac#anth_die_box"
 
-fun tabs_cmd_impl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, cmd: int): Tabs =
+fun tabs_cmd_impl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, cmd: Cmd): Tabs =
   if recfuel > 0 then (
     case+ ts of
     | ~TNil() => TNil()
@@ -197,7 +197,7 @@ fun tabs_cmd_impl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, 
       end
   ) else tabs_cmd_impl_exh(ts, idx, cmd)
 
-fun tabs_cmd_impl(ts: Tabs, idx: int, cmd: int): Tabs = tabs_cmd_impl_m(airlock_nat(MAX_REC_FUEL), ts, idx, cmd)
+fun tabs_cmd_impl(ts: Tabs, idx: int, cmd: Cmd): Tabs = tabs_cmd_impl_m(airlock_nat(MAX_REC_FUEL), ts, idx, cmd)
 
 implement tabs_cmd(ts, idx, cmd) = tabs_cmd_impl(ts, idx, cmd)
 
