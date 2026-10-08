@@ -15,7 +15,7 @@ fun draw_doc(f: !Font, r: !Rend, d: !Doc, ox: int, oy: int, pw: int, ph: int, sc
 fun draw_tabrow(f: !Font, r: !Rend, ts: Tabs, x: int, active: int, i: int): Tabs
 fun tab_hit_test(f: !Font, r: !Rend, ts: !Tabs, start_x: int, click_x: int, out_ti: &int >> _, out_close: &int >> _): void
 fun draw_focus(f: !Font, r: !Rend, ts: Tabs, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, viewmode: ViewMode): Tabs
-fun draw_right(f: !Font, r: !Rend, ts: Tabs, split: int, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, viewmode: ViewMode): Tabs
+fun draw_right(f: !Font, r: !Rend, ts: Tabs, split: Toggle, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, viewmode: ViewMode): Tabs
 fun tabs_click(f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, pw: int, scroll_hint: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &int >> _, hiti: &int >> _, i: int): Tabs
 fun caret_xy(f: !Font, r: !Rend, d: !Doc, colx: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _, cx: &int >> _, cy: &int >> _): void
 fun take_path(d: !Doc, i: int, dst: &Buf >> _): void

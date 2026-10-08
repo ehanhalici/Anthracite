@@ -39,7 +39,7 @@ fun ev_text_buf(ev: &event, dst: !Buf, n: int): int =
 
 vtypedef App_record = @{
   vault= Buf, tabs= Tabs, cache= Cache,
-  active= int, righti= int, split= int, focus= int, side= Sidebar, fontpx= int,
+  active= int, righti= int, split= Toggle, focus= Toggle, side= Sidebar, fontpx= int,
   clip= Buf, menu= MenuKind, menux= int, menuy= int, drag= DragKind, dragi= int,
   prompt= PromptKind, promptb= Buf, query= Buf, qfocus= int,
   tree= Buf, tmeta= Buf, tn= int, hits= Buf, hmeta= Buf, hn= int,
@@ -53,9 +53,9 @@ datavtype App_ = APP of App_record
 (* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
 assume App = App_
 
-fun save_session_impl(vault: !Buf, font_p: !Buf, font_px: int, viewmode: ViewMode, split: int, active: int, ts: !Tabs): void =
+fun save_session_impl(vault: !Buf, font_p: !Buf, font_px: int, viewmode: ViewMode, split: Toggle, active: int, ts: !Tabs): void =
   if igt(buf_len(vault), 0) then
-    conf_save_session(cstr(vault), cstr(font_p), font_px, view_mode_code(viewmode), split, active, ts)
+    conf_save_session(cstr(vault), cstr(font_p), font_px, view_mode_code(viewmode), toggle_int(split), active, ts)
   else ()
 
 fun make_empty_tabs(): Tabs = let
@@ -122,7 +122,7 @@ fun vault_switch_finish(s: &App_record >> _, new_t: Tabs, fpx: int, vm: int, sp:
   val () = tabs_free(ph)
   val () = s.fontpx := fpx
   val () = s.viewmode := view_mode_of_code(vm)
-  val () = s.split := sp
+  val () = s.split := toggle_of(ieq(sp, 1))
   val () = s.active := act
   val () = s.righti := 0
   val () = s.treedirty := 1
@@ -231,7 +231,7 @@ implement app_open(vault) = let
 in
   APP(@{
     vault= vb, tabs= tabs, cache= CNil(),
-    active= act_idx, righti= 0, split= sp, focus= 0, side= SideNone, fontpx= fpx,
+    active= act_idx, righti= 0, split= toggle_of(ieq(sp, 1)), focus= Off, side= SideNone, fontpx= fpx,
     clip= buf_make(64), menu= MenuNone, menux= 0, menuy= 0, drag= DragNone, dragi= ~1,
     prompt= PromptNone, promptb= buf_make(256), query= buf_make(64), qfocus= 0,
     tree= buf_make(64), tmeta= buf_make(64), tn= 0, hits= buf_make(64), hmeta= buf_make(64), hn= 0,
@@ -487,7 +487,7 @@ fun draw_editor_panes(f: !Font, r: !Rend, s: &App_record >> _, ox: int, half: in
   val tab_x0 = topbar_tab_start_x()
   val ts = s.tabs
   val () = s.tabs := TNil()
-  val mark = pane_of(toggle_of(ieq(s.focus, 1)), s.active, s.righti)
+  val mark = pane_of(s.focus, s.active, s.righti)
   val ts2 = draw_tabrow(f, r, ts, tab_x0, mark, 0)
   val ts3 = draw_focus(f, r, ts2, s.active, ox, UI_TOPBAR_HEIGHT, half, isub(h, UI_TOPBAR_HEIGHT), lh, s.vault, s.cache, s.scratch, 0, s.viewmode)
   val ts4 = draw_right(f, r, ts3, s.split, s.righti, iadd(ox, half), UI_TOPBAR_HEIGHT, half, isub(h, UI_TOPBAR_HEIGHT), lh, s.vault, s.cache, s.scratch, s.viewmode)
@@ -495,7 +495,7 @@ fun draw_editor_panes(f: !Font, r: !Rend, s: &App_record >> _, ox: int, half: in
   val () = s.tabs := ts4
   val () = tabs_free(ph)
 in
-  if ieq(s.split, 1) then ui_divider(r, iadd(ox, half), UI_TOPBAR_HEIGHT, isub(h, UI_TOPBAR_HEIGHT), Vertical) else ()
+  if is_on(s.split) then ui_divider(r, iadd(ox, half), UI_TOPBAR_HEIGHT, isub(h, UI_TOPBAR_HEIGHT), Vertical) else ()
 end
 
 fun font_load_report(f: !Font, path: string): void =
@@ -525,7 +525,7 @@ fun draw_panes(f: !Font, r: !Rend, a: !App, w: int, h: int): void =
       val pw = isub(w, sidew)
       val () = font_set_px(f, s.fontpx)
       val lh = font_line_h(f)
-      val half = if ieq(s.split, 1) then idiv(pw, 2) else pw
+      val half = if is_on(s.split) then idiv(pw, 2) else pw
       val () = rend_rect(r, 0, 0, w, h, col_bg())
       val () = draw_topbar_chrome(f, r, s, w)
       val () = draw_editor_panes(f, r, s, ox, half, h, lh)
@@ -1250,7 +1250,7 @@ fun key_tabs_step(s: &App_record >> _, p: !Plat, ev: &event, cmd: int, hit_go: T
   val ts0 = s.tabs
   val () = s.tabs := TNil()
   val ts = hit_open_if(ts0, s.hmeta, s.hits, s.hn, toggle_of(is_on(hit_go)), EditSubmit)
-  val idx = pane_of(toggle_of(ieq(s.focus, 1)), s.active, s.righti)
+  val idx = pane_of(s.focus, s.active, s.righti)
   var ts_inter: Tabs = apply_tab_cmd(ts, cmd, idx)
   val () = handle_tab_nav_cmd(s, cmd, ts_inter)
   val ts2 = key_dispatch(ts_inter, idx, cmd, s.vault, s.clip, s.scratch, p, s.paste, ev)
@@ -1441,12 +1441,12 @@ fun handle_editor_click(s: &App_record >> _, f: !Font, r: !Rend, ts: Tabs, ev: &
                         x: int, y: int, w: int, sidew: int, skip: Toggle, onbar: Toggle, onside: Toggle,
                         button: int, idx: int, imgdel: Toggle, clear: Toggle): Tabs = let
   val pw0 = isub(w, sidew)
-  val half = if ieq(s.split, 1) then idiv(pw0, 2) else pw0
+  val half = if is_on(s.split) then idiv(pw0, 2) else pw0
   val editor = if is_off(skip) andalso is_off(onbar) andalso is_off(onside) andalso ieq(button, 1) then 1 else 0
-  val foc = if ieq(editor, 1) andalso ieq(s.split, 1) andalso ige(x, iadd(sidew, half)) then 1 else 0
-  val () = if ieq(editor, 1) then s.focus := foc else ()
-  val ox = if ieq(s.focus, 1) then iadd(sidew, half) else sidew
-  val idx2 = pane_of(toggle_of(ieq(s.focus, 1)), s.active, s.righti)
+  val foc = if ieq(editor, 1) andalso is_on(s.split) andalso ige(x, iadd(sidew, half)) then 1 else 0
+  val () = if ieq(editor, 1) then s.focus := toggle_of(ieq(foc, 1)) else ()
+  val ox = if is_on(s.focus) then iadd(sidew, half) else sidew
+  val idx2 = pane_of(s.focus, s.active, s.righti)
   val ts4 = editor_click_hit(f, r, s, ts, ev, x, y, ox, half, idx2, toggle_of(ieq(editor, 1)))
   val gowiki = if ieq(editor, 1) andalso ieq(ctrl_on(ev), 1) then 1 else 0
   val ts5 = wiki_go(ts4, idx2, s.vault, toggle_of(ieq(gowiki, 1)))
@@ -1464,7 +1464,7 @@ fun down_pick_tab(s: &App_record >> _, x: int, ti: int): void = let
   val () = s.downx := x
   val () = s.downy := s.downy
   val () = s.active := ti
-  val () = s.focus := 0
+  val () = s.focus := Off
 in
   save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
 end
@@ -1506,7 +1506,7 @@ end
 
 fun down_menu_close(s: &App_record >> _, ts2: !Tabs): void = let
   val () = s.active := 0
-  val () = if ieq(s.split, 1) andalso ilt(tabs_len(ts2), 2) then s.split := 0 else ()
+  val () = if is_on(s.split) andalso ilt(tabs_len(ts2), 2) then s.split := Off else ()
   val () = s.righti := 0
 in
   save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
@@ -1582,7 +1582,7 @@ fun handle_down_context_menu_open(
 fun on_down_tabs(s: &App_record >> _, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int, x: int, y: int, sidew: int, skip: Toggle, onbar: Toggle, onside: Toggle, button: int, inside: Toggle, item: int): void = let
   val ts0 = s.tabs
   val () = s.tabs := TNil()
-  val idx = pane_of(toggle_of(ieq(s.focus, 1)), s.active, s.righti)
+  val idx = pane_of(s.focus, s.active, s.righti)
   var ti: int = ~1
   var close: int = 0
   val () = handle_down_tab_bar_selection(s, ts0, f, r, onbar, skip, x, topbar_tab_start_x(), topbar_mode_btn_x(w), ti, close)
@@ -1650,9 +1650,9 @@ fun on_up_split_tab(s: &App_record >> _, w: int, x: int): void = let
   val mid = iadd(sidew, idiv(isub(w, sidew), 2))
 in
   if ige(x, mid) then (
-    s.split := 1;
+    s.split := On;
     s.righti := s.dragi;
-    s.focus := 1;
+    s.focus := On;
     save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
   ) else ()
 end
@@ -1735,7 +1735,7 @@ fun on_wheel(a: !App, ev: &event, w: int, h: int): void =
   case+ a of
   | @APP(s) => let
       val dv = if ieq(ev_button(ev), 4) then ~48 else 48
-      val idx = pane_of(toggle_of(ieq(s.focus, 1)), s.active, s.righti)
+      val idx = pane_of(s.focus, s.active, s.righti)
       val ts = s.tabs
       val () = s.tabs := TNil()
       val ph = s.tabs
@@ -1750,7 +1750,7 @@ fun on_wheel(a: !App, ev: &event, w: int, h: int): void =
 fun on_sel_paste(s: &App_record >> _, p: !Plat, ev: &event): void = let
   val cap = buf_cap(s.scratch)
   val n = plat_read_buf(p, ev, s.scratch, cap)
-  val idx = pane_of(toggle_of(ieq(s.focus, 1)), s.active, s.righti)
+  val idx = pane_of(s.focus, s.active, s.righti)
   val ts = s.tabs
   val () = s.tabs := TNil()
   val ph = s.tabs
