@@ -51,7 +51,7 @@ static unsigned anth_compile(GLenum type, const char *src) {
   if (!ok) {
     char log[1024];
     glGetShaderInfoLog(s, 1024, 0, log);
-    fprintf(stderr, "shader: %s\n", log);
+    fprintf(stderr, "event=shader_compile status=failed log=\"%s\"\n", log);
   }
   return s;
 }
@@ -68,7 +68,7 @@ static inline unsigned anth_make_program(void) {
   if (!ok) {
     char log[1024];
     glGetProgramInfoLog(p, 1024, 0, log);
-    fprintf(stderr, "link: %s\n", log);
+    fprintf(stderr, "event=program_link status=failed log=\"%s\"\n", log);
   }
   glDeleteShader(vs);
   glDeleteShader(fs);

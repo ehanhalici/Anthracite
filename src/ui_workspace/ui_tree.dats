@@ -4,7 +4,10 @@
 #include "common.hats"
 
 staload "mem.sats"
+staload "airlock.sats"
+staload "flag.sats"
 staload "os/fs.sats"
+staload "os/diag.sats"
 staload "ui_workspace/ui_common.sats"
 staload "ui_workspace/ui_tree.sats"
 
@@ -19,8 +22,8 @@ in
   n := iadd(n, 1)
 end
 
-fun tree_add_if(meta: &Buf >> _, text: &Buf >> _, n: &int >> _, depth: int, isdir: int, path: !Buf, go: int): void =
-  if ieq(go, 1) then tree_add(meta, text, n, depth, isdir, path)
+fun tree_add_if(meta: &Buf >> _, text: &Buf >> _, n: &int >> _, depth: int, isdir: int, path: !Buf, go: Toggle): void =
+  if is_on(go) then tree_add(meta, text, n, depth, isdir, path)
   else let
     val () = touchb(meta)
     val () = touchb(text)
@@ -28,87 +31,110 @@ fun tree_add_if(meta: &Buf >> _, text: &Buf >> _, n: &int >> _, depth: int, isdi
     ()
   end
 
-fun scan_skip(name: !Buf): int =
-  if ieq(buf_len(name), 0) then 1
-  else if ieq(buf_get(name, 0), 46) then 1
-  else 0
+extern fun scan_step_exh(dp: ptr, path: !Buf, depth: int, meta: &Buf >> _, text: &Buf >> _, n: &int >> _, name: &Buf >> _, isdir: &int >> _): void = "mac#anth_die_void"
 
-fun child_kind(child: !Buf, skip: int, isdir: int): int =
-  if ieq(skip, 1) then 0
-  else if ieq(isdir, 1) then 1
-  else if ieq(isdir, 0) then 0
-  else fs_isdir(cstr(child))
-
-fun scan_dir_impl(path: !Buf, depth: int, meta: &Buf >> _, text: &Buf >> _, n: &int >> _): void =
-  if igt(depth, 6) orelse ige(n, 400) then let
+fun scan_dir_impl {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), path: !Buf, depth: int, meta: &Buf >> _, text: &Buf >> _, n: &int >> _): void =
+  if recfuel > 0 then (
+    if igt(depth, MAX_TREE_DEPTH) orelse ige(n, MAX_TREE_ITEMS) then let
+      val () = touchb(meta)
+    in
+      touchb(text)
+    end else let
+      val p = cstr(path)
+      val dp = dir_open(p)
+      var name = buf_make(256)
+      var isdir: int = 0
+      val () = scan_open(recfuel - 1, dp, path, depth, meta, text, n, name, isdir)
+    in
+      buf_free(name)
+    end
+  ) else let
     val () = touchb(meta)
   in
     touchb(text)
-  end else let
-    val p = cstr(path)
-    val dp = dir_open(p)
-    var name = buf_make(256)
-    var isdir: int = 0
-    val () = scan_open(dp, path, depth, meta, text, n, name, isdir)
-  in
-    buf_free(name)
   end
-and scan_open(dp: ptr, path: !Buf, depth: int, meta: &Buf >> _, text: &Buf >> _, n: &int >> _, name: &Buf >> _, isdir: &int >> _): void =
-  if dp = 0 then let
+and scan_open {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dp: ptr, path: !Buf, depth: int, meta: &Buf >> _, text: &Buf >> _, n: &int >> _, name: &Buf >> _, isdir: &int >> _): void =
+  if recfuel > 0 then (
+    if dp = 0 then let
+      val () = touchb(meta)
+      val () = touchb(text)
+      val () = touchb(name)
+    in
+      ()
+    end else let
+      val () = scan_step(recfuel - 1, dp, path, depth, meta, text, n, name, isdir)
+      val () = dir_close(dp)
+    in
+      ()
+    end
+  ) else let
     val () = touchb(meta)
     val () = touchb(text)
-    val () = touchb(name)
   in
-    ()
-  end else let
-    val () = scan_step(dp, path, depth, meta, text, n, name, isdir)
-    val () = dir_close(dp)
-  in
-    ()
+    touchb(name)
   end
-and scan_step(dp: ptr, path: !Buf, depth: int, meta: &Buf >> _, text: &Buf >> _, n: &int >> _, name: &Buf >> _, isdir: &int >> _): void =
-  if dir_next(dp, buf_ptr(name), 255, isdir) = 0 then let
-    val () = touchb(meta)
-    val () = touchb(text)
-    val () = touchb(name)
-  in
-    ()
-  end else let
-    val np = buf_ptr(name)
-    val () = buf_set_len(name, c_strlen(ptr_string(np)))
+and scan_step {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dp: ptr, path: !Buf, depth: int, meta: &Buf >> _, text: &Buf >> _, n: &int >> _, name: &Buf >> _, isdir: &int >> _): void =
+  if recfuel > 0 then (
+    if dir_next_buf(dp, name, 255, isdir) = 0 then let
+      val () = touchb(meta)
+      val () = touchb(text)
+      val () = touchb(name)
+    in
+      ()
+    end else let
+      val () = scan_entry(recfuel - 1, path, depth, meta, text, n, name, isdir)
+    in
+      scan_step(recfuel - 1, dp, path, depth, meta, text, n, name, isdir)
+    end
+  ) else scan_step_exh(dp, path, depth, meta, text, n, name, isdir)
+and scan_entry {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), path: !Buf, depth: int, meta: &Buf >> _, text: &Buf >> _, n: &int >> _, name: &Buf >> _, isdir: &int >> _): void =
+  if recfuel > 0 then let
+    val ns = buf_cstr(name)
+    val () = buf_set_len(name, c_strlen(ns))
     val skip = scan_skip(name)
     val child = join2(path, name)
-    val isd = child_kind(child, skip, isdir)
-    val goadd = if ieq(skip, 0) andalso ilt(n, 400) then 1 else 0
-    val () = tree_add_if(meta, text, n, depth, isd, child, goadd)
+    val isd = child_kind(child, toggle_of(ieq(skip, 1)), isdir)
+    val goadd = if ieq(skip, 0) andalso ilt(n, MAX_TREE_ITEMS) then 1 else 0
+    val () = tree_add_if(meta, text, n, depth, isd, child, toggle_of(ieq(goadd, 1)))
     val godir = if ieq(skip, 0) andalso ieq(isd, 1) then 1 else 0
-    val () = scan_maybe(child, iadd(depth, 1), meta, text, n, godir)
+    val () = scan_maybe(recfuel - 1, child, iadd(depth, 1), meta, text, n, toggle_of(ieq(godir, 1)))
     val () = buf_free(child)
   in
-    scan_step(dp, path, depth, meta, text, n, name, isdir)
+  end else let
+    val () = touchb(meta)
+    val () = touchb(text)
+  in
+    touchb(name)
   end
-and scan_maybe(child: !Buf, depth: int, meta: &Buf >> _, text: &Buf >> _, n: &int >> _, go: int): void =
-  if ieq(go, 1) then scan_dir_impl(child, depth, meta, text, n)
-  else let
+and scan_maybe {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), child: !Buf, depth: int, meta: &Buf >> _, text: &Buf >> _, n: &int >> _, go: Toggle): void =
+  if recfuel > 0 then (
+    if is_on(go) then scan_dir_impl(recfuel - 1, child, depth, meta, text, n)
+    else let
+      val () = touchb(meta)
+    in
+      touchb(text)
+    end
+  ) else let
     val () = touchb(meta)
   in
     touchb(text)
   end
 
 implement scan_dir(path, depth, meta, text, n) =
-  scan_dir_impl(path, depth, meta, text, n)
+  scan_dir_impl(airlock_nat(MAX_REC_FUEL), path, depth, meta, text, n)
 
 implement write_text(path, body) = let
-  val fd = fs_open_write(cstr(path))
+  val n = buf_len(body)
 in
-  if fd < 0 then 0
-  else let
-    val n = fs_write(fd, buf_ptr(body), buf_len(body))
-    val () = fs_close(fd)
-  in
-    if ige(n, 0) then 1 else 0
-  end
+  fs_write_buf(cstr(path), body, n)
 end
+
+fun create_dir_report(p: string): void =
+  if ieq(fs_mkdir(p), 0) then () else report_failure("create_dir", p)
+
+fun create_file_report(p: string): void =
+  if ieq(fs_atomic_write(p, the_null_ptr, 0), 1) then ()
+  else report_failure("create_file", p)
 
 implement do_create(dir, name, isdir) = let
   val nlen = buf_len(name)
@@ -119,13 +145,9 @@ in
     val () = child_path(dir, name, path)
     val has_dot = has_dot_char(name, 0)
     val need_md = if ieq(isdir, 0) andalso ieq(has_dot, 0) then 1 else 0
-    val () = bstr_if(path, need_md, ".md")
+    val () = bstr_if(path, toggle_of(ieq(need_md, 1)), ".md")
     val p = cstr(path)
-    val () = if ieq(isdir, 1) then let val _m = fs_mkdir(p) in end else let
-      val fd = fs_open_write(p)
-    in
-      if fd >= 0 then fs_close(fd) else ()
-    end
+    val () = if ieq(isdir, 1) then create_dir_report(p) else create_file_report(p)
   in
     buf_free(path)
   end
@@ -136,7 +158,8 @@ implement do_rename(old, name) = let
   var path = buf_make(8)
   val () = dirname_of(old, dir)
   val () = child_path(dir, name, path)
-  val _r = fs_rename(cstr(old), cstr(path))
+  val rn = fs_rename(cstr(old), cstr(path))
+  val () = if ieq(rn, 0) then () else report_failure("tree_rename", cstr(old))
   val () = buf_free(dir)
 in
   buf_free(path)
@@ -144,6 +167,6 @@ end
 
 implement do_delete(path) = let
   val p = cstr(path)
-  val _u = if ieq(fs_isdir(p), 1) then fs_rmdir(p) else fs_unlink(p)
+  val u_ok = if ieq(fs_isdir(p), 1) then fs_rmdir(p) else fs_unlink(p)
 in
 end

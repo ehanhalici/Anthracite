@@ -1,0 +1,10 @@
+(* Shared two-state flag type. Boolean-like integer arguments (0/1) are
+   replaced by this datatype across the code base so that call sites
+   cannot pass arbitrary integers where a flag is expected. *)
+
+datatype Toggle = Off | On
+
+fun toggle_of(b: bool): Toggle
+fun is_on(t: Toggle): bool
+fun is_off(t: Toggle): bool
+fun toggle_int(t: Toggle): int

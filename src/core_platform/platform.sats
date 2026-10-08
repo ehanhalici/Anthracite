@@ -16,8 +16,5 @@ fun plat_ensure_im(p: !Plat): void
 fun plat_swap(p: !Plat): void
 fun plat_own(p: !Plat, primary: int): void
 fun plat_paste(p: !Plat, primary: int): void
-fun plat_is_targets(p: !Plat, ev: &event): int
-fun plat_is_png(p: !Plat, ev: &event): int
-fun plat_is_clip(p: !Plat, ev: &event, primary: int): int
 fun plat_reply(p: !Plat, ev: &event, data: ptr, n: int): void
 fun plat_read(p: !Plat, ev: &event, dst: ptr, cap: int): int

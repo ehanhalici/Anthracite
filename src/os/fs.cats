@@ -16,9 +16,6 @@
 #include <dirent.h>
 
 static inline int anth_open_read(const char *p) { return open(p, O_RDONLY); }
-static inline int anth_open_write(const char *p) {
-  return open(p, O_WRONLY | O_CREAT | O_TRUNC, 0644);
-}
 static inline int anth_read(int fd, void *b, int n) {
   if (fd < 0 || !b || n <= 0) return -1;
   return (int)read(fd, b, (size_t)n);
@@ -28,6 +25,30 @@ static inline int anth_write(int fd, const void *b, int n) {
   return (int)write(fd, b, (size_t)n);
 }
 static inline void anth_close(int fd) { if (fd >= 0) close(fd); }
+static inline int anth_fsync(int fd) { return (fd >= 0) ? fsync(fd) : -1; }
+static inline int anth_atomic_write(const char *path, const void *buf, int len) {
+  if (!path || len < 0) return 0;
+  char tmppath[1024];
+  int n = snprintf(tmppath, sizeof(tmppath), "%s.tmp", path);
+  if (n <= 0 || (size_t)n >= sizeof(tmppath)) return 0;
+  int fd = open(tmppath, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+  if (fd < 0) return 0;
+  if (len > 0) {
+    int w = anth_write(fd, buf, len);
+    if (w != len) {
+      close(fd);
+      unlink(tmppath);
+      return 0;
+    }
+  }
+  anth_fsync(fd);
+  close(fd);
+  if (rename(tmppath, path) != 0) {
+    unlink(tmppath);
+    return 0;
+  }
+  return 1;
+}
 
 static inline int anth_size(const char *p) {
   struct stat st;
@@ -44,11 +65,7 @@ static inline int anth_exists(const char *p) {
   return access(p, F_OK) == 0 ? 1 : 0;
 }
 static inline int anth_mkdir(const char *p) { return mkdir(p, 0755); }
-static inline int anth_rename(const char *a, const char *b) { return rename(a, b); }
-static inline int anth_unlink(const char *p) { return unlink(p); }
-static inline int anth_rmdir(const char *p) { return rmdir(p); }
 
-static inline void *anth_diropen(const char *p) { return opendir(p); }
 static inline void anth_dirclose(void *d) { if (d) closedir((DIR *)d); }
 static inline int anth_dirnext(void *d, char *name, int namemax, int *isdir) {
   if (!d) return 0;
@@ -82,11 +99,6 @@ static inline int anth_rss_kb(void) {
   return kb;
 }
 
-static inline int anth_strlen(const char *s) { return s ? (int)strlen(s) : 0; }
-static inline int anth_strcmp(const char *a, const char *b) {
-  if (!a || !b) return 1;
-  return strcmp(a, b);
-}
 static inline int anth_str_byte(const char *s, int i) {
   int k;
   if (!s || i < 0) return 0;
@@ -94,14 +106,10 @@ static inline int anth_str_byte(const char *s, int i) {
   if (!s[i]) return 0;
   return (unsigned char)s[i];
 }
-static inline const char *anth_str_ptr(const char *s) { return s ? s : ""; }
-static inline const char *anth_getenv(const char *k) {
+static inline void *anth_str_ptr(const char *s) { return (void *)(s ? s : ""); }
+static inline void *anth_getenv(const char *k) {
   const char *v = getenv(k);
-  return v ? v : "";
-}
-static inline const char *anth_arg(int argc, char **argv, int i) {
-  if (!argv || i < 0 || i >= argc || !argv[i]) return "";
-  return argv[i];
+  return (void *)(v ? v : "");
 }
 
 static char anth_cmd[8192];
@@ -130,10 +138,10 @@ static inline void anth_cmd_load(void) {
   anth_cmd_argc = a;
 }
 static inline int anth_argc(void) { anth_cmd_load(); return anth_cmd_argc; }
-static inline const char *anth_argv(int i) {
+static inline void *anth_argv(int i) {
   anth_cmd_load();
-  if (i < 0 || i >= anth_cmd_argc) return "";
-  return anth_cmd + anth_cmd_off[i];
+  if (i < 0 || i >= anth_cmd_argc) return (void *)"";
+  return (void *)(anth_cmd + anth_cmd_off[i]);
 }
 static inline int anth_cwd(char *dst, int n) {
   if (!dst || n < 2) return 0;
@@ -170,9 +178,6 @@ static inline int anth_d2i(double d) {
   if (d <= -2147483648.0) return (int)(-2147483647 - 1);
   return (int)d;
 }
-static inline double anth_cos(double x) { return cos(x); }
-static inline double anth_sqrt(double x) { return sqrt(x); }
-static inline double anth_floor(double x) { return floor(x); }
 
 static inline unsigned int anth_hash_str(const char *s) {
   unsigned int h = 2166136261u;

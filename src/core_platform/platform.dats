@@ -25,6 +25,7 @@ datavtype Plat_ = PLAT of @{
 , prop= ulint
 , png= ulint
 }
+(* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
 assume Plat = Plat_
 
 fun zuli(): ulint = x_ulint0()
@@ -37,64 +38,76 @@ fun plat_dead(): Plat = PLAT(@{
 , targets= zuli(), prop= zuli(), png= zuli()
 })
 
+fun plat_close_dead(dpy: ptr): Plat = let
+  val () = x_close(dpy)
+in
+  plat_dead()
+end
+
+fun plat_abort_ctx(dpy: ptr, win: ulint, ctx: ptr, vi: ptr, list: ptr): Plat = let
+  val () = if ptr_isnot_null(ctx) then x_destroy_ctx(dpy, ctx) else ()
+  val () = x_destroy(dpy, win)
+  val () = if ptr_isnot_null(vi) then x_free(vi) else ()
+  val () = if ptr_isnot_null(list) then x_free(list) else ()
+  val () = x_close(dpy)
+in
+  plat_dead()
+end
+
+fun plat_finish(dpy: ptr, win: ulint, ctx: ptr, vi: ptr, list: ptr, wm: ulint): Plat = let
+  var im: ptr = the_null_ptr
+  var ic: ptr = the_null_ptr
+  val clip = x_intern(dpy, "CLIPBOARD", 0)
+  val prim = x_intern(dpy, "PRIMARY", 0)
+  val utf8 = x_intern(dpy, "UTF8_STRING", 0)
+  val targets = x_intern(dpy, "TARGETS", 0)
+  val prop = x_intern(dpy, "ANTHRACITE_SEL", 0)
+  val png = x_intern(dpy, "image/png", 0)
+  val () = x_flush(dpy)
+in
+  PLAT(@{
+    dpy= dpy, win= win, ctx= ctx, vi= vi, list= list, im= im, ic= ic
+  , w= 1100, h= 720, fd= x_fd(dpy), running= 1
+  , wm= wm, clip= clip, prim= prim, utf8= utf8
+  , targets= targets, prop= prop, png= png
+  })
+end
+
+fun plat_open_window(dpy: ptr, root: ulint, fb: ptr, visual: ptr, vi: ptr, list: ptr, depth: int): Plat = let
+  val cmap = x_create_colormap(dpy, root, visual, x_alloc_none())
+  val win = x_create_window(dpy, root, visual, depth, 80, 60, 1100, 720, cmap)
+  val () = x_store_name(dpy, win, "Anthracite")
+  val wm = x_intern(dpy, "WM_DELETE_WINDOW", 0)
+  val () = x_wm(dpy, win, wm)
+  val () = x_map(dpy, win)
+  val () = x_sync(dpy, 0)
+  val ctx = x_create_ctx(dpy, fb)
+  val made = x_make_current(dpy, win, ctx)
+in
+  if made = 0 orelse ptr_is_null(ctx) then plat_abort_ctx(dpy, win, ctx, vi, list)
+  else plat_finish(dpy, win, ctx, vi, list, wm)
+end
+
+fun plat_open_display(dpy: ptr): Plat = let
+  val screen = x_default_screen(dpy)
+  val root = x_root(dpy, screen)
+  var fb: ptr = the_null_ptr
+  var visual: ptr = the_null_ptr
+  var vi: ptr = the_null_ptr
+  var list: ptr = the_null_ptr
+  var depth: int = 0
+  val chose = x_choose_fb(dpy, screen, fb, visual, vi, list, depth)
+in
+  if chose = 0 then plat_close_dead(dpy)
+  else plat_open_window(dpy, root, fb, visual, vi, list, depth)
+end
+
 implement plat_open() = let
   val () = x_install_signals()
   val () = x_err_install()
   val dpy = x_open(the_null_ptr)
 in
-  if ptr_is_null(dpy) then plat_dead() else let
-    val screen = x_default_screen(dpy)
-    val root = x_root(dpy, screen)
-    var fb: ptr = the_null_ptr
-    var visual: ptr = the_null_ptr
-    var vi: ptr = the_null_ptr
-    var list: ptr = the_null_ptr
-    var depth: int = 0
-    val chose = x_choose_fb(dpy, screen, fb, visual, vi, list, depth)
-  in
-    if chose = 0 then let
-      val () = x_close(dpy)
-    in
-      plat_dead()
-    end else let
-      val cmap = x_create_colormap(dpy, root, visual, x_alloc_none())
-      val win = x_create_window(dpy, root, visual, depth, 80, 60, 1100, 720, cmap)
-      val () = x_store_name(dpy, win, "Anthracite")
-      val wm = x_intern(dpy, "WM_DELETE_WINDOW", 0)
-      val () = x_wm(dpy, win, wm)
-      val () = x_map(dpy, win)
-      val () = x_sync(dpy, 0)
-      val ctx = x_create_ctx(dpy, fb)
-      val made = x_make_current(dpy, win, ctx)
-    in
-      if made = 0 orelse ptr_is_null(ctx) then let
-        val () = if ptr_isnot_null(ctx) then x_destroy_ctx(dpy, ctx) else ()
-        val () = x_destroy(dpy, win)
-        val () = if ptr_isnot_null(vi) then x_free(vi) else ()
-        val () = if ptr_isnot_null(list) then x_free(list) else ()
-        val () = x_close(dpy)
-      in
-        plat_dead()
-      end else let
-        var im: ptr = the_null_ptr
-        var ic: ptr = the_null_ptr
-        val clip = x_intern(dpy, "CLIPBOARD", 0)
-        val prim = x_intern(dpy, "PRIMARY", 0)
-        val utf8 = x_intern(dpy, "UTF8_STRING", 0)
-        val targets = x_intern(dpy, "TARGETS", 0)
-        val prop = x_intern(dpy, "ANTHRACITE_SEL", 0)
-        val png = x_intern(dpy, "image/png", 0)
-        val () = x_flush(dpy)
-      in
-        PLAT(@{
-          dpy= dpy, win= win, ctx= ctx, vi= vi, list= list, im= im, ic= ic
-        , w= 1100, h= 720, fd= x_fd(dpy), running= 1
-        , wm= wm, clip= clip, prim= prim, utf8= utf8
-        , targets= targets, prop= prop, png= png
-        })
-      end
-    end
-  end
+  if ptr_is_null(dpy) then plat_dead() else plat_open_display(dpy)
 end
 
 implement plat_close(p) = let
@@ -116,7 +129,7 @@ end
 implement plat_ok(p) =
   case+ p of
   | @PLAT(r) => let
-      val k = (if ptr_is_null(r.dpy) then 0 else 1): int
+      val k: int = (if ptr_is_null(r.dpy) then 0 else 1): int
     in
       fold@(p); k
     end
@@ -142,7 +155,7 @@ implement plat_set_wh(p, w, h) =
 implement plat_running(p) =
   case+ p of
   | @PLAT(r) => let
-      val k = (if x_sig_exit() = 1 then 0 else r.running): int
+      val k: int = (if x_sig_exit() = 1 then 0 else r.running): int
     in
       fold@(p); k
     end
@@ -158,7 +171,7 @@ implement plat_stop(p) =
 implement plat_pending(p) =
   case+ p of
   | @PLAT(r) => let
-      val n = (if x_sig_exit() = 1 then 0 else x_pending(r.dpy)): int
+      val n: int = (if x_sig_exit() = 1 then 0 else x_pending(r.dpy)): int
     in
       fold@(p); n
     end
@@ -167,7 +180,7 @@ implement plat_wait(p, ms) =
   case+ p of
   | @PLAT(r) => let
       val () = x_flush(r.dpy)
-      val n = (if x_sig_exit() = 1 then 0 else x_poll(r.fd, ms)): int
+      val n: int = (if x_sig_exit() = 1 then 0 else x_poll(r.fd, ms)): int
     in
       fold@(p); n
     end
@@ -175,7 +188,7 @@ implement plat_wait(p, ms) =
 implement plat_ensure_im(p) =
   case+ p of
   | @PLAT(r) => let
-      val need = (if ptr_is_null(r.ic) then 1 else 0): int
+      val need: int = (if ptr_is_null(r.ic) then 1 else 0): int
       var im: ptr = r.im
       var ic: ptr = r.ic
       val () = if need = 1 then x_open_im(r.dpy, r.win, im, ic) else ()
@@ -217,31 +230,6 @@ implement plat_paste(p, primary) =
       val () = x_sel_convert(r.dpy, r.win, sel, r.utf8, r.prop)
     in
       fold@(p)
-    end
-
-implement plat_is_targets(p, ev) =
-  case+ p of
-  | @PLAT(r) => let
-      val k = (if ev_atom1(ev) = r.targets then 1 else 0): int
-    in
-      fold@(p); k
-    end
-
-implement plat_is_png(p, ev) =
-  case+ p of
-  | @PLAT(r) => let
-      val k = (if ev_atom1(ev) = r.png then 1 else 0): int
-    in
-      fold@(p); k
-    end
-
-implement plat_is_clip(p, ev, primary) =
-  case+ p of
-  | @PLAT(r) => let
-      val sel = (if primary <> 0 then r.prim else r.clip): ulint
-      val k = (if ev_atom0(ev) = sel then 1 else 0): int
-    in
-      fold@(p); k
     end
 
 implement plat_reply(p, ev, data, n) =

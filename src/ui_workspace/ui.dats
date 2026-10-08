@@ -4,7 +4,10 @@
 #include "common.hats"
 
 staload "mem.sats"
+staload "airlock.sats"
+staload "flag.sats"
 staload "os/fs.sats"
+staload "os/diag.sats"
 staload "core_platform/platform.sats"
 staload "core_platform/x11.sats"
 staload "core_render/render.sats"
@@ -20,27 +23,39 @@ staload "ui_workspace/ui_menu.sats"
 staload "ui_workspace/ui_tab.sats"
 staload "ui_workspace/ui_render.sats"
 staload "ui_workspace/ui_widgets.sats"
-staload "ui_workspace/ui_raddbg.sats"
 staload "config/conf.sats"
+staload "ui_workspace/ui_cmd.sats"
 
 fun iand(a: int, n: int): int = anth_iand(a, n)
 
-datavtype App_ = APP of @{
+fun plat_read_buf(p: !Plat, ev: &event, dst: !Buf, cap: int): int =
+  plat_read(p, ev, buf_ptr(dst), cap)
+
+fun plat_reply_buf(p: !Plat, ev: &event, data: !Buf, n: int): void =
+  plat_reply(p, ev, buf_ptr(data), n)
+
+fun ev_text_buf(ev: &event, dst: !Buf, n: int): int =
+  ev_text(ev, buf_ptr(dst), n)
+
+vtypedef App_record = @{
   vault= Buf, tabs= Tabs, cache= Cache,
-  active= int, righti= int, split= int, focus= int, side= int, fontpx= int,
-  clip= Buf, menu= int, menux= int, menuy= int, drag= int, dragi= int,
-  prompt= int, promptb= Buf, query= Buf, qfocus= int,
+  active= int, righti= int, split= int, focus= int, side= Sidebar, fontpx= int,
+  clip= Buf, menu= MenuKind, menux= int, menuy= int, drag= DragKind, dragi= int,
+  prompt= PromptKind, promptb= Buf, query= Buf, qfocus= int,
   tree= Buf, tmeta= Buf, tn= int, hits= Buf, hmeta= Buf, hn= int,
   sel= int, treedirty= int, paste= int, hitk= int, hiti= int, downx= int, downy= int,
-  scratch= Buf, imgpath= Buf, viewmode= int, font_idx= int,
+  scratch= Buf, imgpath= Buf, viewmode= ViewMode, font_idx= int,
   fpaths= Buf, fnames= Buf, fmeta= Buf, fcnt= int, font_path= Buf,
-  vault_select= int, vpaths= Buf, vnames= Buf, vmeta= Buf, vcnt= int
+  vault_select= int, vpaths= Buf, vnames= Buf, vmeta= Buf, vcnt= int,
+  hoverx= int, hovery= int
 }
+datavtype App_ = APP of App_record
+(* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
 assume App = App_
 
-fun save_session_impl(vault: !Buf, font_p: !Buf, font_px: int, viewmode: int, split: int, active: int, ts: !Tabs): void =
+fun save_session_impl(vault: !Buf, font_p: !Buf, font_px: int, viewmode: ViewMode, split: int, active: int, ts: !Tabs): void =
   if igt(buf_len(vault), 0) then
-    conf_save_session(cstr(vault), cstr(font_p), font_px, viewmode, split, active, ts)
+    conf_save_session(cstr(vault), cstr(font_p), font_px, view_mode_code(viewmode), split, active, ts)
   else ()
 
 fun make_empty_tabs(): Tabs = let
@@ -72,8 +87,8 @@ in
   new_tabs
 end
 
-fun init_vault_tabs(vb: !Buf, f_vsel: int, font_path: &Buf >> Buf, out_fpx: &int >> int, out_vm: &int >> int, out_sp: &int >> int, out_act: &int >> int): Tabs =
-  if ieq(buf_len(vb), 0) orelse ieq(f_vsel, 1) then let
+fun init_vault_tabs(vb: !Buf, f_vsel: Toggle, font_path: &Buf >> Buf, out_fpx: &int >> int, out_vm: &int >> int, out_sp: &int >> int, out_act: &int >> int): Tabs =
+  if ieq(buf_len(vb), 0) orelse is_on(f_vsel) then let
     val () = out_fpx := 18
     val () = out_vm := 0
     val () = out_sp := 0
@@ -93,22 +108,61 @@ in
   load_vault_tabs(target, font_path, out_fpx, out_vm, out_sp, out_act)
 end
 
+fun vault_switch_begin(s: &App_record >> _, target: string): void = let
+  val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+  val () = bclear(s.vault)
+  val () = bstr(s.vault, target)
+  val () = conf_set_active_vault(target)
+in
+end
+
+fun vault_switch_finish(s: &App_record >> _, new_t: Tabs, fpx: int, vm: int, sp: int, act: int): void = let
+  val ph = s.tabs
+  val () = s.tabs := new_t
+  val () = tabs_free(ph)
+  val () = s.fontpx := fpx
+  val () = s.viewmode := view_mode_of_code(vm)
+  val () = s.split := sp
+  val () = s.active := act
+  val () = s.righti := 0
+  val () = s.treedirty := 1
+  val () = bclear(s.promptb)
+  val () = s.vault_select := 0
+in
+end
+
+fun switch_to_vault(s: &App_record >> _, target: string): void = let
+  val () = vault_switch_begin(s, target)
+  val old_t = s.tabs
+  val () = s.tabs := TNil()
+  var n_fpx: int = 18
+  var n_vm: int = 0
+  var n_sp: int = 0
+  var n_act: int = 0
+  val new_t = switch_vault_tabs(old_t, target, s.font_path, n_fpx, n_vm, n_sp, n_act)
+  val () = vault_switch_finish(s, new_t, n_fpx, n_vm, n_sp, n_act)
+in
+end
+
+fun set_vault_from_active(vb: &Buf >> Buf, out_vsel: &int >> int, s_act: string): void = let
+  val () = bstr(vb, s_act)
+  val () = out_vsel := 0
+in
+end
+
+fun set_vault_from_picker(out_vsel: &int >> int): void = let
+  val () = out_vsel := 1
+in
+end
+
 fun resolve_vault_buffer(vb: &Buf >> Buf, out_vsel: &int >> int): void =
   if ieq(buf_len(vb), 0) then let
     var act = buf_make(256)
     val found = conf_get_active_vault(act)
     val s_act = cstr(act)
     val act_ex = if igt(buf_len(act), 0) then fs_exists(s_act) else 0
-    val () = if ieq(found, 1) andalso ieq(act_ex, 1) then let
-      val () = bstr(vb, s_act)
-      val () = out_vsel := 0
-    in
-      ()
-    end else let
-      val () = out_vsel := 1
-    in
-      ()
-    end
+    val () = if ieq(found, 1) andalso ieq(act_ex, 1) then set_vault_from_active(vb, out_vsel, s_act)
+      else set_vault_from_picker(out_vsel)
     val () = buf_free(act)
   in
     ()
@@ -128,48 +182,90 @@ fun pick_first_font(fpath: &Buf >> Buf, fpaths: !Buf, fmeta: !Buf, fcnt: int): v
     ()
   end else ()
 
-implement app_open(vault) = let
+fun open_resolve_vault(vault: string): @(Buf, int) = let
   var vb = buf_make(256)
   val () = bstr(vb, vault)
   var f_vsel: int = 0
   val () = resolve_vault_buffer(vb, f_vsel)
+in
+  @(vb, f_vsel)
+end
 
-  // Scan fonts dynamically
+fun open_scan_fonts(): @(Buf, Buf, Buf, int) = let
   var fpaths = buf_make(2048)
   var fnames = buf_make(1024)
   var fmeta = buf_make(512)
   var fcnt: int = 0
   val () = font_scan_fonts("fonts", fpaths, fnames, fmeta, fcnt)
+in
+  @(fpaths, fnames, fmeta, fcnt)
+end
 
-  // Scan vaults for selector modal
+fun open_scan_vaults(): @(Buf, Buf, Buf, int) = let
   var vpaths = buf_make(2048)
   var vnames = buf_make(512)
   var vmeta = buf_make(512)
   var vcnt: int = 0
   val () = conf_list_vaults(vpaths, vnames, vmeta, vcnt)
+in
+  @(vpaths, vnames, vmeta, vcnt)
+end
 
-  // Initial tab and session state
+fun open_init_session(vb: !Buf, f_vsel: Toggle, fpaths: !Buf, fmeta: !Buf, fcnt: int): @(Tabs, Buf, int, int, int, int) = let
   var fpath = buf_make(256)
   var fpx: int = 18
   var vmode: int = 0
   var sp: int = 0
   var act_idx: int = 0
-
   val tabs = init_vault_tabs(vb, f_vsel, fpath, fpx, vmode, sp, act_idx)
-
   val () = pick_first_font(fpath, fpaths, fmeta, fcnt)
+in
+  @(tabs, fpath, fpx, vmode, sp, act_idx)
+end
+
+implement app_open(vault) = let
+  val @(vb, f_vsel) = open_resolve_vault(vault)
+  val @(fpaths, fnames, fmeta, fcnt) = open_scan_fonts()
+  val @(vpaths, vnames, vmeta, vcnt) = open_scan_vaults()
+  val @(tabs, fpath, fpx, vmode, sp, act_idx) = open_init_session(vb, toggle_of(ieq(f_vsel, 1)), fpaths, fmeta, fcnt)
 in
   APP(@{
     vault= vb, tabs= tabs, cache= CNil(),
-    active= act_idx, righti= 0, split= sp, focus= 0, side= 0, fontpx= fpx,
-    clip= buf_make(64), menu= 0, menux= 0, menuy= 0, drag= 0, dragi= ~1,
-    prompt= 0, promptb= buf_make(256), query= buf_make(64), qfocus= 0,
+    active= act_idx, righti= 0, split= sp, focus= 0, side= SideNone, fontpx= fpx,
+    clip= buf_make(64), menu= MenuNone, menux= 0, menuy= 0, drag= DragNone, dragi= ~1,
+    prompt= PromptNone, promptb= buf_make(256), query= buf_make(64), qfocus= 0,
     tree= buf_make(64), tmeta= buf_make(64), tn= 0, hits= buf_make(64), hmeta= buf_make(64), hn= 0,
     sel= ~1, treedirty= 1, paste= 0, hitk= 0, hiti= ~1, downx= ~1, downy= ~1,
-    scratch= buf_make(4096), imgpath= buf_make(64), viewmode= vmode, font_idx= 0,
+    scratch= buf_make(4096), imgpath= buf_make(64), viewmode= view_mode_of_code(vmode), font_idx= 0,
     fpaths= fpaths, fnames= fnames, fmeta= fmeta, fcnt= fcnt, font_path= fpath,
-    vault_select= f_vsel, vpaths= vpaths, vnames= vnames, vmeta= vmeta, vcnt= vcnt
+    vault_select= f_vsel, vpaths= vpaths, vnames= vnames, vmeta= vmeta, vcnt= vcnt,
+    hoverx= ~1, hovery= ~1
   })
+end
+
+fun free_input_bufs(clip: Buf, promptb: Buf, query: Buf, tree: Buf, tmeta: Buf): void = let
+  val () = buf_free(clip)
+  val () = buf_free(promptb)
+  val () = buf_free(query)
+  val () = buf_free(tree)
+  val () = buf_free(tmeta)
+in
+end
+
+fun free_search_bufs(hits: Buf, hmeta: Buf, scratch: Buf, imgpath: Buf): void = let
+  val () = buf_free(hits)
+  val () = buf_free(hmeta)
+  val () = buf_free(scratch)
+  val () = buf_free(imgpath)
+in
+end
+
+fun free_font_bufs(fpaths: Buf, fnames: Buf, fmeta: Buf, font_path: Buf): void = let
+  val () = buf_free(fpaths)
+  val () = buf_free(fnames)
+  val () = buf_free(fmeta)
+  val () = buf_free(font_path)
+in
 end
 
 implement app_free(a) = let
@@ -179,135 +275,171 @@ implement app_free(a) = let
   val () = buf_free(s.vault)
   val () = tabs_free(ts2)
   val () = cache_free(s.cache)
-  val () = buf_free(s.clip)
-  val () = buf_free(s.promptb)
-  val () = buf_free(s.query)
-  val () = buf_free(s.tree)
-  val () = buf_free(s.tmeta)
-  val () = buf_free(s.hits)
-  val () = buf_free(s.hmeta)
-  val () = buf_free(s.scratch)
-  val () = buf_free(s.imgpath)
-  val () = buf_free(s.fpaths)
-  val () = buf_free(s.fnames)
-  val () = buf_free(s.fmeta)
-  val () = buf_free(s.font_path)
+  val () = free_input_bufs(s.clip, s.promptb, s.query, s.tree, s.tmeta)
+  val () = free_search_bufs(s.hits, s.hmeta, s.scratch, s.imgpath)
+  val () = free_font_bufs(s.fpaths, s.fnames, s.fmeta, s.font_path)
   val () = buf_free(s.vpaths)
   val () = buf_free(s.vnames)
 in
   buf_free(s.vmeta)
 end
 
-fun pane_of(sfocus: int, active: int, righti: int): int =
-  if ieq(sfocus, 0) then active else righti
+fun pane_of(sfocus: Toggle, active: int, righti: int): int =
+  if is_off(sfocus) then active else righti
+fun ensure_tree_fresh(s: &App_record >> _): void =
+  if ieq(s.treedirty, 1) andalso is_side_files(s.side) then let
+    val () = bclear(s.tree)
+    val () = bclear(s.tmeta)
+    val () = s.tn := 0
+    val () = scan_dir(s.vault, 0, s.tmeta, s.tree, s.tn)
+    val () = if ige(s.sel, s.tn) then s.sel := ~1 else ()
+  in
+    s.treedirty := 0
+  end else ()
+
+fun draw_search_plain_hit(f: !Font, r: !Rend, hits: !Buf, hmeta: !Buf, row: int): void = let
+  val off = buf_get32(hmeta, iadd(imul(row, 4), 1))
+  val n = buf_get32(hmeta, iadd(imul(row, 4), 2))
+  val () = seen_int(hit_text(hits, off, n, f, r, 12, iadd(100, imul(row, 18)), col_accent()))
+in
+end
+
+fun draw_search_marked_hit(f: !Font, r: !Rend, hits: !Buf, hmeta: !Buf, row: int): void = let
+  val moff = buf_get32(hmeta, imul(row, 4))
+  val off = buf_get32(hmeta, iadd(imul(row, 4), 1))
+  val n = buf_get32(hmeta, iadd(imul(row, 4), 2))
+  val ml = buf_get32(hmeta, iadd(imul(row, 4), 3))
+  val y = iadd(100, imul(row, 18))
+  val a1 = hit_text(hits, off, moff, f, r, 20, y, col_muted())
+  val a2 = hit_text(hits, iadd(off, moff), ml, f, r, iadd(20, a1), y, col_hightxt())
+  val () = seen_int(hit_text(hits, iadd(off, iadd(moff, ml)), isub(n, iadd(moff, ml)), f, r, iadd(20, iadd(a1, a2)), y, col_muted()))
+in
+end
+
+fun draw_search_row(f: !Font, r: !Rend, hits: !Buf, hmeta: !Buf, row: int): void =
+  if ilt(buf_get32(hmeta, imul(row, 4)), 0) then draw_search_plain_hit(f, r, hits, hmeta, row)
+  else draw_search_marked_hit(f, r, hits, hmeta, row)
+
+fun draw_sidebar_search(f: !Font, r: !Rend, s: &App_record): void = let
+  val qn = buf_len(s.query)
+  val () = ui_line_edit_draw(f, r, 8, 68, 264, 24, s.query, qn, qn, toggle_of(ieq(s.qfocus, 1)), "Aramak icin yazin...")
+  var row: int = 0
+in
+  while (ilt(row, s.hn) andalso ilt(row, 24)) (
+    draw_search_row(f, r, s.hits, s.hmeta, row);
+    row := iadd(row, 1)
+  )
+end
+
+fun draw_tree_row(f: !Font, r: !Rend, s: &App_record, row: int): void = let
+  val depth = buf_get32(s.tmeta, imul(row, 4))
+  val isdir = buf_get32(s.tmeta, iadd(imul(row, 4), 1))
+  val off = buf_get32(s.tmeta, iadd(imul(row, 4), 2))
+  val n = buf_get32(s.tmeta, iadd(imul(row, 4), 3))
+  var base = buf_make(8)
+  val () = bcat(base, s.tree, off, iadd(off, n))
+  val () = base_name(base, s.scratch)
+  val icon = if ieq(isdir, 1) then UI_ICON_FOLDER else UI_ICON_FILE
+  val is_sel = if ieq(s.sel, row) then 1 else 0
+  val row_y = iadd(72, imul(row, 18))
+  val is_hov = if ige(s.hoverx, 6) andalso ilt(s.hoverx, 274) andalso ige(s.hovery, row_y) andalso ilt(s.hovery, iadd(row_y, 18)) then 1 else 0
+  val () = ui_cell(f, r, 6, row_y, 268, 18, depth, toggle_of(ieq(isdir, 1)), toggle_of(ieq(isdir, 1)), icon, cstr(s.scratch), "", toggle_of(ieq(is_sel, 1)), toggle_of(ieq(is_hov, 1)))
+  val () = buf_free(base)
+in
+end
+
+fun draw_sidebar_files(f: !Font, r: !Rend, s: &App_record): void = let
+  var row: int = 0
+in
+  while (ilt(row, s.tn) andalso ilt(row, 28)) (
+    draw_tree_row(f, r, s, row);
+    row := iadd(row, 1)
+  )
+end
+
+fun draw_config_vault_section(f: !Font, r: !Rend, s: &App_record): void = let
+  val () = draw_s(f, r, 12, 76, "Kasa", col_muted())
+  val vn = buf_len(s.vault)
+  val () =
+    if igt(vn, 0) then seen_int(font_draw_buf(f, r, 12, 94, s.vault, imin(vn, 28), col_text()))
+    else seen_int(font_draw(f, r, 12, 94, c_str_ptr("(Secilmedi)"), 10, col_text()))
+  val () = ui_button(f, r, 12, 122, 150, 22, "Kasayi Degistir", Off, Off)
+in
+end
+
+fun draw_config_font_size(f: !Font, r: !Rend, s: &App_record): void = let
+  val () = draw_s(f, r, 12, 154, "Yazi Boyutu (tikla)", col_text())
+  val pxlab = if ieq(s.fontpx, 16) then "16 px" else if ieq(s.fontpx, 20) then "20 px" else "18 px"
+  val () = ui_badge(f, r, 190, 152, pxlab, col_bar(), col_accent())
+in
+end
+
+fun draw_config_font_row(f: !Font, r: !Rend, s: &App_record, fi: int): void = let
+  var pbuf = buf_make(256)
+  var nbuf = buf_make(64)
+  val fy = iadd(210, imul(fi, 22))
+  val poff = buf_get32(s.fmeta, imul(fi, 4))
+  val plen = buf_get32(s.fmeta, iadd(imul(fi, 4), 1))
+  val noff = buf_get32(s.fmeta, iadd(imul(fi, 4), 2))
+  val nlen = buf_get32(s.fmeta, iadd(imul(fi, 4), 3))
+  val () = bcat(pbuf, s.fpaths, poff, iadd(poff, plen))
+  val () = bcat(nbuf, s.fnames, noff, iadd(noff, nlen))
+  val is_sel = if ieq(c_strcmp(cstr(pbuf), cstr(s.font_path)), 0) then 1 else 0
+  val f_icon = if ieq(is_sel, 1) then UI_ICON_CHECK else UI_ICON_CHECK_EMPTY
+  val is_hov = if ige(s.hoverx, 12) andalso ilt(s.hoverx, 268) andalso ige(s.hovery, fy) andalso ilt(s.hovery, iadd(fy, 22)) then 1 else 0
+  val () = ui_cell(f, r, 12, fy, 256, 22, 0, Off, Off, f_icon, cstr(nbuf), "", toggle_of(ieq(is_sel, 1)), toggle_of(ieq(is_hov, 1)))
+  val () = buf_free(pbuf)
+  val () = buf_free(nbuf)
+in
+end
+
+fun draw_sidebar_config(f: !Font, r: !Rend, s: &App_record): void = let
+  val () = draw_config_vault_section(f, r, s)
+  val () = draw_config_font_size(f, r, s)
+  val () = draw_s(f, r, 12, 186, "Yazi Tipi (fonts/)", col_text())
+  var fi: int = 0
+in
+  while (ilt(fi, s.fcnt) andalso ilt(fi, 12)) (
+    draw_config_font_row(f, r, s, fi);
+    fi := iadd(fi, 1)
+  )
+end
+
+fun draw_side_frame(r: !Rend, h: int): void = let
+  val () = rend_scissor(r, 0, 36, 280, isub(h, 36))
+  val () = rend_rect(r, 0, 36, 280, isub(h, 36), col_side())
+  val () = ui_divider(r, 0, 64, 280, Horizontal)
+  val () = ui_divider(r, 279, 36, isub(h, 36), Vertical)
+in
+end
+
+fun side_title(sd: Sidebar): string =
+  if is_side_files(sd) then "Dosya Gezgini Aç/Kapa"
+  else if is_side_search(sd) then "Genel Arama"
+  else "Ayarlar"
+
+fun draw_side_title(f: !Font, r: !Rend, sd: Sidebar): void = let
+  val () = draw_s(f, r, 12, 44, side_title(sd), col_heading())
+in
+end
+
+fun draw_side_body(f: !Font, r: !Rend, s: &App_record): void =
+  if is_side_search(s.side) then draw_sidebar_search(f, r, s)
+  else if is_side_files(s.side) then draw_sidebar_files(f, r, s)
+  else draw_sidebar_config(f, r, s)
+
 fun draw_side(f: !Font, r: !Rend, a: !App, h: int): void =
   case+ a of
   | @APP(s) => let
-      val () = rend_scissor(r, 0, 36, 280, isub(h, 36))
-      val () = rend_rect(r, 0, 36, 280, isub(h, 36), col_side())
-      val () = ui_divider(r, 0, 64, 280, 0)
-      val () = ui_divider(r, 279, 36, isub(h, 36), 1)
-      val title =
-        if ieq(s.side, 1) then "Dosya Gezgini Aç/Kapa"
-        else if ieq(s.side, 2) then "Genel Arama"
-        else "Ayarlar"
-      val _ds = draw_s(f, r, 12, 44, title, col_heading())
-      val () = if ieq(s.treedirty, 1) andalso ieq(s.side, 1) then let
-        val () = bclear(s.tree)
-        val () = bclear(s.tmeta)
-        val () = s.tn := 0
-        val () = scan_dir(s.vault, 0, s.tmeta, s.tree, s.tn)
-        val () = if ige(s.sel, s.tn) then s.sel := ~1 else ()
-      in
-        s.treedirty := 0
-      end else ()
+      val () = draw_side_frame(r, h)
+      val () = draw_side_title(f, r, s.side)
+      val () = ensure_tree_fresh(s)
+      val () = draw_side_body(f, r, s)
+      val () = rend_scissor_off(r)
     in
-      if ieq(s.side, 2) then let
-        val qn = buf_len(s.query)
-        val () = ui_line_edit_draw(f, r, 8, 68, 264, 24, s.query, qn, qn, s.qfocus, "Aramak icin yazin...")
-        var row: int = 0
-      in
-        while (ilt(row, s.hn) andalso ilt(row, 24)) (
-          if ilt(buf_get32(s.hmeta, imul(row, 4)), 0) then let
-            val off = buf_get32(s.hmeta, iadd(imul(row, 4), 1))
-            val n = buf_get32(s.hmeta, iadd(imul(row, 4), 2))
-            val _y = hit_text(s.hits, off, n, f, r, 12, iadd(100, imul(row, 18)), col_accent())
-          in
-          end else let
-            val moff = buf_get32(s.hmeta, imul(row, 4))
-            val off = buf_get32(s.hmeta, iadd(imul(row, 4), 1))
-            val n = buf_get32(s.hmeta, iadd(imul(row, 4), 2))
-            val ml = buf_get32(s.hmeta, iadd(imul(row, 4), 3))
-            val y = iadd(100, imul(row, 18))
-            val a1 = hit_text(s.hits, off, moff, f, r, 20, y, col_muted())
-            val a2 = hit_text(s.hits, iadd(off, moff), ml, f, r, iadd(20, a1), y, col_hightxt())
-            val _a3 = hit_text(s.hits, iadd(off, iadd(moff, ml)), isub(n, iadd(moff, ml)), f, r, iadd(20, iadd(a1, a2)), y, col_muted())
-          in
-          end;
-          row := iadd(row, 1)
-        );
-        rend_scissor_off(r);
-        fold@(a)
-      end else if ieq(s.side, 1) then let
-        var row: int = 0
-      in
-        while (ilt(row, s.tn) andalso ilt(row, 28)) (
-          let
-            val depth = buf_get32(s.tmeta, imul(row, 4))
-            val isdir = buf_get32(s.tmeta, iadd(imul(row, 4), 1))
-            val off = buf_get32(s.tmeta, iadd(imul(row, 4), 2))
-            val n = buf_get32(s.tmeta, iadd(imul(row, 4), 3))
-            var base = buf_make(8)
-            val () = bcat(base, s.tree, off, iadd(off, n))
-            val () = base_name(base, s.scratch)
-            val icon = if ieq(isdir, 1) then UI_ICON_FOLDER else UI_ICON_FILE
-            val is_sel = if ieq(s.sel, row) then 1 else 0
-            val () = rd_cell(f, r, 6, iadd(72, imul(row, 18)), 268, 18, depth, isdir, isdir, icon, cstr(s.scratch), "", is_sel, 0)
-            val () = buf_free(base)
-          in
-          end;
-          row := iadd(row, 1)
-        );
-        rend_scissor_off(r);
-        fold@(a)
-      end else let
-        val _ds = draw_s(f, r, 12, 76, "Kasa", col_muted())
-        val vn = buf_len(s.vault)
-        val vlabel = if igt(vn, 0) then buf_ptr(s.vault) else c_str_ptr("(Secilmedi)")
-        val _p = font_draw(f, r, 12, 94, vlabel, imin(if igt(vn, 0) then vn else 10, 28), col_text())
-        val () = ui_button(f, r, 12, 122, 150, 22, "Kasayi Degistir", 0, 0)
-
-        val _ds = draw_s(f, r, 12, 154, "Yazi Boyutu (tikla)", col_text())
-        val pxlab = if ieq(s.fontpx, 16) then "16 px" else if ieq(s.fontpx, 20) then "20 px" else "18 px"
-        val _px = ui_badge(f, r, 190, 152, pxlab, col_bar(), col_accent())
-
-        val _ds = draw_s(f, r, 12, 186, "Yazi Tipi (fonts/)", col_text())
-        var fi: int = 0
-      in
-        while (ilt(fi, s.fcnt) andalso ilt(fi, 12)) (
-          let
-            var pbuf = buf_make(256)
-            var nbuf = buf_make(64)
-            val fy = iadd(210, imul(fi, 22))
-            val poff = buf_get32(s.fmeta, imul(fi, 4))
-            val plen = buf_get32(s.fmeta, iadd(imul(fi, 4), 1))
-            val noff = buf_get32(s.fmeta, iadd(imul(fi, 4), 2))
-            val nlen = buf_get32(s.fmeta, iadd(imul(fi, 4), 3))
-            val () = bcat(pbuf, s.fpaths, poff, iadd(poff, plen))
-            val () = bcat(nbuf, s.fnames, noff, iadd(noff, nlen))
-            val is_sel = if ieq(c_strcmp(cstr(pbuf), cstr(s.font_path)), 0) then 1 else 0
-            val f_icon = if ieq(is_sel, 1) then UI_ICON_CHECK else UI_ICON_CHECK_EMPTY
-            val () = rd_cell(f, r, 12, fy, 256, 22, 0, 0, 0, f_icon, cstr(nbuf), "", is_sel, 0)
-            val () = buf_free(pbuf)
-            val () = buf_free(nbuf)
-          in
-            fi := iadd(fi, 1)
-          end
-        );
-        rend_scissor_off(r);
-        fold@(a)
-      end
+      fold@(a)
     end
+
 fun ui_draw_menu(f: !Font, r: !Rend, a: !App): void =
   case+ a of
   | @APP(s) => let
@@ -316,61 +448,87 @@ fun ui_draw_menu(f: !Font, r: !Rend, a: !App): void =
       fold@(a)
     end
 
-fun top_btn_w(f: !Font, r: !Rend, s: string, min_w: int): int = let
-  val tw = font_width(f, r, c_str_ptr(s), c_strlen(s))
+fun topbar_btn_x(idx: int): int =
+  iadd(8, imul(idx, iadd(UI_TOPBAR_BTN_WIDTH, 6)))
+
+fun topbar_tab_start_x(): int =
+  iadd(iadd(topbar_btn_x(2), iadd(UI_TOPBAR_BTN_WIDTH, 14)), 16)
+
+fun topbar_mode_btn_x(w: int): int =
+  isub(w, iadd(UI_TOPBAR_BTN_WIDTH, 10))
+
+fun topbar_btn_hovered(s: &App_record, x: int): int =
+  if ige(s.hoverx, x) andalso ilt(s.hoverx, iadd(x, UI_TOPBAR_BTN_WIDTH)) andalso ige(s.hovery, 4) andalso ilt(s.hovery, 32) then 1 else 0
+
+fun draw_topbar_side_buttons(f: !Font, r: !Rend, s: &App_record): void = let
+  val x1 = topbar_btn_x(0)
+  val x2 = topbar_btn_x(1)
+  val x3 = topbar_btn_x(2)
+  val () = ui_icon_button(f, r, UI_ICON_FOLDER, "Gezgin", x1, 4, UI_TOPBAR_BTN_WIDTH, 28, toggle_of(is_side_files(s.side)), toggle_of(ieq(topbar_btn_hovered(s, x1), 1)))
+  val () = ui_icon_button(f, r, UI_ICON_SEARCH, "Arama", x2, 4, UI_TOPBAR_BTN_WIDTH, 28, toggle_of(is_side_search(s.side)), toggle_of(ieq(topbar_btn_hovered(s, x2), 1)))
+  val () = ui_icon_button(f, r, UI_ICON_SETTINGS, "Ayarlar", x3, 4, UI_TOPBAR_BTN_WIDTH, 28, toggle_of(is_side_config(s.side)), toggle_of(ieq(topbar_btn_hovered(s, x3), 1)))
 in
-  imax(min_w, iadd(tw, 24))
 end
+
+fun draw_topbar_chrome(f: !Font, r: !Rend, s: &App_record, w: int): void = let
+  val tab_sep_x = iadd(topbar_btn_x(2), iadd(UI_TOPBAR_BTN_WIDTH, 14))
+  val btxt = if is_view_edit(s.viewmode) then "Düzenle" else "Okuma"
+  val bx = topbar_mode_btn_x(w)
+  val () = rend_rect(r, 0, 0, w, UI_TOPBAR_HEIGHT, col_bar())
+  val () = ui_divider(r, 0, 35, w, Horizontal)
+  val () = draw_topbar_side_buttons(f, r, s)
+  val () = ui_divider(r, tab_sep_x, 8, 20, Vertical)
+  val hov_m = topbar_btn_hovered(s, bx)
+in
+  ui_button(f, r, bx, 4, UI_TOPBAR_BTN_WIDTH, 28, btxt, toggle_of(ieq(hov_m, 1)), toggle_of(is_view_edit(s.viewmode)))
+end
+
+fun draw_editor_panes(f: !Font, r: !Rend, s: &App_record >> _, ox: int, half: int, h: int, lh: int): void = let
+  val tab_x0 = topbar_tab_start_x()
+  val ts = s.tabs
+  val () = s.tabs := TNil()
+  val mark = pane_of(toggle_of(ieq(s.focus, 1)), s.active, s.righti)
+  val ts2 = draw_tabrow(f, r, ts, tab_x0, mark, 0)
+  val ts3 = draw_focus(f, r, ts2, s.active, ox, UI_TOPBAR_HEIGHT, half, isub(h, UI_TOPBAR_HEIGHT), lh, s.vault, s.cache, s.scratch, 0, s.viewmode)
+  val ts4 = draw_right(f, r, ts3, s.split, s.righti, iadd(ox, half), UI_TOPBAR_HEIGHT, half, isub(h, UI_TOPBAR_HEIGHT), lh, s.vault, s.cache, s.scratch, s.viewmode)
+  val ph = s.tabs
+  val () = s.tabs := ts4
+  val () = tabs_free(ph)
+in
+  if ieq(s.split, 1) then ui_divider(r, iadd(ox, half), UI_TOPBAR_HEIGHT, isub(h, UI_TOPBAR_HEIGHT), Vertical) else ()
+end
+
+fun font_load_report(f: !Font, path: string): void =
+  if ieq(font_use_file(f, path), 1) then () else report_failure("font_load", path)
+
+(* Klasor zaten varsa basarilidir; mkdir hatasi yalnizca klasor yoksa raporlanir. *)
+fun ensure_dir_report(path: string): void =
+  if ieq(fs_isdir(path), 1) then ()
+  else if ieq(fs_mkdir(path), 0) then ()
+  else report_failure("vault_dir_create", path)
+
+fun load_font_if_needed(f: !Font, s: &App_record): void =
+  if ieq(s.font_idx, 0) andalso igt(buf_len(s.font_path), 0) then let
+    val () = font_load_report(f, cstr(s.font_path))
+    val () = font_set_px(f, s.fontpx)
+    val () = s.font_idx := 1
+  in
+    ()
+  end else ()
 
 fun draw_panes(f: !Font, r: !Rend, a: !App, w: int, h: int): void =
   case+ a of
   | @APP(s) => let
-      val () = if ieq(s.font_idx, 0) andalso igt(buf_len(s.font_path), 0) then let
-        val _ok = font_use_file(f, cstr(s.font_path))
-        val () = font_set_px(f, s.fontpx)
-        val () = s.font_idx := 1
-      in
-        ()
-      end else ()
-      val sidew = if igt(s.side, 0) then 280 else 0
+      val () = load_font_if_needed(f, s)
+      val sidew = if not(is_side_none(s.side)) then UI_SIDEBAR_WIDTH else 0
       val ox = sidew
       val pw = isub(w, sidew)
       val () = font_set_px(f, s.fontpx)
       val lh = font_line_h(f)
       val half = if ieq(s.split, 1) then idiv(pw, 2) else pw
-
-      val top_w = 96
-      val x1 = 8
-      val x2 = iadd(x1, iadd(top_w, 6))
-      val x3 = iadd(x2, iadd(top_w, 6))
-      val tab_sep_x = iadd(x3, iadd(top_w, 14))
-      val tab_x0 = iadd(tab_sep_x, 16)
-
-      val btxt = if ieq(s.viewmode, 0) then "Düzenle" else "Okuma"
-      val bw = 96
-      val bx = isub(w, iadd(bw, 10))
-
       val () = rend_rect(r, 0, 0, w, h, col_bg())
-      val () = rend_rect(r, 0, 0, w, 36, col_bar())
-      val () = ui_divider(r, 0, 35, w, 0)
-
-      val () = rd_icon_button(f, r, UI_ICON_FOLDER, "Gezgin", x1, 4, top_w, 28, if ieq(s.side, 1) then 1 else 0, 0)
-      val () = rd_icon_button(f, r, UI_ICON_SEARCH, "Arama", x2, 4, top_w, 28, if ieq(s.side, 2) then 1 else 0, 0)
-      val () = rd_icon_button(f, r, UI_ICON_SETTINGS, "Ayarlar", x3, 4, top_w, 28, if ieq(s.side, 3) then 1 else 0, 0)
-      val () = ui_divider(r, tab_sep_x, 8, 20, 1)
-
-      val () = ui_button(f, r, bx, 4, bw, 28, btxt, 0, if ieq(s.viewmode, 0) then 1 else 0)
-
-      val ts = s.tabs
-      val () = s.tabs := TNil()
-      val mark = if ieq(s.focus, 0) then s.active else s.righti
-      val ts2 = draw_tabrow(f, r, ts, tab_x0, mark, 0)
-      val ts3 = draw_focus(f, r, ts2, s.active, ox, 36, half, isub(h, 36), lh, s.vault, s.cache, s.scratch, 0, s.viewmode)
-      val ts4 = draw_right(f, r, ts3, s.split, s.righti, iadd(ox, half), 36, half, isub(h, 36), lh, s.vault, s.cache, s.scratch, s.viewmode)
-      val ph = s.tabs
-      val () = s.tabs := ts4
-      val () = tabs_free(ph)
-      val () = if ieq(s.split, 1) then ui_divider(r, iadd(ox, half), 36, isub(h, 36), 1) else ()
+      val () = draw_topbar_chrome(f, r, s, w)
+      val () = draw_editor_panes(f, r, s, ox, half, h, lh)
     in
       fold@(a)
     end
@@ -383,6 +541,51 @@ fun ui_draw_prompt(f: !Font, r: !Rend, a: !App): void =
       fold@(a)
     end
 
+fun draw_vault_item(f: !Font, r: !Rend, s: &App_record, mx: int, my: int, mw: int, vi: int): void = let
+  var nbuf = buf_make(64)
+  var pbuf = buf_make(256)
+  val ry = iadd(my, iadd(68, imul(vi, 26)))
+  val poff = buf_get32(s.vmeta, imul(vi, 4))
+  val plen = buf_get32(s.vmeta, iadd(imul(vi, 4), 1))
+  val noff = buf_get32(s.vmeta, iadd(imul(vi, 4), 2))
+  val nlen = buf_get32(s.vmeta, iadd(imul(vi, 4), 3))
+  val () = bcat(pbuf, s.vpaths, poff, iadd(poff, plen))
+  val () = bcat(nbuf, s.vnames, noff, iadd(noff, nlen))
+  val is_curr = if ieq(c_strcmp(cstr(pbuf), cstr(s.vault)), 0) then 1 else 0
+  val is_hov = if ige(s.hoverx, iadd(mx, 16)) andalso ilt(s.hoverx, isub(iadd(mx, mw), 16)) andalso ige(s.hovery, ry) andalso ilt(s.hovery, iadd(ry, 24)) then 1 else 0
+  val () = ui_cell(f, r, iadd(mx, 16), ry, isub(mw, 32), 24, 0, Off, Off, UI_ICON_FOLDER, cstr(nbuf), cstr(pbuf), toggle_of(ieq(is_curr, 1)), toggle_of(ieq(is_hov, 1)))
+  val () = buf_free(nbuf)
+in
+  buf_free(pbuf)
+end
+
+extern fun draw_vault_items_exh(f: !Font, r: !Rend, s: &App_record, mx: int, my: int, mw: int, vi: int, max_cnt: int): void = "mac#anth_die_void"
+
+fun draw_vault_items_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, s: &App_record, mx: int, my: int, mw: int, vi: int, max_cnt: int): void =
+  if recfuel > 0 then (
+    if ige(vi, max_cnt) then ()
+    else let
+      val () = draw_vault_item(f, r, s, mx, my, mw, vi)
+    in
+      draw_vault_items_m(recfuel - 1, f, r, s, mx, my, mw, iadd(vi, 1), max_cnt)
+    end
+  ) else draw_vault_items_exh(f, r, s, mx, my, mw, vi, max_cnt)
+
+fun draw_vault_items(f: !Font, r: !Rend, s: &App_record, mx: int, my: int, mw: int, vi: int, max_cnt: int): void = draw_vault_items_m(airlock_nat(MAX_REC_FUEL), f, r, s, mx, my, mw, vi, max_cnt)
+
+fun draw_vault_dialog_body(f: !Font, r: !Rend, s: &App_record, mx: int, my: int, mw: int): void = let
+  val () = draw_s(f, r, iadd(mx, 16), iadd(my, 44), "Mevcut kasalardan birini secin veya yeni kasa olusturun:", col_muted())
+  val () = draw_vault_items(f, r, s, mx, my, mw, 0, imin(s.vcnt, 6))
+  val iy = iadd(my, 248)
+  val () = draw_s(f, r, iadd(mx, 16), iy, "Yeni Kasa Konumu (Klasor Yolu):", col_text())
+  val qlen = buf_len(s.promptb)
+  val () = ui_line_edit_draw(f, r, iadd(mx, 16), iadd(iy, 20), isub(mw, 32), 26, s.promptb, qlen, qlen, On, "ornegin: /home/kullanici/Notlar")
+  val by = iadd(my, 310)
+  val () = ui_button(f, r, iadd(mx, 16), by, 140, 30, "Ac / Olustur", Off, On)
+in
+  if igt(buf_len(s.vault), 0) then ui_button(f, r, isub(iadd(mx, mw), 116), by, 100, 30, "Iptal", Off, Off) else ()
+end
+
 fun draw_vault_select(f: !Font, r: !Rend, a: !App, w: int, h: int): void =
   case+ a of
   | @APP(s) => let
@@ -393,40 +596,8 @@ fun draw_vault_select(f: !Font, r: !Rend, a: !App, w: int, h: int): void =
         val mx = idiv(isub(w, mw), 2)
         val my = idiv(isub(h, mh), 2)
         val () = ui_pane_begin(r, mx, my, mw, mh, col_bg())
-        val () = ui_pane_draw_header(f, r, mx, my, mw, "Kasa Secimi / Vault Secimi", if igt(buf_len(s.vault), 0) then 1 else 0)
-
-        val _ds = draw_s(f, r, iadd(mx, 16), iadd(my, 44), "Mevcut kasalardan birini secin veya yeni kasa olusturun:", col_muted())
-
-        var vi: int = 0
-        val list_max = imin(s.vcnt, 6)
-        val () = while (ilt(vi, list_max)) (
-          let
-            var nbuf = buf_make(64)
-            var pbuf = buf_make(256)
-            val ry = iadd(my, iadd(68, imul(vi, 26)))
-            val poff = buf_get32(s.vmeta, imul(vi, 4))
-            val plen = buf_get32(s.vmeta, iadd(imul(vi, 4), 1))
-            val noff = buf_get32(s.vmeta, iadd(imul(vi, 4), 2))
-            val nlen = buf_get32(s.vmeta, iadd(imul(vi, 4), 3))
-            val () = bcat(pbuf, s.vpaths, poff, iadd(poff, plen))
-            val () = bcat(nbuf, s.vnames, noff, iadd(noff, nlen))
-            val is_curr = if ieq(c_strcmp(cstr(pbuf), cstr(s.vault)), 0) then 1 else 0
-            val () = rd_cell(f, r, iadd(mx, 16), ry, isub(mw, 32), 24, 0, 0, 0, UI_ICON_FOLDER, cstr(nbuf), cstr(pbuf), is_curr, 0)
-            val () = buf_free(nbuf)
-            val () = buf_free(pbuf)
-          in
-            vi := iadd(vi, 1)
-          end
-        )
-
-        val iy = iadd(my, 248)
-        val _di = draw_s(f, r, iadd(mx, 16), iy, "Yeni Kasa Konumu (Klasor Yolu):", col_text())
-        val qlen = buf_len(s.promptb)
-        val () = ui_line_edit_draw(f, r, iadd(mx, 16), iadd(iy, 20), isub(mw, 32), 26, s.promptb, qlen, qlen, 1, "ornegin: /home/kullanici/Notlar")
-
-        val by = iadd(my, 310)
-        val () = ui_button(f, r, iadd(mx, 16), by, 140, 30, "Ac / Olustur", 0, 1)
-        val () = if igt(buf_len(s.vault), 0) then ui_button(f, r, isub(iadd(mx, mw), 116), by, 100, 30, "Iptal", 0, 0) else ()
+        val () = ui_pane_draw_header(f, r, mx, my, mw, "Kasa Secimi / Vault Secimi", toggle_of(igt(buf_len(s.vault), 0)))
+        val () = draw_vault_dialog_body(f, r, s, mx, my, mw)
       in
       end else ()
     in
@@ -441,39 +612,45 @@ implement app_draw(a, f, r, w, h) = let
   in
     v
   end
-  val () = if igt(show, 0) then draw_side(f, r, a, h) else ()
+  val () = if not(is_side_none(show)) then draw_side(f, r, a, h) else ()
   val () = ui_draw_prompt(f, r, a)
   val () = ui_draw_menu(f, r, a)
 in
   draw_vault_select(f, r, a, w, h)
 end
-fun find_wiki(doc: !Doc, caret: int, k: int): int =
-  if ige(k, doc_nnodes(doc)) then ~1
-  else if ile(doc_get(doc, k, 1), caret) andalso ilt(caret, doc_get(doc, k, 2)) andalso ieq(doc_get(doc, k, 0), 16) then k
-  else find_wiki(doc, caret, iadd(k, 1))
+extern fun find_wiki_exh(doc: !Doc, caret: int, k: int): int = "mac#anth_die_int"
 
-fun open_or(rest: Tabs, owned: Buf, go: int): Tabs =
-  if ieq(go, 1) then tabs_open(rest, owned)
+fun find_wiki_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), doc: !Doc, caret: int, k: int): int =
+  if recfuel > 0 then (
+    if ige(k, doc_nnodes(doc)) then ~1
+    else if ile(doc_node_start(doc, k), caret) andalso ilt(caret, doc_node_end(doc, k)) andalso ieq(doc_node_kind(doc, k), NK_WIKI) then k
+    else find_wiki_m(recfuel - 1, doc, caret, iadd(k, 1))
+  ) else find_wiki_exh(doc, caret, k)
+
+fun find_wiki(doc: !Doc, caret: int, k: int): int = find_wiki_m(airlock_nat(MAX_REC_FUEL), doc, caret, k)
+
+fun open_or(rest: Tabs, owned: Buf, go: Toggle): Tabs =
+  if is_on(go) then tabs_open(rest, owned)
   else let
     val () = buf_free(owned)
   in
     rest
   end
 
-fun take_if(doc: !Doc, w: int, rel: &Buf >> _, go: int): void =
-  if ieq(go, 1) then take_path(doc, w, rel) else touchb(rel)
+fun take_if(doc: !Doc, w: int, rel: &Buf >> _, go: Toggle): void =
+  if is_on(go) then take_path(doc, w, rel) else touchb(rel)
 
 fun wiki_here(doc: !Doc, rest: Tabs, vault: !Buf): Tabs = let
-  val _ni = node_covering(doc, 0, 0, 0, 0, ~1)
+  val () = seen_int(node_covering(doc, 0, 0, 0, 0, ~1))
   var rel = buf_make(8)
   var full = buf_make(8)
   var shown = buf_make(8)
   val w = find_wiki(doc, doc_caret(doc), 0)
-  val () = take_if(doc, w, rel, iif(ige(w, 0), 1, 0))
+  val () = take_if(doc, w, rel, toggle_of(ige(w, 0)))
   val () = resolve_path(vault, rel, full)
   val () = with_md(full, shown)
   val owned = bcopy(shown)
-  val restw = open_or(rest, owned, iif(ige(w, 0), 1, 0))
+  val restw = open_or(rest, owned, toggle_of(ige(w, 0)))
   val () = buf_free(rel)
   val () = buf_free(full)
 in
@@ -484,13 +661,24 @@ in
   end
 end
 
-fun wiki_open(ts: Tabs, idx: int, vault: !Buf, i: int): Tabs =
-  case+ ts of
-  | ~TNil() => TNil()
-  | ~TCons(doc, path, title, sc, rest) =>
-      TCons(doc, path, title, sc, wiki_arm(ieq(i, idx), doc, rest, idx, vault, i))
-and wiki_arm(stop: bool, doc: !Doc, rest: Tabs, idx: int, vault: !Buf, i: int): Tabs =
-  if stop then wiki_here(doc, rest, vault) else wiki_open(rest, idx, vault, iadd(i, 1))
+fun wiki_tab_here(doc: Doc, path: Buf, title: Buf, sc: int, rest: Tabs, vault: !Buf): Tabs = let
+  val rest2 = wiki_here(doc, rest, vault)
+in
+  TCons(doc, path, title, sc, rest2)
+end
+
+extern fun wiki_open_exh(ts: Tabs, idx: int, vault: !Buf, i: int): Tabs = "mac#anth_die_box"
+
+fun wiki_open_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, vault: !Buf, i: int): Tabs =
+  if recfuel > 0 then (
+    case+ ts of
+    | ~TNil() => TNil()
+    | ~TCons(doc, path, title, sc, rest) =>
+        if ieq(i, idx) then wiki_tab_here(doc, path, title, sc, rest, vault)
+        else TCons(doc, path, title, sc, wiki_open_m(recfuel - 1, rest, idx, vault, iadd(i, 1)))
+  ) else wiki_open_exh(ts, idx, vault, i)
+
+fun wiki_open(ts: Tabs, idx: int, vault: !Buf, i: int): Tabs = wiki_open_m(airlock_nat(MAX_REC_FUEL), ts, idx, vault, i)
 
 fun close_active_tab(ts: Tabs, idx: int): Tabs = let
   val ts2 = tabs_drop(ts, idx)
@@ -514,140 +702,120 @@ in
   tabs_add(ts, d, p, t)
 end
 
-fun key_code(ev: &event, act: int): int =
-  if ieq(act, 0) then
-    if ieq(key_is(ev, 10), 1) then 41 else 0
-  else if ieq(ctrl_on(ev), 1) then let
-    val sh = shift_on(ev)
-  in
-    if ieq(key_is(ev, 0), 1) then (if ieq(sh, 1) then 45 else 43)
-    else if ieq(key_is(ev, 1), 1) then (if ieq(sh, 1) then 46 else 44)
-    else if ieq(key_is(ev, 4), 1) then 47
-    else if ieq(key_is(ev, 5), 1) then 48
-    else if ieq(key_is(ev, 6), 1) then (if ieq(sh, 1) then 51 else 49)
-    else if ieq(key_is(ev, 7), 1) then (if ieq(sh, 1) then 52 else 50)
-    else if ieq(key_is(ev, 9), 1) then (if ieq(sh, 1) then 58 else 57)
-    else let
-      val c = key_char(ev)
-    in
-      if ieq(c, 122) then // 'z'
-        if ieq(sh, 1) then 17 else 16
-      else if ieq(c, 121) then 17 // 'y'
-      else if ieq(c, 115) orelse ieq(c, 83) orelse ieq(key_is(ev, 15), 1) orelse ieq(key_is(ev, 20), 1) then 15 // 's'
-      else if ieq(c, 97) then 9   // 'a'
-      else if ieq(c, 99) then 12  // 'c'
-      else if ieq(c, 120) then 14 // 'x'
-      else if ieq(c, 118) then 13 // 'v'
-      else if ieq(c, 102) then 35 // 'f'
-      else if ieq(c, 112) orelse ieq(c, 111) then 35 // 'p', 'o'
-      else if ieq(c, 119) then 36 // 'w'
-      else if ieq(c, 116) then 37 // 't'
-      else if ieq(c, 110) then    // 'n'
-        if ieq(sh, 1) then 39 else 38
-      else if ieq(c, 101) then 40 // 'e'
-      else if ieq(c, 98) then 18  // 'b'
-      else if ieq(c, 105) then 19 // 'i'
-      else if ieq(c, 107) then 20 // 'k'
-      else 0 // ignore unknown Ctrl combinations; never treat as printable text
-    end
-  end else if ieq(key_is(ev, 10), 1) then 41 // Escape
-  else if ieq(key_is(ev, 0), 1) then (if ieq(shift_on(ev), 1) then 21 else 1)       // Left
-  else if ieq(key_is(ev, 1), 1) then (if ieq(shift_on(ev), 1) then 22 else 2)       // Right
-  else if ieq(key_is(ev, 2), 1) then (if ieq(shift_on(ev), 1) then 23 else 3)       // Up
-  else if ieq(key_is(ev, 3), 1) then (if ieq(shift_on(ev), 1) then 24 else 4)       // Down
-  else if ieq(key_is(ev, 6), 1) then (if ieq(shift_on(ev), 1) then 25 else 5)       // Home
-  else if ieq(key_is(ev, 7), 1) then (if ieq(shift_on(ev), 1) then 26 else 6)       // End
-  else if ieq(key_is(ev, 41), 1) then (if ieq(shift_on(ev), 1) then 55 else 53)     // Page Up
-  else if ieq(key_is(ev, 42), 1) then (if ieq(shift_on(ev), 1) then 56 else 54)     // Page Down
-  else if ieq(key_is(ev, 4), 1) then 7       // Backspace
-  else if ieq(key_is(ev, 5), 1) then 8       // Delete
-  else if ieq(key_is(ev, 8), 1) then 30      // Enter
-  else if ieq(key_is(ev, 9), 1) then 28      // Tab
-  else 31                                    // Normal typing
+fun key_code_ctrl_char(c: int, sh: Toggle, ev: &event): int =
+  if ieq(c, KEY_CHAR_Z) then (if is_on(sh) then CMD_REDO else CMD_UNDO)
+  else if ieq(c, KEY_CHAR_Y) then CMD_REDO
+  else if ieq(c, KEY_CHAR_S) orelse ieq(c, KEY_CHAR_S_UPPER) orelse ieq(key_is(ev, 15), 1) orelse ieq(key_is(ev, 20), 1) then CMD_SAVE
+  else if ieq(c, KEY_CHAR_A) then CMD_SELECT_ALL
+  else if ieq(c, KEY_CHAR_C) then CMD_COPY
+  else if ieq(c, KEY_CHAR_X) then CMD_CUT
+  else if ieq(c, KEY_CHAR_V) then CMD_PASTE
+  else if ieq(c, KEY_CHAR_F) orelse ieq(c, KEY_CHAR_P) orelse ieq(c, KEY_CHAR_O) then CMD_OPEN_SEARCH
+  else if ieq(c, KEY_CHAR_W) then CMD_CLOSE_TAB
+  else if ieq(c, KEY_CHAR_T) then CMD_NEW_TAB
+  else if ieq(c, KEY_CHAR_N) then (if is_on(sh) then CMD_NEW_FOLDER else CMD_NEW_FILE)
+  else if ieq(c, KEY_CHAR_E) then CMD_TOGGLE_VIEW
+  else if ieq(c, KEY_CHAR_B) then CMD_WRAP_BOLD
+  else if ieq(c, KEY_CHAR_I) then CMD_WRAP_ITALIC
+  else if ieq(c, KEY_CHAR_K) then CMD_WRAP_WIKILINK
+  else CMD_NONE
 
-fun apply_key(ts: Tabs, idx: int, cmd: int, vault: !Buf, clip: &Buf >> _, scratch: &Buf >> _, p: !Plat, paste: &int >> _): Tabs =
-  if ieq(cmd, 15) then tabs_ensure_paths(ts, vault)
-  else if ieq(cmd, 12) then let
-      val () = tabs_copy(ts, idx, clip)
-      val () = plat_own(p, 0)
-      val () = plat_own(p, 1)
-    in
-      ts
-    end else if ieq(cmd, 14) then let
-      val () = tabs_copy(ts, idx, clip)
-      val () = plat_own(p, 0)
-      val () = plat_own(p, 1)
-      val ts2 = tabs_cmd(ts, idx, 10)
-      val () = tabs_sync_vfs(ts2, idx)
-    in
-      ts2
-    end else if ieq(cmd, 13) then let
-      val () = paste := 1
-      val () = plat_paste(p, 0)
-    in
-      ts
-    end else if ieq(cmd, 30) then let
-      val () = buf_set(scratch, 0, 10)
-      val ts2 = tabs_ins(ts, idx, buf_ptr(scratch), 1)
-      val () = tabs_sync_vfs(ts2, idx)
-    in
-      ts2
-    end else if ieq(cmd, 41) then tabs_cmd(ts, idx, 11)
-    else if igt(cmd, 0) andalso ilt(cmd, 57) then let
-      val ts2 = tabs_cmd(ts, idx, cmd)
-      val is_edit = if ieq(cmd, 7) orelse ieq(cmd, 8) orelse ieq(cmd, 10)
-                    orelse ieq(cmd, 16) orelse ieq(cmd, 17) orelse ieq(cmd, 18)
-                    orelse ieq(cmd, 19) orelse ieq(cmd, 20) orelse ieq(cmd, 28)
-                    orelse ieq(cmd, 47) orelse ieq(cmd, 48)
-                    then 1 else 0
-      val () = if ieq(is_edit, 1) then tabs_sync_vfs(ts2, idx) else ()
-    in
-      ts2
-    end else ts
+fun key_code_ctrl_nav(ev: &event, sh: Toggle): int =
+  if ieq(key_is(ev, KEY_LEFT), 1) then (if is_on(sh) then CMD_SELECT_WORD_LEFT else CMD_WORD_LEFT)
+  else if ieq(key_is(ev, KEY_RIGHT), 1) then (if is_on(sh) then CMD_SELECT_WORD_RIGHT else CMD_WORD_RIGHT)
+  else if ieq(key_is(ev, KEY_BACKSPACE), 1) then CMD_DELETE_WORD_LEFT
+  else if ieq(key_is(ev, KEY_DELETE), 1) then CMD_DELETE_WORD_RIGHT
+  else if ieq(key_is(ev, KEY_HOME), 1) then (if is_on(sh) then CMD_SELECT_DOC_START else CMD_DOC_START)
+  else if ieq(key_is(ev, KEY_END), 1) then (if is_on(sh) then CMD_SELECT_DOC_END else CMD_DOC_END)
+  else if ieq(key_is(ev, KEY_TAB), 1) then (if is_on(sh) then CMD_PREV_TAB else CMD_NEXT_TAB)
+  else key_code_ctrl_char(key_char(ev), sh, ev)
 
-fun filter_text(b: !Buf, n: int): int = let
-  val p = buf_ptr(b)
-  var i: int = 0
-  var has_esc: int = 0
+fun key_code_non_ctrl(ev: &event, sh: Toggle): int =
+  if ieq(key_is(ev, KEY_ESCAPE), 1) then CMD_ESCAPE
+  else if ieq(key_is(ev, KEY_LEFT), 1) then (if is_on(sh) then CMD_SELECT_LEFT else CMD_CARET_LEFT)
+  else if ieq(key_is(ev, KEY_RIGHT), 1) then (if is_on(sh) then CMD_SELECT_RIGHT else CMD_CARET_RIGHT)
+  else if ieq(key_is(ev, KEY_UP), 1) then (if is_on(sh) then CMD_SELECT_UP else CMD_CARET_UP)
+  else if ieq(key_is(ev, KEY_DOWN), 1) then (if is_on(sh) then CMD_SELECT_DOWN else CMD_CARET_DOWN)
+  else if ieq(key_is(ev, KEY_HOME), 1) then (if is_on(sh) then CMD_SELECT_LINE_START else CMD_CARET_LINE_START)
+  else if ieq(key_is(ev, KEY_END), 1) then (if is_on(sh) then CMD_SELECT_LINE_END else CMD_CARET_LINE_END)
+  else if ieq(key_is(ev, KEY_PAGE_UP), 1) then (if is_on(sh) then CMD_SELECT_PAGE_UP else CMD_PAGE_UP)
+  else if ieq(key_is(ev, KEY_PAGE_DOWN), 1) then (if is_on(sh) then CMD_SELECT_PAGE_DOWN else CMD_PAGE_DOWN)
+  else if ieq(key_is(ev, KEY_BACKSPACE), 1) then CMD_BACKSPACE
+  else if ieq(key_is(ev, KEY_DELETE), 1) then CMD_DELETE
+  else if ieq(key_is(ev, KEY_RETURN), 1) then CMD_NEWLINE
+  else if ieq(key_is(ev, KEY_TAB), 1) then CMD_INDENT
+  else CMD_TEXT_INPUT
+
+fun key_code(ev: &event, act: Toggle): int =
+  if is_off(act) then (if ieq(key_is(ev, KEY_ESCAPE), 1) then CMD_ESCAPE else CMD_NONE)
+  else if ieq(ctrl_on(ev), 1) then key_code_ctrl_nav(ev, toggle_of(ieq(shift_on(ev), 1)))
+  else key_code_non_ctrl(ev, toggle_of(ieq(shift_on(ev), 1)))
+
+fun is_modifying_cmd(cmd: int): int =
+  if ieq(cmd, CMD_BACKSPACE) orelse ieq(cmd, CMD_DELETE) orelse ieq(cmd, CMD_DELETE_SELECTION)
+     orelse ieq(cmd, CMD_UNDO) orelse ieq(cmd, CMD_REDO)
+     orelse ieq(cmd, CMD_WRAP_BOLD) orelse ieq(cmd, CMD_WRAP_ITALIC) orelse ieq(cmd, CMD_WRAP_WIKILINK)
+     orelse ieq(cmd, CMD_INDENT) orelse ieq(cmd, CMD_DELETE_WORD_LEFT) orelse ieq(cmd, CMD_DELETE_WORD_RIGHT)
+  then 1 else 0
+
+fun apply_key_copy(ts: Tabs, idx: int, clip: &Buf >> _, p: !Plat): Tabs = let
+  val () = tabs_copy(ts, idx, clip)
+  val () = plat_own(p, 0)
+  val () = plat_own(p, 1)
 in
-  while (ilt(i, n)) (
-    let
-      val by = mem_byte(p, n, i)
-    in
-      if ieq(by, 27) then has_esc := 1 else ();
-      i := iadd(i, 1)
-    end
-  );
-  if ieq(has_esc, 1) then 0
-  else let
-    var j: int = 0
-    var w: int = 0
-  in
-    while (ilt(j, n)) (
-      let
-        val byte = mem_byte(p, n, j)
-      in
-        if (ige(byte, 32) andalso ine(byte, 127)) orelse ieq(byte, 9) orelse ieq(byte, 10) then (
-          mem_set_byte(p, n, w, byte);
-          w := iadd(w, 1)
-        ) else ();
-        j := iadd(j, 1)
-      end
-    );
-    w
-  end
+  ts
 end
 
+fun apply_key_cut(ts: Tabs, idx: int, clip: &Buf >> _, p: !Plat): Tabs = let
+  val ts1 = apply_key_copy(ts, idx, clip, p)
+  val ts2 = tabs_cmd(ts1, idx, CMD_DELETE_SELECTION)
+  val () = tabs_sync_vfs(ts2, idx)
+in
+  ts2
+end
+
+fun apply_key_paste(ts: Tabs, paste: &int >> _, p: !Plat): Tabs = let
+  val () = paste := 1
+  val () = plat_paste(p, 0)
+in
+  ts
+end
+
+fun apply_key_newline(ts: Tabs, idx: int, scratch: &Buf >> _): Tabs = let
+  val () = buf_set(scratch, 0, 10)
+  val ts2 = tabs_ins_buf(ts, idx, scratch, 1)
+  val () = tabs_sync_vfs(ts2, idx)
+in
+  ts2
+end
+
+fun apply_key_command(ts: Tabs, idx: int, cmd: int): Tabs = let
+  val ts2 = tabs_cmd(ts, idx, cmd)
+  val () = if ieq(is_modifying_cmd(cmd), 1) then tabs_sync_vfs(ts2, idx) else ()
+in
+  ts2
+end
+
+fun apply_key(ts: Tabs, idx: int, cmd: int, vault: !Buf, clip: &Buf >> _, scratch: &Buf >> _, p: !Plat, paste: &int >> _): Tabs =
+  if ieq(cmd, CMD_SAVE) then tabs_ensure_paths(ts, vault)
+  else if ieq(cmd, CMD_COPY) then apply_key_copy(ts, idx, clip, p)
+  else if ieq(cmd, CMD_CUT) then apply_key_cut(ts, idx, clip, p)
+  else if ieq(cmd, CMD_PASTE) then apply_key_paste(ts, paste, p)
+  else if ieq(cmd, CMD_NEWLINE) then apply_key_newline(ts, idx, scratch)
+  else if ieq(cmd, CMD_ESCAPE) then tabs_cmd(ts, idx, CMD_COLLAPSE_SELECTION)
+  else if igt(cmd, CMD_NONE) then apply_key_command(ts, idx, cmd)
+  else ts
+
 fun key_dispatch(ts: Tabs, idx: int, cmd: int, vault: !Buf, clip: &Buf >> _, scratch: &Buf >> _, p: !Plat, paste: &int >> _, ev: &event): Tabs =
-  if ieq(cmd, 31) then
+  if ieq(cmd, CMD_TEXT_INPUT) then
     if ieq(ctrl_on(ev), 1) then ts
     else let
-      val sp = buf_ptr(scratch)
-      val raw_n = ev_text(ev, sp, buf_cap(scratch))
+      val cap = buf_cap(scratch)
+      val raw_n = ev_text_buf(ev, scratch, cap)
       val n = filter_text(scratch, raw_n)
     in
       if igt(n, 0) then let
-        val ts2 = tabs_ins(ts, idx, buf_ptr(scratch), n)
+        val ts2 = tabs_ins_buf(ts, idx, scratch, n)
         val () = tabs_sync_vfs(ts2, idx)
       in
         ts2
@@ -655,49 +823,57 @@ fun key_dispatch(ts: Tabs, idx: int, cmd: int, vault: !Buf, clip: &Buf >> _, scr
     end
   else apply_key(ts, idx, cmd, vault, clip, scratch, p, paste)
 
-fun row_if(tree: !Buf, meta: !Buf, sel: int, cur: &Buf >> _, go: int): void =
-  if ieq(go, 1) then row_path(tree, meta, sel, cur) else touchb(cur)
+fun row_if(tree: !Buf, meta: !Buf, sel: int, cur: &Buf >> _, go: Toggle): void =
+  if is_on(go) then row_path(tree, meta, sel, cur) else touchb(cur)
 
-fun fill_dir(dir: &Buf >> _, cur: !Buf, vault: !Buf, use_dir: int, sel: int): void =
-  if ieq(use_dir, 1) andalso igt(buf_len(cur), 0) then let
+fun fill_dir_cwd(dir: &Buf >> _): void = let
+  var cwd_buf = buf_make(512)
+  val () = seen_int(c_cwd_buf(cwd_buf, 511))
+  val () = bstr(dir, buf_cstr(cwd_buf))
+in
+  buf_free(cwd_buf)
+end
+
+fun fill_dir_from_dirname(dir: &Buf >> _, cur: !Buf, vault: !Buf): void = let
+  val () = dirname_of(cur, dir)
+  val () = if ieq(buf_len(dir), 0) andalso igt(buf_len(vault), 0) then bcat(dir, vault, 0, buf_len(vault)) else ()
+in
+end
+
+fun fill_dir_vault_or_cwd(dir: &Buf >> _, vault: !Buf): void = let
+  val n = buf_len(vault)
+in
+  if igt(n, 0) then bcat(dir, vault, 0, n) else fill_dir_cwd(dir)
+end
+
+fun fill_dir(dir: &Buf >> _, cur: !Buf, vault: !Buf, use_dir: Toggle, sel: int): void =
+  if is_on(use_dir) andalso igt(buf_len(cur), 0) then let
     val n = buf_len(cur)
   in
     bcat(dir, cur, 0, n)
-  end else if ige(sel, 0) andalso igt(buf_len(cur), 0) then let
-    val () = dirname_of(cur, dir)
-    val () = if ieq(buf_len(dir), 0) andalso igt(buf_len(vault), 0) then bcat(dir, vault, 0, buf_len(vault)) else ()
-  in
-  end
+  end else if ige(sel, 0) andalso igt(buf_len(cur), 0) then fill_dir_from_dirname(dir, cur, vault)
   else let
-    val n = buf_len(vault)
-    val _c = buf_len(cur)
+    val () = seen_buf(cur)
   in
-    if igt(n, 0) then bcat(dir, vault, 0, n)
-    else let
-      var cwd_buf = buf_make(512)
-      val _cw = c_cwd(buf_ptr(cwd_buf), 511)
-      val () = bstr(dir, ptr_string(buf_ptr(cwd_buf)))
-    in
-      buf_free(cwd_buf)
-    end
+    fill_dir_vault_or_cwd(dir, vault)
   end
 
-fun copy_if(ts: !Tabs, idx: int, clip: &Buf >> _, go: int): void =
-  if ieq(go, 1) then tabs_copy(ts, idx, clip) else touchb(clip)
+fun copy_if(ts: !Tabs, idx: int, clip: &Buf >> _, go: Toggle): void =
+  if is_on(go) then tabs_copy(ts, idx, clip) else touchb(clip)
 
-fun cmd_if(ts: Tabs, idx: int, cmd: int, go: int): Tabs =
-  if ieq(go, 1) then tabs_cmd(ts, idx, cmd) else ts
+fun cmd_if(ts: Tabs, idx: int, cmd: int, go: Toggle): Tabs =
+  if is_on(go) then tabs_cmd(ts, idx, cmd) else ts
 
-fun drop_if(ts: Tabs, ti: int, go: int): Tabs =
-  if ieq(go, 1) then tabs_drop(ts, ti) else ts
+fun drop_if(ts: Tabs, ti: int, go: Toggle): Tabs =
+  if is_on(go) then tabs_drop(ts, ti) else ts
 
-fun tab_keep_one(ts: Tabs, close: int): Tabs =
-  if ieq(close, 1) then
+fun tab_keep_one(ts: Tabs, close: Toggle): Tabs =
+  if is_on(close) then
     if ieq(tabs_len(ts), 0) then new_empty_tab(ts) else ts
   else ts
 
-fun open_row(ts: Tabs, tree: !Buf, meta: !Buf, row: int, go: int): Tabs =
-  if ieq(go, 1) then let
+fun open_row(ts: Tabs, tree: !Buf, meta: !Buf, row: int, go: Toggle): Tabs =
+  if is_on(go) then let
     var cur = buf_make(8)
     val () = row_path(tree, meta, row, cur)
     val owned = bcopy(cur)
@@ -706,16 +882,16 @@ fun open_row(ts: Tabs, tree: !Buf, meta: !Buf, row: int, go: int): Tabs =
     tabs_open(ts, owned)
   end else ts
 
-fun click_go(f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, pw: int, lh: int, scratch: &Buf >> _, keep: int, hitk: &int >> _, hiti: &int >> _, go: int): Tabs =
-  if ieq(go, 1) then tabs_click(f, r, ts, idx, x, y, ox, pw, 0, lh, scratch, keep, hitk, hiti, 0)
+fun click_go(f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, pw: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &int >> _, hiti: &int >> _, go: Toggle): Tabs =
+  if is_on(go) then tabs_click(f, r, ts, idx, x, y, ox, pw, 0, lh, scratch, keep, hitk, hiti, 0)
   else let
     val () = touchb(scratch)
   in
     ts
   end
 
-fun wiki_go(ts: Tabs, idx: int, vault: !Buf, go: int): Tabs =
-  if ieq(go, 1) then wiki_open(ts, idx, vault, 0) else ts
+fun wiki_go(ts: Tabs, idx: int, vault: !Buf, go: Toggle): Tabs =
+  if is_on(go) then wiki_open(ts, idx, vault, 0) else ts
 
 fun read_all(path: !Buf, dst: &Buf >> _): void = let
   val p = cstr(path)
@@ -736,7 +912,7 @@ end
 fun fill_node_path(doc: !Doc, ni: int, vault: !Buf, dst: &Buf >> _): void = let
   var rel = buf_make(64)
   var full = buf_make(160)
-  val () = take_if(doc, ni, rel, iif(ige(ni, 0), 1, 0))
+  val () = take_if(doc, ni, rel, toggle_of(ige(ni, 0)))
   val () = resolve_path(vault, rel, full)
   val () = with_md(full, dst)
   val () = buf_free(rel)
@@ -744,44 +920,51 @@ in
   buf_free(full)
 end
 
-fun copy_node_file(ts: !Tabs, idx: int, ni: int, vault: !Buf, clip: &Buf >> _, i: int): void =
-  case+ ts of
-  | @TNil() => let
-      val () = touchb(clip)
-    in
-      fold@(ts)
-    end
-  | @TCons(doc, path, title, sc, rest) => let
-      val () = copy_node_arm(ieq(i, idx), doc, rest, idx, ni, vault, clip, i)
-      val _a = buf_len(path)
-      val _b = buf_len(title)
-      val _c = sc
-    in
-      fold@(ts)
-    end
-and copy_node_arm(stop: bool, doc: !Doc, rest: !Tabs, idx: int, ni: int, vault: !Buf, clip: &Buf >> _, i: int): void =
-  if stop then let
-    var shown = buf_make(160)
-    val () = fill_node_path(doc, ni, vault, shown)
-    val () = read_all(shown, clip)
-  in
-    buf_free(shown)
-  end else copy_node_file(rest, idx, ni, vault, clip, iadd(i, 1))
+fun copy_node_here(doc: !Doc, ni: int, vault: !Buf, clip: &Buf >> _): void = let
+  var shown = buf_make(160)
+  val () = fill_node_path(doc, ni, vault, shown)
+  val () = read_all(shown, clip)
+in
+  buf_free(shown)
+end
 
-fun clip_image(ts: !Tabs, idx: int, ni: int, vault: !Buf, clip: &Buf >> _, go: int): void =
-  if ieq(go, 1) then copy_node_file(ts, idx, ni, vault, clip, 0) else touchb(clip)
+extern fun copy_node_file_exh(ts: !Tabs, idx: int, ni: int, vault: !Buf, clip: &Buf >> _, i: int): void = "mac#anth_die_void"
+
+fun copy_node_file_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, idx: int, ni: int, vault: !Buf, clip: &Buf >> _, i: int): void =
+  if recfuel > 0 then (
+    case+ ts of
+    | @TNil() => let
+        val () = touchb(clip)
+      in
+        fold@(ts)
+      end
+    | @TCons(doc, path, title, sc, rest) => let
+        val () = if ieq(i, idx) then copy_node_here(doc, ni, vault, clip)
+                 else copy_node_file_m(recfuel - 1, rest, idx, ni, vault, clip, iadd(i, 1))
+        val () = seen_buf(path)
+        val () = seen_buf(title)
+        val () = seen_int(sc)
+      in
+        fold@(ts)
+      end
+  ) else copy_node_file_exh(ts, idx, ni, vault, clip, i)
+
+fun copy_node_file(ts: !Tabs, idx: int, ni: int, vault: !Buf, clip: &Buf >> _, i: int): void = copy_node_file_m(airlock_nat(MAX_REC_FUEL), ts, idx, ni, vault, clip, i)
+
+fun clip_image(ts: !Tabs, idx: int, ni: int, vault: !Buf, clip: &Buf >> _, go: Toggle): void =
+  if is_on(go) then copy_node_file(ts, idx, ni, vault, clip, 0) else touchb(clip)
 
 fun erase_span(doc: !Doc, a: int, b: int): void = let
-  val () = doc_set_caret(doc, a, 0)
-  val () = doc_set_caret(doc, b, 1)
+  val () = doc_set_caret_move(doc, a)
+  val () = doc_set_caret_extend(doc, b)
 in
   doc_delete(doc)
 end
 
-fun span_if(doc: !Doc, a: int, b: int, go: int): void =
-  if ieq(go, 1) then erase_span(doc, a, b)
+fun span_if(doc: !Doc, a: int, b: int, go: Toggle): void =
+  if is_on(go) then erase_span(doc, a, b)
   else let
-    val _n = doc_len(doc)
+    val () = doc_touch(doc)
   in
     ()
   end
@@ -789,37 +972,62 @@ fun span_if(doc: !Doc, a: int, b: int, go: int): void =
 fun node_field(doc: !Doc, ni: int, field: int): int =
   if ige(ni, 0) then doc_get(doc, ni, field)
   else let
-    val _n = doc_len(doc)
+    val () = doc_touch(doc)
   in
     0
   end
 
-fun del_node(ts: Tabs, idx: int, ni: int): Tabs =
-  case+ ts of
-  | ~TNil() => TNil()
-  | ~TCons(doc, path, title, sc, rest) => let
-      val a = node_field(doc, ni, 1)
-      val b = node_field(doc, ni, 2)
-      val go = if ieq(idx, 0) andalso ige(ni, 0) then 1 else 0
-      val () = span_if(doc, a, b, go)
+extern fun del_node_exh(ts: Tabs, idx: int, ni: int): Tabs = "mac#anth_die_box"
+
+fun del_node_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, ni: int): Tabs =
+  if recfuel > 0 then (
+    case+ ts of
+    | ~TNil() => TNil()
+    | ~TCons(doc, path, title, sc, rest) => let
+        val a = node_field(doc, ni, 1)
+        val b = node_field(doc, ni, 2)
+        val go = if ieq(idx, 0) andalso ige(ni, 0) then 1 else 0
+        val () = span_if(doc, a, b, toggle_of(ieq(go, 1)))
+      in
+        if ieq(idx, 0) then TCons(doc, path, title, sc, rest) else TCons(doc, path, title, sc, del_node_m(recfuel - 1, rest, isub(idx, 1), ni))
+      end
+  ) else del_node_exh(ts, idx, ni)
+
+fun del_node(ts: Tabs, idx: int, ni: int): Tabs = del_node_m(airlock_nat(MAX_REC_FUEL), ts, idx, ni)
+
+fun del_go(ts: Tabs, idx: int, ni: int, go: Toggle): Tabs =
+  if is_on(go) then del_node(ts, idx, ni) else ts
+
+extern fun strip_into_exh(src: !Buf, dst: &Buf >> _, i: int): void = "mac#anth_die_void"
+
+fun strip_into_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, dst: &Buf >> _, i: int): void =
+  if recfuel > 0 then (
+    if ige(i, buf_len(src)) then touchb(dst)
+    else let
+      val c = buf_get(src, i)
+      val drop = if ieq(c, 42) orelse ieq(c, 61) orelse ieq(c, 91) orelse ieq(c, 93) orelse ieq(c, 96) then 1 else 0
+      val () = push_if(dst, toggle_of(ieq((if ieq(drop, 1) then 0 else 1), 1)), c)
     in
-      TCons(doc, path, title, sc, del_rest(ieq(idx, 0), rest, idx, ni))
+      strip_into_m(recfuel - 1, src, dst, iadd(i, 1))
     end
-and del_rest(stop: bool, rest: Tabs, idx: int, ni: int): Tabs =
-  if stop then rest else del_node(rest, isub(idx, 1), ni)
+  ) else strip_into_exh(src, dst, i)
 
-fun del_go(ts: Tabs, idx: int, ni: int, go: int): Tabs =
-  if ieq(go, 1) then del_node(ts, idx, ni) else ts
+fun strip_into(src: !Buf, dst: &Buf >> _, i: int): void = strip_into_m(airlock_nat(MAX_REC_FUEL), src, dst, i)
 
-fun strip_into(src: !Buf, dst: &Buf >> _, i: int): void =
-  if ige(i, buf_len(src)) then touchb(dst)
-  else let
-    val c = buf_get(src, i)
-    val drop = if ieq(c, 42) orelse ieq(c, 61) orelse ieq(c, 91) orelse ieq(c, 93) orelse ieq(c, 96) then 1 else 0
-    val () = push_if(dst, iif(ieq(drop, 1), 0, 1), c)
-  in
-    strip_into(src, dst, iadd(i, 1))
-  end
+fun clear_span_stripped(doc: !Doc, lo: int, hi: int): void = let
+  var raw = buf_make(iadd(isub(hi, lo), 2))
+  var out = buf_make(iadd(isub(hi, lo), 2))
+  val cap = buf_cap(raw)
+  val n = doc_slice_buf(doc, lo, hi, raw, cap)
+  val () = buf_set_len(raw, n)
+  val () = strip_into(raw, out, 0)
+  val () = erase_span(doc, lo, hi)
+  val m = buf_len(out)
+  val () = doc_insert_buf(doc, out, m)
+  val () = buf_free(raw)
+in
+  buf_free(out)
+end
 
 fun clear_doc(doc: !Doc): void = let
   val a0 = doc_anchor(doc)
@@ -828,56 +1036,47 @@ fun clear_doc(doc: !Doc): void = let
   val hi = imax(a0, c0)
 in
   if ieq(lo, hi) then let
-    val _n = doc_len(doc)
+    val () = doc_touch(doc)
   in
     ()
-  end else let
-    var raw = buf_make(iadd(isub(hi, lo), 2))
-    var out = buf_make(iadd(isub(hi, lo), 2))
-    val cap = buf_cap(raw)
-    val n = doc_slice(doc, lo, hi, buf_ptr(raw), cap)
-    val () = buf_set_len(raw, n)
-    val () = strip_into(raw, out, 0)
-    val () = erase_span(doc, lo, hi)
-    val m = buf_len(out)
-    val () = doc_insert(doc, buf_ptr(out), m)
-    val () = buf_free(raw)
-  in
-    buf_free(out)
-  end
+  end else clear_span_stripped(doc, lo, hi)
 end
 
-fun clear_node(ts: Tabs, idx: int): Tabs =
-  case+ ts of
-  | ~TNil() => TNil()
-  | ~TCons(doc, path, title, sc, rest) => let
-      val () = if ieq(idx, 0) then clear_doc(doc) else let
-        val _n = doc_len(doc)
+extern fun clear_node_exh(ts: Tabs, idx: int): Tabs = "mac#anth_die_box"
+
+fun clear_node_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int): Tabs =
+  if recfuel > 0 then (
+    case+ ts of
+    | ~TNil() => TNil()
+    | ~TCons(doc, path, title, sc, rest) => let
+        val () = if ieq(idx, 0) then clear_doc(doc) else let
+          val () = doc_touch(doc)
+        in
+          ()
+        end
       in
-        ()
+        if ieq(idx, 0) then TCons(doc, path, title, sc, rest) else TCons(doc, path, title, sc, clear_node_m(recfuel - 1, rest, isub(idx, 1)))
       end
-    in
-      TCons(doc, path, title, sc, clear_rest(ieq(idx, 0), rest, idx))
-    end
-and clear_rest(stop: bool, rest: Tabs, idx: int): Tabs =
-  if stop then rest else clear_node(rest, isub(idx, 1))
+  ) else clear_node_exh(ts, idx)
 
-fun clear_go(ts: Tabs, idx: int, go: int): Tabs =
-  if ieq(go, 1) then clear_node(ts, idx) else ts
+fun clear_node(ts: Tabs, idx: int): Tabs = clear_node_m(airlock_nat(MAX_REC_FUEL), ts, idx)
 
-fun toggle_go(ts: Tabs, idx: int, ni: int, go: int): Tabs =
-  if ieq(go, 1) then tabs_toggle(ts, idx, ni) else ts
+fun clear_go(ts: Tabs, idx: int, go: Toggle): Tabs =
+  if is_on(go) then clear_node(ts, idx) else ts
 
-fun toggle_task_go(ts: Tabs, idx: int, ni: int, go: int): Tabs =
-  if ieq(go, 1) then let
+fun toggle_go(ts: Tabs, idx: int, ni: int, go: Toggle): Tabs =
+  if is_on(go) then tabs_toggle(ts, idx, ni) else ts
+
+fun toggle_task_go(ts: Tabs, idx: int, ni: int, go: Toggle): Tabs =
+  if is_on(go) then let
     val ts2 = tabs_toggle_task(ts, idx, ni)
     val () = tabs_sync_vfs(ts2, idx)
   in
     ts2
   end else ts
 
-fun open_hit(ts: Tabs, hmeta: !Buf, hits: !Buf, srow: int, go: int): Tabs =
-  if ieq(go, 1) then let
+fun open_hit(ts: Tabs, hmeta: !Buf, hits: !Buf, srow: int, go: Toggle): Tabs =
+  if is_on(go) then let
     var hitfile = buf_make(16)
     val () = find_hit_file(hmeta, hits, srow, hitfile)
     val owned = bcopy(hitfile)
@@ -886,497 +1085,548 @@ fun open_hit(ts: Tabs, hmeta: !Buf, hits: !Buf, srow: int, go: int): Tabs =
     tabs_open(ts, owned)
   end else ts
 
-fun open_created_file(ts: Tabs, dir: !Buf, name: !Buf, kind: int): Tabs =
-  if ieq(kind, 1) then let
+fun open_created_file(ts: Tabs, dir: !Buf, name: !Buf, kind: PromptKind): Tabs =
+  if is_prompt_newfile(kind) then let
     var new_file = buf_make(8)
     val () = child_path(dir, name, new_file)
     val has_dot = has_dot_char(name, 0)
     val need_md = if ieq(has_dot, 0) then 1 else 0
-    val () = bstr_if(new_file, need_md, ".md")
+    val () = bstr_if(new_file, toggle_of(ieq(need_md, 1)), ".md")
   in
     tabs_open(ts, new_file)
   end else ts
 
 fun apply_tab_cmd(ts: Tabs, cmd: int, idx: int): Tabs =
-  if ieq(cmd, 36) then close_active_tab(ts, idx)
-  else if ieq(cmd, 37) then new_empty_tab(ts)
+  if ieq(cmd, CMD_CLOSE_TAB) then close_active_tab(ts, idx)
+  else if ieq(cmd, CMD_NEW_TAB) then new_empty_tab(ts)
   else ts
 
-fun hit_open_if(ts: Tabs, hmeta: !Buf, hits: !Buf, hn: int, qf: int, qr: int): Tabs =
-  if ieq(qf, 1) andalso ieq(qr, 2) andalso igt(hn, 0) then open_hit(ts, hmeta, hits, 0, 1) else ts
+fun hit_open_if(ts: Tabs, hmeta: !Buf, hits: !Buf, hn: int, qf: Toggle, qr: EditResult): Tabs =
+  if is_on(qf) andalso is_edit_submit(qr) andalso igt(hn, 0) then open_hit(ts, hmeta, hits, 0, On) else ts
+
+fun handle_vault_select_key(s: &App_record >> _, ev: &event): void = let
+  val vr = edit_line(s.promptb, ev, s.scratch)
+in
+  if is_edit_submit(vr) andalso igt(buf_len(s.promptb), 0) then let
+    val target = cstr(s.promptb)
+    val () = ensure_dir_report(target)
+    val () = switch_to_vault(s, target)
+  in
+  end else if is_edit_cancel(vr) andalso igt(buf_len(s.vault), 0) then s.vault_select := 0
+  else ()
+end
+
+fun prompt_fill_paths(s: &App_record, dir: &Buf >> _, cur: &Buf >> _): void = let
+  val sel_valid = if ige(s.sel, 0) andalso ilt(s.sel, s.tn) then 1 else 0
+  val () = row_if(s.tree, s.tmeta, s.sel, cur, toggle_of(ieq(sel_valid, 1)))
+  val use_dir = if ieq(sel_valid, 1) andalso ieq(buf_get32(s.tmeta, iadd(imul(s.sel, 4), 1)), 1) then 1 else 0
+  val () = fill_dir(dir, cur, s.vault, toggle_of(ieq(use_dir, 1)), if ieq(sel_valid, 1) then s.sel else ~1)
+in
+end
+
+fun submit_open_new_file(s: &App_record >> _, dir: !Buf, prompt_kind: PromptKind): void = let
+  val ts_curr = s.tabs
+  val () = s.tabs := TNil()
+  val ts_next = open_created_file(ts_curr, dir, s.promptb, prompt_kind)
+  val ph = s.tabs
+  val () = s.tabs := ts_next
+  val () = tabs_free(ph)
+in
+end
+
+fun prompt_reset(s: &App_record >> _): void = let
+  val () = s.prompt := PromptNone
+in
+  bclear(s.promptb)
+end
+
+fun handle_prompt_submission(s: &App_record >> _, pr: EditResult): void =
+  if is_edit_submit(pr) andalso igt(buf_len(s.promptb), 0) then let
+    var dir = buf_make(8)
+    var cur = buf_make(8)
+    val () = prompt_fill_paths(s, dir, cur)
+    val prompt_kind = s.prompt
+    val () = act_prompt(dir, cur, s.promptb, prompt_kind)
+    val () = submit_open_new_file(s, dir, prompt_kind)
+    val () = if is_prompt_newfile(prompt_kind) then s.active := 0 else ()
+    val () = s.prompt := PromptNone
+    val () = bclear(s.promptb)
+    val () = s.treedirty := 1
+    val () = buf_free(dir)
+  in
+    buf_free(cur)
+  end else if is_edit_submit(pr) orelse is_edit_cancel(pr) then prompt_reset(s)
+  else ()
+
+fun open_search_panel(s: &App_record >> _): void = let
+  val () = s.side := SideSearch
+  val () = s.qfocus := 1
+in
+  bclear(s.query)
+end
+
+fun begin_prompt(s: &App_record >> _, kind: PromptKind): void = let
+  val () = s.prompt := kind
+in
+  bclear(s.promptb)
+end
+
+fun toggle_view_mode(s: &App_record >> _): void = let
+  val vm = if is_view_edit(s.viewmode) then ViewRead else ViewEdit
+  val () = s.viewmode := vm
+in
+  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+end
+
+fun escape_sidebar_state(s: &App_record >> _): void = let
+  val () = s.menu := MenuNone
+  val () = s.qfocus := 0
+  val () = s.prompt := PromptNone
+in
+  bclear(s.promptb)
+end
+
+fun handle_sidebar_shortcut_cmd(s: &App_record >> _, cmd: int): void =
+  if ieq(cmd, CMD_OPEN_SEARCH) then open_search_panel(s)
+  else if ieq(cmd, CMD_NEW_FILE) then begin_prompt(s, PromptNewFile)
+  else if ieq(cmd, CMD_NEW_FOLDER) then begin_prompt(s, PromptNewFolder)
+  else if ieq(cmd, CMD_TOGGLE_VIEW) then toggle_view_mode(s)
+  else if ieq(cmd, CMD_ESCAPE) then escape_sidebar_state(s)
+  else ()
+
+fun tab_select_close_or_new(s: &App_record >> _, cmd: int, ts_inter: !Tabs): void = let
+  val max_i = isub(tabs_len(ts_inter), 1)
+  val () = if ieq(cmd, CMD_NEW_TAB) then s.active := max_i
+           else s.active := imax(0, imin(max_i, s.active))
+  val () = s.righti := imax(0, imin(max_i, s.righti))
+in
+  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+end
+
+fun tab_cycle_next(s: &App_record >> _, ts_inter: !Tabs): void = let
+  val ntabs = tabs_len(ts_inter)
+in
+  if igt(ntabs, 1) then let
+    val next_i = iadd(s.active, 1)
+    val cur_i = if ige(next_i, ntabs) then 0 else next_i
+    val () = s.active := cur_i
+  in
+    save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+  end else ()
+end
+
+fun tab_cycle_prev(s: &App_record >> _, ts_inter: !Tabs): void = let
+  val ntabs = tabs_len(ts_inter)
+in
+  if igt(ntabs, 1) then let
+    val prev_i = isub(s.active, 1)
+    val cur_i = if ilt(prev_i, 0) then isub(ntabs, 1) else prev_i
+    val () = s.active := cur_i
+  in
+    save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+  end else ()
+end
+
+fun handle_tab_nav_cmd(s: &App_record >> _, cmd: int, ts_inter: !Tabs): void =
+  if ieq(cmd, CMD_CLOSE_TAB) orelse ieq(cmd, CMD_NEW_TAB) then tab_select_close_or_new(s, cmd, ts_inter)
+  else if ieq(cmd, CMD_NEXT_TAB) then tab_cycle_next(s, ts_inter)
+  else if ieq(cmd, CMD_PREV_TAB) then tab_cycle_prev(s, ts_inter)
+  else ()
+
+fun search_query_edit(s: &App_record >> _, qr: EditResult): void = let
+  val () = if ieq(s.qfocus, 1) andalso is_edit_none(qr) then refresh_search(s.vault, s.query, s.hits, s.hmeta, s.hn) else ()
+  val () = if ieq(s.qfocus, 1) andalso is_edit_cancel(qr) then s.qfocus := 0 else ()
+in
+end
+
+fun search_hit_focus(s: &App_record >> _): void = let
+  val () = s.qfocus := 0
+  val () = s.active := 0
+in
+  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+end
+
+fun key_tabs_step(s: &App_record >> _, p: !Plat, ev: &event, cmd: int, hit_go: Toggle): void = let
+  val ts0 = s.tabs
+  val () = s.tabs := TNil()
+  val ts = hit_open_if(ts0, s.hmeta, s.hits, s.hn, toggle_of(is_on(hit_go)), EditSubmit)
+  val idx = pane_of(toggle_of(ieq(s.focus, 1)), s.active, s.righti)
+  var ts_inter: Tabs = apply_tab_cmd(ts, cmd, idx)
+  val () = handle_tab_nav_cmd(s, cmd, ts_inter)
+  val ts2 = key_dispatch(ts_inter, idx, cmd, s.vault, s.clip, s.scratch, p, s.paste, ev)
+  val ph = s.tabs
+  val () = s.tabs := ts2
+  val () = tabs_free(ph)
+in
+end
+
+fun key_editor_step(s: &App_record >> _, p: !Plat, f: !Font, ev: &event): void = let
+  val act = if is_prompt_none(s.prompt) andalso ieq(s.qfocus, 0) then 1 else 0
+  val pr = if not(is_prompt_none(s.prompt)) then edit_line(s.promptb, ev, s.scratch) else EditNone
+  val qr = if ieq(s.qfocus, 1) andalso is_prompt_none(s.prompt) then edit_line(s.query, ev, s.scratch) else EditNone
+  val () = search_query_edit(s, qr)
+  val hit_go = if ieq(s.qfocus, 1) andalso is_edit_submit(qr) andalso igt(s.hn, 0) then 1 else 0
+  val () = if ieq(hit_go, 1) then search_hit_focus(s) else ()
+  val () = handle_prompt_submission(s, pr)
+  val cmd = key_code(ev, toggle_of(ieq(act, 1)))
+  val () = handle_sidebar_shortcut_cmd(s, cmd)
+  val () = key_tabs_step(s, p, ev, cmd, toggle_of(ieq(hit_go, 1)))
+  val () = if ieq(cmd, CMD_SAVE) then let
+      val () = s.treedirty := 1
+      val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+    in
+    end else ()
+  val () = seen_int(font_line_h(f))
+in
+end
 
 fun on_key(a: !App, p: !Plat, f: !Font, ev: &event): void =
   case+ a of
   | @APP(s) =>
       if ieq(s.vault_select, 1) then let
-        val vr = edit_line(s.promptb, ev, s.scratch)
-        val () = if ieq(vr, 2) andalso igt(buf_len(s.promptb), 0) then let
-          val target = cstr(s.promptb)
-          val _mk = fs_mkdir(target)
-          val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-          val () = bclear(s.vault)
-          val () = bstr(s.vault, target)
-          val () = conf_set_active_vault(target)
-          val old_t = s.tabs
-          val () = s.tabs := TNil()
-          var n_fpx: int = 18
-          var n_vm: int = 0
-          var n_sp: int = 0
-          var n_act: int = 0
-          val new_t = switch_vault_tabs(old_t, target, s.font_path, n_fpx, n_vm, n_sp, n_act)
-          val ph = s.tabs
-          val () = s.tabs := new_t
-          val () = tabs_free(ph)
-          val () = s.fontpx := n_fpx
-          val () = s.viewmode := n_vm
-          val () = s.split := n_sp
-          val () = s.active := n_act
-          val () = s.righti := 0
-          val () = s.treedirty := 1
-          val () = bclear(s.promptb)
-          val () = s.vault_select := 0
-        in
-          ()
-        end else if ieq(vr, 3) andalso igt(buf_len(s.vault), 0) then let
-          val () = s.vault_select := 0
-        in
-          ()
-        end else ()
+        val () = handle_vault_select_key(s, ev)
       in
         fold@(a)
       end else let
-        val act = if ieq(s.prompt, 0) andalso ieq(s.qfocus, 0) then 1 else 0
-        val pr = if igt(s.prompt, 0) then edit_line(s.promptb, ev, s.scratch) else 0
-        val qr = if ieq(s.qfocus, 1) andalso ieq(s.prompt, 0) then edit_line(s.query, ev, s.scratch) else 0
-        val () = if ieq(s.qfocus, 1) andalso ieq(qr, 0) then refresh_search(s.vault, s.query, s.hits, s.hmeta, s.hn) else ()
-        val () = if ieq(s.qfocus, 1) andalso ieq(qr, 3) then s.qfocus := 0 else ()
-        val hit_go = if ieq(s.qfocus, 1) andalso ieq(qr, 2) andalso igt(s.hn, 0) then 1 else 0
-        val () = if ieq(hit_go, 1) then let
-            val () = s.qfocus := 0
-            val () = s.active := 0
-            val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-          in
-            ()
-          end else ()
-        val () = if ieq(pr, 2) andalso igt(buf_len(s.promptb), 0) then let
-            var dir = buf_make(8)
-            var cur = buf_make(8)
-            val sel_valid = if ige(s.sel, 0) andalso ilt(s.sel, s.tn) then 1 else 0
-            val () = row_if(s.tree, s.tmeta, s.sel, cur, sel_valid)
-            val use_dir = if ieq(sel_valid, 1) andalso ieq(buf_get32(s.tmeta, iadd(imul(s.sel, 4), 1)), 1) then 1 else 0
-            val () = fill_dir(dir, cur, s.vault, use_dir, if ieq(sel_valid, 1) then s.sel else ~1)
-            val prompt_kind = s.prompt
-            val () = act_prompt(dir, cur, s.promptb, prompt_kind)
-            val ts_curr = s.tabs
-            val () = s.tabs := TNil()
-            val ts_next = open_created_file(ts_curr, dir, s.promptb, prompt_kind)
-            val ph = s.tabs
-            val () = s.tabs := ts_next
-            val () = tabs_free(ph)
-            val () = if ieq(prompt_kind, 1) then s.active := 0 else ()
-            val () = s.prompt := 0
-            val () = bclear(s.promptb)
-            val () = s.treedirty := 1
-            val () = buf_free(dir)
-          in
-            buf_free(cur)
-          end else if ieq(pr, 2) then let
-            val () = s.prompt := 0
-            val () = bclear(s.promptb)
-          in
-          end else ()
-        val () = if ieq(pr, 3) then let
-            val () = s.prompt := 0
-          in
-            bclear(s.promptb)
-          end else ()
-        val cmd = key_code(ev, act)
-        val () =
-          if ieq(cmd, 35) then let
-            val () = s.side := 2
-            val () = s.qfocus := 1
-          in
-            bclear(s.query)
-          end else if ieq(cmd, 38) then let
-            val () = s.prompt := 1
-          in
-            bclear(s.promptb)
-          end else if ieq(cmd, 39) then let
-            val () = s.prompt := 2
-          in
-            bclear(s.promptb)
-          end else if ieq(cmd, 40) then let
-            val vm = if ieq(s.viewmode, 0) then 1 else 0
-            val () = s.viewmode := vm
-            val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-          in
-            ()
-          end else if ieq(cmd, 41) then let
-            val () = s.menu := 0
-            val () = s.qfocus := 0
-            val () = s.prompt := 0
-          in
-            bclear(s.promptb)
-          end else ()
-        val ts0 = s.tabs
-        val () = s.tabs := TNil()
-        val ts = hit_open_if(ts0, s.hmeta, s.hits, s.hn, hit_go, 2)
-        val idx = if ieq(s.focus, 0) then s.active else s.righti
-        var ts_inter: Tabs = apply_tab_cmd(ts, cmd, idx)
-        val () = if ieq(cmd, 36) orelse ieq(cmd, 37) then let
-            val max_i = isub(tabs_len(ts_inter), 1)
-            val () = if ieq(cmd, 37) then s.active := max_i
-                     else s.active := imax(0, imin(max_i, s.active))
-            val () = s.righti := imax(0, imin(max_i, s.righti))
-            val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-          in
-            ()
-          end else if ieq(cmd, 57) then let
-            val ntabs = tabs_len(ts_inter)
-            val () = if igt(ntabs, 1) then let
-                val next_i = iadd(s.active, 1)
-                val cur_i = if ige(next_i, ntabs) then 0 else next_i
-                val () = s.active := cur_i
-                val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-              in
-              end else ()
-          in
-          end else if ieq(cmd, 58) then let
-            val ntabs = tabs_len(ts_inter)
-            val () = if igt(ntabs, 1) then let
-                val prev_i = isub(s.active, 1)
-                val cur_i = if ilt(prev_i, 0) then isub(ntabs, 1) else prev_i
-                val () = s.active := cur_i
-                val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-              in
-              end else ()
-          in
-          end else ()
-        val ts2 = key_dispatch(ts_inter, idx, cmd, s.vault, s.clip, s.scratch, p, s.paste, ev)
-        val ph = s.tabs
-        val () = s.tabs := ts2
-        val () = tabs_free(ph)
-        val () = if ieq(cmd, 15) then let
-            val () = s.treedirty := 1
-            val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-          in
-            ()
-          end else ()
-        val _f = font_line_h(f)
+        val () = key_editor_step(s, p, f, ev)
       in
         fold@(a)
       end
+fun select_vault_row(s: &App_record >> _, vi: int): void =
+  if ige(vi, 0) andalso ilt(vi, s.vcnt) then let
+    val poff = buf_get32(s.vmeta, imul(vi, 4))
+    val plen = buf_get32(s.vmeta, iadd(imul(vi, 4), 1))
+    var pbuf = buf_make(256)
+    val () = bcat(pbuf, s.vpaths, poff, iadd(poff, plen))
+    val target = cstr(pbuf)
+    val () = switch_to_vault(s, target)
+    val () = buf_free(pbuf)
+  in
+  end else ()
+
+fun vault_open_from_prompt(s: &App_record >> _): void = let
+  val target = cstr(s.promptb)
+  val () = ensure_dir_report(target)
+in
+  switch_to_vault(s, target)
+end
+
+fun handle_vault_select_click(s: &App_record >> _, x: int, y: int, w: int, h: int): void = let
+  val mw = 520
+  val mh = 360
+  val mx = idiv(isub(w, mw), 2)
+  val my = idiv(isub(h, mh), 2)
+  val in_list_y = if ige(y, iadd(my, 74)) andalso ilt(y, iadd(my, iadd(74, imul(imin(s.vcnt, 6), 28)))) then 1 else 0
+  val in_list_x = if ige(x, iadd(mx, 16)) andalso ilt(x, isub(iadd(mx, mw), 16)) then 1 else 0
+  val () = if ieq(in_list_x, 1) andalso ieq(in_list_y, 1) then select_vault_row(s, idiv(isub(y, iadd(my, 74)), 28)) else ()
+  val on_open_btn = if ige(x, iadd(mx, 16)) andalso ilt(x, iadd(mx, 156)) andalso ige(y, iadd(my, 312)) andalso ilt(y, iadd(my, 342)) then 1 else 0
+  val () = if ieq(on_open_btn, 1) andalso igt(buf_len(s.promptb), 0) then vault_open_from_prompt(s) else ()
+  val on_cancel_btn = if ige(x, isub(iadd(mx, mw), 116)) andalso ilt(x, isub(iadd(mx, mw), 16)) andalso ige(y, iadd(my, 312)) andalso ilt(y, iadd(my, 342)) then 1 else 0
+  val () = if ieq(on_cancel_btn, 1) andalso igt(buf_len(s.vault), 0) then let
+    val () = s.vault_select := 0
+  in
+  end else ()
+in
+end
+
+fun handle_context_menu_action(s: &App_record >> _, inside: Toggle, item: int): void =
+  if is_on(inside) andalso is_menu_filetree(s.menu) then (
+    if ieq(item, MENU_TREE_NEW_FILE) then s.prompt := PromptNewFile
+    else if ieq(item, MENU_TREE_NEW_FOLDER) then s.prompt := PromptNewFolder
+    else if ieq(item, MENU_TREE_RENAME) then s.prompt := PromptRename
+    else if ieq(item, MENU_TREE_DELETE) andalso ige(s.sel, 0) then let
+      var cur = buf_make(8)
+      val () = row_path(s.tree, s.tmeta, s.sel, cur)
+      val () = do_delete(cur)
+      val () = s.treedirty := 1
+    in
+      buf_free(cur)
+    end else ()
+  ) else ()
+
+fun topbar_toggle_view(s: &App_record >> _): void = let
+  val () = s.viewmode := (if is_view_edit(s.viewmode) then ViewRead else ViewEdit)
+in
+  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+end
+
+fun topbar_toggle_files(s: &App_record >> _): void = let
+  val () = s.side := (if is_side_files(s.side) then SideNone else SideFiles)
+  val () = s.qfocus := 0
+in
+end
+
+fun topbar_toggle_search(s: &App_record >> _): void = let
+  val () = s.side := (if is_side_search(s.side) then SideNone else SideSearch)
+  val () = s.qfocus := (if is_side_search(s.side) then 1 else 0)
+in
+end
+
+fun topbar_toggle_config(s: &App_record >> _): void = let
+  val () = s.side := (if is_side_config(s.side) then SideNone else SideConfig)
+  val () = s.qfocus := 0
+in
+end
+
+fun handle_topbar_action(s: &App_record >> _, w: int, x: int): void = let
+  val top_w = UI_TOPBAR_BTN_WIDTH
+  val x1 = topbar_btn_x(0)
+  val x2 = topbar_btn_x(1)
+  val x3 = topbar_btn_x(2)
+  val bx = topbar_mode_btn_x(w)
+in
+  if ige(x, bx) andalso ilt(x, iadd(bx, top_w)) then topbar_toggle_view(s)
+  else if ige(x, x1) andalso ilt(x, iadd(x1, top_w)) then topbar_toggle_files(s)
+  else if ige(x, x2) andalso ilt(x, iadd(x2, top_w)) then topbar_toggle_search(s)
+  else if ige(x, x3) andalso ilt(x, iadd(x3, top_w)) then topbar_toggle_config(s)
+  else ()
+end
+
+fun config_cycle_font_px(s: &App_record >> _): void = let
+  val nxtpx = if ieq(s.fontpx, 16) then 18 else if ieq(s.fontpx, 18) then 20 else 16
+  val () = s.fontpx := nxtpx
+in
+  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+end
+
+fun config_select_font(s: &App_record >> _, f: !Font, sel_fi: int): void =
+  if ige(sel_fi, 0) andalso ilt(sel_fi, s.fcnt) then let
+    val poff = buf_get32(s.fmeta, imul(sel_fi, 4))
+    val plen = buf_get32(s.fmeta, iadd(imul(sel_fi, 4), 1))
+    val () = bclear(s.font_path)
+    val () = bcat(s.font_path, s.fpaths, poff, iadd(poff, plen))
+    val () = font_load_report(f, cstr(s.font_path))
+    val () = font_set_px(f, s.fontpx)
+    val () = s.font_idx := 1
+    val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+  in
+    ()
+  end else ()
+
+fun handle_sidebar_config_action(s: &App_record >> _, f: !Font, x: int, y: int): void = let
+  val on_kasa_btn = if ige(x, 12) andalso ilt(x, 162) andalso ige(y, 122) andalso ilt(y, 144) then 1 else 0
+  val on_font_px = if igt(y, 148) andalso ilt(y, 175) then 1 else 0
+  val max_fi = imin(s.fcnt, 12)
+  val on_font_list = if ige(y, 205) andalso ilt(y, iadd(210, imul(max_fi, 22))) then 1 else 0
+in
+  if ieq(on_kasa_btn, 1) then (
+    conf_list_vaults(s.vpaths, s.vnames, s.vmeta, s.vcnt);
+    s.vault_select := 1
+  )
+  else if ieq(on_font_px, 1) then config_cycle_font_px(s)
+  else if ieq(on_font_list, 1) then config_select_font(s, f, idiv(isub(y, 205), 22))
+  else ()
+end
+
+fun editor_wiki_focus(s: &App_record >> _): void = let
+  val () = s.active := 0
+in
+  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+end
+
+fun editor_click_hit(f: !Font, r: !Rend, s: &App_record >> _, ts: Tabs, ev: &event, x: int, y: int, ox: int, half: int, idx2: int, editor: Toggle): Tabs = let
+  val keep = (if iand(ev_mods(ev), mod_shift()) <> 0 then 1 else 0) : int
+  val () = font_set_px(f, s.fontpx)
+  val ts4 = click_go(f, r, ts, idx2, x, y, ox, half, font_line_h(f), s.scratch, toggle_of(ieq(keep, 1)), s.hitk, s.hiti, editor)
+  val colx_hit = column_x(ox, half)
+  val on_arrow = if is_on(editor) andalso ige(x, isub(colx_hit, 24)) andalso ilt(x, colx_hit) andalso ige(s.hiti, 0) then 1 else 0
+  val on_task = if is_on(editor) andalso ieq(s.hitk, NK_TASK) andalso ige(x, colx_hit) andalso ilt(x, iadd(colx_hit, 36)) andalso ige(s.hiti, 0) then 1 else 0
+  val ts4_a = toggle_go(ts4, idx2, s.hiti, toggle_of(ieq(on_arrow, 1)))
+  val ts4_b = toggle_task_go(ts4_a, idx2, s.hiti, toggle_of(ieq(on_task, 1)))
+in
+  ts4_b
+end
+
+fun handle_editor_click(s: &App_record >> _, f: !Font, r: !Rend, ts: Tabs, ev: &event,
+                        x: int, y: int, w: int, sidew: int, skip: Toggle, onbar: Toggle, onside: Toggle,
+                        button: int, idx: int, imgdel: Toggle, clear: Toggle): Tabs = let
+  val pw0 = isub(w, sidew)
+  val half = if ieq(s.split, 1) then idiv(pw0, 2) else pw0
+  val editor = if is_off(skip) andalso is_off(onbar) andalso is_off(onside) andalso ieq(button, 1) then 1 else 0
+  val foc = if ieq(editor, 1) andalso ieq(s.split, 1) andalso ige(x, iadd(sidew, half)) then 1 else 0
+  val () = if ieq(editor, 1) then s.focus := foc else ()
+  val ox = if ieq(s.focus, 1) then iadd(sidew, half) else sidew
+  val idx2 = pane_of(toggle_of(ieq(s.focus, 1)), s.active, s.righti)
+  val ts4 = editor_click_hit(f, r, s, ts, ev, x, y, ox, half, idx2, toggle_of(ieq(editor, 1)))
+  val gowiki = if ieq(editor, 1) andalso ieq(ctrl_on(ev), 1) then 1 else 0
+  val ts5 = wiki_go(ts4, idx2, s.vault, toggle_of(ieq(gowiki, 1)))
+  val ts6 = del_go(ts5, idx, s.hiti, toggle_of(is_on(imgdel)))
+  val ts7 = clear_go(ts6, idx, toggle_of(is_on(clear)))
+  val () = if ieq(gowiki, 1) then editor_wiki_focus(s) else ()
+  val () = if ieq(editor, 1) then s.qfocus := 0 else ()
+in
+  ts7
+end
+
+fun down_pick_tab(s: &App_record >> _, x: int, ti: int): void = let
+  val () = s.drag := DragNone
+  val () = s.dragi := ti
+  val () = s.downx := x
+  val () = s.downy := s.downy
+  val () = s.active := ti
+  val () = s.focus := 0
+in
+  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+end
+
+fun handle_down_tab_bar_selection(
+  s: &App_record >> _, ts: !Tabs, f: !Font, r: !Rend,
+  onbar: Toggle, skip: Toggle, x: int, tab_x0: int, bx: int,
+  ti: &int >> _, close: &int >> _
+): void = let
+  val () = if is_on(onbar) andalso is_off(skip) andalso ige(x, tab_x0) andalso ilt(x, bx) then
+    tab_hit_test(f, r, ts, tab_x0, x, ti, close)
+  else ()
+  val ntabs = tabs_len(ts)
+  val pick = if is_on(onbar) andalso is_off(skip) andalso ige(ti, 0) andalso ilt(ti, ntabs) andalso ieq(close, 0) then 1 else 0
+in
+  if ieq(pick, 1) then down_pick_tab(s, x, ti) else ()
+end
+
+fun text_item_hit(s: &App_record, skip: Toggle, inside: Toggle, item: int, item_id: int): int =
+  if is_on(skip) andalso is_on(inside) andalso is_menu_text(s.menu) andalso ieq(item, item_id) then 1 else 0
+
+fun image_item_hit(s: &App_record, skip: Toggle, inside: Toggle, item: int, item_id: int): int =
+  if is_on(skip) andalso is_on(inside) andalso is_menu_image(s.menu) andalso ieq(item, item_id) then 1 else 0
+
+fun down_menu_clip(s: &App_record >> _, p: !Plat, ts0: !Tabs, idx: int, cut: Toggle, copy: Toggle, imgcopy: Toggle, paste: Toggle, imgrev: Toggle): void = let
+  val () = copy_if(ts0, idx, s.clip, toggle_of(is_on(cut) orelse is_on(copy)))
+  val () = clip_image(ts0, idx, s.hiti, s.vault, s.clip, imgcopy)
+  val own = if is_on(cut) orelse is_on(copy) orelse is_on(imgcopy) then 1 else 0
+  val () = if ieq(own, 1) then plat_own(p, 0) else ()
+  val () = if ieq(own, 1) then plat_own(p, 1) else ()
+  val () = if is_on(paste) then let
+      val () = s.paste := 1
+    in
+      plat_paste(p, 0)
+    end else ()
+  val () = if is_on(imgrev) then s.side := SideFiles else ()
+in
+end
+
+fun down_menu_close(s: &App_record >> _, ts2: !Tabs): void = let
+  val () = s.active := 0
+  val () = if ieq(s.split, 1) andalso ilt(tabs_len(ts2), 2) then s.split := 0 else ()
+  val () = s.righti := 0
+in
+  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+end
+
+fun handle_down_context_menu(
+  s: &App_record >> _, p: !Plat, ts0: Tabs, idx: int,
+  skip: Toggle, inside: Toggle, item: int, ti: int, close: Toggle,
+  imgdel: &Toggle >> _, clear: &Toggle >> _
+): Tabs = let
+  val cut = text_item_hit(s, skip, inside, item, MENU_TEXT_CUT)
+  val copy = text_item_hit(s, skip, inside, item, MENU_TEXT_COPY)
+  val paste = text_item_hit(s, skip, inside, item, MENU_TEXT_PASTE)
+  val () = clear := toggle_of(ieq(text_item_hit(s, skip, inside, item, MENU_TEXT_CLEAR), 1))
+  val imgcopy = image_item_hit(s, skip, inside, item, MENU_IMG_COPY)
+  val imgrev = image_item_hit(s, skip, inside, item, MENU_IMG_REVEAL)
+  val () = imgdel := toggle_of(ieq(image_item_hit(s, skip, inside, item, MENU_IMG_DELETE), 1))
+  val () = down_menu_clip(s, p, ts0, idx, toggle_of(ieq(cut, 1)), toggle_of(ieq(copy, 1)), toggle_of(ieq(imgcopy, 1)), toggle_of(ieq(paste, 1)), toggle_of(ieq(imgrev, 1)))
+  val ts1 = cmd_if(ts0, idx, CMD_CUT, toggle_of(ieq(cut, 1)))
+  val ts2 = tab_keep_one(drop_if(ts1, ti, close), close)
+  val () = if is_on(close) then down_menu_close(s, ts2) else ()
+in
+  ts2
+end
+
+fun down_select_tree_row(s: &App_record >> _, row: int, valid_row: Toggle): void = let
+  val () = s.sel := (if is_on(valid_row) then row else ~1)
+  val () = s.drag := (if is_on(valid_row) then DragFile else DragNone)
+  val () = s.dragi := (if is_on(valid_row) then row else ~1)
+in
+end
+
+fun down_activate_first_tab(s: &App_record >> _): void = let
+  val () = s.active := 0
+in
+  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+end
+
+fun handle_down_sidebar_click(
+  s: &App_record >> _, f: !Font, ts: Tabs, onside: Toggle, x: int, y: int
+): Tabs = let
+  val row = idiv(isub(y, 72), UI_TREE_ROW_HEIGHT)
+  val valid_row = if ige(y, 72) andalso ige(row, 0) andalso ilt(row, s.tn) then 1 else 0
+  val openf = if is_on(onside) andalso is_side_files(s.side) andalso ieq(valid_row, 1) andalso ieq(buf_get32(s.tmeta, iadd(imul(row, 4), 1)), 0) then 1 else 0
+  val () = if is_on(onside) andalso is_side_files(s.side) then down_select_tree_row(s, row, toggle_of(ieq(valid_row, 1))) else ()
+  val srow = if ige(y, 100) then idiv(isub(y, 100), UI_SEARCH_ROW_HEIGHT) else ~1
+  val open_hit_flag = if is_on(onside) andalso is_side_search(s.side) andalso ige(srow, 0) andalso ilt(srow, s.hn) then 1 else 0
+  val ts_hit = open_hit(ts, s.hmeta, s.hits, srow, toggle_of(ieq(open_hit_flag, 1)))
+  val ts_row = open_row(ts_hit, s.tree, s.tmeta, row, toggle_of(ieq(openf, 1)))
+  val () = if ieq(openf, 1) orelse ieq(open_hit_flag, 1) then down_activate_first_tab(s) else ()
+  val () = if is_on(onside) andalso is_side_search(s.side) andalso ieq(open_hit_flag, 0) then s.qfocus := 1 else ()
+  val () = if is_on(onside) andalso is_side_config(s.side) then handle_sidebar_config_action(s, f, x, y) else ()
+in
+  ts_row
+end
+
+fun handle_down_context_menu_open(
+  s: &App_record >> _, button: int, skip: Toggle, onside: Toggle, x: int, y: int
+): void =
+  if ieq(button, 3) andalso is_off(skip) then let
+    val () = s.menux := x
+    val () = s.menuy := y
+  in
+    if is_on(onside) then let
+      val () = s.menu := MenuFileTree
+      val row = idiv(isub(y, 72), UI_TREE_ROW_HEIGHT)
+      val valid_row = if ige(y, 72) andalso ige(row, 0) andalso ilt(row, s.tn) then 1 else 0
+    in
+      s.sel := (if ieq(valid_row, 1) then row else ~1)
+    end else s.menu := (if ieq(s.hitk, NK_IMAGE) then MenuImage else MenuText)
+  end else ()
+
+fun on_down_tabs(s: &App_record >> _, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int, x: int, y: int, sidew: int, skip: Toggle, onbar: Toggle, onside: Toggle, button: int, inside: Toggle, item: int): void = let
+  val ts0 = s.tabs
+  val () = s.tabs := TNil()
+  val idx = pane_of(toggle_of(ieq(s.focus, 1)), s.active, s.righti)
+  var ti: int = ~1
+  var close: int = 0
+  val () = handle_down_tab_bar_selection(s, ts0, f, r, onbar, skip, x, topbar_tab_start_x(), topbar_mode_btn_x(w), ti, close)
+  var imgdel: Toggle = Off
+  var clear: Toggle = Off
+  val ts1 = handle_down_context_menu(s, p, ts0, idx, skip, inside, item, ti, toggle_of(ieq(close, 1)), imgdel, clear)
+  val ts2 = handle_down_sidebar_click(s, f, ts1, onside, x, y)
+  val ts3 = handle_editor_click(s, f, r, ts2, ev, x, y, w, sidew, skip, onbar, onside, button, idx, imgdel, clear)
+  val () = handle_down_context_menu_open(s, button, skip, onside, x, y)
+  val ph = s.tabs
+  val () = s.tabs := ts3
+  val () = tabs_free(ph)
+  val () = if is_on(skip) then s.menu := MenuNone else ()
+in
+end
+
+fun on_down_panes(s: &App_record >> _, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int): void = let
+  val x = ev_x(ev)
+  val y = ev_y(ev)
+  val () = s.downx := x
+  val () = s.downy := y
+  val sidew = if not(is_side_none(s.side)) then UI_SIDEBAR_WIDTH else 0
+  val button = ev_button(ev)
+  val skip = if not(is_menu_none(s.menu)) then 1 else 0
+  val onbar = if ilt(y, UI_TOPBAR_HEIGHT) then 1 else 0
+  val onside = if ieq(skip, 0) andalso igt(sidew, 0) andalso ilt(x, sidew) andalso ieq(onbar, 0) then 1 else 0
+  val item = idiv(isub(y, s.menuy), UI_MENU_ITEM_HEIGHT)
+  val inside = if ige(x, s.menux) andalso ilt(x, iadd(s.menux, UI_MENU_WIDTH)) andalso ige(y, s.menuy) then 1 else 0
+  val () = if ieq(skip, 1) then handle_context_menu_action(s, toggle_of(ieq(inside, 1)), item) else ()
+  val () = font_set_px(f, s.fontpx)
+  val () = if ieq(onbar, 1) andalso ieq(skip, 0) then handle_topbar_action(s, w, x) else ()
+  val () = on_down_tabs(s, p, f, r, ev, w, x, y, sidew, toggle_of(ieq(skip, 1)), toggle_of(ieq(onbar, 1)), toggle_of(ieq(onside, 1)), button, toggle_of(ieq(inside, 1)), item)
+in
+end
+
 fun on_down(a: !App, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int, h: int): void =
   case+ a of
   | @APP(s) =>
       if ieq(s.vault_select, 1) then let
-        val x = ev_x(ev)
-        val y = ev_y(ev)
-        val mw = 520
-        val mh = 360
-        val mx = idiv(isub(w, mw), 2)
-        val my = idiv(isub(h, mh), 2)
-
-        // Existing vaults list click
-        val in_list_y = if ige(y, iadd(my, 74)) andalso ilt(y, iadd(my, iadd(74, imul(imin(s.vcnt, 6), 28)))) then 1 else 0
-        val in_list_x = if ige(x, iadd(mx, 16)) andalso ilt(x, isub(iadd(mx, mw), 16)) then 1 else 0
-        val () = if ieq(in_list_x, 1) andalso ieq(in_list_y, 1) then let
-          val vi = idiv(isub(y, iadd(my, 74)), 28)
-          val () = if ige(vi, 0) andalso ilt(vi, s.vcnt) then let
-            val poff = buf_get32(s.vmeta, imul(vi, 4))
-            val plen = buf_get32(s.vmeta, iadd(imul(vi, 4), 1))
-            var pbuf = buf_make(256)
-            val () = bcat(pbuf, s.vpaths, poff, iadd(poff, plen))
-            val target = cstr(pbuf)
-            val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-            val () = bclear(s.vault)
-            val () = bstr(s.vault, target)
-            val () = conf_set_active_vault(target)
-            val old_t = s.tabs
-            val () = s.tabs := TNil()
-            var n_fpx: int = 18
-            var n_vm: int = 0
-            var n_sp: int = 0
-            var n_act: int = 0
-            val new_t = switch_vault_tabs(old_t, target, s.font_path, n_fpx, n_vm, n_sp, n_act)
-            val ph = s.tabs
-            val () = s.tabs := new_t
-            val () = tabs_free(ph)
-            val () = s.fontpx := n_fpx
-            val () = s.viewmode := n_vm
-            val () = s.split := n_sp
-            val () = s.active := n_act
-            val () = s.righti := 0
-            val () = s.treedirty := 1
-            val () = bclear(s.promptb)
-            val () = buf_free(pbuf)
-            val () = s.vault_select := 0
-          in
-            ()
-          end else ()
-        in
-          ()
-        end else ()
-
-        // Click on "[ Ac / Olustur ]" button
-        val on_open_btn = if ige(x, iadd(mx, 16)) andalso ilt(x, iadd(mx, 156)) andalso ige(y, iadd(my, 312)) andalso ilt(y, iadd(my, 342)) then 1 else 0
-        val () = if ieq(on_open_btn, 1) andalso igt(buf_len(s.promptb), 0) then let
-          val target = cstr(s.promptb)
-          val _mk = fs_mkdir(target)
-          val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-          val () = bclear(s.vault)
-          val () = bstr(s.vault, target)
-          val () = conf_set_active_vault(target)
-          val old_t = s.tabs
-          val () = s.tabs := TNil()
-          var n_fpx: int = 18
-          var n_vm: int = 0
-          var n_sp: int = 0
-          var n_act: int = 0
-          val new_t = switch_vault_tabs(old_t, target, s.font_path, n_fpx, n_vm, n_sp, n_act)
-          val ph = s.tabs
-          val () = s.tabs := new_t
-          val () = tabs_free(ph)
-          val () = s.fontpx := n_fpx
-          val () = s.viewmode := n_vm
-          val () = s.split := n_sp
-          val () = s.active := n_act
-          val () = s.righti := 0
-          val () = s.treedirty := 1
-          val () = bclear(s.promptb)
-          val () = s.vault_select := 0
-        in
-          ()
-        end else ()
-
-        // Click on "[ Iptal ]" button
-        val on_cancel_btn = if ige(x, isub(iadd(mx, mw), 116)) andalso ilt(x, isub(iadd(mx, mw), 16)) andalso ige(y, iadd(my, 312)) andalso ilt(y, iadd(my, 342)) then 1 else 0
-        val () = if ieq(on_cancel_btn, 1) andalso igt(buf_len(s.vault), 0) then let
-          val () = s.vault_select := 0
-        in
-          ()
-        end else ()
+        val () = handle_vault_select_click(s, ev_x(ev), ev_y(ev), w, h)
       in
         fold@(a)
       end else let
-        val x = ev_x(ev)
-        val y = ev_y(ev)
-        val () = s.downx := x
-        val () = s.downy := y
-        val sidew = if igt(s.side, 0) then 280 else 0
-        val button = ev_button(ev)
-        val _h = h
-        val skip = if igt(s.menu, 0) then 1 else 0
-        val onbar = if ilt(y, 36) then 1 else 0
-        val onside = if ieq(skip, 0) andalso igt(sidew, 0) andalso ilt(x, sidew) andalso ieq(onbar, 0) then 1 else 0
-        val item = idiv(isub(y, s.menuy), 22)
-        val inside = if ige(x, s.menux) andalso ilt(x, iadd(s.menux, 230)) andalso ige(y, s.menuy) then 1 else 0
-        val () = if ieq(skip, 1) andalso ieq(inside, 1) andalso ieq(s.menu, 3) andalso ieq(item, 0) then s.prompt := 1 else ()
-        val () = if ieq(skip, 1) andalso ieq(inside, 1) andalso ieq(s.menu, 3) andalso ieq(item, 1) then s.prompt := 2 else ()
-        val () = if ieq(skip, 1) andalso ieq(inside, 1) andalso ieq(s.menu, 3) andalso ieq(item, 2) then s.prompt := 3 else ()
-        val () = if ieq(skip, 1) andalso ieq(inside, 1) andalso ieq(s.menu, 3) andalso ieq(item, 3) andalso ige(s.sel, 0) then let
-            var cur = buf_make(8)
-            val () = row_path(s.tree, s.tmeta, s.sel, cur)
-            val () = do_delete(cur)
-            val () = s.treedirty := 1
-          in
-            buf_free(cur)
-          end else ()
-        val () = font_set_px(f, s.fontpx)
-        val top_w = 96
-        val x1 = 8
-        val x2 = iadd(x1, iadd(top_w, 6))
-        val x3 = iadd(x2, iadd(top_w, 6))
-        val tab_sep_x = iadd(x3, iadd(top_w, 14))
-        val tab_x0 = iadd(tab_sep_x, 16)
-
-        val btxt = if ieq(s.viewmode, 0) then "Düzenle" else "Okuma"
-        val bw = 96
-        val bx = isub(w, iadd(bw, 10))
-
-        val onbtn = if ieq(onbar, 1) andalso ieq(skip, 0) andalso ige(x, bx) andalso ilt(x, iadd(bx, bw)) then 1 else 0
-        val () = if ieq(onbtn, 1) then let
-          val () = s.viewmode := iif(ieq(s.viewmode, 0), 1, 0)
-          val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-        in
-          ()
-        end else ()
-
-        val on_g = if ieq(onbar, 1) andalso ieq(skip, 0) andalso ige(x, x1) andalso ilt(x, iadd(x1, top_w)) then 1 else 0
-        val () = if ieq(on_g, 1) then let
-            val () = s.side := iif(ieq(s.side, 1), 0, 1)
-          in
-            s.qfocus := 0
-          end else ()
-
-        val on_s = if ieq(onbar, 1) andalso ieq(skip, 0) andalso ige(x, x2) andalso ilt(x, iadd(x2, top_w)) then 1 else 0
-        val () = if ieq(on_s, 1) then let
-            val () = s.side := iif(ieq(s.side, 2), 0, 2)
-          in
-            s.qfocus := iif(ieq(s.side, 2), 1, 0)
-          end else ()
-
-        val on_cfg = if ieq(onbar, 1) andalso ieq(skip, 0) andalso ige(x, x3) andalso ilt(x, iadd(x3, top_w)) then 1 else 0
-        val () = if ieq(on_cfg, 1) then let
-            val () = s.side := iif(ieq(s.side, 3), 0, 3)
-          in
-            s.qfocus := 0
-          end else ()
-
-        val ts0 = s.tabs
-        val () = s.tabs := TNil()
-        val idx = if ieq(s.focus, 0) then s.active else s.righti
-
-        var ti: int = ~1
-        var close: int = 0
-        val () = if ieq(onbar, 1) andalso ieq(skip, 0) andalso ige(x, tab_x0) andalso ilt(x, bx) then
-          tab_hit_test(f, r, ts0, tab_x0, x, ti, close)
-        else ()
-
-        val ntabs = tabs_len(ts0)
-        val pick = if ieq(onbar, 1) andalso ieq(skip, 0) andalso ige(ti, 0) andalso ilt(ti, ntabs) andalso ieq(close, 0) then 1 else 0
-        val () = if ieq(pick, 1) then let
-            val () = s.drag := 0
-            val () = s.dragi := ti
-            val () = s.downx := x
-            val () = s.downy := y
-            val () = s.active := ti
-            val () = s.focus := 0
-            val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-          in
-            ()
-          end else ()
-        val cut = if ieq(skip, 1) andalso ieq(inside, 1) andalso ieq(s.menu, 1) andalso ieq(item, 0) then 1 else 0
-        val copy = if ieq(skip, 1) andalso ieq(inside, 1) andalso ieq(s.menu, 1) andalso ieq(item, 1) then 1 else 0
-        val paste = if ieq(skip, 1) andalso ieq(inside, 1) andalso ieq(s.menu, 1) andalso ieq(item, 2) then 1 else 0
-        val clear = if ieq(skip, 1) andalso ieq(inside, 1) andalso ieq(s.menu, 1) andalso ieq(item, 3) then 1 else 0
-        val imgcopy = if ieq(skip, 1) andalso ieq(inside, 1) andalso ieq(s.menu, 2) andalso ieq(item, 0) then 1 else 0
-        val imgrev = if ieq(skip, 1) andalso ieq(inside, 1) andalso ieq(s.menu, 2) andalso ieq(item, 1) then 1 else 0
-        val imgdel = if ieq(skip, 1) andalso ieq(inside, 1) andalso ieq(s.menu, 2) andalso ieq(item, 2) then 1 else 0
-        val () = copy_if(ts0, idx, s.clip, iif(ieq(cut, 1) orelse ieq(copy, 1), 1, 0))
-        val () = clip_image(ts0, idx, s.hiti, s.vault, s.clip, imgcopy)
-        val own = if ieq(cut, 1) orelse ieq(copy, 1) orelse ieq(imgcopy, 1) then 1 else 0
-        val () = if ieq(own, 1) then plat_own(p, 0) else ()
-        val () = if ieq(own, 1) then plat_own(p, 1) else ()
-        val () = if ieq(paste, 1) then let
-            val () = s.paste := 1
-          in
-            plat_paste(p, 0)
-          end else ()
-        val () = if ieq(imgrev, 1) then s.side := 1 else ()
-        val ts1 = cmd_if(ts0, idx, 10, cut)
-        val ts2 = tab_keep_one(drop_if(ts1, ti, close), close)
-        val () = if ieq(close, 1) then let
-            val () = s.active := 0
-            val () = if ieq(s.split, 1) andalso ilt(tabs_len(ts2), 2) then s.split := 0 else ()
-            val () = s.righti := 0
-            val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-          in
-            ()
-          end else ()
-        val row = idiv(isub(y, 72), 18)
-        val valid_row = if ige(y, 72) andalso ige(row, 0) andalso ilt(row, s.tn) then 1 else 0
-        val openf = if ieq(onside, 1) andalso ieq(s.side, 1) andalso ieq(valid_row, 1) andalso ieq(buf_get32(s.tmeta, iadd(imul(row, 4), 1)), 0) then 1 else 0
-        val () = if ieq(onside, 1) andalso ieq(s.side, 1) then let
-            val () = s.sel := (if ieq(valid_row, 1) then row else ~1)
-            val () = s.drag := (if ieq(valid_row, 1) then 2 else 0)
-            val () = s.dragi := (if ieq(valid_row, 1) then row else ~1)
-          in
-            ()
-          end else ()
-        val srow = if ige(y, 100) then idiv(isub(y, 100), 18) else ~1
-        val open_hit_flag = if ieq(onside, 1) andalso ieq(s.side, 2) andalso ige(srow, 0) andalso ilt(srow, s.hn) then 1 else 0
-        val ts2_hit = open_hit(ts2, s.hmeta, s.hits, srow, open_hit_flag)
-        val ts3 = open_row(ts2_hit, s.tree, s.tmeta, row, openf)
-        val () = if ieq(openf, 1) orelse ieq(open_hit_flag, 1) then let
-          val () = s.active := 0
-          val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-        in
-          ()
-        end else ()
-        val () = if ieq(onside, 1) andalso ieq(s.side, 2) andalso ieq(open_hit_flag, 0) then s.qfocus := 1 else ()
-
-        // Kasayi Degistir click:
-        val on_kasa_btn = if ieq(onside, 1) andalso ieq(s.side, 3) andalso ige(x, 12) andalso ilt(x, 162) andalso ige(y, 122) andalso ilt(y, 144) then 1 else 0
-        val () = if ieq(on_kasa_btn, 1) then let
-          val () = conf_list_vaults(s.vpaths, s.vnames, s.vmeta, s.vcnt)
-          val () = s.vault_select := 1
-        in
-          ()
-        end else ()
-
-        // Font size click:
-        val nxtpx = if ieq(s.fontpx, 16) then 18 else if ieq(s.fontpx, 18) then 20 else 16
-        val () = if ieq(onside, 1) andalso ieq(s.side, 3) andalso igt(y, 148) andalso ilt(y, 175) then let
-          val () = s.fontpx := nxtpx
-          val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-        in
-          ()
-        end else ()
-
-        // Dynamic font list click:
-        val max_fi = imin(s.fcnt, 12)
-        val on_font_list = if ieq(onside, 1) andalso ieq(s.side, 3) andalso ige(y, 205) andalso ilt(y, iadd(210, imul(max_fi, 22))) then 1 else 0
-        val () = if ieq(on_font_list, 1) then let
-          val sel_fi = idiv(isub(y, 205), 22)
-          val () = if ige(sel_fi, 0) andalso ilt(sel_fi, s.fcnt) then let
-            val poff = buf_get32(s.fmeta, imul(sel_fi, 4))
-            val plen = buf_get32(s.fmeta, iadd(imul(sel_fi, 4), 1))
-            val () = bclear(s.font_path)
-            val () = bcat(s.font_path, s.fpaths, poff, iadd(poff, plen))
-            val _ok = font_use_file(f, cstr(s.font_path))
-            val () = font_set_px(f, s.fontpx)
-            val () = s.font_idx := 1
-            val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-          in
-            ()
-          end else ()
-        in
-          ()
-        end else ()
-
-        val pw0 = isub(w, sidew)
-        val half = if ieq(s.split, 1) then idiv(pw0, 2) else pw0
-        val editor = if ieq(skip, 0) andalso ieq(onbar, 0) andalso ieq(onside, 0) andalso ieq(button, 1) then 1 else 0
-        val foc = if ieq(editor, 1) andalso ieq(s.split, 1) andalso ige(x, iadd(sidew, half)) then 1 else 0
-        val () = if ieq(editor, 1) then s.focus := foc else ()
-        val ox = if ieq(s.focus, 1) then iadd(sidew, half) else sidew
-        val idx2 = if ieq(s.focus, 0) then s.active else s.righti
-        val keep = iif(iand(ev_mods(ev), mod_shift()) <> 0, 1, 0)
-        val () = font_set_px(f, s.fontpx)
-        val ts4 = click_go(f, r, ts3, idx2, x, y, ox, half, font_line_h(f), s.scratch, keep, s.hitk, s.hiti, editor)
-        val colx_hit = column_x(ox, half)
-        val on_arrow = if ieq(editor, 1) andalso ige(x, isub(colx_hit, 24)) andalso ilt(x, colx_hit) andalso ige(s.hiti, 0) then 1 else 0
-        val on_task = if ieq(editor, 1) andalso ieq(s.hitk, 19) andalso ige(x, colx_hit) andalso ilt(x, iadd(colx_hit, 36)) andalso ige(s.hiti, 0) then 1 else 0
-        val ts4_a = toggle_go(ts4, idx2, s.hiti, on_arrow)
-        val ts4_b = toggle_task_go(ts4_a, idx2, s.hiti, on_task)
-        val gowiki = if ieq(editor, 1) andalso ieq(ctrl_on(ev), 1) then 1 else 0
-        val ts5 = wiki_go(ts4_b, idx2, s.vault, gowiki)
-        val ts6 = del_go(ts5, idx, s.hiti, imgdel)
-        val ts7 = clear_go(ts6, idx, clear)
-        val () = if ieq(editor, 1) andalso ieq(ctrl_on(ev), 1) then let
-          val () = s.active := 0
-          val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-        in
-          ()
-        end else ()
-        val () = if ieq(editor, 1) then s.qfocus := 0 else ()
-        val () = if ieq(button, 3) andalso ieq(skip, 0) then let
-            val () = s.menux := x
-            val () = s.menuy := y
-          in
-            if ieq(onside, 1) then let
-              val () = s.menu := 3
-              val row = idiv(isub(y, 72), 18)
-              val valid_row = if ige(y, 72) andalso ige(row, 0) andalso ilt(row, s.tn) then 1 else 0
-            in
-              s.sel := (if ieq(valid_row, 1) then row else ~1)
-            end else s.menu := iif(ieq(s.hitk, 26), 2, 1)
-          end else ()
-        val ph = s.tabs
-        val () = s.tabs := ts7
-        val () = tabs_free(ph)
-        val () = if ieq(skip, 1) then s.menu := 0 else ()
+        val () = on_down_panes(s, p, f, r, ev, w)
       in
         fold@(a)
       end
@@ -1385,79 +1635,98 @@ fun on_motion(a: !App, ev: &event): void =
   case+ a of
   | @APP(s) => let
       val x = ev_x(ev)
-      val () = if ige(s.downx, 0) andalso ige(s.dragi, 0) andalso ilt(s.downy, 36) then
-        if igt(iabs(isub(x, s.downx)), 8) then s.drag := 1 else ()
+      val y = ev_y(ev)
+      val () = s.hoverx := x
+      val () = s.hovery := y
+      val () = if ige(s.downx, 0) andalso ige(s.dragi, 0) andalso ilt(s.downy, UI_TOPBAR_HEIGHT) then
+        if igt(iabs(isub(x, s.downx)), 8) then s.drag := DragTab else ()
       else ()
     in
       fold@(a)
     end
+
+fun on_up_split_tab(s: &App_record >> _, w: int, x: int): void = let
+  val sidew = if not(is_side_none(s.side)) then UI_SIDEBAR_WIDTH else 0
+  val mid = iadd(sidew, idiv(isub(w, sidew), 2))
+in
+  if ige(x, mid) then (
+    s.split := 1;
+    s.righti := s.dragi;
+    s.focus := 1;
+    save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+  ) else ()
+end
+
+fun on_up_reorder_tab(s: &App_record >> _, f: !Font, r: !Rend, x: int): void = let
+  val tab_x0 = topbar_tab_start_x()
+  var target_ti: int = ~1
+  var dummy_close: int = 0
+  val () = tab_hit_test(f, r, s.tabs, tab_x0, x, target_ti, dummy_close)
+  val ntabs = tabs_len(s.tabs)
+  val ti = if ige(target_ti, 0) then target_ti else if ige(x, tab_x0) then isub(ntabs, 1) else 0
+in
+  if ige(ti, 0) andalso ilt(ti, ntabs) andalso ine(ti, s.dragi) then let
+    val+ ~PAIR(one, rest) = tabs_detach(s.tabs, s.dragi)
+    val () = s.tabs := tabs_insert(rest, ti, one)
+    val () = s.active := ti
+    val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+  in
+  end else ()
+end
+
+fun report_move_failure(rn: int, src: !Buf): void =
+  if ieq(rn, 0) then () else report_failure("tree_move", cstr(src))
+
+fun move_dragged_file(s: &App_record >> _, row: int): void = let
+  var srcp = buf_make(8)
+  var dstp = buf_make(8)
+  var name = buf_make(8)
+  var final = buf_make(8)
+  val () = row_path(s.tree, s.tmeta, s.dragi, srcp)
+  val () = row_path(s.tree, s.tmeta, row, dstp)
+  val () = base_name(srcp, name)
+  val () = child_path(dstp, name, final)
+  val rn = fs_rename(cstr(srcp), cstr(final))
+  val () = report_move_failure(rn, srcp)
+  val () = s.treedirty := 1
+  val () = buf_free(srcp)
+  val () = buf_free(dstp)
+  val () = buf_free(name)
+in
+  buf_free(final)
+end
+
+fun on_up_move_file(s: &App_record >> _, y: int): void = let
+  val row = idiv(isub(y, 72), UI_TREE_ROW_HEIGHT)
+in
+  if ige(row, 0) andalso ilt(row, s.tn) andalso ine(row, s.dragi) andalso ieq(buf_get32(s.tmeta, iadd(imul(row, 4), 1)), 1) then move_dragged_file(s, row)
+  else ()
+end
+
+fun on_up_drop(s: &App_record >> _, f: !Font, r: !Rend, w: int, x: int, y: int): void =
+  if is_drag_tab(s.drag) andalso igt(y, UI_TOPBAR_HEIGHT) then on_up_split_tab(s, w, x)
+  else if is_drag_tab(s.drag) andalso ilt(y, UI_TOPBAR_HEIGHT) andalso ige(s.dragi, 0) then on_up_reorder_tab(s, f, r, x)
+  else if is_drag_file(s.drag) andalso ige(s.sel, 0) then on_up_move_file(s, y)
+  else ()
+
+fun on_up_clamp_active(s: &App_record >> _): void = let
+  val n = tabs_len(s.tabs)
+  val () = if ige(s.active, n) then s.active := imax(0, isub(n, 1)) else ()
+  val () = if ilt(s.active, 0) then s.active := 0 else ()
+in
+end
 
 fun on_up(a: !App, f: !Font, r: !Rend, ev: &event, w: int): void =
   case+ a of
   | @APP(s) => let
       val x = ev_x(ev)
       val y = ev_y(ev)
-      val () = if ieq(s.drag, 1) andalso igt(y, 36) then let
-        val sidew = if igt(s.side, 0) then 280 else 0
-        val mid = iadd(sidew, idiv(isub(w, sidew), 2))
-      in
-        if ige(x, mid) then let
-          val () = s.split := 1
-          val () = s.righti := s.dragi
-          val () = s.focus := 1
-          val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-        in
-          ()
-        end else ()
-      end else if ieq(s.drag, 1) andalso ilt(y, 36) andalso ige(s.dragi, 0) then let
-        val w1 = top_btn_w(f, r, "Gezgin", 72)
-        val w2 = top_btn_w(f, r, "Arama", 68)
-        val w3 = top_btn_w(f, r, "Ayarlar", 76)
-        val tab_x0 = iadd(6, iadd(w1, iadd(6, iadd(w2, iadd(6, iadd(w3, 14))))))
-        var target_ti: int = ~1
-        var dummy_close: int = 0
-        val () = tab_hit_test(f, r, s.tabs, tab_x0, x, target_ti, dummy_close)
-        val ntabs = tabs_len(s.tabs)
-        val ti = if ige(target_ti, 0) then target_ti else if ige(x, tab_x0) then isub(ntabs, 1) else 0
-        val () = if ige(ti, 0) andalso ilt(ti, ntabs) andalso ine(ti, s.dragi) then let
-          val+ ~PAIR(one, rest) = tabs_detach(s.tabs, s.dragi)
-          val () = s.tabs := tabs_insert(rest, ti, one)
-          val () = s.active := ti
-          val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-        in
-          ()
-        end else ()
-      in
-        ()
-      end else if ieq(s.drag, 2) andalso ige(s.sel, 0) then let
-        val row = idiv(isub(y, 72), 18)
-        val () = if ige(row, 0) andalso ilt(row, s.tn) andalso ine(row, s.dragi) andalso ieq(buf_get32(s.tmeta, iadd(imul(row, 4), 1)), 1) then let
-          var srcp = buf_make(8)
-          var dstp = buf_make(8)
-          var name = buf_make(8)
-          var final = buf_make(8)
-          val () = row_path(s.tree, s.tmeta, s.dragi, srcp)
-          val () = row_path(s.tree, s.tmeta, row, dstp)
-          val () = base_name(srcp, name)
-          val () = child_path(dstp, name, final)
-          val _r = fs_rename(cstr(srcp), cstr(final))
-          val () = s.treedirty := 1
-          val () = buf_free(srcp)
-          val () = buf_free(dstp)
-          val () = buf_free(name)
-        in
-          buf_free(final)
-        end else ()
-      in
-        ()
-      end else ()
-      val () = s.drag := 0
+      val () = on_up_drop(s, f, r, w, x, y)
+      val () = s.drag := DragNone
       val () = s.dragi := ~1
       val () = s.downx := ~1
       val () = s.downy := ~1
-      val n = tabs_len(s.tabs)
-      val () = if ige(s.active, n) then s.active := imax(0, isub(n, 1)) else ()
-      val () = if ilt(s.active, 0) then s.active := 0 else ()
+      val () = on_up_clamp_active(s)
     in
       fold@(a)
     end
@@ -1466,38 +1735,41 @@ fun on_wheel(a: !App, ev: &event, w: int, h: int): void =
   case+ a of
   | @APP(s) => let
       val dv = if ieq(ev_button(ev), 4) then ~48 else 48
-      val idx = if ieq(s.focus, 0) then s.active else s.righti
+      val idx = pane_of(toggle_of(ieq(s.focus, 1)), s.active, s.righti)
       val ts = s.tabs
       val () = s.tabs := TNil()
       val ph = s.tabs
       val () = s.tabs := tabs_scroll(ts, idx, dv, 100000)
       val () = tabs_free(ph)
-      val _w = w
-      val _h = h
+      val () = seen_int(w)
+      val () = seen_int(h)
     in
       fold@(a)
     end
+
+fun on_sel_paste(s: &App_record >> _, p: !Plat, ev: &event): void = let
+  val cap = buf_cap(s.scratch)
+  val n = plat_read_buf(p, ev, s.scratch, cap)
+  val idx = pane_of(toggle_of(ieq(s.focus, 1)), s.active, s.righti)
+  val ts = s.tabs
+  val () = s.tabs := TNil()
+  val ph = s.tabs
+  val ts2 = tabs_ins_buf(ts, idx, s.scratch, n)
+  val () = tabs_sync_vfs(ts2, idx)
+  val () = s.tabs := ts2
+  val () = tabs_free(ph)
+  val () = s.paste := 0
+in
+end
 
 fun on_sel(a: !App, p: !Plat, ev: &event): void =
   case+ a of
   | @APP(s) => let
       val k = ev_kind(ev)
-      val () = if k = EV_SEL_REQ then plat_reply(p, ev, buf_ptr(s.clip), buf_len(s.clip))
-        else if k = EV_SEL_NOTIFY andalso ieq(s.paste, 1) then let
-          val n = plat_read(p, ev, buf_ptr(s.scratch), buf_cap(s.scratch))
-          val idx = if ieq(s.focus, 0) then s.active else s.righti
-          val ts = s.tabs
-          val () = s.tabs := TNil()
-          val sp = buf_ptr(s.scratch)
-          val ph = s.tabs
-          val ts2 = tabs_ins(ts, idx, sp, n)
-          val () = tabs_sync_vfs(ts2, idx)
-          val () = s.tabs := ts2
-          val () = tabs_free(ph)
-          val () = s.paste := 0
-        in
-          ()
-        end else ()
+      val nclip = buf_len(s.clip)
+      val () = if k = EV_SEL_REQ then plat_reply_buf(p, ev, s.clip, nclip)
+        else if k = EV_SEL_NOTIFY andalso ieq(s.paste, 1) then on_sel_paste(s, p, ev)
+        else ()
     in
       fold@(a)
     end
@@ -1513,32 +1785,52 @@ in
   else if k = EV_SEL_REQ orelse k = EV_SEL_NOTIFY then on_sel(a, p, ev)
   else ()
 end
-fun find_img(doc: !Doc, i: int): int =
-  if ige(i, doc_nnodes(doc)) then ~1
-  else if ieq(doc_get(doc, i, 0), 26) then i
-  else find_img(doc, iadd(i, 1))
+extern fun find_img_exh(doc: !Doc, i: int): int = "mac#anth_die_int"
 
-implement app_selftest(r) = let
-  var q = buf_make(16)
-  val () = bstr(q, "anthracite")
-  var d1 = buf_make(32)
-  val () = bstr(d1, "/tmp/anth-s")
-  val _mk = fs_mkdir(cstr(d1))
+fun find_img_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), doc: !Doc, i: int): int =
+  if recfuel > 0 then (
+    if ige(i, doc_nnodes(doc)) then ~1
+    else if ieq(doc_node_kind(doc, i), NK_IMAGE) then i
+    else find_img_m(recfuel - 1, doc, iadd(i, 1))
+  ) else find_img_exh(doc, i)
+
+fun find_img(doc: !Doc, i: int): int = find_img_m(airlock_nat(MAX_REC_FUEL), doc, i)
+
+fun selftest_write_notes(): int = let
   var f1 = buf_make(40)
   var f2 = buf_make(40)
+  var body = buf_make(32)
   val () = bstr(f1, "/tmp/anth-s/a.md")
   val () = bstr(f2, "/tmp/anth-s/b.md")
-  var body = buf_make(32)
   val () = bstr(body, "anthracite bir\n")
   val w1 = write_text(f1, body)
   val () = bclear(body)
   val () = bstr(body, "anthracite iki\n")
   val w2 = write_text(f2, body)
+  val () = buf_free(f1)
+  val () = buf_free(f2)
+  val () = buf_free(body)
+in
+  (if ieq(w1, 1) andalso ieq(w2, 1) then 1 else 0)
+end
+
+fun selftest_search(d1: !Buf): int = let
+  var q = buf_make(16)
+  val () = bstr(q, "anthracite")
+  val writes_ok = selftest_write_notes()
   var hits = buf_make(64)
   var hmeta = buf_make(64)
   var hn: int = 0
   val () = refresh_search(d1, q, hits, hmeta, hn)
-  val search_ok = if ige(hn, 2) andalso ieq(w1, 1) andalso ieq(w2, 1) then 1 else 0
+  val search_ok = if ige(hn, 2) andalso ieq(writes_ok, 1) then 1 else 0
+  val () = buf_free(q)
+  val () = buf_free(hits)
+  val () = buf_free(hmeta)
+in
+  search_ok
+end
+
+fun selftest_flow(r: !Rend): @(int, int, Doc, Cache, Buf, Buf) = let
   val doc = doc_open()
   val () = doc_insert(doc, c_str_ptr("hello\n\n![](/tmp/anth-t.png)\n\nworld\n"), c_strlen("hello\n\n![](/tmp/anth-t.png)\n\nworld\n"))
   var cache = CNil()
@@ -1547,12 +1839,17 @@ implement app_selftest(r) = let
   var scratch = buf_make(256)
   val height = prep_doc(doc, cache, r, vault, 18, 720)
   val ii = find_img(doc, 0)
-  val iy = if ige(ii, 0) then doc_get(doc, ii, 13) else ~1
-  val ih = if ige(ii, 0) then doc_get(doc, ii, 5) else 0
+  val iy = if ige(ii, 0) then doc_node_y(doc, ii) else ~1
+  val ih = if ige(ii, 0) then doc_node_height(doc, ii) else 0
   val flow_ok = if ige(ii, 0) andalso igt(ih, 8) andalso ige(height, iadd(iy, ih)) then 1 else 0
+in
+  @(flow_ok, ih, doc, cache, vault, scratch)
+end
+
+fun selftest_tabs(d1: !Buf): int = let
   val docA = doc_open()
   val () = doc_insert(docA, c_str_ptr("[[b]]\n"), 6)
-  val () = doc_set_caret(docA, 2, 0)
+  val () = doc_set_caret_move(docA, 2)
   var ta = buf_make(4)
   var pa = buf_make(4)
   val tsA = tabs_add(TNil(), docA, pa, ta)
@@ -1566,83 +1863,118 @@ implement app_selftest(r) = let
   val tsD = wiki_open(tsC, 0, d1, 0)
   val nw = tabs_len(tsD)
   val () = tabs_free(tsD)
+in
+  (if ieq(n2, 2) andalso ieq(n1, 1) andalso ieq(nw, 2) then 1 else 0)
+end
+
+fun selftest_move_ops(sub: !Buf, src: !Buf, dstp: !Buf): int = let
+  val mv = fs_rename(cstr(src), cstr(dstp))
+  val moved = fs_exists(cstr(dstp))
+  val () = seen_int(fs_unlink(cstr(dstp)))
+  val gone = fs_exists(cstr(dstp))
+  val () = seen_int(fs_rmdir(cstr(sub)))
+in
+  (if ieq(mv, 0) andalso ieq(moved, 1) andalso ieq(gone, 0) then 1 else 0)
+end
+
+fun selftest_files(): int = let
   var sub = buf_make(40)
   val () = bstr(sub, "/tmp/anth-s/sub")
-  val _mk2 = fs_mkdir(cstr(sub))
+  val () = seen_int(fs_mkdir(cstr(sub)))
   var src = buf_make(48)
   val () = bstr(src, "/tmp/anth-s/move.md")
   var one = buf_make(4)
   val () = bstr(one, "x\n")
-  val _w3 = write_text(src, one)
+  val () = seen_int(write_text(src, one))
   var dstp = buf_make(48)
   val () = bstr(dstp, "/tmp/anth-s/sub/move.md")
-  val mv = fs_rename(cstr(src), cstr(dstp))
-  val moved = fs_exists(cstr(dstp))
-  val _ul = fs_unlink(cstr(dstp))
-  val gone = fs_exists(cstr(dstp))
-  val _rm = fs_rmdir(cstr(sub))
-  val chrome_ok = if ieq(n2, 2) andalso ieq(n1, 1) andalso ieq(nw, 2) then 1 else 0
-  val files_ok = if ieq(mv, 0) andalso ieq(moved, 1) andalso ieq(gone, 0) then 1 else 0
+  val files_ok = selftest_move_ops(sub, src, dstp)
   val () = buf_free(sub)
   val () = buf_free(src)
   val () = buf_free(one)
   val () = buf_free(dstp)
-  val fnt = font_open()
-  val () = rend_begin(r, 800, 600)
+in
+  files_ok
+end
+
+fun selftest_draw_doc(fnt: !Font, r: !Rend, doc: !Doc, vault: !Buf, cache: &Cache >> _, scratch: &Buf >> _): void = let
   var py: int = 0
   var pa: int = 0
-  val () = draw_nodes(fnt, r, doc, 0, 0, 800, 600, 0, 18, vault, cache, scratch, 0, py, pa, 0)
-  val () = draw_nodes(fnt, r, doc, 0, 0, 800, 600, 0, 18, vault, cache, scratch, 0, py, pa, 1)
-  val _h_view = draw_doc(fnt, r, doc, 0, 0, 800, 600, 0, 18, vault, cache, scratch, 1)
+  val () = draw_nodes(fnt, r, doc, 0, 0, 800, 600, 0, 18, vault, cache, scratch, 0, py, pa, ViewEdit)
+  val () = draw_nodes(fnt, r, doc, 0, 0, 800, 600, 0, 18, vault, cache, scratch, 0, py, pa, ViewRead)
+  val () = draw_doc(fnt, r, doc, 0, 0, 800, 600, 0, 18, vault, cache, scratch, ViewRead)
+in
+end
 
-  // Validate all ported RAD UI widgets
+fun selftest_widgets_a(fnt: !Font, r: !Rend, scratch: !Buf): void = let
   val () = ui_draw_border(r, 10, 10, 100, 50, 1, col_line())
   val () = ui_draw_shadow(r, 10, 10, 100, 50, 4)
   val () = ui_draw_icon(fnt, r, UI_ICON_FOLDER, 12, 12, 12, col_accent())
-  val () = ui_divider(r, 0, 0, 100, 0)
-  val _lw = ui_label(fnt, r, 20, 20, "test", col_text())
-  val _lm = ui_label_multiline(fnt, r, 20, 30, 80, "multi line label", col_text(), 14)
-  val _bw = ui_badge(fnt, r, 20, 50, "badge", col_bar(), col_accent())
-  val () = ui_button(fnt, r, 20, 70, 80, 24, "button", 0, 0)
-  val () = ui_hover_label(fnt, r, 20, 100, 80, 20, "hover", 0)
-  val () = ui_expander(fnt, r, 20, 125, 1, 0)
-  val () = ui_sort_header(fnt, r, 20, 140, 80, 20, "col", 1, 1, 0)
-  val () = ui_toggle_switch(r, 20, 165, 36, 18, 1)
-  val () = ui_slider(r, 20, 190, 80, 16, 50, 0, 0)
-  val () = ui_scroll_bar(r, 20, 210, 8, 100, 1, 500, 100, 50, 0, 0)
-  val () = ui_line_edit_draw(fnt, r, 20, 320, 120, 24, scratch, 0, 0, 1, "test")
-  val () = ui_pane_begin(r, 150, 10, 200, 150, col_bg())
-  val () = ui_pane_draw_header(fnt, r, 150, 10, 200, "Pane Header", 1)
-  val () = ui_color_picker(r, 150, 170, 100, 24, 255, 128, 64)
-  val () = rd_menu_bar_button(fnt, r, 150, 200, 60, 24, "Menu", 1, 0)
-  val () = rd_icon_button(fnt, r, UI_ICON_SETTINGS, "Options", 150, 230, 80, 24, 0, 0)
-  val () = rd_cell(fnt, r, 150, 260, 160, 20, 0, 1, 1, UI_ICON_FOLDER, "Doc", "5 kb", 1, 0)
-  val () = rd_loading_overlay(fnt, r, 800, 600, 50, "Loading", "Please wait...")
-  val () = rd_code_slice(fnt, r, 150, 290, 200, 20, 42, "val x = 1", 1, 1, 0)
+  val () = ui_divider(r, 0, 0, 100, Horizontal)
+  val () = ui_badge(fnt, r, 20, 50, "badge", col_bar(), col_accent())
+  val () = ui_button(fnt, r, 20, 70, 80, 24, "button", Off, Off)
+  val () = ui_hover_label(fnt, r, 20, 100, 80, 20, "hover", Off)
+  val () = ui_expander(fnt, r, 20, 125, On, Off)
+  val () = ui_scroll_bar(r, 20, 210, 8, 100, Vertical, 500, 100, 50, Off, Off)
+  val () = ui_line_edit_draw(fnt, r, 20, 320, 120, 24, scratch, 0, 0, On, "test")
+in
+end
 
+fun selftest_widgets_b(fnt: !Font, r: !Rend): void = let
+  val () = ui_pane_begin(r, 150, 10, 200, 150, col_bg())
+  val () = ui_pane_draw_header(fnt, r, 150, 10, 200, "Pane Header", On)
+  val () = ui_menu_bar_button(fnt, r, 150, 200, 60, 24, "Menu", On, Off)
+  val () = ui_icon_button(fnt, r, UI_ICON_SETTINGS, "Options", 150, 230, 80, 24, Off, Off)
+  val () = ui_cell(fnt, r, 150, 260, 160, 20, 0, On, On, UI_ICON_FOLDER, "Doc", "5 kb", On, Off)
+  val () = ui_loading_overlay(fnt, r, 800, 600, 50, "Loading", "Please wait...")
+  val () = ui_code_slice(fnt, r, 150, 290, 200, 20, 42, "val x = 1", On, On, Off)
+  val () = ui_error_label(fnt, r, 150, 315, "Error")
+  val () = ui_help_label(fnt, r, 150, 335, "Help")
+in
+end
+
+fun selftest_draw(r: !Rend, doc: Doc, cache0: Cache, vault: Buf, scratch0: Buf): void = let
+  val fnt = font_open()
+  val () = rend_begin(r, 800, 600)
+  var cache = cache0
+  var scratch = scratch0
+  val () = selftest_draw_doc(fnt, r, doc, vault, cache, scratch)
+  val () = selftest_widgets_a(fnt, r, scratch)
+  val () = selftest_widgets_b(fnt, r)
   val () = font_free(fnt)
   val () = doc_free(doc)
   val () = cache_free(cache)
-  val () = buf_free(q)
-  val () = buf_free(d1)
-  val () = buf_free(f1)
-  val () = buf_free(f2)
-  val () = buf_free(body)
-  val () = buf_free(hits)
-  val () = buf_free(hmeta)
   val () = buf_free(vault)
   val () = buf_free(scratch)
+in
+end
+
+fun selftest_report(search_ok: Toggle, flow_ok: Toggle, ih: int, chrome_ok: Toggle, files_ok: Toggle): int = let
   val () = print("ui search=")
-  val () = print_int(search_ok)
+  val () = print_int(toggle_int(search_ok))
   val () = print(" flow=")
-  val () = print_int(flow_ok)
+  val () = print_int(toggle_int(flow_ok))
   val () = print(" h=")
   val () = print_int(ih)
   val () = print(" chrome=")
-  val () = print_int(chrome_ok)
+  val () = print_int(toggle_int(chrome_ok))
   val () = print(" files=")
-  val () = print_int(files_ok)
+  val () = print_int(toggle_int(files_ok))
   val () = print_newline()
 in
-  iif(ieq(search_ok, 1) andalso ieq(flow_ok, 1) andalso ieq(chrome_ok, 1) andalso ieq(files_ok, 1), 1, 0)
+  (if is_on(search_ok) andalso is_on(flow_ok) andalso is_on(chrome_ok) andalso is_on(files_ok) then 1 else 0)
+end
+
+implement app_selftest(r) = let
+  var d1 = buf_make(32)
+  val () = bstr(d1, "/tmp/anth-s")
+  val () = seen_int(fs_mkdir(cstr(d1)))
+  val search_ok = selftest_search(d1)
+  val @(flow_ok, ih, doc, cache, vault, scratch) = selftest_flow(r)
+  val chrome_ok = selftest_tabs(d1)
+  val files_ok = selftest_files()
+  val () = selftest_draw(r, doc, cache, vault, scratch)
+  val () = buf_free(d1)
+in
+  selftest_report(toggle_of(ieq(search_ok, 1)), toggle_of(ieq(flow_ok, 1)), ih, toggle_of(ieq(chrome_ok, 1)), toggle_of(ieq(files_ok, 1)))
 end

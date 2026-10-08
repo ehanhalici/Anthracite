@@ -4,10 +4,20 @@
 #include "common.hats"
 
 staload "mem.sats"
+staload "airlock.sats"
+staload "flag.sats"
 staload "data_image/img_common.sats"
 staload "data_image/img_png.sats"
 
-fun pow2(n: int): int = if n <= 0 then 1 else imul(pow2(n - 1), 2)
+extern fun pow2_exh(n: int): int = "mac#anth_die_int"
+
+fun pow2_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), n: int): int =
+  if recfuel > 0 then (
+  if n <= 0 then 1 else imul(pow2_m(recfuel - 1, n - 1), 2)
+  ) else pow2_exh(n)
+
+fun pow2(n: int): int = pow2_m(airlock_nat(MAX_REC_FUEL), n)
+
 fun ishl(a: int, n: int): int = imul(a, pow2(n))
 fun ishr(a: int, n: int): int = if n <= 0 then a else idiv(a, ishl(1, n))
 fun iand(a: int, n: int): int = anth_iand(a, n)
@@ -24,23 +34,35 @@ fun iand(a: int, n: int): int = anth_iand(a, n)
 
 typedef BitS = @{p= int, nb= int, acc= int, err= int}
 
-fun bzero(b: !Buf, i: int, n: int): void =
-  if ige(i, n) then ()
-  else let
-    val () = buf_set32(b, i, 0)
-  in
-    bzero(b, iadd(i, 1), n)
-  end
+extern fun bzero_exh(b: !Buf, i: int, n: int): void = "mac#anth_die_void"
 
-fun bitfill(src: !Buf, n: int, st: &BitS >> _): void =
-  if ige(st.nb, 24) orelse ige(st.p, n) then ()
-  else let
-    val () = st.acc := iadd(st.acc, ishl(buf_get(src, st.p), st.nb))
-    val () = st.nb := iadd(st.nb, 8)
-    val () = st.p := iadd(st.p, 1)
-  in
-    bitfill(src, n, st)
-  end
+fun bzero_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, i: int, n: int): void =
+  if recfuel > 0 then (
+    if ige(i, n) then ()
+    else let
+      val () = buf_set32(b, i, 0)
+    in
+      bzero_m(recfuel - 1, b, iadd(i, 1), n)
+    end
+  ) else bzero_exh(b, i, n)
+
+fun bzero(b: !Buf, i: int, n: int): void = bzero_m(airlock_nat(MAX_REC_FUEL), b, i, n)
+
+extern fun bitfill_exh(src: !Buf, n: int, st: &BitS >> _): void = "mac#anth_die_void"
+
+fun bitfill_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _): void =
+  if recfuel > 0 then (
+    if ige(st.nb, 24) orelse ige(st.p, n) then ()
+    else let
+      val () = st.acc := iadd(st.acc, ishl(buf_get(src, st.p), st.nb))
+      val () = st.nb := iadd(st.nb, 8)
+      val () = st.p := iadd(st.p, 1)
+    in
+      bitfill_m(recfuel - 1, src, n, st)
+    end
+  ) else bitfill_exh(src, n, st)
+
+fun bitfill(src: !Buf, n: int, st: &BitS >> _): void = bitfill_m(airlock_nat(MAX_REC_FUEL), src, n, st)
 
 fun bit1(src: !Buf, n: int, st: &BitS >> _): int = let
   val () = if ilt(st.nb, 1) then bitfill(src, n, st) else ()
@@ -58,9 +80,15 @@ in
   end
 end
 
-fun bitsk(src: !Buf, n: int, st: &BitS >> _, k: int, acc: int, i: int): int =
-  if ige(i, k) then acc
-  else bitsk(src, n, st, k, iadd(acc, imul(bit1(src, n, st), ishl(1, i))), iadd(i, 1))
+extern fun bitsk_exh(src: !Buf, n: int, st: &BitS >> _, k: int, acc: int, i: int): int = "mac#anth_die_int"
+
+fun bitsk_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, k: int, acc: int, i: int): int =
+  if recfuel > 0 then (
+    if ige(i, k) then acc
+    else bitsk_m(recfuel - 1, src, n, st, k, iadd(acc, imul(bit1(src, n, st), ishl(1, i))), iadd(i, 1))
+  ) else bitsk_exh(src, n, st, k, acc, i)
+
+fun bitsk(src: !Buf, n: int, st: &BitS >> _, k: int, acc: int, i: int): int = bitsk_m(airlock_nat(MAX_REC_FUEL), src, n, st, k, acc, i)
 
 fun bits(src: !Buf, n: int, st: &BitS >> _, k: int): int =
   bitsk(src, n, st, k, 0, 0)
@@ -71,37 +99,55 @@ fun bitalign(st: &BitS >> _): void = let
 in
 end
 
-fun count_lens(tab: !Buf, len0: int, nsym: int, c0: int, s: int): void =
-  if ige(s, nsym) then ()
-  else let
-    val L = buf_get32(tab, iadd(len0, s))
-    val () = if igt(L, 0) andalso ilt(L, 16) then buf_set32(tab, iadd(c0, L), iadd(buf_get32(tab, iadd(c0, L)), 1)) else ()
-  in
-    count_lens(tab, len0, nsym, c0, iadd(s, 1))
-  end
+extern fun count_lens_exh(tab: !Buf, len0: int, nsym: int, c0: int, s: int): void = "mac#anth_die_void"
 
-fun fill_offs(tab: !Buf, c0: int, len: int): void =
-  if ige(len, 15) then ()
-  else let
-    val () = buf_set32(tab, iadd(OFS, iadd(len, 1)), iadd(buf_get32(tab, iadd(OFS, len)), buf_get32(tab, iadd(c0, len))))
-  in
-    fill_offs(tab, c0, iadd(len, 1))
-  end
+fun count_lens_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), tab: !Buf, len0: int, nsym: int, c0: int, s: int): void =
+  if recfuel > 0 then (
+    if ige(s, nsym) then ()
+    else let
+      val L = buf_get32(tab, iadd(len0, s))
+      val () = if igt(L, 0) andalso ilt(L, 16) then buf_set32(tab, iadd(c0, L), iadd(buf_get32(tab, iadd(c0, L)), 1)) else ()
+    in
+      count_lens_m(recfuel - 1, tab, len0, nsym, c0, iadd(s, 1))
+    end
+  ) else count_lens_exh(tab, len0, nsym, c0, s)
 
-fun place_syms(tab: !Buf, len0: int, nsym: int, s0: int, s: int): void =
-  if ige(s, nsym) then ()
-  else let
-    val L = buf_get32(tab, iadd(len0, s))
-    val () =
-      if igt(L, 0) andalso ilt(L, 16) then let
-        val slot = buf_get32(tab, iadd(OFS, L))
-        val () = buf_set32(tab, iadd(s0, slot), s)
-        val () = buf_set32(tab, iadd(OFS, L), iadd(slot, 1))
-      in
-      end else ()
-  in
-    place_syms(tab, len0, nsym, s0, iadd(s, 1))
-  end
+fun count_lens(tab: !Buf, len0: int, nsym: int, c0: int, s: int): void = count_lens_m(airlock_nat(MAX_REC_FUEL), tab, len0, nsym, c0, s)
+
+extern fun fill_offs_exh(tab: !Buf, c0: int, len: int): void = "mac#anth_die_void"
+
+fun fill_offs_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), tab: !Buf, c0: int, len: int): void =
+  if recfuel > 0 then (
+    if ige(len, 15) then ()
+    else let
+      val () = buf_set32(tab, iadd(OFS, iadd(len, 1)), iadd(buf_get32(tab, iadd(OFS, len)), buf_get32(tab, iadd(c0, len))))
+    in
+      fill_offs_m(recfuel - 1, tab, c0, iadd(len, 1))
+    end
+  ) else fill_offs_exh(tab, c0, len)
+
+fun fill_offs(tab: !Buf, c0: int, len: int): void = fill_offs_m(airlock_nat(MAX_REC_FUEL), tab, c0, len)
+
+extern fun place_syms_exh(tab: !Buf, len0: int, nsym: int, s0: int, s: int): void = "mac#anth_die_void"
+
+fun place_syms_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), tab: !Buf, len0: int, nsym: int, s0: int, s: int): void =
+  if recfuel > 0 then (
+    if ige(s, nsym) then ()
+    else let
+      val L = buf_get32(tab, iadd(len0, s))
+      val () =
+        if igt(L, 0) andalso ilt(L, 16) then let
+          val slot = buf_get32(tab, iadd(OFS, L))
+          val () = buf_set32(tab, iadd(s0, slot), s)
+          val () = buf_set32(tab, iadd(OFS, L), iadd(slot, 1))
+        in
+        end else ()
+    in
+      place_syms_m(recfuel - 1, tab, len0, nsym, s0, iadd(s, 1))
+    end
+  ) else place_syms_exh(tab, len0, nsym, s0, s)
+
+fun place_syms(tab: !Buf, len0: int, nsym: int, s0: int, s: int): void = place_syms_m(airlock_nat(MAX_REC_FUEL), tab, len0, nsym, s0, s)
 
 fun huff_build(tab: !Buf, len0: int, nsym: int, c0: int, s0: int): void = let
   val () = bzero(tab, c0, iadd(c0, 16))
@@ -113,17 +159,23 @@ in
   place_syms(tab, len0, nsym, s0, 0)
 end
 
-fun hdec_go(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, c0: int, s0: int, len: int, code: int, first: int, index: int): int =
-  if igt(len, 15) orelse st.err <> 0 then ~1
-  else let
-    val bit = bit1(src, n, st)
-    val code2 = iadd(imul(code, 2), bit)
-    val count = buf_get32(tab, iadd(c0, len))
-    val lim = iadd(first, count)
-  in
-    if ilt(code2, lim) then buf_get32(tab, iadd(s0, iadd(index, isub(code2, first))))
-    else hdec_go(src, n, st, tab, c0, s0, iadd(len, 1), code2, imul(lim, 2), iadd(index, count))
-  end
+extern fun hdec_go_exh(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, c0: int, s0: int, len: int, code: int, first: int, index: int): int = "mac#anth_die_int"
+
+fun hdec_go_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, c0: int, s0: int, len: int, code: int, first: int, index: int): int =
+  if recfuel > 0 then (
+    if igt(len, 15) orelse st.err <> 0 then ~1
+    else let
+      val bit = bit1(src, n, st)
+      val code2 = iadd(imul(code, 2), bit)
+      val count = buf_get32(tab, iadd(c0, len))
+      val lim = iadd(first, count)
+    in
+      if ilt(code2, lim) then buf_get32(tab, iadd(s0, iadd(index, isub(code2, first))))
+      else hdec_go_m(recfuel - 1, src, n, st, tab, c0, s0, iadd(len, 1), code2, imul(lim, 2), iadd(index, count))
+    end
+  ) else hdec_go_exh(src, n, st, tab, c0, s0, len, code, first, index)
+
+fun hdec_go(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, c0: int, s0: int, len: int, code: int, first: int, index: int): int = hdec_go_m(airlock_nat(MAX_REC_FUEL), src, n, st, tab, c0, s0, len, code, first, index)
 
 fun hdec(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, c0: int, s0: int): int =
   hdec_go(src, n, st, tab, c0, s0, 1, 0, 0, 0)
@@ -131,8 +183,14 @@ fun hdec(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, c0: int, s0: int): int =
 fun lextra(c: int): int =
   if ilt(c, 265) orelse ieq(c, 285) then 0 else idiv(isub(c, 261), 4)
 
-fun lbase0(e: int): int =
-  if ile(e, 1) then 11 else iadd(lbase0(isub(e, 1)), ishl(4, isub(e, 1)))
+extern fun lbase0_exh(e: int): int = "mac#anth_die_int"
+
+fun lbase0_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), e: int): int =
+  if recfuel > 0 then (
+    if ile(e, 1) then 11 else iadd(lbase0_m(recfuel - 1, isub(e, 1)), ishl(4, isub(e, 1)))
+  ) else lbase0_exh(e)
+
+fun lbase0(e: int): int = lbase0_m(airlock_nat(MAX_REC_FUEL), e)
 
 fun length_of(src: !Buf, n: int, st: &BitS >> _, c: int): int =
   if ilt(c, 265) then iadd(3, isub(c, 257))
@@ -147,10 +205,16 @@ fun length_of(src: !Buf, n: int, st: &BitS >> _, c: int): int =
 
 fun dextra(c: int): int = if ilt(c, 4) then 0 else idiv(isub(c, 2), 2)
 
-fun dbase0(e: int): int =
-  if ile(e, 0) then 1
-  else if ieq(e, 1) then 5
-  else iadd(dbase0(isub(e, 1)), ishl(1, e))
+extern fun dbase0_exh(e: int): int = "mac#anth_die_int"
+
+fun dbase0_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), e: int): int =
+  if recfuel > 0 then (
+    if ile(e, 0) then 1
+    else if ieq(e, 1) then 5
+    else iadd(dbase0_m(recfuel - 1, isub(e, 1)), ishl(1, e))
+  ) else dbase0_exh(e)
+
+fun dbase0(e: int): int = dbase0_m(airlock_nat(MAX_REC_FUEL), e)
 
 fun dist_of(src: !Buf, n: int, st: &BitS >> _, c: int): int =
   if ilt(c, 4) then iadd(c, 1)
@@ -162,57 +226,84 @@ fun dist_of(src: !Buf, n: int, st: &BitS >> _, c: int): int =
     iadd(iadd(dbase0(e), imul(g, ishl(1, e))), extra)
   end
 
-fun copy_out(dst: &Buf >> _, dist: int, len: int, i: int): void =
-  if ige(i, len) then ()
-  else let
-    val n0 = buf_len(dst)
-    val by = buf_get(dst, isub(n0, dist))
-    val () = buf_push(dst, by)
-  in
-    copy_out(dst, dist, len, iadd(i, 1))
-  end
+extern fun copy_out_exh(dst: &Buf >> _, dist: int, len: int, i: int): void = "mac#anth_die_void"
 
-fun symloop(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int =
-  if igt(buf_len(dst), 4000000) orelse st.err <> 0 then 0
-  else let
-    val s = hdec(src, n, st, tab, LC, LS)
-  in
-    if ilt(s, 0) then 0
-    else if ieq(s, 256) then 1
-    else if ilt(s, 256) then let
-      val () = buf_push(dst, s)
+fun copy_out_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dst: &Buf >> _, dist: int, len: int, i: int): void =
+  if recfuel > 0 then (
+    if ige(i, len) then ()
+    else let
+      val n0 = buf_len(dst)
+      val by = buf_get(dst, isub(n0, dist))
+      val () = buf_push(dst, by)
     in
-      symloop(src, n, st, tab, dst)
-    end else let
-      val ln = length_of(src, n, st, s)
-      val dc = hdec(src, n, st, tab, DC, DS)
-      val dist = dist_of(src, n, st, dc)
-    in
-      if ile(dist, 0) orelse igt(dist, buf_len(dst)) then 0
-      else let
-        val () = copy_out(dst, dist, ln, 0)
-      in
-        symloop(src, n, st, tab, dst)
-      end
+      copy_out_m(recfuel - 1, dst, dist, len, iadd(i, 1))
     end
-  end
+  ) else copy_out_exh(dst, dist, len, i)
 
-fun set_fixed(tab: !Buf, i: int): void =
-  if ige(i, 288) then ()
-  else let
-    val L = if ilt(i, 144) then 8 else if ilt(i, 256) then 9 else if ilt(i, 280) then 7 else 8
-    val () = buf_set32(tab, iadd(LN, i), L)
-  in
-    set_fixed(tab, iadd(i, 1))
-  end
+fun copy_out(dst: &Buf >> _, dist: int, len: int, i: int): void = copy_out_m(airlock_nat(MAX_REC_FUEL), dst, dist, len, i)
 
-fun set_dist5(tab: !Buf, i: int): void =
-  if ige(i, 32) then ()
-  else let
-    val () = buf_set32(tab, iadd(iadd(LN, 288), i), 5)
+extern fun symloop_exh(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int = "mac#anth_die_int"
+
+fun symloop_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int =
+  if recfuel > 0 then (
+    if igt(buf_len(dst), 4000000) orelse st.err <> 0 then 0
+    else let
+      val s = hdec(src, n, st, tab, LC, LS)
+    in
+      if ilt(s, 0) then 0
+      else if ieq(s, 256) then 1
+      else if ilt(s, 256) then let
+        val () = buf_push(dst, s)
+      in
+        symloop_m(recfuel - 1, src, n, st, tab, dst)
+      end else sym_copy(recfuel - 1, src, n, st, tab, dst, s)
+    end
+  ) else symloop_exh(src, n, st, tab, dst)
+
+and sym_copy {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _, s: int): int =
+  if recfuel > 0 then let
+    val ln = length_of(src, n, st, s)
+    val dc = hdec(src, n, st, tab, DC, DS)
+    val dist = dist_of(src, n, st, dc)
   in
-    set_dist5(tab, iadd(i, 1))
-  end
+    if ile(dist, 0) orelse igt(dist, buf_len(dst)) then 0
+    else let
+      val () = copy_out(dst, dist, ln, 0)
+    in
+      symloop_m(recfuel - 1, src, n, st, tab, dst)
+    end
+  end else 0
+
+fun symloop(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int = symloop_m(airlock_nat(MAX_REC_FUEL), src, n, st, tab, dst)
+
+extern fun set_fixed_exh(tab: !Buf, i: int): void = "mac#anth_die_void"
+
+fun set_fixed_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), tab: !Buf, i: int): void =
+  if recfuel > 0 then (
+    if ige(i, 288) then ()
+    else let
+      val L = if ilt(i, 144) then 8 else if ilt(i, 256) then 9 else if ilt(i, 280) then 7 else 8
+      val () = buf_set32(tab, iadd(LN, i), L)
+    in
+      set_fixed_m(recfuel - 1, tab, iadd(i, 1))
+    end
+  ) else set_fixed_exh(tab, i)
+
+fun set_fixed(tab: !Buf, i: int): void = set_fixed_m(airlock_nat(MAX_REC_FUEL), tab, i)
+
+extern fun set_dist5_exh(tab: !Buf, i: int): void = "mac#anth_die_void"
+
+fun set_dist5_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), tab: !Buf, i: int): void =
+  if recfuel > 0 then (
+    if ige(i, 32) then ()
+    else let
+      val () = buf_set32(tab, iadd(iadd(LN, 288), i), 5)
+    in
+      set_dist5_m(recfuel - 1, tab, iadd(i, 1))
+    end
+  ) else set_dist5_exh(tab, i)
+
+fun set_dist5(tab: !Buf, i: int): void = set_dist5_m(airlock_nat(MAX_REC_FUEL), tab, i)
 
 fun cl_order(i: int): int =
   if ieq(i, 0) then 16
@@ -235,51 +326,78 @@ fun cl_order(i: int): int =
   else if ieq(i, 17) then 1
   else 15
 
-fun read_cl(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, ncl: int, i: int): void =
-  if ige(i, ncl) then ()
-  else let
-    val () = buf_set32(tab, iadd(CLN, cl_order(i)), bits(src, n, st, 3))
-  in
-    read_cl(src, n, st, tab, ncl, iadd(i, 1))
-  end
+extern fun read_cl_exh(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, ncl: int, i: int): void = "mac#anth_die_void"
 
-fun fill_rep(tab: !Buf, i: int, nlen: int, rep: int, v: int, k: int): int =
-  if ige(k, rep) then i
-  else if ige(iadd(i, k), nlen) then ~1
-  else let
-    val () = buf_set32(tab, iadd(LN, iadd(i, k)), v)
-  in
-    fill_rep(tab, i, nlen, rep, v, iadd(k, 1))
-  end
-
-fun read_lens(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, nlen: int, i: int, prev: int): int =
-  if ige(i, nlen) then 1
-  else if st.err <> 0 then 0
-  else let
-    val s = hdec(src, n, st, tab, CC, CS)
-  in
-    if ilt(s, 0) then 0
-    else if ile(s, 15) then let
-      val () = buf_set32(tab, iadd(LN, i), s)
+fun read_cl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, ncl: int, i: int): void =
+  if recfuel > 0 then (
+    if ige(i, ncl) then ()
+    else let
+      val () = buf_set32(tab, iadd(CLN, cl_order(i)), bits(src, n, st, 3))
     in
-      read_lens(src, n, st, tab, nlen, iadd(i, 1), s)
-    end else if ieq(s, 16) then let
+      read_cl_m(recfuel - 1, src, n, st, tab, ncl, iadd(i, 1))
+    end
+  ) else read_cl_exh(src, n, st, tab, ncl, i)
+
+fun read_cl(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, ncl: int, i: int): void = read_cl_m(airlock_nat(MAX_REC_FUEL), src, n, st, tab, ncl, i)
+
+extern fun fill_rep_exh(tab: !Buf, i: int, nlen: int, rep: int, v: int, k: int): int = "mac#anth_die_int"
+
+fun fill_rep_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), tab: !Buf, i: int, nlen: int, rep: int, v: int, k: int): int =
+  if recfuel > 0 then (
+    if ige(k, rep) then i
+    else if ige(iadd(i, k), nlen) then ~1
+    else let
+      val () = buf_set32(tab, iadd(LN, iadd(i, k)), v)
+    in
+      fill_rep_m(recfuel - 1, tab, i, nlen, rep, v, iadd(k, 1))
+    end
+  ) else fill_rep_exh(tab, i, nlen, rep, v, k)
+
+fun fill_rep(tab: !Buf, i: int, nlen: int, rep: int, v: int, k: int): int = fill_rep_m(airlock_nat(MAX_REC_FUEL), tab, i, nlen, rep, v, k)
+
+extern fun read_lens_exh(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, nlen: int, i: int, prev: int): int = "mac#anth_die_int"
+
+fun read_lens_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, nlen: int, i: int, prev: int): int =
+  if recfuel > 0 then (
+    if ige(i, nlen) then 1
+    else if st.err <> 0 then 0
+    else let
+      val s = hdec(src, n, st, tab, CC, CS)
+    in
+      if ilt(s, 0) then 0
+      else if ile(s, 15) then let
+        val () = buf_set32(tab, iadd(LN, i), s)
+      in
+        read_lens_m(recfuel - 1, src, n, st, tab, nlen, iadd(i, 1), s)
+      end else read_lens_code(recfuel - 1, src, n, st, tab, nlen, i, prev, s)
+    end
+  ) else read_lens_exh(src, n, st, tab, nlen, i, prev)
+
+and read_lens_code {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, nlen: int, i: int, prev: int, s: int): int =
+  if recfuel > 0 then (
+    if ieq(s, 16) then let
       val rep = iadd(3, bits(src, n, st, 2))
-      val j = fill_rep(tab, i, nlen, rep, prev, 0)
     in
-      if ilt(j, 0) then 0 else read_lens(src, n, st, tab, nlen, j, prev)
+      read_rep(recfuel - 1, src, n, st, tab, nlen, i, rep, prev)
     end else if ieq(s, 17) then let
       val rep = iadd(3, bits(src, n, st, 3))
-      val j = fill_rep(tab, i, nlen, rep, 0, 0)
     in
-      if ilt(j, 0) then 0 else read_lens(src, n, st, tab, nlen, j, 0)
+      read_rep(recfuel - 1, src, n, st, tab, nlen, i, rep, 0)
     end else if ieq(s, 18) then let
       val rep = iadd(11, bits(src, n, st, 7))
-      val j = fill_rep(tab, i, nlen, rep, 0, 0)
     in
-      if ilt(j, 0) then 0 else read_lens(src, n, st, tab, nlen, j, 0)
+      read_rep(recfuel - 1, src, n, st, tab, nlen, i, rep, 0)
     end else 0
-  end
+  ) else 0
+
+and read_rep {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, nlen: int, i: int, rep: int, v: int): int =
+  if recfuel > 0 then let
+    val j = fill_rep(tab, i, nlen, rep, v, 0)
+  in
+    if ilt(j, 0) then 0 else read_lens_m(recfuel - 1, src, n, st, tab, nlen, j, v)
+  end else 0
+
+fun read_lens(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, nlen: int, i: int, prev: int): int = read_lens_m(airlock_nat(MAX_REC_FUEL), src, n, st, tab, nlen, i, prev)
 
 fun decode_dyn(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int = let
   val hlit = iadd(bits(src, n, st, 5), 257)
@@ -307,13 +425,19 @@ end
 
 fun u16(src: !Buf, i: int): int = iadd(buf_get(src, i), ishl(buf_get(src, iadd(i, 1)), 8))
 
-fun stored_cp(src: !Buf, dst: &Buf >> _, at: int, ln: int, i: int): void =
-  if ige(i, ln) then ()
-  else let
-    val () = buf_push(dst, buf_get(src, iadd(at, i)))
-  in
-    stored_cp(src, dst, at, ln, iadd(i, 1))
-  end
+extern fun stored_cp_exh(src: !Buf, dst: &Buf >> _, at: int, ln: int, i: int): void = "mac#anth_die_void"
+
+fun stored_cp_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, dst: &Buf >> _, at: int, ln: int, i: int): void =
+  if recfuel > 0 then (
+    if ige(i, ln) then ()
+    else let
+      val () = buf_push(dst, buf_get(src, iadd(at, i)))
+    in
+      stored_cp_m(recfuel - 1, src, dst, at, ln, iadd(i, 1))
+    end
+  ) else stored_cp_exh(src, dst, at, ln, i)
+
+fun stored_cp(src: !Buf, dst: &Buf >> _, at: int, ln: int, i: int): void = stored_cp_m(airlock_nat(MAX_REC_FUEL), src, dst, at, ln, i)
 
 fun decode_stored(src: !Buf, n: int, st: &BitS >> _, dst: &Buf >> _): int = let
   val () = bitalign(st)
@@ -330,21 +454,27 @@ in
   end
 end
 
-fun blocks(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int =
-  if st.err <> 0 then 0
-  else let
-    val fin = bit1(src, n, st)
-    val ty = bits(src, n, st, 2)
-    val ok =
-      if ieq(ty, 0) then decode_stored(src, n, st, dst)
-      else if ieq(ty, 1) then decode_fixed(src, n, st, tab, dst)
-      else if ieq(ty, 2) then decode_dyn(src, n, st, tab, dst)
-      else 0
-  in
-    if ieq(ok, 0) then 0
-    else if ieq(fin, 1) then 1
-    else blocks(src, n, st, tab, dst)
-  end
+extern fun blocks_exh(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int = "mac#anth_die_int"
+
+fun blocks_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int =
+  if recfuel > 0 then (
+    if st.err <> 0 then 0
+    else let
+      val fin = bit1(src, n, st)
+      val ty = bits(src, n, st, 2)
+      val ok =
+        if ieq(ty, 0) then decode_stored(src, n, st, dst)
+        else if ieq(ty, 1) then decode_fixed(src, n, st, tab, dst)
+        else if ieq(ty, 2) then decode_dyn(src, n, st, tab, dst)
+        else 0
+    in
+      if ieq(ok, 0) then 0
+      else if ieq(fin, 1) then 1
+      else blocks_m(recfuel - 1, src, n, st, tab, dst)
+    end
+  ) else blocks_exh(src, n, st, tab, dst)
+
+fun blocks(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int = blocks_m(airlock_nat(MAX_REC_FUEL), src, n, st, tab, dst)
 
 fun inflate(src: !Buf, n: int, dst: &Buf >> _): int = let
   val cmf = buf_get(src, 0)
@@ -376,33 +506,45 @@ end
 fun out_at(raw: !Buf, stride: int, x: int, y: int): int =
   if ilt(x, 0) orelse ilt(y, 0) then 0 else buf_get(raw, iadd(imul(y, stride), x))
 
-fun unfilter_row(src: !Buf, raw: &Buf >> _, base: int, stride: int, bpp: int, y: int, f: int, x: int): void =
-  if ige(x, stride) then ()
-  else let
-    val v = buf_get(src, iadd(base, x))
-    val left = out_at(raw, stride, isub(x, bpp), y)
-    val up = out_at(raw, stride, x, isub(y, 1))
-    val ul = out_at(raw, stride, isub(x, bpp), isub(y, 1))
-    val pred =
-      if ieq(f, 1) then left
-      else if ieq(f, 2) then up
-      else if ieq(f, 3) then idiv(iadd(left, up), 2)
-      else if ieq(f, 4) then paeth(left, up, ul)
-      else 0
-    val () = buf_set(raw, iadd(imul(y, stride), x), iand(iadd(v, pred), 255))
-  in
-    unfilter_row(src, raw, base, stride, bpp, y, f, iadd(x, 1))
-  end
+extern fun unfilter_row_exh(src: !Buf, raw: &Buf >> _, base: int, stride: int, bpp: int, y: int, f: int, x: int): void = "mac#anth_die_void"
 
-fun unfilter_rows(inf: !Buf, raw: &Buf >> _, stride: int, bpp: int, h: int, y: int, p: int): int =
-  if ige(y, h) then 1
-  else if ige(p, buf_len(inf)) then 0
-  else let
-    val f = buf_get(inf, p)
-    val () = unfilter_row(inf, raw, iadd(p, 1), stride, bpp, y, f, 0)
-  in
-    unfilter_rows(inf, raw, stride, bpp, h, iadd(y, 1), iadd(p, iadd(stride, 1)))
-  end
+fun unfilter_row_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, raw: &Buf >> _, base: int, stride: int, bpp: int, y: int, f: int, x: int): void =
+  if recfuel > 0 then (
+    if ige(x, stride) then ()
+    else let
+      val v = buf_get(src, iadd(base, x))
+      val left = out_at(raw, stride, isub(x, bpp), y)
+      val up = out_at(raw, stride, x, isub(y, 1))
+      val ul = out_at(raw, stride, isub(x, bpp), isub(y, 1))
+      val pred =
+        if ieq(f, 1) then left
+        else if ieq(f, 2) then up
+        else if ieq(f, 3) then idiv(iadd(left, up), 2)
+        else if ieq(f, 4) then paeth(left, up, ul)
+        else 0
+      val () = buf_set(raw, iadd(imul(y, stride), x), iand(iadd(v, pred), 255))
+    in
+      unfilter_row_m(recfuel - 1, src, raw, base, stride, bpp, y, f, iadd(x, 1))
+    end
+  ) else unfilter_row_exh(src, raw, base, stride, bpp, y, f, x)
+
+fun unfilter_row(src: !Buf, raw: &Buf >> _, base: int, stride: int, bpp: int, y: int, f: int, x: int): void = unfilter_row_m(airlock_nat(MAX_REC_FUEL), src, raw, base, stride, bpp, y, f, x)
+
+extern fun unfilter_rows_exh(inf: !Buf, raw: &Buf >> _, stride: int, bpp: int, h: int, y: int, p: int): int = "mac#anth_die_int"
+
+fun unfilter_rows_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), inf: !Buf, raw: &Buf >> _, stride: int, bpp: int, h: int, y: int, p: int): int =
+  if recfuel > 0 then (
+    if ige(y, h) then 1
+    else if ige(p, buf_len(inf)) then 0
+    else let
+      val f = buf_get(inf, p)
+      val () = unfilter_row(inf, raw, iadd(p, 1), stride, bpp, y, f, 0)
+    in
+      unfilter_rows_m(recfuel - 1, inf, raw, stride, bpp, h, iadd(y, 1), iadd(p, iadd(stride, 1)))
+    end
+  ) else unfilter_rows_exh(inf, raw, stride, bpp, h, y, p)
+
+fun unfilter_rows(inf: !Buf, raw: &Buf >> _, stride: int, bpp: int, h: int, y: int, p: int): int = unfilter_rows_m(airlock_nat(MAX_REC_FUEL), inf, raw, stride, bpp, h, y, p)
 
 fun unfilter(inf: !Buf, w: int, h: int, bpp: int, raw: &Buf >> _): int =
   unfilter_rows(inf, raw, imul(w, bpp), bpp, h, 0, 0)
@@ -415,58 +557,70 @@ in
   buf_push(dst, a)
 end
 
-fun expand(raw: !Buf, dst: &Buf >> _, w: int, h: int, kind: int, y: int, x: int): void =
-  if ige(y, h) then ()
-  else if ige(x, w) then expand(raw, dst, w, h, kind, iadd(y, 1), 0)
-  else let
-    val stride = if ieq(kind, 0) then w else if ieq(kind, 4) then imul(w, 2) else if ieq(kind, 2) then imul(w, 3) else imul(w, 4)
-    val bpp = idiv(stride, w)
-    val p = iadd(imul(y, stride), imul(x, bpp))
-    val () =
-      if ieq(kind, 0) then put4(dst, buf_get(raw, p), buf_get(raw, p), buf_get(raw, p), 255)
-      else if ieq(kind, 4) then put4(dst, buf_get(raw, p), buf_get(raw, p), buf_get(raw, p), buf_get(raw, iadd(p, 1)))
-      else if ieq(kind, 2) then put4(dst, buf_get(raw, p), buf_get(raw, iadd(p, 1)), buf_get(raw, iadd(p, 2)), 255)
-      else put4(dst, buf_get(raw, p), buf_get(raw, iadd(p, 1)), buf_get(raw, iadd(p, 2)), buf_get(raw, iadd(p, 3)))
-  in
-    expand(raw, dst, w, h, kind, y, iadd(x, 1))
-  end
+extern fun expand_exh(raw: !Buf, dst: &Buf >> _, w: int, h: int, kind: int, y: int, x: int): void = "mac#anth_die_void"
+
+fun expand_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), raw: !Buf, dst: &Buf >> _, w: int, h: int, kind: int, y: int, x: int): void =
+  if recfuel > 0 then (
+    if ige(y, h) then ()
+    else if ige(x, w) then expand_m(recfuel - 1, raw, dst, w, h, kind, iadd(y, 1), 0)
+    else let
+      val stride = if ieq(kind, 0) then w else if ieq(kind, 4) then imul(w, 2) else if ieq(kind, 2) then imul(w, 3) else imul(w, 4)
+      val bpp = idiv(stride, w)
+      val p = iadd(imul(y, stride), imul(x, bpp))
+      val () =
+        if ieq(kind, 0) then put4(dst, buf_get(raw, p), buf_get(raw, p), buf_get(raw, p), 255)
+        else if ieq(kind, 4) then put4(dst, buf_get(raw, p), buf_get(raw, p), buf_get(raw, p), buf_get(raw, iadd(p, 1)))
+        else if ieq(kind, 2) then put4(dst, buf_get(raw, p), buf_get(raw, iadd(p, 1)), buf_get(raw, iadd(p, 2)), 255)
+        else put4(dst, buf_get(raw, p), buf_get(raw, iadd(p, 1)), buf_get(raw, iadd(p, 2)), buf_get(raw, iadd(p, 3)))
+    in
+      expand_m(recfuel - 1, raw, dst, w, h, kind, y, iadd(x, 1))
+    end
+  ) else expand_exh(raw, dst, w, h, kind, y, x)
+
+fun expand(raw: !Buf, dst: &Buf >> _, w: int, h: int, kind: int, y: int, x: int): void = expand_m(airlock_nat(MAX_REC_FUEL), raw, dst, w, h, kind, y, x)
 
 fun seal(b: &Buf >> _): int = 0
 
-fun inflate_or(src: !Buf, n: int, dst: &Buf >> _, go: int): int =
-  if ieq(go, 1) then inflate(src, n, dst)
+fun inflate_or(src: !Buf, n: int, dst: &Buf >> _, go: Toggle): int =
+  if is_on(go) then inflate(src, n, dst)
   else let
-    val _u = buf_len(src)
+    val () = seen_buf(src)
   in
     seal(dst)
   end
 
-fun unfilter_or(inf: !Buf, w: int, h: int, bpp: int, raw: &Buf >> _, go: int): int =
-  if ieq(go, 1) then unfilter(inf, w, h, bpp, raw)
+fun unfilter_or(inf: !Buf, w: int, h: int, bpp: int, raw: &Buf >> _, go: Toggle): int =
+  if is_on(go) then unfilter(inf, w, h, bpp, raw)
   else let
-    val _u = buf_len(inf)
+    val () = seen_buf(inf)
   in
     seal(raw)
   end
 
-fun expand_or(raw: !Buf, dst: &Buf >> _, w: int, h: int, kind: int, go: int): int =
-  if ieq(go, 1) then let
+fun expand_or(raw: !Buf, dst: &Buf >> _, w: int, h: int, kind: int, go: Toggle): int =
+  if is_on(go) then let
     val () = expand(raw, dst, w, h, kind, 0, 0)
   in
     1
   end else let
-    val _u = buf_len(raw)
+    val () = seen_buf(raw)
   in
     seal(dst)
   end
 
-fun png_copy(src: !Buf, idat: &Buf >> _, data: int, ln: int, i: int): void =
-  if ige(i, ln) then ()
-  else let
-    val () = buf_push(idat, buf_get(src, iadd(data, i)))
-  in
-    png_copy(src, idat, data, ln, iadd(i, 1))
-  end
+extern fun png_copy_exh(src: !Buf, idat: &Buf >> _, data: int, ln: int, i: int): void = "mac#anth_die_void"
+
+fun png_copy_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, idat: &Buf >> _, data: int, ln: int, i: int): void =
+  if recfuel > 0 then (
+    if ige(i, ln) then ()
+    else let
+      val () = buf_push(idat, buf_get(src, iadd(data, i)))
+    in
+      png_copy_m(recfuel - 1, src, idat, data, ln, iadd(i, 1))
+    end
+  ) else png_copy_exh(src, idat, data, ln, i)
+
+fun png_copy(src: !Buf, idat: &Buf >> _, data: int, ln: int, i: int): void = png_copy_m(airlock_nat(MAX_REC_FUEL), src, idat, data, ln, i)
 
 fun png_ihdr(src: !Buf, data: int, w: &int >> _, h: &int >> _, kind: &int >> _, depth: &int >> _, inter: &int >> _): void = let
   val () = w := be32(src, data)
@@ -484,19 +638,78 @@ fun png_tag(src: !Buf, p: int, ln: int, data: int, nxt: int): int =
   else if ieq(four(src, iadd(p, 4), 73, 69, 78, 68), 1) then 3
   else 4
 
-fun png_chunks(src: !Buf, idat: &Buf >> _, p: int, w: &int >> _, h: &int >> _, kind: &int >> _, depth: &int >> _, inter: &int >> _): int =
-  if ige(iadd(p, 8), buf_len(src)) then 0
-  else let
-    val ln = be32(src, p)
-    val data = iadd(p, 8)
-    val nxt = iadd(data, iadd(ln, 4))
-    val tag = png_tag(src, p, ln, data, nxt)
-    val () = if ieq(tag, 1) then png_ihdr(src, data, w, h, kind, depth, inter) else ()
-    val () = if ieq(tag, 2) then png_copy(src, idat, data, ln, 0) else ()
+extern fun png_chunks_exh(src: !Buf, idat: &Buf >> _, p: int, w: &int >> _, h: &int >> _, kind: &int >> _, depth: &int >> _, inter: &int >> _): int = "mac#anth_die_int"
+
+fun png_chunks_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, idat: &Buf >> _, p: int, w: &int >> _, h: &int >> _, kind: &int >> _, depth: &int >> _, inter: &int >> _): int =
+  if recfuel > 0 then (
+    if ige(iadd(p, 8), buf_len(src)) then 0
+    else let
+      val ln = be32(src, p)
+      val data = iadd(p, 8)
+      val nxt = iadd(data, iadd(ln, 4))
+      val tag = png_tag(src, p, ln, data, nxt)
+      val () = if ieq(tag, 1) then png_ihdr(src, data, w, h, kind, depth, inter) else ()
+      val () = if ieq(tag, 2) then png_copy(src, idat, data, ln, 0) else ()
+    in
+      if ieq(tag, 0) then 0
+      else if ieq(tag, 3) then 1
+      else png_chunks_m(recfuel - 1, src, idat, nxt, w, h, kind, depth, inter)
+    end
+  ) else png_chunks_exh(src, idat, p, w, h, kind, depth, inter)
+
+fun png_chunks(src: !Buf, idat: &Buf >> _, p: int, w: &int >> _, h: &int >> _, kind: &int >> _, depth: &int >> _, inter: &int >> _): int = png_chunks_m(airlock_nat(MAX_REC_FUEL), src, idat, p, w, h, kind, depth, inter)
+
+fun png_bpp(kind: int): int =
+  if ieq(kind, 0) then 1 else if ieq(kind, 2) then 3 else if ieq(kind, 4) then 2 else if ieq(kind, 6) then 4 else 0
+
+fun png_fit(w: int, h: int): int =
+  if igt(w, 0) andalso igt(h, 0) andalso ile(w, 8192) andalso ile(h, 8192) andalso ile(imul(w, h), 1048576) then 1 else 0
+
+fun png_inflate(idat: !Buf, saw: Toggle, inf: &Buf >> _): int = let
+  val nlen = buf_len(idat)
+  val goz = if is_on(saw) andalso igt(nlen, 2) then 1 else 0
+in
+  inflate_or(idat, nlen, inf, toggle_of(ieq(goz, 1)))
+end
+
+fun png_raw_init(w: int, h: int, kind: int): Buf = let
+  val bpp = png_bpp(kind)
+  var raw = buf_make(imax(16, imul(imul(w, bpp), h)))
+  val () = buf_set_len(raw, imul(imul(w, imax(bpp, 1)), h))
+  val rcap = buf_cap(raw)
+  val () = bzero(raw, 0, idiv(rcap, 4))
+in
+  raw
+end
+
+fun png_unfilter(inf: !Buf, raw: &Buf >> _, w: int, h: int, kind: int, depth: int, inter: Toggle, okz: Toggle): int = let
+  val bpp = png_bpp(kind)
+  val fit = png_fit(w, h)
+  val gou = if is_on(okz) andalso ieq(fit, 1) andalso ieq(depth, 8) andalso is_off(inter) andalso igt(bpp, 0) then 1 else 0
+in
+  unfilter_or(inf, w, h, bpp, raw, toggle_of(ieq(gou, 1)))
+end
+
+fun png_expand_buf(raw: !Buf, w: int, h: int, kind: int, oku: Toggle): Buf = let
+  var dst = buf_make(imax(16, imul(imul(w, h), 4)))
+  val () = seen_int(expand_or(raw, dst, w, h, kind, oku))
+in
+  dst
+end
+
+fun png_store_dims(oku: Toggle, w: int, h: int, wout: &int >> _, hout: &int >> _): void = let
+  val wo = if is_on(oku) then w else 0
+  val ho = if is_on(oku) then h else 0
+  val () = wout := wo
+  val () = hout := ho
+in
+end
+
+fun png_result(dst: Buf, oku: Toggle): Buf =
+  if is_on(oku) then dst else let
+    val () = buf_free(dst)
   in
-    if ieq(tag, 0) then 0
-    else if ieq(tag, 3) then 1
-    else png_chunks(src, idat, nxt, w, h, kind, depth, inter)
+    buf_make(4)
   end
 
 implement decode_png(src, wout, hout) = let
@@ -508,113 +721,52 @@ implement decode_png(src, wout, hout) = let
   var idat = buf_make(64)
   val saw = png_chunks(src, idat, 8, w, h, kind, depth, inter)
   var inf = buf_make(64)
-  val nlen = buf_len(idat)
-  val goz = if ieq(saw, 1) andalso igt(nlen, 2) then 1 else 0
-  val okz = inflate_or(idat, nlen, inf, goz)
-  val bpp = if ieq(kind, 0) then 1 else if ieq(kind, 2) then 3 else if ieq(kind, 4) then 2 else if ieq(kind, 6) then 4 else 0
-  val fit = if igt(w, 0) andalso igt(h, 0) andalso ile(w, 8192) andalso ile(h, 8192) andalso ile(imul(w, h), 1048576) then 1 else 0
-  var raw = buf_make(imax(16, imul(imul(w, bpp), h)))
-  val () = buf_set_len(raw, imul(imul(w, imax(bpp, 1)), h))
-  val rcap = buf_cap(raw)
-  val () = bzero(raw, 0, idiv(rcap, 4))
-  val gou = if ieq(okz, 1) andalso ieq(fit, 1) andalso ieq(depth, 8) andalso ieq(inter, 0) andalso igt(bpp, 0) then 1 else 0
-  val oku = unfilter_or(inf, w, h, bpp, raw, gou)
-  var dst = buf_make(imax(16, imul(imul(w, h), 4)))
-  val _ex = expand_or(raw, dst, w, h, kind, oku)
-  val wo = if ieq(oku, 1) then w else 0
-  val ho = if ieq(oku, 1) then h else 0
-  val () = wout := wo
-  val () = hout := ho
+  val okz = png_inflate(idat, toggle_of(ieq(saw, 1)), inf)
+  var raw = png_raw_init(w, h, kind)
+  val oku = png_unfilter(inf, raw, w, h, kind, depth, toggle_of(ieq(inter, 1)), toggle_of(ieq(okz, 1)))
+  var dst = png_expand_buf(raw, w, h, kind, toggle_of(ieq(oku, 1)))
+  val () = png_store_dims(toggle_of(ieq(oku, 1)), w, h, wout, hout)
   val () = buf_free(idat)
   val () = buf_free(inf)
   val () = buf_free(raw)
 in
-  if ieq(oku, 1) then dst else let
-    val () = buf_free(dst)
-  in
-    buf_make(4)
-  end
+  png_result(dst, toggle_of(ieq(oku, 1)))
 end
 
 fun png_byte(i: int): int =
-  if ieq(i, 0) then 137 else
-  if ieq(i, 1) then 80 else
-  if ieq(i, 2) then 78 else
-  if ieq(i, 3) then 71 else
-  if ieq(i, 4) then 13 else
-  if ieq(i, 5) then 10 else
-  if ieq(i, 6) then 26 else
-  if ieq(i, 7) then 10 else
-  if ieq(i, 8) then 0 else
-  if ieq(i, 9) then 0 else
-  if ieq(i, 10) then 0 else
-  if ieq(i, 11) then 13 else
-  if ieq(i, 12) then 73 else
-  if ieq(i, 13) then 72 else
-  if ieq(i, 14) then 68 else
-  if ieq(i, 15) then 82 else
-  if ieq(i, 16) then 0 else
-  if ieq(i, 17) then 0 else
-  if ieq(i, 18) then 0 else
-  if ieq(i, 19) then 1 else
-  if ieq(i, 20) then 0 else
-  if ieq(i, 21) then 0 else
-  if ieq(i, 22) then 0 else
-  if ieq(i, 23) then 1 else
-  if ieq(i, 24) then 8 else
-  if ieq(i, 25) then 2 else
-  if ieq(i, 26) then 0 else
-  if ieq(i, 27) then 0 else
-  if ieq(i, 28) then 0 else
-  if ieq(i, 29) then 144 else
-  if ieq(i, 30) then 119 else
-  if ieq(i, 31) then 83 else
-  if ieq(i, 32) then 222 else
-  if ieq(i, 33) then 0 else
-  if ieq(i, 34) then 0 else
-  if ieq(i, 35) then 0 else
-  if ieq(i, 36) then 12 else
-  if ieq(i, 37) then 73 else
-  if ieq(i, 38) then 68 else
-  if ieq(i, 39) then 65 else
-  if ieq(i, 40) then 84 else
-  if ieq(i, 41) then 120 else
-  if ieq(i, 42) then 156 else
-  if ieq(i, 43) then 99 else
-  if ieq(i, 44) then 224 else
-  if ieq(i, 45) then 18 else
-  if ieq(i, 46) then 145 else
-  if ieq(i, 47) then 3 else
-  if ieq(i, 48) then 0 else
-  if ieq(i, 49) then 0 else
-  if ieq(i, 50) then 104 else
-  if ieq(i, 51) then 0 else
-  if ieq(i, 52) then 61 else
-  if ieq(i, 53) then 84 else
-  if ieq(i, 54) then 8 else
-  if ieq(i, 55) then 163 else
-  if ieq(i, 56) then 247 else
-  if ieq(i, 57) then 0 else
-  if ieq(i, 58) then 0 else
-  if ieq(i, 59) then 0 else
-  if ieq(i, 60) then 0 else
-  if ieq(i, 61) then 73 else
-  if ieq(i, 62) then 69 else
-  if ieq(i, 63) then 78 else
-  if ieq(i, 64) then 68 else
-  if ieq(i, 65) then 174 else
-  if ieq(i, 66) then 66 else
-  if ieq(i, 67) then 96 else
+  if ieq(i, 0) then 137 else if ieq(i, 1) then 80 else if ieq(i, 2) then 78 else if ieq(i, 3) then 71 else
+  if ieq(i, 4) then 13 else if ieq(i, 5) then 10 else if ieq(i, 6) then 26 else if ieq(i, 7) then 10 else
+  if ieq(i, 8) then 0 else if ieq(i, 9) then 0 else if ieq(i, 10) then 0 else if ieq(i, 11) then 13 else
+  if ieq(i, 12) then 73 else if ieq(i, 13) then 72 else if ieq(i, 14) then 68 else if ieq(i, 15) then 82 else
+  if ieq(i, 16) then 0 else if ieq(i, 17) then 0 else if ieq(i, 18) then 0 else if ieq(i, 19) then 1 else
+  if ieq(i, 20) then 0 else if ieq(i, 21) then 0 else if ieq(i, 22) then 0 else if ieq(i, 23) then 1 else
+  if ieq(i, 24) then 8 else if ieq(i, 25) then 2 else if ieq(i, 26) then 0 else if ieq(i, 27) then 0 else
+  if ieq(i, 28) then 0 else if ieq(i, 29) then 144 else if ieq(i, 30) then 119 else if ieq(i, 31) then 83 else
+  if ieq(i, 32) then 222 else if ieq(i, 33) then 0 else if ieq(i, 34) then 0 else if ieq(i, 35) then 0 else
+  if ieq(i, 36) then 12 else if ieq(i, 37) then 73 else if ieq(i, 38) then 68 else if ieq(i, 39) then 65 else
+  if ieq(i, 40) then 84 else if ieq(i, 41) then 120 else if ieq(i, 42) then 156 else if ieq(i, 43) then 99 else
+  if ieq(i, 44) then 224 else if ieq(i, 45) then 18 else if ieq(i, 46) then 145 else if ieq(i, 47) then 3 else
+  if ieq(i, 48) then 0 else if ieq(i, 49) then 0 else if ieq(i, 50) then 104 else if ieq(i, 51) then 0 else
+  if ieq(i, 52) then 61 else if ieq(i, 53) then 84 else if ieq(i, 54) then 8 else if ieq(i, 55) then 163 else
+  if ieq(i, 56) then 247 else if ieq(i, 57) then 0 else if ieq(i, 58) then 0 else if ieq(i, 59) then 0 else
+  if ieq(i, 60) then 0 else if ieq(i, 61) then 73 else if ieq(i, 62) then 69 else if ieq(i, 63) then 78 else
+  if ieq(i, 64) then 68 else if ieq(i, 65) then 174 else if ieq(i, 66) then 66 else if ieq(i, 67) then 96 else
   if ieq(i, 68) then 130 else
   0
 
-fun push_png(b: &Buf >> _, i: int): void =
-  if ige(i, 69) then ()
-  else let
-    val () = buf_push(b, png_byte(i))
-  in
-    push_png(b, iadd(i, 1))
-  end
+extern fun push_png_exh(b: &Buf >> _, i: int): void = "mac#anth_die_void"
+
+fun push_png_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: &Buf >> _, i: int): void =
+  if recfuel > 0 then (
+    if ige(i, 69) then ()
+    else let
+      val () = buf_push(b, png_byte(i))
+    in
+      push_png_m(recfuel - 1, b, iadd(i, 1))
+    end
+  ) else push_png_exh(b, i)
+
+fun push_png(b: &Buf >> _, i: int): void = push_png_m(airlock_nat(MAX_REC_FUEL), b, i)
 
 implement make_png() = let
   var pb = buf_make(80)

@@ -4,7 +4,10 @@
 #include "common.hats"
 
 staload "mem.sats"
+staload "airlock.sats"
+staload "flag.sats"
 staload "os/fs.sats"
+staload "os/diag.sats"
 staload "data_ast/doc.sats"
 staload "data_ast/doc_parse.sats"
 
@@ -37,36 +40,67 @@ staload "data_ast/doc_parse.sats"
 #define NK_STRIKE 30
 #define NK_LINK 31
 
+#define DOC_FIELD_LO 0
+#define DOC_FIELD_HI 1
+#define DOC_FIELD_LEN 2
+#define DOC_FIELD_CARET 3
+#define DOC_FIELD_ANCHOR 4
+#define DOC_FIELD_NLINES 5
+#define DOC_FIELD_NNODES 6
+#define DOC_FIELD_SPAN 7
+
+#define DOC_OP_NONE 0
+#define DOC_OP_TYPING 1
+#define DOC_OP_BATCH 2
+
 datavtype Hist =
   | HNil of ()
   | HCons of (Buf, int, Hist)
 
-fun hist_free(h: Hist): void =
-  case+ h of
-  | ~HNil() => ()
-  | ~HCons(b, _, rest) => let
-      val () = buf_free(b)
-    in
-      hist_free(rest)
-    end
+extern fun hist_free_exh(h: Hist): void = "mac#anth_die_void"
 
-fun hist_drop_oldest(h: Hist): Hist =
-  case+ h of
-  | ~HNil() => HNil()
-  | ~HCons(b, c, rest) =>
-      case+ rest of
-      | HNil() => let
-          val () = buf_free(b)
-          val () = hist_free(rest)
-        in
-          HNil()
-        end
-      | _ => HCons(b, c, hist_drop_oldest(rest))
+fun hist_free_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), h: Hist): void =
+  if recfuel > 0 then (
+    case+ h of
+    | ~HNil() => ()
+    | ~HCons(b, _, rest) => let
+        val () = buf_free(b)
+      in
+        hist_free_m(recfuel - 1, rest)
+      end
+  ) else hist_free_exh(h)
 
-fun hist_len(h: !Hist): int =
-  case+ h of
-  | HNil() => 0
-  | HCons(_, _, rest) => iadd(1, hist_len(rest))
+fun hist_free(h: Hist): void = hist_free_m(airlock_nat(MAX_REC_FUEL), h)
+
+extern fun hist_drop_oldest_exh(h: Hist): Hist = "mac#anth_die_box"
+
+fun hist_drop_oldest_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), h: Hist): Hist =
+  if recfuel > 0 then (
+    case+ h of
+    | ~HNil() => HNil()
+    | ~HCons(b, c, rest) =>
+        case+ rest of
+        | HNil() => let
+            val () = buf_free(b)
+            val () = hist_free(rest)
+          in
+            HNil()
+          end
+        | ~HCons(b2, c2, rest2) => HCons(b, c, hist_drop_oldest_m(recfuel - 1, HCons(b2, c2, rest2)))
+  ) else hist_drop_oldest_exh(h)
+
+fun hist_drop_oldest(h: Hist): Hist = hist_drop_oldest_m(airlock_nat(MAX_REC_FUEL), h)
+
+extern fun hist_len_exh(h: !Hist): int = "mac#anth_die_int"
+
+fun hist_len_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), h: !Hist): int =
+  if recfuel > 0 then (
+    case+ h of
+    | HNil() => 0
+    | HCons(_, _, rest) => iadd(1, hist_len_m(recfuel - 1, rest))
+  ) else hist_len_exh(h)
+
+fun hist_len(h: !Hist): int = hist_len_m(airlock_nat(MAX_REC_FUEL), h)
 
 fun hist_trim(h: Hist): Hist =
   case+ ige(hist_len(h), 35) of
@@ -81,6 +115,7 @@ datavtype Doc_ = DOC of @{
 , nlines= int, nnodes= int, span= int
 , last_op= int, typing_cnt= int, is_md= int
 }
+(* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
 assume Doc = Doc_
 
 implement doc_open() = DOC(@{
@@ -123,13 +158,13 @@ fun dget(d: !Doc, w: int): int =
   case+ d of
   | @DOC(s) => let
       val v =
-        if w = 0 then s.lo
-        else if w = 1 then s.hi
-        else if w = 2 then s.len
-        else if w = 3 then s.caret
-        else if w = 4 then s.anchor
-        else if w = 5 then s.nlines
-        else if w = 6 then s.nnodes
+        if w = DOC_FIELD_LO then s.lo
+        else if w = DOC_FIELD_HI then s.hi
+        else if w = DOC_FIELD_LEN then s.len
+        else if w = DOC_FIELD_CARET then s.caret
+        else if w = DOC_FIELD_ANCHOR then s.anchor
+        else if w = DOC_FIELD_NLINES then s.nlines
+        else if w = DOC_FIELD_NNODES then s.nnodes
         else s.span
     in
       fold@(d); v
@@ -139,24 +174,42 @@ fun dset(d: !Doc, w: int, v: int): void =
   case+ d of
   | @DOC(s) => let
       val () =
-        if w = 0 then s.lo := v
-        else if w = 1 then s.hi := v
-        else if w = 2 then s.len := v
-        else if w = 3 then s.caret := v
-        else if w = 4 then s.anchor := v
-        else if w = 5 then s.nlines := v
-        else if w = 6 then s.nnodes := v
+        if w = DOC_FIELD_LO then s.lo := v
+        else if w = DOC_FIELD_HI then s.hi := v
+        else if w = DOC_FIELD_LEN then s.len := v
+        else if w = DOC_FIELD_CARET then s.caret := v
+        else if w = DOC_FIELD_ANCHOR then s.anchor := v
+        else if w = DOC_FIELD_NLINES then s.nlines := v
+        else if w = DOC_FIELD_NNODES then s.nnodes := v
         else s.span := v
     in
       fold@(d)
     end
 
-implement doc_len(d) = dget(d, 2)
-implement doc_caret(d) = dget(d, 3)
-implement doc_anchor(d) = dget(d, 4)
-implement doc_nlines(d) = dget(d, 5)
-implement doc_nnodes(d) = dget(d, 6)
-implement doc_span(d) = dget(d, 7)
+fun d_lo(d: !Doc): int = dget(d, DOC_FIELD_LO)
+fun d_hi(d: !Doc): int = dget(d, DOC_FIELD_HI)
+fun d_len(d: !Doc): int = dget(d, DOC_FIELD_LEN)
+fun d_caret(d: !Doc): int = dget(d, DOC_FIELD_CARET)
+fun d_anchor(d: !Doc): int = dget(d, DOC_FIELD_ANCHOR)
+fun d_nlines(d: !Doc): int = dget(d, DOC_FIELD_NLINES)
+fun d_nnodes(d: !Doc): int = dget(d, DOC_FIELD_NNODES)
+fun d_span(d: !Doc): int = dget(d, DOC_FIELD_SPAN)
+
+fun d_set_lo(d: !Doc, v: int): void = dset(d, DOC_FIELD_LO, v)
+fun d_set_hi(d: !Doc, v: int): void = dset(d, DOC_FIELD_HI, v)
+fun d_set_len(d: !Doc, v: int): void = dset(d, DOC_FIELD_LEN, v)
+fun d_set_caret(d: !Doc, v: int): void = dset(d, DOC_FIELD_CARET, v)
+fun d_set_anchor(d: !Doc, v: int): void = dset(d, DOC_FIELD_ANCHOR, v)
+fun d_set_nnodes(d: !Doc, v: int): void = dset(d, DOC_FIELD_NNODES, v)
+fun d_set_span(d: !Doc, v: int): void = dset(d, DOC_FIELD_SPAN, v)
+
+implement doc_len(d) = d_len(d)
+implement doc_touch(d) = seen_int(doc_len(d))
+implement doc_caret(d) = d_caret(d)
+implement doc_anchor(d) = d_anchor(d)
+implement doc_nlines(d) = d_nlines(d)
+implement doc_nnodes(d) = d_nnodes(d)
+implement doc_span(d) = d_span(d)
 
 fun take_gap(d: !Doc): Buf =
   case+ d of
@@ -186,15 +239,6 @@ fun take_nodes(d: !Doc): Buf =
       fold@(d); b
     end
 
-fun put_nodes(d: !Doc, b: Buf): void =
-  case+ d of
-  | @DOC(s) => let
-      val old = s.nodes
-      val () = s.nodes := b
-      val () = fold@(d)
-    in
-      buf_free(old)
-    end
 
 fun take_uhist(d: !Doc): Hist =
   case+ d of
@@ -251,8 +295,8 @@ fun gap_set(d: !Doc, i: int, v: int): void =
     end
 
 implement doc_byte(d, i) = let
-  val lo = dget(d, 0)
-  val hi = dget(d, 1)
+  val lo = d_lo(d)
+  val hi = d_hi(d)
   val p = if i < lo then i else iadd(hi, isub(i, lo))
 in
   gap_get(d, p)
@@ -286,9 +330,9 @@ in
 end
 
 fun gap_grow(d: !Doc, need: int): void = let
-  val lo = dget(d, 0)
-  val hi = dget(d, 1)
-  val len = dget(d, 2)
+  val lo = d_lo(d)
+  val hi = d_hi(d)
+  val len = d_len(d)
   val b0 = take_gap(d)
   val cap = buf_cap(b0)
   val want = imax(imul(cap, 2), iadd(iadd(len, need), 64))
@@ -299,55 +343,58 @@ fun gap_grow(d: !Doc, need: int): void = let
   val () = copy_fwd(b0, hi, b1, nhi, tail)
   val () = buf_free(b0)
   val () = put_gap(d, b1)
-  val () = dset(d, 1, nhi)
+  val () = d_set_hi(d, nhi)
+in
+end
+
+fun gap_shift_back(d: !Doc, at: int, lo: int, hi: int): void = let
+  val n = isub(lo, at)
+  val b = take_gap(d)
+  val () = copy_back_same(b, at, isub(hi, n), n)
+  val () = put_gap(d, b)
+  val () = d_set_lo(d, at)
+  val () = d_set_hi(d, isub(hi, n))
+in
+end
+
+fun gap_shift_fwd(d: !Doc, at: int, lo: int, hi: int): void = let
+  val n = isub(at, lo)
+  val b = take_gap(d)
+  val () = copy_fwd_same(b, hi, lo, n)
+  val () = put_gap(d, b)
+  val () = d_set_lo(d, at)
+  val () = d_set_hi(d, iadd(hi, n))
 in
 end
 
 fun gap_move(d: !Doc, at0: int): void = let
-  val len = dget(d, 2)
+  val len = d_len(d)
   val at = if at0 < 0 then 0 else if at0 > len then len else at0
-  val lo = dget(d, 0)
-  val hi = dget(d, 1)
+  val lo = d_lo(d)
+  val hi = d_hi(d)
 in
   if ieq(at, lo) then ()
-  else if ilt(at, lo) then let
-    val n = isub(lo, at)
-    val b = take_gap(d)
-    val () = copy_back_same(b, at, isub(hi, n), n)
-    val () = put_gap(d, b)
-    val () = dset(d, 0, at)
-    val () = dset(d, 1, isub(hi, n))
-  in
-  end else let
-    val n = isub(at, lo)
-    val b = take_gap(d)
-    val () = copy_fwd_same(b, hi, lo, n)
-    val () = put_gap(d, b)
-    val () = dset(d, 0, at)
-    val () = dset(d, 1, iadd(hi, n))
-  in
-  end
+  else if ilt(at, lo) then gap_shift_back(d, at, lo, hi)
+  else gap_shift_fwd(d, at, lo, hi)
 end
 
-fun gap_room(d: !Doc, n: int): void = let
-  val lo = dget(d, 0)
-  val hi = dget(d, 1)
-in
-  if isub(hi, lo) >= n then () else let
-    val () = gap_grow(d, n)
-  in
-    gap_room(d, n)
-  end
-end
+extern fun gap_room_exh(d: !Doc, n: int): void = "mac#anth_die_void"
 
-fun line_set(d: !Doc, i: int, v: int): void =
-  case+ d of
-  | @DOC(s) => let
-      val () = if imul(iadd(i, 1), 4) >= buf_cap(s.lines) then buf_resize(s.lines, imul(iadd(i, 8), 8)) else ()
-      val () = buf_set32(s.lines, i, v)
+fun gap_room_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, n: int): void =
+  if recfuel > 0 then (
+  let
+    val lo = d_lo(d)
+    val hi = d_hi(d)
+  in
+    if isub(hi, lo) >= n then () else let
+      val () = gap_grow(d, n)
     in
-      fold@(d)
+      gap_room_m(recfuel - 1, d, n)
     end
+  end
+  ) else gap_room_exh(d, n)
+
+fun gap_room(d: !Doc, n: int): void = gap_room_m(airlock_nat(MAX_REC_FUEL), d, n)
 
 implement doc_line_start(d, i) =
   case+ d of
@@ -386,13 +433,32 @@ implement doc_line_y(d, i) =
       fold@(d); v
     end
 
-implement doc_line_step(d, i) =
-  case+ d of
-  | @DOC(s) => let
-      val v = if i >= 0 andalso i < s.nlines then buf_get32(s.liney, iadd(imul(i, 2), 1)) else 0
+
+fun store_line_start(lines: &Buf >> Buf, ln: int, off: int): void = let
+  val need = imul(iadd(ln, 1), 4)
+  val () = if buf_cap(lines) < need then buf_resize(lines, imax(imul(need, 2), 4096)) else ()
+  val () = buf_set32(lines, ln, off)
+in
+end
+
+fun gap_byte_at(gap: !Buf, lo: int, hi: int, i: int): int =
+  if ilt(i, lo) then buf_get(gap, i)
+  else buf_get(gap, iadd(hi, isub(i, lo)))
+
+extern fun rebuild_scan_exh(lines: &Buf >> Buf, gap: !Buf, lo: int, hi: int, n: int, i: int, ln: int): int = "mac#anth_die_int"
+
+fun rebuild_scan_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), lines: &Buf >> Buf, gap: !Buf, lo: int, hi: int, n: int, i: int, ln: int): int =
+  if recfuel > 0 then (
+    if ige(i, n) then ln
+    else if ieq(gap_byte_at(gap, lo, hi, i), 10) then let
+      val () = store_line_start(lines, ln, iadd(i, 1))
     in
-      fold@(d); v
+      rebuild_scan_m(recfuel - 1, lines, gap, lo, hi, n, iadd(i, 1), iadd(ln, 1))
     end
+    else rebuild_scan_m(recfuel - 1, lines, gap, lo, hi, n, iadd(i, 1), ln)
+  ) else rebuild_scan_exh(lines, gap, lo, hi, n, i, ln)
+
+fun rebuild_scan(lines: &Buf >> Buf, gap: !Buf, lo: int, hi: int, n: int, i: int, ln: int): int = rebuild_scan_m(airlock_nat(MAX_REC_FUEL), lines, gap, lo, hi, n, i, ln)
 
 fun rebuild_lines(d: !Doc): void =
   case+ d of
@@ -400,44 +466,32 @@ fun rebuild_lines(d: !Doc): void =
       val n = s.len
       val lo = s.lo
       val hi = s.hi
-      val gp = buf_ptr(s.gap)
-      val gcap = buf_cap(s.gap)
       val () = if buf_cap(s.lines) < 4096 then buf_resize(s.lines, 4096) else ()
       val () = buf_set32(s.lines, 0, 0)
-      var i: int = 0
-      var ln: int = 1
+      val ln = rebuild_scan(s.lines, s.gap, lo, hi, n, 0, 1)
     in
-      while (ilt(i, n)) (
-        let
-          val b = if ilt(i, lo) then mem_byte(gp, gcap, i)
-                  else mem_byte(gp, gcap, iadd(hi, isub(i, lo)))
-        in
-          if ieq(b, 10) then let
-            val need = imul(iadd(ln, 1), 4)
-            val () = if buf_cap(s.lines) < need then buf_resize(s.lines, imax(imul(need, 2), 4096)) else ()
-            val () = buf_set32(s.lines, ln, iadd(i, 1))
-            val () = ln := iadd(ln, 1)
-          in
-          end else ();
-          i := iadd(i, 1)
-        end
-      );
       s.nlines := ln;
       fold@(d)
     end
 
-fun line_bsearch(d: !Doc, off: int, lo: int, hi: int, best: int): int =
-  if igt(lo, hi) then best
-  else let
-    val mid = iadd(lo, idiv(isub(hi, lo), 2))
-    val st = doc_line_start(d, mid)
-  in
-    if ile(st, off) then line_bsearch(d, off, iadd(mid, 1), hi, mid)
-    else line_bsearch(d, off, lo, isub(mid, 1), best)
-  end
+extern fun line_bsearch_exh(d: !Doc, off: int, lo: int, hi: int, best: int): int = "mac#anth_die_int"
+
+fun line_bsearch_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, off: int, lo: int, hi: int, best: int): int =
+  if recfuel > 0 then (
+    if igt(lo, hi) then best
+    else let
+      val mid = iadd(lo, idiv(isub(hi, lo), 2))
+      val st = doc_line_start(d, mid)
+    in
+      if ile(st, off) then line_bsearch_m(recfuel - 1, d, off, iadd(mid, 1), hi, mid)
+      else line_bsearch_m(recfuel - 1, d, off, lo, isub(mid, 1), best)
+    end
+  ) else line_bsearch_exh(d, off, lo, hi, best)
+
+fun line_bsearch(d: !Doc, off: int, lo: int, hi: int, best: int): int = line_bsearch_m(airlock_nat(MAX_REC_FUEL), d, off, lo, hi, best)
 
 implement doc_line_of(d, off) = let
-  val n = dget(d, 5)
+  val n = d_nlines(d)
 in
   if ile(n, 1) then 0
   else if ile(off, 0) then 0
@@ -463,6 +517,26 @@ fun nset(d: !Doc, i: int, f: int, v: int): void =
 implement doc_get(d, i, f) = nget(d, i, f)
 implement doc_set(d, i, f, v) = nset(d, i, f, v)
 
+implement doc_node_kind(d, i) = nget(d, i, NF_KIND)
+implement doc_node_start(d, i) = nget(d, i, NF_START)
+implement doc_node_end(d, i) = nget(d, i, NF_END)
+implement doc_node_depth(d, i) = nget(d, i, NF_DEPTH)
+implement doc_node_collapsed(d, i) = nget(d, i, NF_COLLAPSED)
+implement doc_node_height(d, i) = nget(d, i, NF_HEIGHT)
+implement doc_node_parent(d, i) = nget(d, i, NF_PARENT)
+implement doc_node_hidden(d, i) = nget(d, i, NF_HIDDEN)
+implement doc_node_aux(d, i) = nget(d, i, NF_AUX)
+implement doc_node_y(d, i) = nget(d, i, NF_Y)
+
+fun doc_node_set_collapsed(d: !Doc, i: int, v: int): void = nset(d, i, NF_COLLAPSED, v)
+fun doc_node_set_height(d: !Doc, i: int, h: int): void = nset(d, i, NF_HEIGHT, h)
+fun doc_node_set_parent(d: !Doc, i: int, p: int): void = nset(d, i, NF_PARENT, p)
+fun doc_node_set_next_sib(d: !Doc, i: int, s: int): void = nset(d, i, NF_NEXT_SIB, s)
+fun doc_node_set_first_child(d: !Doc, i: int, c: int): void = nset(d, i, NF_FIRST_CHILD, c)
+fun doc_node_set_hidden(d: !Doc, i: int, v: int): void = nset(d, i, NF_HIDDEN, v)
+fun doc_node_set_y(d: !Doc, i: int, y: int): void = nset(d, i, NF_Y, y)
+fun doc_node_first_child(d: !Doc, i: int): int = nget(d, i, NF_FIRST_CHILD)
+
 fun node_room(d: !Doc): void =
   case+ d of
   | @DOC(s) => let
@@ -474,133 +548,170 @@ fun node_room(d: !Doc): void =
 
 fun npush(d: !Doc, kind: int, st: int, en: int, depth: int, aux: int): void = let
   val () = node_room(d)
-  val i = dget(d, 6)
+  val i = d_nnodes(d)
   var f: int = 0
   val () = while (f < NS) (nset(d, i, f, 0); f := iadd(f, 1))
-  val () = nset(d, i, 0, kind)
-  val () = nset(d, i, 1, st)
-  val () = nset(d, i, 2, en)
-  val () = nset(d, i, 3, depth)
-  val () = nset(d, i, 6, ~1)
-  val () = nset(d, i, 7, ~1)
-  val () = nset(d, i, 8, ~1)
-  val () = nset(d, i, 10, aux)
-  val () = dset(d, 6, iadd(i, 1))
+  val () = nset(d, i, NF_KIND, kind)
+  val () = nset(d, i, NF_START, st)
+  val () = nset(d, i, NF_END, en)
+  val () = nset(d, i, NF_DEPTH, depth)
+  val () = doc_node_set_parent(d, i, ~1)
+  val () = doc_node_set_next_sib(d, i, ~1)
+  val () = doc_node_set_first_child(d, i, ~1)
+  val () = nset(d, i, NF_AUX, aux)
+  val () = d_set_nnodes(d, iadd(i, 1))
 in
 end
 
 fun copy_node(src: !Buf, i: int, d: !Doc, delta: int): void = let
-  val kind = buf_get32(src, iadd(imul(i, NS), 0))
-  val st = iadd(buf_get32(src, iadd(imul(i, NS), 1)), delta)
-  val en = iadd(buf_get32(src, iadd(imul(i, NS), 2)), delta)
-  val depth = buf_get32(src, iadd(imul(i, NS), 3))
-  val aux = buf_get32(src, iadd(imul(i, NS), 10))
-  val col = buf_get32(src, iadd(imul(i, NS), 4))
+  val kind = buf_get32(src, iadd(imul(i, NS), NF_KIND))
+  val st = iadd(buf_get32(src, iadd(imul(i, NS), NF_START)), delta)
+  val en = iadd(buf_get32(src, iadd(imul(i, NS), NF_END)), delta)
+  val depth = buf_get32(src, iadd(imul(i, NS), NF_DEPTH))
+  val aux = buf_get32(src, iadd(imul(i, NS), NF_AUX))
+  val col = buf_get32(src, iadd(imul(i, NS), NF_COLLAPSED))
   val () = npush(d, kind, st, en, depth, aux)
-  val id = isub(dget(d, 6), 1)
-  val () = nset(d, id, 4, col)
+  val id = isub(d_nnodes(d), 1)
+  val () = doc_node_set_collapsed(d, id, col)
 in
 end
 
 implement doc_push_node(d, kind, st, en, depth, aux) =
   npush(d, kind, st, en, depth, aux)
 
-fun copy_kept(old: !Buf, d: !Doc, i: int, n: int, rs: int, re: int, delta: int, which: int): void =
-  if ige(i, n) then ()
-  else let
-    val st = buf_get32(old, iadd(imul(i, NS), 1))
-    val en = buf_get32(old, iadd(imul(i, NS), 2))
-    val () =
-      if ieq(which, 0) then (
-        if ile(en, rs) then copy_node(old, i, d, 0) else ()
-      ) else (
-        if ige(st, re) then copy_node(old, i, d, delta) else ()
-      )
-  in
-    copy_kept(old, d, iadd(i, 1), n, rs, re, delta, which)
-  end
+extern fun copy_kept_exh(old: !Buf, d: !Doc, i: int, n: int, rs: int, re: int, delta: int, which: int): void = "mac#anth_die_void"
+
+fun copy_kept_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), old: !Buf, d: !Doc, i: int, n: int, rs: int, re: int, delta: int, which: int): void =
+  if recfuel > 0 then (
+    if ige(i, n) then ()
+    else let
+      val st = buf_get32(old, iadd(imul(i, NS), NF_START))
+      val en = buf_get32(old, iadd(imul(i, NS), NF_END))
+      val () =
+        if ieq(which, 0) then (
+          if ile(en, rs) then copy_node(old, i, d, 0) else ()
+        ) else (
+          if ige(st, re) then copy_node(old, i, d, delta) else ()
+        )
+    in
+      copy_kept_m(recfuel - 1, old, d, iadd(i, 1), n, rs, re, delta, which)
+    end
+  ) else copy_kept_exh(old, d, i, n, rs, re, delta, which)
+
+fun copy_kept(old: !Buf, d: !Doc, i: int, n: int, rs: int, re: int, delta: int, which: int): void = copy_kept_m(airlock_nat(MAX_REC_FUEL), old, d, i, n, rs, re, delta, which)
 
 fun salvage(d: !Doc, rs: int, re: int, delta: int): void = let
   val is_md = doc_is_md(d)
 in
   if ieq(is_md, 0) then let
-    val () = dset(d, 6, 0)
+    val () = d_set_nnodes(d, 0)
   in
   end else let
-    val n = dget(d, 6)
+    val n = d_nnodes(d)
     val old = take_nodes(d)
-    val () = dset(d, 6, 0)
+    val () = d_set_nnodes(d, 0)
     val () = copy_kept(old, d, 0, n, rs, re, delta, 0)
     val () = doc_parse_range(d, rs, iadd(re, delta))
     val () = copy_kept(old, d, 0, n, rs, re, delta, 1)
     val () = buf_free(old)
-    val () = dset(d, 7, iadd(isub(re, rs), delta))
+    val () = d_set_span(d, iadd(isub(re, rs), delta))
   in
   end
 end
 
 fun dirty(d: !Doc, at: int, rs: &int >> _, re: &int >> _): void = let
-  val len = dget(d, 2)
+  val len = d_len(d)
   val line = doc_line_of(d, at)
   val a = if line > 0 then isub(line, 1) else 0
   val b0 = iadd(line, 2)
-  val b = if b0 < dget(d, 5) then b0 else dget(d, 5)
+  val nlines = d_nlines(d)
+  val b = if b0 < nlines then b0 else nlines
   val () = rs := doc_line_start(d, a)
-  val re0 = if ige(b, dget(d, 5)) then len else doc_line_start(d, b)
+  val re0 = if ige(b, nlines) then len else doc_line_start(d, b)
   val () = re := re0
 in
 end
 
-fun parent_of(d: !Doc, i: int, j: int, steps: int): int =
-  if ilt(j, 0) orelse igt(steps, 80) then ~1
-  else let
-    val st = nget(d, i, 1)
-    val en = nget(d, i, 2)
-  in
-    if ile(nget(d, j, 1), st) andalso ige(nget(d, j, 2), en) andalso igt(nget(d, j, 2), nget(d, j, 1)) then j
-    else parent_of(d, i, isub(j, 1), iadd(steps, 1))
-  end
+extern fun parent_of_exh(d: !Doc, i: int, j: int, steps: int): int = "mac#anth_die_int"
 
-fun next_sib(d: !Doc, n: int, p: int, k: int, steps: int): int =
-  if ige(k, n) orelse igt(steps, 80) then ~1
-  else if ieq(nget(d, k, 6), p) then k
-  else next_sib(d, n, p, iadd(k, 1), iadd(steps, 1))
+fun parent_of_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, j: int, steps: int): int =
+  if recfuel > 0 then (
+    if ilt(j, 0) orelse igt(steps, 80) then ~1
+    else let
+      val st = doc_node_start(d, i)
+      val en = doc_node_end(d, i)
+    in
+      if ile(doc_node_start(d, j), st) andalso ige(doc_node_end(d, j), en) andalso igt(doc_node_end(d, j), doc_node_start(d, j)) then j
+      else parent_of_m(recfuel - 1, d, i, isub(j, 1), iadd(steps, 1))
+    end
+  ) else parent_of_exh(d, i, j, steps)
 
-fun relink_clear(d: !Doc, n: int, i: int): void =
-  if ige(i, n) then ()
-  else let
-    val () = nset(d, i, 6, ~1)
-    val () = nset(d, i, 7, ~1)
-    val () = nset(d, i, 8, ~1)
-  in
-    relink_clear(d, n, iadd(i, 1))
-  end
+fun parent_of(d: !Doc, i: int, j: int, steps: int): int = parent_of_m(airlock_nat(MAX_REC_FUEL), d, i, j, steps)
 
-fun relink_parents(d: !Doc, n: int, i: int): void =
-  if ige(i, n) then ()
-  else let
-    val p = parent_of(d, i, isub(i, 1), 0)
-    val () = nset(d, i, 6, p)
-    val () = if ige(p, 0) andalso ilt(nget(d, p, 8), 0) then nset(d, p, 8, i) else ()
-  in
-    relink_parents(d, n, iadd(i, 1))
-  end
+extern fun next_sib_exh(d: !Doc, n: int, p: int, k: int, steps: int): int = "mac#anth_die_int"
 
-fun relink_next(d: !Doc, n: int, i: int): void =
-  if ige(i, n) then ()
-  else let
-    val p = nget(d, i, 6)
-    val () = nset(d, i, 7, next_sib(d, n, p, iadd(i, 1), 0))
-  in
-    relink_next(d, n, iadd(i, 1))
-  end
+fun next_sib_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, n: int, p: int, k: int, steps: int): int =
+  if recfuel > 0 then (
+    if ige(k, n) orelse igt(steps, 80) then ~1
+    else if ieq(doc_node_parent(d, k), p) then k
+    else next_sib_m(recfuel - 1, d, n, p, iadd(k, 1), iadd(steps, 1))
+  ) else next_sib_exh(d, n, p, k, steps)
+
+fun next_sib(d: !Doc, n: int, p: int, k: int, steps: int): int = next_sib_m(airlock_nat(MAX_REC_FUEL), d, n, p, k, steps)
+
+extern fun relink_clear_exh(d: !Doc, n: int, i: int): void = "mac#anth_die_void"
+
+fun relink_clear_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, n: int, i: int): void =
+  if recfuel > 0 then (
+    if ige(i, n) then ()
+    else let
+      val () = doc_node_set_parent(d, i, ~1)
+      val () = doc_node_set_next_sib(d, i, ~1)
+      val () = doc_node_set_first_child(d, i, ~1)
+    in
+      relink_clear_m(recfuel - 1, d, n, iadd(i, 1))
+    end
+  ) else relink_clear_exh(d, n, i)
+
+fun relink_clear(d: !Doc, n: int, i: int): void = relink_clear_m(airlock_nat(MAX_REC_FUEL), d, n, i)
+
+extern fun relink_parents_exh(d: !Doc, n: int, i: int): void = "mac#anth_die_void"
+
+fun relink_parents_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, n: int, i: int): void =
+  if recfuel > 0 then (
+    if ige(i, n) then ()
+    else let
+      val p = parent_of(d, i, isub(i, 1), 0)
+      val () = doc_node_set_parent(d, i, p)
+      val () = if ige(p, 0) andalso ilt(doc_node_first_child(d, p), 0) then doc_node_set_first_child(d, p, i) else ()
+    in
+      relink_parents_m(recfuel - 1, d, n, iadd(i, 1))
+    end
+  ) else relink_parents_exh(d, n, i)
+
+fun relink_parents(d: !Doc, n: int, i: int): void = relink_parents_m(airlock_nat(MAX_REC_FUEL), d, n, i)
+
+extern fun relink_next_exh(d: !Doc, n: int, i: int): void = "mac#anth_die_void"
+
+fun relink_next_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, n: int, i: int): void =
+  if recfuel > 0 then (
+    if ige(i, n) then ()
+    else let
+      val p = doc_node_parent(d, i)
+      val () = doc_node_set_next_sib(d, i, next_sib(d, n, p, iadd(i, 1), 0))
+    in
+      relink_next_m(recfuel - 1, d, n, iadd(i, 1))
+    end
+  ) else relink_next_exh(d, n, i)
+
+fun relink_next(d: !Doc, n: int, i: int): void = relink_next_m(airlock_nat(MAX_REC_FUEL), d, n, i)
 
 fun relink(d: !Doc): void = let
   val is_md = doc_is_md(d)
 in
   if ieq(is_md, 0) then ()
   else let
-    val n = dget(d, 6)
+    val n = d_nnodes(d)
     val () = relink_clear(d, n, 0)
     val () = relink_parents(d, n, 0)
   in
@@ -611,137 +722,201 @@ end
 fun block_kind(k: int): int =
   if ieq(k, NK_TEXT) orelse ieq(k, NK_WIKI) orelse ieq(k, NK_EMBED) orelse ieq(k, NK_TAG) orelse ieq(k, NK_FN) orelse ieq(k, NK_HIGH) orelse ieq(k, NK_MATH) orelse ieq(k, NK_MATHB) orelse ieq(k, NK_TD) then 0 else 1
 
-fun hide_until(d: !Doc, i: int, n: int, hk: int): void =
-  if ige(i, n) then ()
-  else let
-    val k = nget(d, i, 0)
-  in
-    if ige(k, NK_H1) andalso ile(k, NK_H6) andalso ile(k, hk) then ()
+extern fun hide_until_exh(d: !Doc, i: int, n: int, hk: int): void = "mac#anth_die_void"
+
+fun hide_until_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, n: int, hk: int): void =
+  if recfuel > 0 then (
+    if ige(i, n) then ()
     else let
-      val () = nset(d, i, 9, 1)
-      val () = nset(d, i, 5, 0)
+      val k = doc_node_kind(d, i)
     in
-      hide_until(d, iadd(i, 1), n, hk)
+      if ige(k, NK_H1) andalso ile(k, NK_H6) andalso ile(k, hk) then ()
+      else let
+        val () = doc_node_set_hidden(d, i, 1)
+        val () = doc_node_set_height(d, i, 0)
+      in
+        hide_until_m(recfuel - 1, d, iadd(i, 1), n, hk)
+      end
     end
-  end
+  ) else hide_until_exh(d, i, n, hk)
 
-fun hide_list(d: !Doc, i: int, n: int, depth: int): void =
-  if ige(i, n) then ()
-  else let
-    val k = nget(d, i, 0)
-    val dp = nget(d, i, 3)
-  in
-    if (ieq(k, NK_LI) orelse ieq(k, NK_TASK) orelse ieq(k, NK_UL) orelse ieq(k, NK_OL)) andalso ile(dp, depth) then ()
-    else if block_kind(k) = 1 andalso ile(dp, depth) andalso ine(k, NK_TEXT) then ()
+fun hide_until(d: !Doc, i: int, n: int, hk: int): void = hide_until_m(airlock_nat(MAX_REC_FUEL), d, i, n, hk)
+
+extern fun hide_list_exh(d: !Doc, i: int, n: int, depth: int): void = "mac#anth_die_void"
+
+fun hide_list_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, n: int, depth: int): void =
+  if recfuel > 0 then (
+    if ige(i, n) then ()
     else let
-      val () = nset(d, i, 9, 1)
-      val () = nset(d, i, 5, 0)
+      val k = doc_node_kind(d, i)
+      val dp = doc_node_depth(d, i)
     in
-      hide_list(d, iadd(i, 1), n, depth)
+      if (ieq(k, NK_LI) orelse ieq(k, NK_TASK) orelse ieq(k, NK_UL) orelse ieq(k, NK_OL)) andalso ile(dp, depth) then ()
+      else if block_kind(k) = 1 andalso ile(dp, depth) andalso ine(k, NK_TEXT) then ()
+      else let
+        val () = doc_node_set_hidden(d, i, 1)
+        val () = doc_node_set_height(d, i, 0)
+      in
+        hide_list_m(recfuel - 1, d, iadd(i, 1), n, depth)
+      end
     end
-  end
+  ) else hide_list_exh(d, i, n, depth)
 
-fun count_nl(d: !Doc, p: int, en: int, lines: int): int =
-  if ige(p, en) then lines
-  else count_nl(d, iadd(p, 1), en, iif(ieq(doc_byte(d, p), 10), iadd(lines, 1), lines))
+fun hide_list(d: !Doc, i: int, n: int, depth: int): void = hide_list_m(airlock_nat(MAX_REC_FUEL), d, i, n, depth)
 
-fun clear_hide(d: !Doc, n: int, i: int): void =
-  if ige(i, n) then ()
-  else let
-    val () = nset(d, i, 9, 0)
-  in
-    clear_hide(d, n, iadd(i, 1))
-  end
+extern fun count_nl_exh(d: !Doc, p: int, en: int, lines: int): int = "mac#anth_die_int"
+
+fun count_nl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, p: int, en: int, lines: int): int =
+  if recfuel > 0 then (
+    if ige(p, en) then lines
+    else count_nl_m(recfuel - 1, d, iadd(p, 1), en, (if ieq(doc_byte(d, p), 10) then iadd(lines, 1) else lines))
+  ) else count_nl_exh(d, p, en, lines)
+
+fun count_nl(d: !Doc, p: int, en: int, lines: int): int = count_nl_m(airlock_nat(MAX_REC_FUEL), d, p, en, lines)
+
+extern fun clear_hide_exh(d: !Doc, n: int, i: int): void = "mac#anth_die_void"
+
+fun clear_hide_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, n: int, i: int): void =
+  if recfuel > 0 then (
+    if ige(i, n) then ()
+    else let
+      val () = doc_node_set_hidden(d, i, 0)
+    in
+      clear_hide_m(recfuel - 1, d, n, iadd(i, 1))
+    end
+  ) else clear_hide_exh(d, n, i)
+
+fun clear_hide(d: !Doc, n: int, i: int): void = clear_hide_m(airlock_nat(MAX_REC_FUEL), d, n, i)
 
 fun node_height(d: !Doc, i: int, lh: int): int = let
-  val k = nget(d, i, 0)
-  val lines = count_nl(d, nget(d, i, 1), nget(d, i, 2), 1)
+  val k = doc_node_kind(d, i)
+  val lines = count_nl(d, doc_node_start(d, i), doc_node_end(d, i), 1)
 in
-  if ine(nget(d, i, 9), 0) then 0
+  if ine(doc_node_hidden(d, i), 0) then 0
   else if ieq(k, NK_EMBED) then let
-    val a = nget(d, i, 10)
+    val a = doc_node_aux(d, i)
   in
     if igt(a, 8) then a else 0
   end
   else if ieq(block_kind(k), 0) then 0
   else if ieq(k, NK_HR) then 12
   else if ieq(k, NK_IMAGE) then let
-    val a = nget(d, i, 10)
+    val a = doc_node_aux(d, i)
   in
     if igt(a, 8) then a else 96
   end
   else imul(lines, lh)
 end
 
-fun place_one(d: !Doc, n: int, i: int, lh: int): void =
-  if ige(i, n) then ()
-  else let
-    val k = nget(d, i, 0)
-    val h = node_height(d, i, lh)
-    val () = nset(d, i, 5, h)
-    val () =
-      if ige(k, NK_H1) andalso ile(k, NK_H6) andalso ine(nget(d, i, 4), 0) then hide_until(d, iadd(i, 1), n, k)
-      else if (ieq(k, NK_LI) orelse ieq(k, NK_TASK)) andalso ine(nget(d, i, 4), 0) then hide_list(d, iadd(i, 1), n, nget(d, i, 3))
-      else ()
-  in
-    place_one(d, n, iadd(i, 1), lh)
-  end
+extern fun place_one_exh(d: !Doc, n: int, i: int, lh: int): void = "mac#anth_die_void"
 
-fun stack_y(d: !Doc, n: int, i: int, y: int): int =
-  if ige(i, n) then y
-  else let
-    val () = nset(d, i, 13, y)
-  in
-    stack_y(d, n, iadd(i, 1), iadd(y, nget(d, i, 5)))
-  end
+fun place_one_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, n: int, i: int, lh: int): void =
+  if recfuel > 0 then (
+    if ige(i, n) then ()
+    else let
+      val k = doc_node_kind(d, i)
+      val h = node_height(d, i, lh)
+      val () = doc_node_set_height(d, i, h)
+      val () =
+        if ige(k, NK_H1) andalso ile(k, NK_H6) andalso ine(doc_node_collapsed(d, i), 0) then hide_until(d, iadd(i, 1), n, k)
+        else if (ieq(k, NK_LI) orelse ieq(k, NK_TASK)) andalso ine(doc_node_collapsed(d, i), 0) then hide_list(d, iadd(i, 1), n, doc_node_depth(d, i))
+        else ()
+    in
+      place_one_m(recfuel - 1, d, n, iadd(i, 1), lh)
+    end
+  ) else place_one_exh(d, n, i, lh)
 
-fun line_hidden(d: !Doc, st: int, en: int, i: int, n: int, saw: int): int =
-  if ige(i, n) then saw
-  else let
-    val ns = nget(d, i, 1)
-    val ne = nget(d, i, 2)
-    val hit = if ilt(ns, en) andalso igt(ne, st) then 1 else 0
-  in
-    if ieq(hit, 1) andalso ieq(nget(d, i, 9), 0) then 0
-    else line_hidden(d, st, en, iadd(i, 1), n, iif(ieq(hit, 1), 1, saw))
-  end
+fun place_one(d: !Doc, n: int, i: int, lh: int): void = place_one_m(airlock_nat(MAX_REC_FUEL), d, n, i, lh)
 
-fun widget_h(d: !Doc, st: int, en: int, i: int, n: int, acc: int): int =
-  if ige(i, n) then acc
-  else let
-    val k = nget(d, i, 0)
-    val ns = nget(d, i, 1)
-    val h = nget(d, i, 5)
-    val use = if ieq(nget(d, i, 9), 0) andalso ige(ns, st) andalso ilt(ns, en) andalso (ieq(k, NK_IMAGE) orelse ieq(k, NK_EMBED)) andalso igt(h, acc) then h else acc
-  in
-    widget_h(d, st, en, iadd(i, 1), n, use)
-  end
+extern fun stack_y_exh(d: !Doc, n: int, i: int, y: int): int = "mac#anth_die_int"
 
-fun assign_lines(d: !Doc, lh: int, line: int, y: int): int =
-  if ige(line, dget(d, 5)) then y
-  else let
-    val n = dget(d, 6)
-    val st = doc_line_start(d, line)
-    val en = if iadd(line, 1) < dget(d, 5) then doc_line_start(d, iadd(line, 1)) else dget(d, 2)
-    val hid = line_hidden(d, st, en, 0, n, 0)
-    val extra = if ieq(hid, 1) then 0 else widget_h(d, st, en, 0, n, 0)
-    val step = if ieq(hid, 1) then 0 else iadd(lh, extra)
-    val () = line_put(d, line, y, step)
-  in
-    assign_lines(d, lh, iadd(line, 1), iadd(y, step))
-  end
+fun stack_y_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, n: int, i: int, y: int): int =
+  if recfuel > 0 then (
+    if ige(i, n) then y
+    else let
+      val () = doc_node_set_y(d, i, y)
+    in
+      stack_y_m(recfuel - 1, d, n, iadd(i, 1), iadd(y, doc_node_height(d, i)))
+    end
+  ) else stack_y_exh(d, n, i, y)
 
-fun stamp_nodes(d: !Doc, lh: int, i: int): void =
-  if ige(i, dget(d, 6)) then ()
-  else let
-    val line = doc_line_of(d, nget(d, i, 1))
-    val ly = doc_line_y(d, line)
-    val k = nget(d, i, 0)
-    val y = if ieq(k, NK_IMAGE) orelse ieq(k, NK_EMBED) then iadd(ly, lh) else ly
-    val () = nset(d, i, 13, y)
+fun stack_y(d: !Doc, n: int, i: int, y: int): int = stack_y_m(airlock_nat(MAX_REC_FUEL), d, n, i, y)
+
+extern fun line_hidden_exh(d: !Doc, st: int, en: int, i: int, n: int, saw: Toggle): int = "mac#anth_die_int"
+
+fun line_hidden_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: int, en: int, i: int, n: int, saw: Toggle): int =
+  if recfuel > 0 then (
+    if ige(i, n) then toggle_int(saw)
+    else let
+      val ns = doc_node_start(d, i)
+      val ne = doc_node_end(d, i)
+      val hit = if ilt(ns, en) andalso igt(ne, st) then 1 else 0
+    in
+      if ieq(hit, 1) andalso ieq(doc_node_hidden(d, i), 0) then 0
+      else line_hidden_m(recfuel - 1, d, st, en, iadd(i, 1), n, if ieq(hit, 1) then On else saw)
+    end
+  ) else line_hidden_exh(d, st, en, i, n, saw)
+
+fun line_hidden(d: !Doc, st: int, en: int, i: int, n: int, saw: Toggle): int = line_hidden_m(airlock_nat(MAX_REC_FUEL), d, st, en, i, n, saw)
+
+extern fun widget_h_exh(d: !Doc, st: int, en: int, i: int, n: int, acc: int): int = "mac#anth_die_int"
+
+fun widget_h_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: int, en: int, i: int, n: int, acc: int): int =
+  if recfuel > 0 then (
+    if ige(i, n) then acc
+    else let
+      val k = doc_node_kind(d, i)
+      val ns = doc_node_start(d, i)
+      val h = doc_node_height(d, i)
+      val use = if ieq(doc_node_hidden(d, i), 0) andalso ige(ns, st) andalso ilt(ns, en) andalso (ieq(k, NK_IMAGE) orelse ieq(k, NK_EMBED)) andalso igt(h, acc) then h else acc
+    in
+      widget_h_m(recfuel - 1, d, st, en, iadd(i, 1), n, use)
+    end
+  ) else widget_h_exh(d, st, en, i, n, acc)
+
+fun widget_h(d: !Doc, st: int, en: int, i: int, n: int, acc: int): int = widget_h_m(airlock_nat(MAX_REC_FUEL), d, st, en, i, n, acc)
+
+extern fun assign_lines_exh(d: !Doc, lh: int, line: int, y: int): int = "mac#anth_die_int"
+
+fun assign_lines_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, lh: int, line: int, y: int): int =
+  if recfuel > 0 then (
+  let
+    val nlines = d_nlines(d)
   in
-    stamp_nodes(d, lh, iadd(i, 1))
+    if ige(line, nlines) then y
+    else let
+      val n = d_nnodes(d)
+      val st = doc_line_start(d, line)
+      val en = if iadd(line, 1) < nlines then doc_line_start(d, iadd(line, 1)) else d_len(d)
+      val hid = line_hidden(d, st, en, 0, n, Off)
+      val extra = if ieq(hid, 1) then 0 else widget_h(d, st, en, 0, n, 0)
+      val step = if ieq(hid, 1) then 0 else iadd(lh, extra)
+      val () = line_put(d, line, y, step)
+    in
+      assign_lines_m(recfuel - 1, d, lh, iadd(line, 1), iadd(y, step))
+    end
   end
+  ) else assign_lines_exh(d, lh, line, y)
+
+fun assign_lines(d: !Doc, lh: int, line: int, y: int): int = assign_lines_m(airlock_nat(MAX_REC_FUEL), d, lh, line, y)
+
+extern fun stamp_nodes_exh(d: !Doc, lh: int, i: int): void = "mac#anth_die_void"
+
+fun stamp_nodes_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, lh: int, i: int): void =
+  if recfuel > 0 then (
+    if ige(i, d_nnodes(d)) then ()
+    else let
+      val line = doc_line_of(d, doc_node_start(d, i))
+      val ly = doc_line_y(d, line)
+      val k = doc_node_kind(d, i)
+      val y = if ieq(k, NK_IMAGE) orelse ieq(k, NK_EMBED) then iadd(ly, lh) else ly
+      val () = doc_node_set_y(d, i, y)
+    in
+      stamp_nodes_m(recfuel - 1, d, lh, iadd(i, 1))
+    end
+  ) else stamp_nodes_exh(d, lh, i)
+
+fun stamp_nodes(d: !Doc, lh: int, i: int): void = stamp_nodes_m(airlock_nat(MAX_REC_FUEL), d, lh, i)
 
 fun fill_plain_lines(d: !Doc, lh: int, nlines: int): void =
   case+ d of
@@ -761,10 +936,10 @@ fun fill_plain_lines(d: !Doc, lh: int, nlines: int): void =
 implement doc_layout(d, lh0) = let
   val lh = if ilt(lh0, 8) then 8 else lh0
   val is_md = doc_is_md(d)
-  val n = dget(d, 6)
+  val n = d_nnodes(d)
 in
   if ieq(is_md, 0) orelse ieq(n, 0) then let
-    val nlines = dget(d, 5)
+    val nlines = d_nlines(d)
     val () = fill_plain_lines(d, lh, nlines)
   in
     imul(nlines, lh)
@@ -782,7 +957,7 @@ fun reparse(d: !Doc, at: int, oldlen: int): void = let
   var rs: int = 0
   var re: int = 0
   val () = dirty(d, at, rs, re)
-  val delta = isub(dget(d, 2), oldlen)
+  val delta = isub(d_len(d), oldlen)
   val () = rebuild_lines(d)
   val () = salvage(d, rs, re, delta)
 in
@@ -791,45 +966,45 @@ end
 
 fun gap_put(d: !Doc, p: ptr, n: int): void = let
   val () = gap_room(d, n)
-  val lo = dget(d, 0)
+  val lo = d_lo(d)
   var i: int = 0
 in
   while (i < n) (
     gap_set(d, iadd(lo, i), mem_byte(p, n, i));
     i := iadd(i, 1)
   );
-  dset(d, 0, iadd(lo, n));
-  dset(d, 2, iadd(dget(d, 2), n))
+  d_set_lo(d, iadd(lo, n));
+  d_set_len(d, iadd(d_len(d), n))
 end
 
 fun sel_span(d: !Doc, a: &int >> _, b: &int >> _): void = let
-  val c = dget(d, 3)
-  val k = dget(d, 4)
+  val c = d_caret(d)
+  val k = d_anchor(d)
 in
   if c < k then (a := c; b := k) else (a := k; b := c)
 end
 
 fun remove_between(d: !Doc, a0: int, b0: int): void = let
-  val len = dget(d, 2)
+  val len = d_len(d)
   val a = if a0 < 0 then 0 else a0
   val b = if b0 > len then len else b0
 in
   if ile(b, a) then ()
   else let
-    val old = dget(d, 2)
+    val old = d_len(d)
     val () = gap_move(d, a)
-    val hi = dget(d, 1)
-    val () = dset(d, 1, iadd(hi, isub(b, a)))
-    val () = dset(d, 2, isub(len, isub(b, a)))
-    val () = dset(d, 3, a)
-    val () = dset(d, 4, a)
+    val hi = d_hi(d)
+    val () = d_set_hi(d, iadd(hi, isub(b, a)))
+    val () = d_set_len(d, isub(len, isub(b, a)))
+    val () = d_set_caret(d, a)
+    val () = d_set_anchor(d, a)
   in
     reparse(d, a, old)
   end
 end
 
 implement doc_slice(d, a0, b0, dst, cap) = let
-  val len = dget(d, 2)
+  val len = d_len(d)
   val a = if a0 < 0 then 0 else a0
   val b = if b0 > len then len else b0
   val n = if igt(isub(b, a), cap) then cap else isub(b, a)
@@ -842,8 +1017,11 @@ in
   n
 end
 
+implement doc_slice_buf(d, a, b, dst, cap) =
+  doc_slice(d, a, b, buf_ptr(dst), cap)
+
 implement doc_text(d, dst) = let
-  val n = dget(d, 2)
+  val n = d_len(d)
   val () = buf_resize(dst, iadd(n, 1))
   var i: int = 0
 in
@@ -862,43 +1040,69 @@ in
   b
 end
 
-fun doc_record(d: !Doc, opk: int): void = let
-  val lo = case+ d of
-    | @DOC(s) => let
-        val o = s.last_op
-      in
-        fold@(d); o
-      end
-  val tc = case+ d of
-    | @DOC(s) => let
-        val c = s.typing_cnt
-      in
-        fold@(d); c
-      end
+fun get_last_op(d: !Doc): int =
+  case+ d of
+  | @DOC(s) => let
+      val o = s.last_op
+    in
+      fold@(d); o
+    end
+
+fun get_typing_cnt(d: !Doc): int =
+  case+ d of
+  | @DOC(s) => let
+      val c = s.typing_cnt
+    in
+      fold@(d); c
+    end
+
+fun set_typing_cnt(d: !Doc, c: int): void =
+  case+ d of
+  | @DOC(s) => let
+      val () = s.typing_cnt := c
+    in
+      fold@(d)
+    end
+
+fun set_last_op_and_reset_count(d: !Doc, opk: int): void =
+  case+ d of
+  | @DOC(s) => let
+      val () = s.last_op := opk
+      val () = s.typing_cnt := 0
+    in
+      fold@(d)
+    end
+
+fun push_undo_current(d: !Doc): void = let
+  val snap = doc_snapshot_curr(d)
+  val cur_c = doc_caret(d)
+  var u = take_uhist(d)
+  val u2 = hist_trim(u)
+  val u3 = HCons(snap, cur_c, u2)
 in
-  if ieq(opk, 1) andalso ieq(lo, 1) andalso ilt(tc, 8) then
-    case+ d of
-    | @DOC(s) => let
-        val () = s.typing_cnt := iadd(tc, 1)
-      in
-        fold@(d)
-      end
+  put_uhist(d, u3)
+end
+
+fun push_redo_current(d: !Doc): void = let
+  val cur_snap = doc_snapshot_curr(d)
+  val cur_c = doc_caret(d)
+  var r = take_rhist(d)
+  val r2 = hist_trim(r)
+  val r3 = HCons(cur_snap, cur_c, r2)
+in
+  put_rhist(d, r3)
+end
+
+fun doc_record(d: !Doc, opk: int): void = let
+  val lo = get_last_op(d)
+  val tc = get_typing_cnt(d)
+in
+  if ieq(opk, 1) andalso ieq(lo, 1) andalso ilt(tc, 8) then set_typing_cnt(d, iadd(tc, 1))
   else let
-    val snap = doc_snapshot_curr(d)
-    val cur_c = doc_caret(d)
-    var u = take_uhist(d)
-    val u2 = hist_trim(u)
-    val u3 = HCons(snap, cur_c, u2)
-    val () = put_uhist(d, u3)
+    val () = push_undo_current(d)
     val () = put_rhist(d, HNil())
+    val () = set_last_op_and_reset_count(d, opk)
   in
-    case+ d of
-    | @DOC(s) => let
-        val () = s.last_op := opk
-        val () = s.typing_cnt := 0
-      in
-        fold@(d)
-      end
   end
 end
 
@@ -907,16 +1111,16 @@ fun doc_insert_core(d: !Doc, p: ptr, n: int): void = let
   var b: int = 0
   val () = sel_span(d, a, b)
   val () = if igt(b, a) then remove_between(d, a, b) else ()
-  val at = dget(d, 3)
+  val at = d_caret(d)
   var rs: int = 0
   var re: int = 0
   val () = dirty(d, at, rs, re)
-  val old = dget(d, 2)
+  val old = d_len(d)
   val () = gap_move(d, at)
   val () = gap_put(d, p, n)
-  val () = dset(d, 3, iadd(at, n))
-  val () = dset(d, 4, iadd(at, n))
-  val delta = isub(dget(d, 2), old)
+  val () = d_set_caret(d, iadd(at, n))
+  val () = d_set_anchor(d, iadd(at, n))
+  val delta = isub(d_len(d), old)
   val () = rebuild_lines(d)
   val () = salvage(d, rs, re, delta)
 in
@@ -932,6 +1136,9 @@ implement doc_insert(d, p, n) = let
 in
   doc_insert_core(d, p, n)
 end
+
+implement doc_insert_buf(d, src, n) =
+  doc_insert(d, buf_ptr(src), n)
 
 fun utf8_prev(d: !Doc, i: int): int =
   if ile(i, 1) then 0
@@ -951,7 +1158,7 @@ fun utf8_prev(d: !Doc, i: int): int =
 
 fun utf8_align(d: !Doc, i: int): int =
   if ile(i, 0) then 0
-  else if ige(i, dget(d, 2)) then dget(d, 2)
+  else if ige(i, d_len(d)) then d_len(d)
   else let
     val b = doc_byte(d, i)
   in
@@ -960,7 +1167,7 @@ fun utf8_align(d: !Doc, i: int): int =
   end
 
 fun utf8_next(d: !Doc, i: int): int = let
-  val len = dget(d, 2)
+  val len = d_len(d)
 in
   if ige(i, len) then len
   else let
@@ -980,7 +1187,7 @@ implement doc_backspace(d) = let
 in
   if igt(b, a) then remove_between(d, a, b)
   else let
-    val c = dget(d, 3)
+    val c = d_caret(d)
   in
     if c <= 0 then () else remove_between(d, utf8_prev(d, c), c)
   end
@@ -994,90 +1201,100 @@ implement doc_delete(d) = let
 in
   if igt(b, a) then remove_between(d, a, b)
   else let
-    val c = dget(d, 3)
+    val c = d_caret(d)
     val n = utf8_next(d, c)
   in
     if ile(n, c) then () else remove_between(d, c, n)
   end
 end
 
-implement doc_set_caret(d, i, keep) = let
-  val len = dget(d, 2)
+implement doc_set_caret_move(d, i) = let
+  val len = d_len(d)
   val c = if i < 0 then 0 else if i > len then len else i
-  val () = dset(d, 3, c)
+  val () = d_set_caret(d, c)
 in
-  if keep = 0 then dset(d, 4, c) else ()
+  d_set_anchor(d, c)
 end
 
-implement doc_left(d) = doc_left_k(d, 0)
-implement doc_right(d) = doc_right_k(d, 0)
-implement doc_home(d) = doc_home_k(d, 0)
-implement doc_end(d) = doc_end_k(d, 0)
-implement doc_up(d) = doc_up_k(d, 0)
-implement doc_down(d) = doc_down_k(d, 0)
-
-implement doc_left_k(d, keep) = let
-  val c = dget(d, 3)
-  val a = dget(d, 4)
-  val target = if keep = 0 andalso ine(c, a) then imin(c, a) else utf8_prev(d, c)
+implement doc_set_caret_extend(d, i) = let
+  val len = d_len(d)
+  val c = if i < 0 then 0 else if i > len then len else i
 in
-  doc_set_caret(d, target, keep)
+  d_set_caret(d, c)
 end
 
-implement doc_right_k(d, keep) = let
-  val c = dget(d, 3)
-  val a = dget(d, 4)
-  val target = if keep = 0 andalso ine(c, a) then imax(c, a) else utf8_next(d, c)
+fun doc_left_target(d: !Doc, keep: Toggle): int = let
+  val c = d_caret(d)
+  val a = d_anchor(d)
 in
-  doc_set_caret(d, target, keep)
+  if is_off(keep) andalso ine(c, a) then imin(c, a) else utf8_prev(d, c)
 end
 
-implement doc_home_k(d, keep) = let
-  val c = doc_line_start(d, doc_line_of(d, dget(d, 3)))
+fun doc_right_target(d: !Doc, keep: Toggle): int = let
+  val c = d_caret(d)
+  val a = d_anchor(d)
 in
-  doc_set_caret(d, c, keep)
+  if is_off(keep) andalso ine(c, a) then imax(c, a) else utf8_next(d, c)
 end
 
-implement doc_end_k(d, keep) = let
-  val line = doc_line_of(d, dget(d, 3))
-  val n = dget(d, 5)
-  val e = if iadd(line, 1) >= n then dget(d, 2) else doc_line_start(d, iadd(line, 1))
-  val c = if igt(e, 0) andalso ieq(doc_byte(d, isub(e, 1)), 10) then isub(e, 1) else e
+implement doc_left_move(d) = doc_set_caret_move(d, doc_left_target(d, Off))
+implement doc_left_select(d) = doc_set_caret_extend(d, doc_left_target(d, On))
+
+implement doc_right_move(d) = doc_set_caret_move(d, doc_right_target(d, Off))
+implement doc_right_select(d) = doc_set_caret_extend(d, doc_right_target(d, On))
+
+fun doc_home_target(d: !Doc): int =
+  doc_line_start(d, doc_line_of(d, d_caret(d)))
+
+fun doc_end_target(d: !Doc): int = let
+  val line = doc_line_of(d, d_caret(d))
+  val n = d_nlines(d)
+  val e = if iadd(line, 1) >= n then d_len(d) else doc_line_start(d, iadd(line, 1))
 in
-  doc_set_caret(d, c, keep)
+  if igt(e, 0) andalso ieq(doc_byte(d, isub(e, 1)), 10) then isub(e, 1) else e
 end
 
-implement doc_up_k(d, keep) = let
-  val c = dget(d, 3)
+implement doc_home_move(d) = doc_set_caret_move(d, doc_home_target(d))
+implement doc_home_select(d) = doc_set_caret_extend(d, doc_home_target(d))
+
+implement doc_end_move(d) = doc_set_caret_move(d, doc_end_target(d))
+implement doc_end_select(d) = doc_set_caret_extend(d, doc_end_target(d))
+
+fun doc_up_target(d: !Doc): int = let
+  val c = d_caret(d)
   val line = doc_line_of(d, c)
   val col = isub(c, doc_line_start(d, line))
 in
-  if line <= 0 then doc_set_caret(d, 0, keep)
+  if line <= 0 then 0
   else let
     val st = doc_line_start(d, isub(line, 1))
     val en = doc_line_start(d, line)
     val stop = if igt(en, st) andalso ieq(doc_byte(d, isub(en, 1)), 10) then isub(en, 1) else en
-    val at = utf8_align(d, imin(iadd(st, col), stop))
   in
-    doc_set_caret(d, at, keep)
+    utf8_align(d, imin(iadd(st, col), stop))
   end
 end
 
-implement doc_down_k(d, keep) = let
-  val c = dget(d, 3)
+fun doc_down_target(d: !Doc): int = let
+  val c = d_caret(d)
   val line = doc_line_of(d, c)
-  val n = dget(d, 5)
+  val n = d_nlines(d)
   val col = isub(c, doc_line_start(d, line))
 in
-  if iadd(line, 1) >= n then doc_set_caret(d, dget(d, 2), keep)
+  if iadd(line, 1) >= n then d_len(d)
   else let
     val st = doc_line_start(d, iadd(line, 1))
-    val en = if iadd(line, 2) >= n then dget(d, 2) else doc_line_start(d, iadd(line, 2))
+    val en = if iadd(line, 2) >= n then d_len(d) else doc_line_start(d, iadd(line, 2))
     val stop = if igt(en, st) andalso ieq(doc_byte(d, isub(en, 1)), 10) then isub(en, 1) else en
   in
-    doc_set_caret(d, utf8_align(d, imin(iadd(st, col), stop)), keep)
+    utf8_align(d, imin(iadd(st, col), stop))
   end
 end
+
+implement doc_up_move(d) = doc_set_caret_move(d, doc_up_target(d))
+implement doc_up_select(d) = doc_set_caret_extend(d, doc_up_target(d))
+implement doc_down_move(d) = doc_set_caret_move(d, doc_down_target(d))
+implement doc_down_select(d) = doc_set_caret_extend(d, doc_down_target(d))
 
 fun doc_char_class(b: int): int =
   if b <= 32 then 0
@@ -1102,43 +1319,64 @@ fun word_left_pos(d: !Doc, cur: int): int =
     i
   end
 
+extern fun skip_class_run_exh(d: !Doc, i: int, len: int, cls: int): int = "mac#anth_die_int"
+
+fun skip_class_run_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, len: int, cls: int): int =
+  if recfuel > 0 then (
+    if ilt(i, len) andalso ieq(doc_char_class(doc_byte(d, i)), cls) then skip_class_run_m(recfuel - 1, d, utf8_next(d, i), len, cls)
+    else i
+  ) else skip_class_run_exh(d, i, len, cls)
+
+fun skip_class_run(d: !Doc, i: int, len: int, cls: int): int = skip_class_run_m(airlock_nat(MAX_REC_FUEL), d, i, len, cls)
+
+extern fun skip_blank_run_exh(d: !Doc, i: int, len: int): int = "mac#anth_die_int"
+
+fun skip_blank_run_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, len: int): int =
+  if recfuel > 0 then (
+    if ilt(i, len) andalso ieq(doc_char_class(doc_byte(d, i)), 0) andalso ine(doc_byte(d, i), 10) then skip_blank_run_m(recfuel - 1, d, utf8_next(d, i), len)
+    else i
+  ) else skip_blank_run_exh(d, i, len)
+
+fun skip_blank_run(d: !Doc, i: int, len: int): int = skip_blank_run_m(airlock_nat(MAX_REC_FUEL), d, i, len)
+
 fun word_right_pos(d: !Doc, cur: int): int = let
-  val len = dget(d, 2)
+  val len = d_len(d)
 in
   if cur >= len then len
   else let
-    var i: int = cur
-    val cls = doc_char_class(doc_byte(d, i))
-    val () = if cls = 0 then (
-      while (i < len andalso doc_char_class(doc_byte(d, i)) = 0) (
-        i := utf8_next(d, i)
-      )
-    ) else let
-      val () = while (i < len andalso doc_char_class(doc_byte(d, i)) = cls) (
-        i := utf8_next(d, i)
-      )
-      val () = while (i < len andalso doc_char_class(doc_byte(d, i)) = 0 andalso doc_byte(d, i) != 10) (
-        i := utf8_next(d, i)
-      )
-    in
-    end
+    val cls = doc_char_class(doc_byte(d, cur))
   in
-    i
+    if cls = 0 then skip_class_run(d, cur, len, 0)
+    else skip_blank_run(d, skip_class_run(d, cur, len, cls), len)
   end
 end
 
-implement doc_word_left(d, keep) = let
-  val c = dget(d, 3)
+implement doc_word_left_move(d) = let
+  val c = d_caret(d)
   val target = word_left_pos(d, c)
 in
-  doc_set_caret(d, target, keep)
+  doc_set_caret_move(d, target)
 end
 
-implement doc_word_right(d, keep) = let
-  val c = dget(d, 3)
+implement doc_word_left_select(d) = let
+  val c = d_caret(d)
+  val target = word_left_pos(d, c)
+in
+  doc_set_caret_extend(d, target)
+end
+
+implement doc_word_right_move(d) = let
+  val c = d_caret(d)
   val target = word_right_pos(d, c)
 in
-  doc_set_caret(d, target, keep)
+  doc_set_caret_move(d, target)
+end
+
+implement doc_word_right_select(d) = let
+  val c = d_caret(d)
+  val target = word_right_pos(d, c)
+in
+  doc_set_caret_extend(d, target)
 end
 
 implement doc_del_word_left(d) = let
@@ -1149,7 +1387,7 @@ implement doc_del_word_left(d) = let
 in
   if igt(b, a) then remove_between(d, a, b)
   else let
-    val c = dget(d, 3)
+    val c = d_caret(d)
     val target = word_left_pos(d, c)
   in
     if target < c then remove_between(d, target, c) else ()
@@ -1164,30 +1402,51 @@ implement doc_del_word_right(d) = let
 in
   if igt(b, a) then remove_between(d, a, b)
   else let
-    val c = dget(d, 3)
+    val c = d_caret(d)
     val target = word_right_pos(d, c)
   in
     if target > c then remove_between(d, c, target) else ()
   end
 end
 
-implement doc_doc_start(d, keep) = doc_set_caret(d, 0, keep)
-implement doc_doc_end(d, keep) = doc_set_caret(d, dget(d, 2), keep)
+implement doc_doc_start_move(d) = doc_set_caret_move(d, 0)
+implement doc_doc_start_select(d) = doc_set_caret_extend(d, 0)
 
-implement doc_page_up(d, nlines, keep) = let
+implement doc_doc_end_move(d) = doc_set_caret_move(d, d_len(d))
+implement doc_doc_end_select(d) = doc_set_caret_extend(d, d_len(d))
+
+implement doc_page_up_move(d, nlines) = let
   var k: int = 0
 in
   while (k < nlines) (
-    doc_up_k(d, keep);
+    doc_up_move(d);
     k := iadd(k, 1)
   )
 end
 
-implement doc_page_down(d, nlines, keep) = let
+implement doc_page_up_select(d, nlines) = let
   var k: int = 0
 in
   while (k < nlines) (
-    doc_down_k(d, keep);
+    doc_up_select(d);
+    k := iadd(k, 1)
+  )
+end
+
+implement doc_page_down_move(d, nlines) = let
+  var k: int = 0
+in
+  while (k < nlines) (
+    doc_down_move(d);
+    k := iadd(k, 1)
+  )
+end
+
+implement doc_page_down_select(d, nlines) = let
+  var k: int = 0
+in
+  while (k < nlines) (
+    doc_down_select(d);
     k := iadd(k, 1)
   )
 end
@@ -1195,19 +1454,11 @@ end
 implement doc_save(d, path) = let
   var b = buf_make(16)
   val () = doc_text(d, b)
-  val fd = fs_open_write(path)
+  val n = buf_len(b)
+  val ok = fs_write_buf(path, b, n)
+  val () = buf_free(b)
 in
-  if fd < 0 then let
-    val () = buf_free(b)
-  in
-    0
-  end else let
-    val n = fs_write(fd, buf_ptr(b), buf_len(b))
-    val () = fs_close(fd)
-    val () = buf_free(b)
-  in
-    if n >= 0 then 1 else 0
-  end
+  ok
 end
 
 implement doc_save_vfs(d, path) = let
@@ -1216,8 +1467,8 @@ in
   if plen <= 0 then 0
   else let
     var vbuf = buf_make(512)
-    val () = fs_vfs_path(path, buf_ptr(vbuf), 511)
-    val vp = ptr_string(buf_ptr(vbuf))
+    val () = fs_vfs_buf(path, vbuf, 511)
+    val vp = buf_cstr(vbuf)
     val vlen = c_strlen(vp)
     val res = if vlen > 0 then doc_save(d, vp) else 0
     val () = buf_free(vbuf)
@@ -1233,10 +1484,11 @@ in
   else let
     val res = doc_save(d, path)
     var vbuf = buf_make(512)
-    val () = fs_vfs_path(path, buf_ptr(vbuf), 511)
-    val vp = ptr_string(buf_ptr(vbuf))
+    val () = fs_vfs_buf(path, vbuf, 511)
+    val vp = buf_cstr(vbuf)
     val vlen = c_strlen(vp)
-    val _ul = if igt(vlen, 0) andalso ieq(fs_exists(vp), 1) then fs_unlink(vp) else 0
+    val ul = if igt(vlen, 0) andalso ieq(fs_exists(vp), 1) then fs_unlink(vp) else 0
+    val () = if ine(ul, 0) then report_failure("vfs_unlink", vp) else ()
     val () = buf_free(vbuf)
   in
     res
@@ -1249,12 +1501,12 @@ fun replace_all_raw(d: !Doc, p: ptr, n: int): void = let
   val nb = buf_make(imax(256, iadd(n, 64)))
   val c = buf_cap(nb)
   val () = put_gap(d, nb)
-  val () = dset(d, 0, 0)
-  val () = dset(d, 1, c)
-  val () = dset(d, 2, 0)
-  val () = dset(d, 3, 0)
-  val () = dset(d, 4, 0)
-  val () = dset(d, 6, 0)
+  val () = d_set_lo(d, 0)
+  val () = d_set_hi(d, c)
+  val () = d_set_len(d, 0)
+  val () = d_set_caret(d, 0)
+  val () = d_set_anchor(d, 0)
+  val () = d_set_nnodes(d, 0)
 in
   doc_insert_core(d, p, n)
 end
@@ -1266,6 +1518,23 @@ in
   replace_all_raw(d, p, n)
 end
 
+fun replace_all_buf(d: !Doc, src: !Buf, n: int): void =
+  replace_all(d, buf_ptr(src), n)
+
+fun replace_raw_buf(d: !Doc, src: !Buf, n: int): void =
+  replace_all_raw(d, buf_ptr(src), n)
+
+fun insert_core_buf(d: !Doc, src: !Buf, n: int): void =
+  doc_insert_core(d, buf_ptr(src), n)
+
+fun restore_snapshot(d: !Doc, snap_b: Buf, snap_c: int): void = let
+  val sn = buf_len(snap_b)
+  val () = replace_raw_buf(d, snap_b, sn)
+  val () = doc_set_caret_move(d, snap_c)
+  val () = buf_free(snap_b)
+in
+end
+
 implement doc_undo(d) = let
   var u = take_uhist(d)
 in
@@ -1273,25 +1542,10 @@ in
   | ~HNil() => put_uhist(d, HNil())
   | ~HCons(snap_b, snap_c, rest_u) => let
       val () = put_uhist(d, rest_u)
-      val cur_snap = doc_snapshot_curr(d)
-      val cur_c = doc_caret(d)
-      var r = take_rhist(d)
-      val r2 = hist_trim(r)
-      val r3 = HCons(cur_snap, cur_c, r2)
-      val () = put_rhist(d, r3)
-      val sn = buf_len(snap_b)
-      val sp = buf_ptr(snap_b)
-      val () = replace_all_raw(d, sp, sn)
-      val () = doc_set_caret(d, snap_c, 0)
-      val () = buf_free(snap_b)
+      val () = push_redo_current(d)
+      val () = restore_snapshot(d, snap_b, snap_c)
     in
-      case+ d of
-      | @DOC(s) => let
-          val () = s.last_op := 0
-          val () = s.typing_cnt := 0
-        in
-          fold@(d)
-        end
+      set_last_op_and_reset_count(d, 0)
     end
 end
 
@@ -1302,26 +1556,34 @@ in
   | ~HNil() => put_rhist(d, HNil())
   | ~HCons(snap_b, snap_c, rest_r) => let
       val () = put_rhist(d, rest_r)
-      val cur_snap = doc_snapshot_curr(d)
-      val cur_c = doc_caret(d)
-      var u = take_uhist(d)
-      val u2 = hist_trim(u)
-      val u3 = HCons(cur_snap, cur_c, u2)
-      val () = put_uhist(d, u3)
-      val sn = buf_len(snap_b)
-      val sp = buf_ptr(snap_b)
-      val () = replace_all_raw(d, sp, sn)
-      val () = doc_set_caret(d, snap_c, 0)
-      val () = buf_free(snap_b)
+      val () = push_undo_current(d)
+      val () = restore_snapshot(d, snap_b, snap_c)
     in
-      case+ d of
-      | @DOC(s) => let
-          val () = s.last_op := 0
-          val () = s.typing_cnt := 0
-        in
-          fold@(d)
-        end
+      set_last_op_and_reset_count(d, 0)
     end
+end
+
+fun wrap_selection(d: !Doc, a: int, b: int, pre: string, plen: int, suf: string, suflen: int): void = let
+  val slen = isub(b, a)
+  var sel_buf = buf_make(iadd(slen, 1))
+  val () = seen_int(doc_slice_buf(d, a, b, sel_buf, slen))
+  val () = buf_set_len(sel_buf, slen)
+  val () = remove_between(d, a, b)
+  val () = doc_insert_core(d, c_str_ptr(pre), plen)
+  val () = insert_core_buf(d, sel_buf, slen)
+  val () = doc_insert_core(d, c_str_ptr(suf), suflen)
+  val () = buf_free(sel_buf)
+  val new_pos = iadd(a, iadd(plen, iadd(slen, suflen)))
+in
+  doc_set_caret_move(d, new_pos)
+end
+
+fun wrap_at_caret(d: !Doc, a: int, pre: string, plen: int, suf: string, suflen: int): void = let
+  val () = doc_insert_core(d, c_str_ptr(pre), plen)
+  val () = doc_insert_core(d, c_str_ptr(suf), suflen)
+  val mid = iadd(a, plen)
+in
+  doc_set_caret_move(d, mid)
 end
 
 implement doc_wrap(d, pre, plen, suf, suflen) = let
@@ -1330,105 +1592,119 @@ implement doc_wrap(d, pre, plen, suf, suflen) = let
   var b: int = 0
   val () = sel_span(d, a, b)
 in
-  if igt(b, a) then let
-    val slen = isub(b, a)
-    var sel_buf = buf_make(iadd(slen, 1))
-    val _n = doc_slice(d, a, b, buf_ptr(sel_buf), slen)
-    val () = buf_set_len(sel_buf, slen)
-    val () = remove_between(d, a, b)
-    val () = doc_insert_core(d, c_str_ptr(pre), plen)
-    val () = doc_insert_core(d, buf_ptr(sel_buf), slen)
-    val () = doc_insert_core(d, c_str_ptr(suf), suflen)
-    val () = buf_free(sel_buf)
-    val new_pos = iadd(a, iadd(plen, iadd(slen, suflen)))
-    val () = doc_set_caret(d, new_pos, 0)
+  if igt(b, a) then wrap_selection(d, a, b, pre, plen, suf, suflen)
+  else wrap_at_caret(d, a, pre, plen, suf, suflen)
+end
+
+fun resolve_load_path(path: string, vbuf: !Buf): string = let
+  val () = fs_vfs_buf(path, vbuf, 511)
+  val vp = buf_cstr(vbuf)
+  val vlen = c_strlen(vp)
+  val has_vfs = if igt(vlen, 0) andalso ieq(fs_exists(vp), 1) andalso igt(fs_size(vp), 0) then 1 else 0
+in
+  if ieq(has_vfs, 1) then vp else path
+end
+
+fun is_markdown_path(path: string): int = let
+  val plen = c_strlen(path)
+in
+  if plen >= 3 andalso c_str_byte(path, isub(plen, 3)) = 46 andalso (c_str_byte(path, isub(plen, 2)) = 109 orelse c_str_byte(path, isub(plen, 2)) = 77) andalso (c_str_byte(path, isub(plen, 1)) = 100 orelse c_str_byte(path, isub(plen, 1)) = 68) then 1
+  else if plen >= 9 andalso c_str_byte(path, isub(plen, 9)) = 46 then 1
+  else 0
+end
+
+fun read_doc_bytes(d: !Doc, path: string, fd: int, sz: int): int = let
+  val b = buf_make(iadd(sz, 1))
+  val n = fs_read_buf(fd, b, sz)
+  val () = fs_close(fd)
+  val () = buf_set_len(b, if n > 0 then n else 0)
+  val () = doc_set_md(d, is_markdown_path(path))
+  val () = replace_all_buf(d, b, if n > 0 then n else 0)
+  val () = buf_free(b)
+in
+  1
+end
+
+fun load_doc_file(d: !Doc, path: string, actual_path: string): int = let
+  val sz = fs_size(actual_path)
+in
+  if sz < 0 orelse sz > 50000000 then 0
+  else let
+    val fd = fs_open_read(actual_path)
   in
-  end else let
-    val () = doc_insert_core(d, c_str_ptr(pre), plen)
-    val () = doc_insert_core(d, c_str_ptr(suf), suflen)
-    val mid = iadd(a, plen)
-    val () = doc_set_caret(d, mid, 0)
-  in
+    if fd < 0 then 0 else read_doc_bytes(d, path, fd, sz)
   end
 end
 
 implement doc_load(d, path) = let
   var vbuf = buf_make(512)
-  val () = fs_vfs_path(path, buf_ptr(vbuf), 511)
-  val vp = ptr_string(buf_ptr(vbuf))
-  val vlen = c_strlen(vp)
-  val has_vfs = if igt(vlen, 0) andalso ieq(fs_exists(vp), 1) andalso igt(fs_size(vp), 0) then 1 else 0
-  val actual_path = if ieq(has_vfs, 1) then vp else path
-  val sz = fs_size(actual_path)
+  val actual_path = resolve_load_path(path, vbuf)
+  val res = load_doc_file(d, path, actual_path)
+  val () = buf_free(vbuf)
 in
-  if sz < 0 orelse sz > 50000000 then let
-    val () = buf_free(vbuf)
+  res
+end
+
+(* Var olan bir dosya yuklenemezse bos belge kaydetmeye yol acmamak icin
+   hata raporlanir ve 0 doner. Dosya yoksa (yeni belge) 1 doner. *)
+implement doc_load_checked(d, path) = let
+  val res = doc_load(d, path)
+in
+  if ieq(res, 1) then 1
+  else if ieq(fs_exists(path), 1) then let
+    val () = report_failure("doc_load", path)
   in
     0
-  end else let
-    val fd = fs_open_read(actual_path)
-  in
-    if fd < 0 then let
-      val () = buf_free(vbuf)
-    in
-      0
-    end else let
-      val b = buf_make(iadd(sz, 1))
-      val n = fs_read(fd, buf_ptr(b), sz)
-      val () = fs_close(fd)
-      val () = buf_free(vbuf)
-      val () = buf_set_len(b, if n > 0 then n else 0)
-      val plen = c_strlen(path)
-      val is_md =
-        if plen >= 3 andalso c_str_byte(path, isub(plen, 3)) = 46 andalso (c_str_byte(path, isub(plen, 2)) = 109 orelse c_str_byte(path, isub(plen, 2)) = 77) andalso (c_str_byte(path, isub(plen, 1)) = 100 orelse c_str_byte(path, isub(plen, 1)) = 68) then 1
-        else if plen >= 9 andalso c_str_byte(path, isub(plen, 9)) = 46 then 1
-        else 0
-      val () = doc_set_md(d, is_md)
-      val () = replace_all(d, buf_ptr(b), if n > 0 then n else 0)
-      val () = buf_free(b)
-    in
-      1
-    end
   end
+  else 1
 end
 
 implement doc_toggle(d, i) = let
-  val n = dget(d, 6)
+  val n = d_nnodes(d)
 in
   if i < 0 orelse i >= n then ()
-  else nset(d, i, 4, iif(ieq(nget(d, i, 4), 0), 1, 0))
+  else doc_node_set_collapsed(d, i, (if ieq(doc_node_collapsed(d, i), 0) then 1 else 0))
 end
 
-fun task_box_find(d: !Doc, st: int, en: int, p: int): int =
-  if ige(p, en) orelse ige(iadd(p, 2), dget(d, 2)) then ~1
-  else if ieq(doc_byte(d, p), 91) andalso ieq(doc_byte(d, iadd(p, 2)), 93) then iadd(p, 1)
-  else task_box_find(d, st, en, iadd(p, 1))
+extern fun task_box_find_exh(d: !Doc, st: int, en: int, p: int): int = "mac#anth_die_int"
+
+fun task_box_find_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: int, en: int, p: int): int =
+  if recfuel > 0 then (
+    if ige(p, en) orelse ige(iadd(p, 2), d_len(d)) then ~1
+    else if ieq(doc_byte(d, p), 91) andalso ieq(doc_byte(d, iadd(p, 2)), 93) then iadd(p, 1)
+    else task_box_find_m(recfuel - 1, d, st, en, iadd(p, 1))
+  ) else task_box_find_exh(d, st, en, p)
+
+fun task_box_find(d: !Doc, st: int, en: int, p: int): int = task_box_find_m(airlock_nat(MAX_REC_FUEL), d, st, en, p)
+
+fun task_next_state(cur: int): int =
+  if ieq(cur, TASK_STATE_TODO) then TASK_STATE_DONE
+  else if ieq(cur, TASK_STATE_DONE) orelse ieq(cur, TASK_STATE_DONE_UPPER) then TASK_STATE_PROGRESS
+  else TASK_STATE_TODO
+
+fun replace_task_mark(d: !Doc, pos: int, nxt: int): void = let
+  var nb = buf_make(2)
+  val () = buf_push(nb, nxt)
+  val () = doc_set_caret_move(d, pos)
+  val () = doc_set_caret_extend(d, iadd(pos, 1))
+  val () = doc_delete(d)
+  val () = doc_insert_buf(d, nb, 1)
+in
+  buf_free(nb)
+end
 
 implement doc_toggle_task(d, i) = let
-  val n = dget(d, 6)
+  val n = d_nnodes(d)
 in
   if i < 0 orelse i >= n then ()
-  else if ine(nget(d, i, 0), NK_TASK) then ()
+  else if ine(doc_node_kind(d, i), NK_TASK) then ()
   else let
-    val st = nget(d, i, 1)
-    val en = nget(d, i, 2)
+    val st = doc_node_start(d, i)
+    val en = doc_node_end(d, i)
     val pos = task_box_find(d, st, en, st)
   in
     if pos < 0 then ()
-    else let
-      val cur = doc_byte(d, pos)
-      val nxt = if ieq(cur, 32) then 120
-                else if ieq(cur, 120) orelse ieq(cur, 88) then 47
-                else 32
-      var nb = buf_make(2)
-      val () = buf_push(nb, nxt)
-      val () = doc_set_caret(d, pos, 0)
-      val () = doc_set_caret(d, iadd(pos, 1), 1)
-      val () = doc_delete(d)
-      val () = doc_insert(d, buf_ptr(nb), 1)
-    in
-      buf_free(nb)
-    end
+    else replace_task_mark(d, pos, task_next_state(doc_byte(d, pos)))
   end
 end
 
@@ -1437,104 +1713,192 @@ implement column_w(avail) =
 
 implement column_x(pane, avail) = iadd(pane, idiv(isub(avail, column_w(avail)), 2))
 
-fun has_kind(d: !Doc, k: int, i: int): int =
-  if ige(i, dget(d, 6)) then 0
-  else if ieq(nget(d, i, 0), k) then 1
-  else has_kind(d, k, iadd(i, 1))
+extern fun has_kind_exh(d: !Doc, k: int, i: int): int = "mac#anth_die_int"
+
+fun has_kind_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, k: int, i: int): int =
+  if recfuel > 0 then (
+    if ige(i, d_nnodes(d)) then 0
+    else if ieq(doc_node_kind(d, i), k) then 1
+    else has_kind_m(recfuel - 1, d, k, iadd(i, 1))
+  ) else has_kind_exh(d, k, i)
+
+fun has_kind(d: !Doc, k: int, i: int): int = has_kind_m(airlock_nat(MAX_REC_FUEL), d, k, i)
 
 fun put_str(d: !Doc, s: string): void =
   doc_insert(d, c_str_ptr(s), c_strlen(s))
 
-fun fill_paras(d: !Doc, i: int): void =
-  if ige(i, 100) then ()
-  else let
-    val () = put_str(d, "paragraf\n\n")
-  in
-    fill_paras(d, iadd(i, 1))
-  end
+extern fun fill_paras_exh(d: !Doc, i: int): void = "mac#anth_die_void"
 
-fun first_heading(d: !Doc, i: int): int =
-  if ige(i, doc_nnodes(d)) then ~1
-  else if ieq(doc_get(d, i, 0), NK_H1) then i
-  else first_heading(d, iadd(i, 1))
+fun fill_paras_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int): void =
+  if recfuel > 0 then (
+    if ige(i, 100) then ()
+    else let
+      val () = put_str(d, "paragraf\n\n")
+    in
+      fill_paras_m(recfuel - 1, d, iadd(i, 1))
+    end
+  ) else fill_paras_exh(d, i)
 
-implement doc_selftest() = let
-  val d = doc_open()
+fun fill_paras(d: !Doc, i: int): void = fill_paras_m(airlock_nat(MAX_REC_FUEL), d, i)
+
+extern fun first_heading_exh(d: !Doc, i: int): int = "mac#anth_die_int"
+
+fun first_heading_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int): int =
+  if recfuel > 0 then (
+    if ige(i, doc_nnodes(d)) then ~1
+    else if ieq(doc_get(d, i, 0), NK_H1) then i
+    else first_heading_m(recfuel - 1, d, iadd(i, 1))
+  ) else first_heading_exh(d, i)
+
+fun first_heading(d: !Doc, i: int): int = first_heading_m(airlock_nat(MAX_REC_FUEL), d, i)
+
+fun selftest_gap_check(d: !Doc): int = let
   val () = put_str(d, "ab")
-  val () = doc_left(d)
+  val () = doc_left_move(d)
   val () = doc_backspace(d)
-  val gap_ok = iif(ieq(doc_len(d), 1) andalso ieq(doc_byte(d, 0), 98) andalso ieq(doc_caret(d), 0), 1, 0)
-  val () = doc_right(d)
+in
+  (if ieq(doc_len(d), 1) andalso ieq(doc_byte(d, 0), 98) andalso ieq(doc_caret(d), 0) then 1 else 0)
+end
+
+fun selftest_fill_markdown(d: !Doc): void = let
+  val () = doc_right_move(d)
   val () = put_str(d, "\n# Baslik\n\n- madde\n- [ ] gorev\n- [x] bitti\n\n> alinti\n\n```\nkod\n```\n\n| a | b |\n| --- | --- |\n| 1 | 2 |\n\n[[Sayfa|ad]] ![[Resim.png]] #etiket/alt ==vurgu== $x$ $$y$$\n\n[^1]: not\n")
   val () = put_str(d, "[[Sayfa#b]]\n")
-  val sample = "---\ntitle: x\n---\n"
+in
+end
+
+fun selftest_fm_check(): int = let
   val d2 = doc_open()
-  val () = put_str(d2, sample)
+  val () = put_str(d2, "---\ntitle: x\n---\n")
   val fm = has_kind(d2, NK_FM, 0)
+  val () = doc_free(d2)
+in
+  fm
+end
+
+fun selftest_print_kinds_1(d: !Doc, gap_ok: Toggle): int = let
   val h = has_kind(d, NK_H1, 0)
   val li = has_kind(d, NK_LI, 0)
   val task = has_kind(d, NK_TASK, 0)
   val code = has_kind(d, NK_CODE, 0)
+  val () = println! ("gap=", toggle_int(gap_ok), " h=", h, " li=", li, " task=", task, " code=", code)
+in
+  (if is_on(gap_ok) andalso ieq(h, 1) andalso ieq(li, 1) andalso ieq(task, 1) andalso ieq(code, 1) then 1 else 0)
+end
+
+fun selftest_print_kinds_2(d: !Doc): int = let
   val table = has_kind(d, NK_TABLE, 0)
   val quote = has_kind(d, NK_QUOTE, 0)
   val wiki = has_kind(d, NK_WIKI, 0)
   val img = has_kind(d, NK_IMAGE, 0)
   val tag = has_kind(d, NK_TAG, 0)
+  val () = println! ("table=", table, " quote=", quote, " wiki=", wiki, " img=", img, " tag=", tag)
+in
+  (if ieq(table, 1) andalso ieq(quote, 1) andalso ieq(wiki, 1) andalso ieq(img, 1) andalso ieq(tag, 1) then 1 else 0)
+end
+
+fun selftest_print_kinds_3(d: !Doc, fm: int): int = let
   val high = has_kind(d, NK_HIGH, 0)
   val math = has_kind(d, NK_MATH, 0)
   val mathb = has_kind(d, NK_MATHB, 0)
   val fndef = has_kind(d, NK_FNDEF, 0)
-  val d3 = doc_open()
+  val () = println! ("high=", high, " math=", math, " mathb=", mathb, " fn=", fndef, " fm=", fm)
+in
+  (if ieq(high, 1) andalso ieq(math, 1) andalso ieq(mathb, 1) andalso ieq(fndef, 1) andalso ieq(fm, 1) then 1 else 0)
+end
+
+fun selftest_markdown_part(d: !Doc): int = let
+  val gap_ok = selftest_gap_check(d)
+  val () = selftest_fill_markdown(d)
+  val fm = selftest_fm_check()
+  val k1 = selftest_print_kinds_1(d, toggle_of(ieq(gap_ok, 1)))
+  val k2 = selftest_print_kinds_2(d)
+  val k3 = selftest_print_kinds_3(d, fm)
+in
+  (if ieq(k1, 1) andalso ieq(k2, 1) andalso ieq(k3, 1) then 1 else 0)
+end
+
+fun selftest_fill_d3(d3: !Doc): void = let
   val () = fill_paras(d3, 0)
   val mid = idiv(doc_len(d3), 2)
-  val () = doc_set_caret(d3, mid, 0)
+  val () = doc_set_caret_move(d3, mid)
   val () = put_str(d3, "Z")
+in
+end
+
+fun selftest_fold_flag(d: !Doc, hi: int): int =
+  (if ilt(hi, 0) then 0 else (if ieq(doc_get(d, hi, 4), 1) andalso ieq(doc_get(d, iadd(hi, 1), 5), 0) then 1 else 0))
+
+fun selftest_tagline_check(): int = let
+  val d4 = doc_open()
+  val () = put_str(d4, "#etiket/alt\n")
+  val tl = (if ieq(has_kind(d4, NK_TAG, 0), 1) andalso ilt(doc_nnodes(d4), 8) then 1 else 0) : int
+  val () = doc_free(d4)
+in
+  tl
+end
+
+fun selftest_column_check(): int =
+  (if ieq(column_w(1000), 850) andalso ieq(column_w(800), 800) andalso ieq(column_w(400), 400) andalso ieq(column_x(0, 1000), 75) then 1 else 0)
+
+fun selftest_layout_part(d: !Doc): int = let
+  val d3 = doc_open()
+  val () = selftest_fill_d3(d3)
   val sp = doc_span(d3)
-  val inc = iif(ilt(sp, 80) andalso igt(doc_len(d3), 500), 1, 0)
+  val inc = (if ilt(sp, 80) andalso igt(doc_len(d3), 500) then 1 else 0) : int
+  val () = doc_free(d3)
   val y0 = doc_layout(d, 18)
   val hi = first_heading(d, 0)
   val () = doc_toggle(d, hi)
   val y1 = doc_layout(d, 18)
-  val folded = iif(ilt(hi, 0), 0, iif(ieq(doc_get(d, hi, 4), 1) andalso ieq(doc_get(d, iadd(hi, 1), 5), 0), 1, 0))
-  val d4 = doc_open()
-  val () = put_str(d4, "#etiket/alt\n")
-  val tagline = iif(ieq(has_kind(d4, NK_TAG, 0), 1) andalso ilt(doc_nnodes(d4), 8), 1, 0)
-  val col = iif(ieq(column_w(1000), 850) andalso ieq(column_w(800), 800) andalso ieq(column_w(400), 400) andalso ieq(column_x(0, 1000), 75), 1, 0)
-  val d5 = doc_open()
-  val () = put_str(d5, "deneme")
-  val () = put_str(d5, " bir")
-  val () = doc_undo(d5)
-  val undo_ok = iif(ieq(doc_len(d5), 6), 1, 0)
-  val () = doc_redo(d5)
-  val redo_ok = iif(ieq(doc_len(d5), 10), 1, 0)
-  val () = doc_set_caret(d5, 0, 0)
-  val () = doc_set_caret(d5, 6, 1)
-  val () = doc_wrap(d5, "**", 2, "**", 2)
-  val wrap_ok = iif(ieq(doc_byte(d5, 0), 42) andalso ieq(doc_byte(d5, 1), 42), 1, 0)
-  val () = doc_free(d5)
+  val folded = selftest_fold_flag(d, hi)
+  val tagline = selftest_tagline_check()
+  val col = selftest_column_check()
+  val () = println! ("span=", sp, " inc=", inc, " fold=", folded, " y0=", y0, " y=", y1, " col=", col, " tl=", tagline)
+in
+  (if ieq(inc, 1) andalso ieq(folded, 1) andalso ieq(col, 1) andalso ieq(tagline, 1) then 1 else 0)
+end
 
+fun selftest_nav_check(): int = let
   val d_nav = doc_open()
   val () = put_str(d_nav, "hello world anthracite\n")
-  val () = doc_doc_end(d_nav, 0)
+  val () = doc_doc_end_move(d_nav)
   val end_c = doc_caret(d_nav)
-  val () = doc_word_left(d_nav, 0)
+  val () = doc_word_left_move(d_nav)
   val w_left1 = doc_caret(d_nav)
-  val () = doc_word_left(d_nav, 0)
+  val () = doc_word_left_move(d_nav)
   val w_left2 = doc_caret(d_nav)
-  val () = doc_doc_start(d_nav, 0)
+  val () = doc_doc_start_move(d_nav)
   val start_c = doc_caret(d_nav)
-  val () = doc_word_right(d_nav, 0)
+  val () = doc_word_right_move(d_nav)
   val w_right1 = doc_caret(d_nav)
   val () = doc_del_word_right(d_nav)
   val del_len = doc_len(d_nav)
   val () = doc_free(d_nav)
-  val nav_ok = iif(ieq(start_c, 0) andalso igt(end_c, 15) andalso ilt(w_left1, end_c) andalso ilt(w_left2, w_left1) andalso igt(w_right1, 0) andalso ilt(del_len, end_c), 1, 0)
+in
+  (if ieq(start_c, 0) andalso igt(end_c, 15) andalso ilt(w_left1, end_c) andalso ilt(w_left2, w_left1) andalso igt(w_right1, 0) andalso ilt(del_len, end_c) then 1 else 0)
+end
 
-  val () = println! ("gap=", gap_ok, " h=", h, " li=", li, " task=", task, " code=", code)
-  val () = println! ("table=", table, " quote=", quote, " wiki=", wiki, " img=", img, " tag=", tag)
-  val () = println! ("high=", high, " math=", math, " mathb=", mathb, " fn=", fndef, " fm=", fm)
-  val () = println! ("span=", sp, " inc=", inc, " fold=", folded, " y0=", y0, " y=", y1, " col=", col, " tl=", tagline)
+fun selftest_history_part(): int = let
+  val d5 = doc_open()
+  val () = put_str(d5, "deneme")
+  val () = put_str(d5, " bir")
+  val () = doc_undo(d5)
+  val undo_ok = (if ieq(doc_len(d5), 6) then 1 else 0) : int
+  val () = doc_redo(d5)
+  val redo_ok = (if ieq(doc_len(d5), 10) then 1 else 0) : int
+  val () = doc_set_caret_move(d5, 0)
+  val () = doc_set_caret_extend(d5, 6)
+  val () = doc_wrap(d5, "**", 2, "**", 2)
+  val wrap_ok = (if ieq(doc_byte(d5, 0), CHAR_STAR) andalso ieq(doc_byte(d5, 1), CHAR_STAR) then 1 else 0) : int
+  val () = doc_free(d5)
+  val nav_ok = selftest_nav_check()
   val () = println! ("undo=", undo_ok, " redo=", redo_ok, " wrap=", wrap_ok, " nav=", nav_ok)
+in
+  (if ieq(undo_ok, 1) andalso ieq(redo_ok, 1) andalso ieq(wrap_ok, 1) andalso ieq(nav_ok, 1) then 1 else 0)
+end
+
+fun selftest_big_part(): void = let
   val d_big = doc_open()
   val big_ok = doc_load(d_big, "build/CMakeFiles/CMakeConfigureLog.yaml")
   val big_lines = doc_nlines(d_big)
@@ -1542,33 +1906,52 @@ implement doc_selftest() = let
   val big_c_line = doc_line_of(d_big, isub(doc_len(d_big), 10))
   val () = doc_free(d_big)
   val () = println! ("big_load=", big_ok, " lines=", big_lines, " h=", big_h, " last_line=", big_c_line)
+in
+end
 
+fun selftest_vfs_autosave_ok(svfs_ok: Toggle, p: string, vpath: string): int = let
+  val in_vfs = fs_exists(vpath)
+  val on_disk_yet = fs_exists(p)
+in
+  (if is_on(svfs_ok) andalso ieq(in_vfs, 1) andalso ieq(on_disk_yet, 0) then 1 else 0)
+end
+
+fun selftest_vfs_close_ok(d: !Doc, p: string, vpath: string): int = let
+  val sphys_ok = doc_save_physical(d, p)
+  val on_disk_now = fs_exists(p)
+  val in_vfs_after = fs_exists(vpath)
+in
+  (if ieq(sphys_ok, 1) andalso ieq(on_disk_now, 1) andalso ieq(in_vfs_after, 0) then 1 else 0)
+end
+
+fun selftest_vfs_part(): int = let
   val dvfs = doc_open()
   val () = put_str(dvfs, "vfs test content\n")
   val test_disk_p = "/tmp/anth_test_vfs.txt"
-  val _ul0 = if ieq(fs_exists(test_disk_p), 1) then fs_unlink(test_disk_p) else 0
+  val () = seen_int(if ieq(fs_exists(test_disk_p), 1) then fs_unlink(test_disk_p) else 0)
   val svfs_ok = doc_save_vfs(dvfs, test_disk_p)
   var vbuf = buf_make(512)
-  val () = fs_vfs_path(test_disk_p, buf_ptr(vbuf), 511)
-  val vpath = ptr_string(buf_ptr(vbuf))
-  val in_vfs = fs_exists(vpath)
-  val on_disk_yet = fs_exists(test_disk_p)
-  val vfs_ok1 = iif(ieq(svfs_ok, 1) andalso ieq(in_vfs, 1) andalso ieq(on_disk_yet, 0), 1, 0)
-  val sphys_ok = doc_save_physical(dvfs, test_disk_p)
-  val on_disk_now = fs_exists(test_disk_p)
-  val in_vfs_after = fs_exists(vpath)
-  val vfs_ok2 = iif(ieq(sphys_ok, 1) andalso ieq(on_disk_now, 1) andalso ieq(in_vfs_after, 0), 1, 0)
-  val _ul1 = fs_unlink(test_disk_p)
+  val () = fs_vfs_buf(test_disk_p, vbuf, 511)
+  val vpath = buf_cstr(vbuf)
+  val vfs_ok1 = selftest_vfs_autosave_ok(toggle_of(ieq(svfs_ok, 1)), test_disk_p, vpath)
+  val vfs_ok2 = selftest_vfs_close_ok(dvfs, test_disk_p, vpath)
+  val () = seen_int(fs_unlink(test_disk_p))
   val () = buf_free(vbuf)
   val () = doc_free(dvfs)
-  val vfs_ok = iif(ieq(vfs_ok1, 1) andalso ieq(vfs_ok2, 1), 1, 0)
+  val vfs_ok = (if ieq(vfs_ok1, 1) andalso ieq(vfs_ok2, 1) then 1 else 0) : int
   val () = println! ("vfs_autosave=", vfs_ok, " in_ram=", vfs_ok1, " close_disk=", vfs_ok2)
-
-  val () = doc_free(d)
-  val () = doc_free(d2)
-  val () = doc_free(d3)
-  val () = doc_free(d4)
-  val ok = iif(ieq(nav_ok, 1) andalso ieq(vfs_ok, 1) andalso ieq(gap_ok, 1) andalso ieq(h, 1) andalso ieq(li, 1) andalso ieq(task, 1) andalso ieq(code, 1) andalso ieq(table, 1) andalso ieq(quote, 1) andalso ieq(wiki, 1) andalso ieq(img, 1) andalso ieq(tag, 1) andalso ieq(high, 1) andalso ieq(math, 1) andalso ieq(mathb, 1) andalso ieq(fndef, 1) andalso ieq(fm, 1) andalso ieq(inc, 1) andalso ieq(folded, 1) andalso ieq(col, 1) andalso ieq(tagline, 1) andalso ieq(undo_ok, 1) andalso ieq(redo_ok, 1) andalso ieq(wrap_ok, 1), 1, 0)
 in
-  ok
+  vfs_ok
+end
+
+implement doc_selftest() = let
+  val d = doc_open()
+  val a_ok = selftest_markdown_part(d)
+  val b_ok = selftest_layout_part(d)
+  val c_ok = selftest_history_part()
+  val () = selftest_big_part()
+  val v_ok = selftest_vfs_part()
+  val () = doc_free(d)
+in
+  (if ieq(a_ok, 1) andalso ieq(b_ok, 1) andalso ieq(c_ok, 1) andalso ieq(v_ok, 1) then 1 else 0)
 end

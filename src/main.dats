@@ -2,6 +2,7 @@
 #include "share/atspre_staload.hats"
 
 staload "mem.sats"
+staload "airlock.sats"
 staload "os/fs.sats"
 staload "core_platform/platform.sats"
 staload "core_platform/x11.sats"
@@ -15,45 +16,60 @@ staload "ui_workspace/ui.sats"
 fun is0(n: int): bool = n = 0
 fun is1(n: int): bool = n = 1
 
+fun plat_read_buf(p: !Plat, ev: &event, dst: !Buf, cap: int): int =
+  plat_read(p, ev, buf_ptr(dst), cap)
+
 fun ms_between(a: lint, b: lint): int = anth_ms(a, b)
 
-fun drain(p: !Plat, a: !App, f: !Font, r: !Rend): void =
-  if plat_pending(p) = 0 then ()
-  else let
-    var ev: event
-    var w: int = 0
-    var h: int = 0
-    val () = plat_next(p, ev)
-    val () = plat_wh(p, w, h)
-    val k = ev_kind(ev)
-    val () = if k = EV_KEY then plat_ensure_im(p) else ()
-    val () = if k = EV_CLOSE then plat_stop(p) else ()
-    val () = if k = EV_RESIZE then plat_set_wh(p, ev_w(ev), ev_h(ev)) else ()
-    val () = app_event(a, p, f, r, ev, w, h)
-  in
-    if plat_running(p) = 0 then () else drain(p, a, f, r)
-  end
+extern fun drain_exh(p: !Plat, a: !App, f: !Font, r: !Rend): void = "mac#anth_die_void"
 
-fun frame(p: !Plat, a: !App, f: !Font, r: !Rend, loaded: int): void =
-  if plat_running(p) = 0 then ()
-  else let
-    val () = drain(p, a, f, r)
-  in
-    if plat_running(p) = 0 then ()
+fun drain_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, a: !App, f: !Font, r: !Rend): void =
+  if recfuel > 0 then (
+    if plat_pending(p) = 0 then ()
     else let
-      val loaded2 = if loaded = 0 then font_load_default(f) else loaded
+      var ev: event
       var w: int = 0
       var h: int = 0
+      val () = plat_next(p, ev)
       val () = plat_wh(p, w, h)
-      val () = rend_begin(r, w, h)
-      val () = app_draw(a, f, r, w, h)
-      val () = rend_flush(r)
-      val () = plat_swap(p)
-      val _wait = plat_wait(p, ~1)
+      val k = ev_kind(ev)
+      val () = if k = EV_KEY then plat_ensure_im(p) else ()
+      val () = if k = EV_CLOSE then plat_stop(p) else ()
+      val () = if k = EV_RESIZE then plat_set_wh(p, ev_w(ev), ev_h(ev)) else ()
+      val () = app_event(a, p, f, r, ev, w, h)
     in
-      frame(p, a, f, r, loaded2)
+      if plat_running(p) = 0 then () else drain_m(recfuel - 1, p, a, f, r)
     end
-  end
+  ) else drain_exh(p, a, f, r)
+
+fun drain(p: !Plat, a: !App, f: !Font, r: !Rend): void = drain_m(airlock_nat(MAX_REC_FUEL), p, a, f, r)
+
+extern fun frame_exh(p: !Plat, a: !App, f: !Font, r: !Rend, loaded: int): void = "mac#anth_die_void"
+
+fun frame_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, a: !App, f: !Font, r: !Rend, loaded: int): void =
+  if recfuel > 0 then (
+    if plat_running(p) = 0 then ()
+    else let
+      val () = drain(p, a, f, r)
+    in
+      if plat_running(p) = 0 then ()
+      else let
+        val loaded2 = if loaded = 0 then font_load_default(f) else loaded
+        var w: int = 0
+        var h: int = 0
+        val () = plat_wh(p, w, h)
+        val () = rend_begin(r, w, h)
+        val () = app_draw(a, f, r, w, h)
+        val () = rend_flush(r)
+        val () = plat_swap(p)
+        val () = seen_int(plat_wait(p, ~1))
+      in
+        frame_m(recfuel - 1, p, a, f, r, loaded2)
+      end
+    end
+  ) else frame_exh(p, a, f, r, loaded)
+
+fun frame(p: !Plat, a: !App, f: !Font, r: !Rend, loaded: int): void = frame_m(airlock_nat(MAX_REC_FUEL), p, a, f, r, loaded)
 
 fun take_sel(p: !Plat, ev: &event, data: ptr, n: int, dst: &Buf >> _, got: &int >> _): void =
   if ev_kind(ev) = EV_SEL_REQ then let
@@ -63,7 +79,7 @@ fun take_sel(p: !Plat, ev: &event, data: ptr, n: int, dst: &Buf >> _, got: &int 
     ()
   end else if ev_kind(ev) = EV_SEL_NOTIFY then let
     val cap = buf_cap(dst)
-    val nr = plat_read(p, ev, buf_ptr(dst), cap)
+    val nr = plat_read_buf(p, ev, dst, cap)
     val () = buf_set_len(dst, if nr > 0 then nr else 0)
   in
     got := nr
@@ -71,48 +87,49 @@ fun take_sel(p: !Plat, ev: &event, data: ptr, n: int, dst: &Buf >> _, got: &int 
 
 and touch_dst(dst: &Buf >> _): void = ()
 
-fun clip_round(p: !Plat, data: ptr, n: int, dst: &Buf >> _, got: &int >> _, spins: int): void =
-  if spins <= 0 then touch_dst(dst)
-  else if got > 0 then touch_dst(dst)
-  else if plat_pending(p) = 0 then let
-    val _w = plat_wait(p, 20)
-  in
-    clip_round(p, data, n, dst, got, spins - 1)
-  end else let
-    var ev: event
-    val () = plat_next(p, ev)
-    val () = take_sel(p, ev, data, n, dst, got)
-  in
-    clip_round(p, data, n, dst, got, spins - 1)
-  end
+extern fun clip_round_exh(p: !Plat, data: ptr, n: int, dst: &Buf >> _, got: &int >> _, spins: int): void = "mac#anth_die_void"
 
-fun same_text(b: !Buf, s: string, i: int): int =
-  if i >= c_strlen(s) then 1
-  else if buf_get(b, i) <> c_str_byte(s, i) then 0
-  else same_text(b, s, i + 1)
+fun clip_round_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, data: ptr, n: int, dst: &Buf >> _, got: &int >> _, spins: int): void =
+  if recfuel > 0 then (
+    if spins <= 0 then touch_dst(dst)
+    else if got > 0 then touch_dst(dst)
+    else if plat_pending(p) = 0 then let
+      val () = seen_int(plat_wait(p, 20))
+    in
+      clip_round_m(recfuel - 1, p, data, n, dst, got, spins - 1)
+    end else let
+      var ev: event
+      val () = plat_next(p, ev)
+      val () = take_sel(p, ev, data, n, dst, got)
+    in
+      clip_round_m(recfuel - 1, p, data, n, dst, got, spins - 1)
+    end
+  ) else clip_round_exh(p, data, n, dst, got, spins)
+
+fun clip_round(p: !Plat, data: ptr, n: int, dst: &Buf >> _, got: &int >> _, spins: int): void = clip_round_m(airlock_nat(MAX_REC_FUEL), p, data, n, dst, got, spins)
+
+extern fun same_text_exh(b: !Buf, s: string, i: int): int = "mac#anth_die_int"
+
+fun same_text_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, s: string, i: int): int =
+  if recfuel > 0 then (
+    if i >= c_strlen(s) then 1
+    else if buf_get(b, i) <> c_str_byte(s, i) then 0
+    else same_text_m(recfuel - 1, b, s, i + 1)
+  ) else same_text_exh(b, s, i)
+
+fun same_text(b: !Buf, s: string, i: int): int = same_text_m(airlock_nat(MAX_REC_FUEL), b, s, i)
 
 fun clip_match(b: !Buf, s: string, n: int): int =
   if buf_len(b) <> n then 0 else same_text(b, s, 0)
 
 fun vault_at(cwd: !Buf, use_arg: int): string =
   if use_arg = 1 then let
-    val _n = buf_len(cwd)
+    val () = seen_buf(cwd)
   in
     c_argv(1)
   end else ""
 
-fun run_self(p: !Plat, r: !Rend, t0: lint): void = let
-  val f = font_open()
-  var w: int = 0
-  var h: int = 0
-  val () = plat_wh(p, w, h)
-  val () = rend_begin(r, w, h)
-  val () = rend_rect(r, 0, 0, w, h, col_bg())
-  val _fd = font_draw(f, r, 24, 48, c_str_ptr("Anthracite"), 10, col_text())
-  val () = rend_flush(r)
-  val () = plat_swap(p)
-  val t1 = mono_ns()
-  val start = ms_between(t0, t1)
+fun run_core_selftests(r: !Rend): void = let
   val n = font_selftest(r)
   val m = doc_selftest()
   val q = img_selftest()
@@ -120,21 +137,11 @@ fun run_self(p: !Plat, r: !Rend, t0: lint): void = let
   val () = println! ("font_selftest=", n)
   val () = println! ("doc_selftest=", m)
   val () = println! ("img_selftest=", q)
-  val () = println! ("app_selftest=", u)
-  val text = "anthracite"
-  var dst = buf_make(64)
-  var got: int = 0
-  val () = plat_own(p, 0)
-  val () = plat_paste(p, 0)
-  val () = clip_round(p, c_str_ptr(text), c_strlen(text), dst, got, 40)
-  val clip_ok = clip_match(dst, text, got)
-  val () = buf_free(dst)
-  val tw = mono_ns()
-  val _poll = plat_wait(p, 100)
-  val tw2 = mono_ns()
-  val waited = ms_between(tw, tw2)
-  val rss = rss_kb()
-  val live = mem_live()
+in
+  println! ("app_selftest=", u)
+end
+
+fun print_budget_metrics(start: int, rss: int, live: int, waited: int, clip_ok: int): void = let
   val poll_ok = if waited >= 80 then 1 else 0
   val rss_ok = if live > 0 andalso live < 12582912 then 1 else 0
   val () = print("budget start_ms=")
@@ -151,7 +158,70 @@ fun run_self(p: !Plat, r: !Rend, t0: lint): void = let
   val () = print_int(poll_ok)
   val () = print(" rss_ok=")
   val () = print_int(rss_ok)
-  val () = print_newline()
+in
+  print_newline()
+end
+
+extern fun drain_pending_exh(p: !Plat): void = "mac#anth_die_void"
+
+fun drain_pending_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat): void =
+  if recfuel > 0 then (
+    if plat_pending(p) = 0 then ()
+    else let
+      var ev: event
+      val () = plat_next(p, ev)
+    in
+      drain_pending_m(recfuel - 1, p)
+    end
+  ) else drain_pending_exh(p)
+
+fun drain_pending(p: !Plat): void = drain_pending_m(airlock_nat(MAX_REC_FUEL), p)
+
+fun check_clip_self(p: !Plat): int = let
+  val text = "anthracite"
+  var dst = buf_make(64)
+  var got: int = 0
+  val () = plat_own(p, 0)
+  val () = plat_paste(p, 0)
+  val () = clip_round(p, c_str_ptr(text), c_strlen(text), dst, got, 40)
+  val clip_ok = clip_match(dst, text, got)
+  val () = buf_free(dst)
+  val () = drain_pending(p)
+in
+  clip_ok
+end
+
+fun draw_self_frame(p: !Plat, r: !Rend, f: !Font): void = let
+  var w: int = 0
+  var h: int = 0
+  val () = plat_wh(p, w, h)
+  val () = rend_begin(r, w, h)
+  val () = rend_rect(r, 0, 0, w, h, col_bg())
+  val () = seen_int(font_draw(f, r, 24, 48, c_str_ptr("Anthracite"), 10, col_text()))
+  val () = rend_flush(r)
+  val () = plat_swap(p)
+in
+end
+
+fun self_poll_ms(p: !Plat): int = let
+  val tw = mono_ns()
+  val () = seen_int(plat_wait(p, 100))
+  val tw2 = mono_ns()
+in
+  ms_between(tw, tw2)
+end
+
+fun run_self(p: !Plat, r: !Rend, t0: lint): void = let
+  val f = font_open()
+  val () = draw_self_frame(p, r, f)
+  val t1 = mono_ns()
+  val start = ms_between(t0, t1)
+  val () = run_core_selftests(r)
+  val clip_ok = check_clip_self(p)
+  val waited = self_poll_ms(p)
+  val rss = rss_kb()
+  val live = mem_live()
+  val () = print_budget_metrics(start, rss, live, waited, clip_ok)
   val () = font_free(f)
 in
   plat_stop(p)
@@ -159,15 +229,17 @@ end
 
 fun run_app(p: !Plat, r: !Rend): void = let
   var cwd = buf_make(4096)
-  val _nc = c_cwd(buf_ptr(cwd), 4095)
-  val () = buf_set(cwd, 4095, 0)
+  val nc = c_cwd_buf(cwd, 4095)
+  val nclen = if nc > 0 then nc else 0
+  val () = buf_set_len(cwd, nclen)
+  val () = buf_set(cwd, nclen, 0)
   val use_arg = if c_argc() > 1 then 1 else 0
   val vault = vault_at(cwd, use_arg)
   val a = app_open(vault)
   val () = buf_free(cwd)
   val f = font_open()
-  val _ = font_load_default(f)
-  val () = frame(p, a, f, r, 1)
+  val loaded = font_load_default(f)
+  val () = frame(p, a, f, r, loaded)
   val () = font_free(f)
 in
   app_free(a)
@@ -181,7 +253,7 @@ implement main0() = let
   val p = plat_open()
 in
   if plat_ok(p) = 0 then let
-    val () = println! ("display acilamadi")
+    val () = println! ("event=display_error status=failed error=cannot_open_display")
     val () = plat_close(p)
   in
     ()

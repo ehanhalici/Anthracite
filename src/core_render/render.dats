@@ -3,6 +3,7 @@
 #include "share/atspre_staload.hats"
 
 staload "mem.sats"
+staload "airlock.sats"
 staload "os/fs.sats"
 staload "core_render/gl.sats"
 staload "core_render/render.sats"
@@ -23,14 +24,34 @@ datavtype Rend_ = REND of @{
 , vw= int
 , vh= int
 }
+(* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
 assume Rend = Rend_
 
 fun u0(): uint = u_zero()
 
-fun putf(b: !Buf, i: int, v: float): void = let
-  val cap = buf_cap(b)
+fun putf(b: !Buf, i: int, v: float): void =
+  buf_set_f32(b, i, v)
+
+fun gl_batch_bind(vao: uint, vbo: uint, nbytes: int): void = let
+  val () = glBindVertexArray(vao)
+  val () = glBindBuffer(GL_ARRAY_BUFFER, vbo)
+  val () = glBufferData(GL_ARRAY_BUFFER, anth_i2lint(nbytes), the_null_ptr, GL_DYNAMIC_DRAW)
+  val () = glEnableVertexAttribArray(u_of(0))
+  val () = glEnableVertexAttribArray(u_of(1))
+  val () = glEnableVertexAttribArray(u_of(2))
+  val () = gl_attrib(u_of(0), 2, 32, 0)
+  val () = gl_attrib(u_of(1), 4, 32, 8)
+  val () = gl_attrib(u_of(2), 2, 32, 24)
 in
-  mem_set_f32(buf_ptr(b), cap, i, v)
+end
+
+fun gl_init_state(prog: uint): void = let
+  val () = glEnable(GL_BLEND)
+  val () = glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+  val () = glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+  val () = glUseProgram(prog)
+  val () = glUniform1i(gl_uloc(prog, "u_tex"), 0)
+in
 end
 
 implement rend_open() = let
@@ -39,21 +60,9 @@ implement rend_open() = let
   var vbo: uint = u0()
   val () = glGenVertexArrays(1, vao)
   val () = glGenBuffers(1, vbo)
-  val () = glBindVertexArray(vao)
-  val () = glBindBuffer(GL_ARRAY_BUFFER, vbo)
   val nbytes = MAXV * 8 * 4
-  val () = glBufferData(GL_ARRAY_BUFFER, anth_i2lint(nbytes), the_null_ptr, GL_DYNAMIC_DRAW)
-  val () = glEnableVertexAttribArray(u_of(0))
-  val () = glEnableVertexAttribArray(u_of(1))
-  val () = glEnableVertexAttribArray(u_of(2))
-  val () = gl_attrib(u_of(0), 2, 32, 0)
-  val () = gl_attrib(u_of(1), 4, 32, 8)
-  val () = gl_attrib(u_of(2), 2, 32, 24)
-  val () = glEnable(GL_BLEND)
-  val () = glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-  val () = glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
-  val () = glUseProgram(prog)
-  val () = glUniform1i(gl_uloc(prog, "u_tex"), 0)
+  val () = gl_batch_bind(vao, vbo, nbytes)
+  val () = gl_init_state(prog)
 in
   REND(@{
     prog= prog, vao= vao, vbo= vbo
@@ -99,7 +108,7 @@ implement rend_flush(r) =
 fun bind_mode(r: !Rend, mode: int, tex: uint): void =
   case+ r of
   | @REND(s) => let
-      val changed = (if s.mode <> mode orelse s.tex <> tex then 1 else 0): int
+      val changed: int = (if s.mode <> mode orelse s.tex <> tex then 1 else 0): int
     in
       fold@(r);
       if changed <> 0 then let
@@ -115,31 +124,42 @@ fun bind_mode(r: !Rend, mode: int, tex: uint): void =
       end else ()
     end
 
-fun push(r: !Rend, x: float, y: float, cr: float, cg: float, cb: float, ca: float, u: float, v: float): void =
-  case+ r of
-  | @REND(s) => let
-      val n = s.nvert
-    in
-      if n >= MAXV - 1 then let
-        val () = fold@(r)
-        val () = rend_flush(r)
+fun put_vertex(b: !Buf, base: int, x: float, y: float, cr: float, cg: float, cb: float, ca: float, u: float, v: float): void = let
+  val () = putf(b, base + 0, x)
+  val () = putf(b, base + 1, y)
+  val () = putf(b, base + 2, cr)
+  val () = putf(b, base + 3, cg)
+  val () = putf(b, base + 4, cb)
+  val () = putf(b, base + 5, ca)
+  val () = putf(b, base + 6, u)
+  val () = putf(b, base + 7, v)
+in
+end
+
+extern fun push_exh(r: !Rend, x: float, y: float, cr: float, cg: float, cb: float, ca: float, u: float, v: float): void = "mac#anth_die_void"
+
+fun push_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), r: !Rend, x: float, y: float, cr: float, cg: float, cb: float, ca: float, u: float, v: float): void =
+  if recfuel > 0 then (
+    case+ r of
+    | @REND(s) => let
+        val n = s.nvert
       in
-        push(r, x, y, cr, cg, cb, ca, u, v)
-      end else let
-        val base = n * 8
-        val () = putf(s.batch, base + 0, x)
-        val () = putf(s.batch, base + 1, y)
-        val () = putf(s.batch, base + 2, cr)
-        val () = putf(s.batch, base + 3, cg)
-        val () = putf(s.batch, base + 4, cb)
-        val () = putf(s.batch, base + 5, ca)
-        val () = putf(s.batch, base + 6, u)
-        val () = putf(s.batch, base + 7, v)
-        val () = s.nvert := n + 1
-      in
-        fold@(r)
+        if n >= MAXV - 1 then let
+          val () = fold@(r)
+          val () = rend_flush(r)
+        in
+          push_m(recfuel - 1, r, x, y, cr, cg, cb, ca, u, v)
+        end else let
+          val base = n * 8
+          val () = put_vertex(s.batch, base, x, y, cr, cg, cb, ca, u, v)
+          val () = s.nvert := n + 1
+        in
+          fold@(r)
+        end
       end
-    end
+  ) else push_exh(r, x, y, cr, cg, cb, ca, u, v)
+
+fun push(r: !Rend, x: float, y: float, cr: float, cg: float, cb: float, ca: float, u: float, v: float): void = push_m(airlock_nat(MAX_REC_FUEL), r, x, y, cr, cg, cb, ca, u, v)
 
 fun i2f(i: int): float = anth_d2f(n_i2d(i))
 
@@ -181,6 +201,16 @@ implement rend_rect(r, x, y, w, h, c) = let
 in
 end
 
+fun push_quad(r: !Rend, x0: float, y0: float, x1: float, y1: float, cr: float, cg: float, cb: float, ca: float, uu0: float, vv0: float, uu1: float, vv1: float): void = let
+  val () = push(r, x0, y0, cr, cg, cb, ca, uu0, vv0)
+  val () = push(r, x1, y0, cr, cg, cb, ca, uu1, vv0)
+  val () = push(r, x1, y1, cr, cg, cb, ca, uu1, vv1)
+  val () = push(r, x0, y0, cr, cg, cb, ca, uu0, vv0)
+  val () = push(r, x1, y1, cr, cg, cb, ca, uu1, vv1)
+  val () = push(r, x0, y1, cr, cg, cb, ca, uu0, vv1)
+in
+end
+
 implement rend_quad(r, tex, mode, x, y, w, h, u0d, v0d, u1d, v1d, c) = let
   val () = bind_mode(r, mode, tex)
   val x0 = i2f(x)
@@ -195,12 +225,7 @@ implement rend_quad(r, tex, mode, x, y, w, h, u0d, v0d, u1d, v1d, c) = let
   val vv0 = anth_d2f(v0d)
   val uu1 = anth_d2f(u1d)
   val vv1 = anth_d2f(v1d)
-  val () = push(r, x0, y0, cr, cg, cb, ca, uu0, vv0)
-  val () = push(r, x1, y0, cr, cg, cb, ca, uu1, vv0)
-  val () = push(r, x1, y1, cr, cg, cb, ca, uu1, vv1)
-  val () = push(r, x0, y0, cr, cg, cb, ca, uu0, vv0)
-  val () = push(r, x1, y1, cr, cg, cb, ca, uu1, vv1)
-  val () = push(r, x0, y1, cr, cg, cb, ca, uu0, vv1)
+  val () = push_quad(r, x0, y0, x1, y1, cr, cg, cb, ca, uu0, vv0, uu1, vv1)
 in
 end
 
@@ -247,6 +272,9 @@ implement rend_tex_sub_r8(r, tex, x, y, w, h, pixels) = let
 in
 end
 
+implement rend_tex_sub_buf(r, tex, x, y, w, h, pixels, off) =
+  rend_tex_sub_r8(r, tex, x, y, w, h, mem_ptr_at(buf_ptr(pixels), buf_cap(pixels), off))
+
 implement rend_tex_rgba(r, w, h, pixels) = let
   var tex: uint = u0()
   val () = rend_flush(r)
@@ -257,6 +285,9 @@ implement rend_tex_rgba(r, w, h, pixels) = let
 in
   tex
 end
+
+implement rend_tex_buf(r, w, h, pixels) =
+  rend_tex_rgba(r, w, h, buf_ptr(pixels))
 
 implement rend_tex_free(tex) = let
   var t: uint = tex

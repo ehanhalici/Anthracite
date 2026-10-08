@@ -21,8 +21,11 @@ fun font_atlas_h(f: !Font): int
 fun font_glyph(f: !Font, r: !Rend, cp: int, g: &gmet >> _): void
 fun font_kern(f: !Font, a: int, b: int): int
 fun font_draw(f: !Font, r: !Rend, x: int, y: int, p: ptr, n: int, c: uint): int
+fun font_draw_buf(f: !Font, r: !Rend, x: int, y: int, b: !Buf, n: int, c: uint): int
+fun font_draw_at(f: !Font, r: !Rend, x: int, y: int, b: !Buf, i: int, n: int, c: uint): int
 fun font_draw_scaled(f: !Font, r: !Rend, x: int, y: int, p: ptr, n: int, c: uint, snum: int, sden: int): int
+fun font_draw_scaled_buf(f: !Font, r: !Rend, x: int, y: int, b: !Buf, n: int, c: uint, snum: int, sden: int): int
 fun font_width(f: !Font, r: !Rend, p: ptr, n: int): int
-fun font_width_scaled(f: !Font, r: !Rend, p: ptr, n: int, snum: int, sden: int): int
+fun font_width_buf(f: !Font, r: !Rend, b: !Buf, n: int): int
 fun font_scan_fonts(dir: string, paths: &Buf >> _, names: &Buf >> _, meta: &Buf >> _, cnt: &int >> _): void
 fun font_selftest(r: !Rend): int

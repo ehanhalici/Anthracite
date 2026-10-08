@@ -7,7 +7,7 @@ endif()
 find_program(ANTHRACITE_CLANG clang REQUIRED)
 set(CMAKE_C_COMPILER "${ANTHRACITE_CLANG}" CACHE FILEPATH "clang" FORCE)
 set(CMAKE_EXE_LINKER_FLAGS "" CACHE STRING "" FORCE)
-set(CMAKE_C_FLAGS "-I${CMAKE_SOURCE_DIR}/src -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE -Wno-implicit-function-declaration -U_FORTIFY_SOURCE" CACHE STRING "" FORCE)
+set(CMAKE_C_FLAGS "-I${CMAKE_SOURCE_DIR}/src -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE -Wno-implicit-function-declaration -U_FORTIFY_SOURCE -Wall -Wextra -Wshadow -pedantic" CACHE STRING "" FORCE)
 set(CMAKE_C_FLAGS_DEBUG "-O0 -g" CACHE STRING "" FORCE)
 set(CMAKE_C_FLAGS_RELEASE "-O2 -flto=thin -march=native -funroll-loops -fomit-frame-pointer -fvectorize -fslp-vectorize -DNDEBUG" CACHE STRING "" FORCE)
 

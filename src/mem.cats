@@ -17,8 +17,6 @@ static inline void anth_mem_free(int n) {
   anth_live -= n;
 }
 
-static inline int anth_mem_allocs(void) { return anth_allocs; }
-static inline int anth_mem_frees(void) { return anth_frees; }
 static inline int anth_mem_live(void) { return anth_live; }
 
 static inline int anth_mem_byte(const void *p, int n, int i) {
@@ -60,47 +58,5 @@ static inline char *anth_ptr_string(void *p) {
   return p ? (char *)p : (char *)"";
 }
 
-static inline unsigned anth_u_zero(void) { return 0; }
-
-static inline unsigned anth_u_of(int n) {
-  if (n < 0) return 0;
-  return (unsigned)n;
-}
-
-static inline int anth_iand(int a, int n) {
-  return (int)((unsigned)a & (unsigned)n);
-}
-
-static inline int anth_bit(int a, int m) {
-  return (((unsigned)a & (unsigned)m) != 0) ? 1 : 0;
-}
-
-static inline int anth_u32(int hi, int lo) {
-  unsigned v = ((unsigned)(hi & 65535) << 16) | (unsigned)(lo & 65535);
-  if (v > 0x7fffffffu) return 0;
-  return (int)v;
-}
-
-static inline int anth_ms(long a, long b) {
-  long d = b - a;
-  if (d < 0) d = 0;
-  d /= 1000000L;
-  if (d > 2147483647L) return 2147483647;
-  return (int)d;
-}
-
-static inline long anth_i2lint(int n) { return (long)n; }
-
-static inline size_t anth_i2sz(int n) {
-  if (n < 0) return 0;
-  return (size_t)n;
-}
-
-static inline float anth_d2f(double d) { return (float)d; }
-
-static inline int anth_u2i(unsigned v) {
-  if (v > 0x7fffffffu) return 0;
-  return (int)v;
-}
 
 #endif

@@ -66,7 +66,7 @@ typedef struct anth_event {
 
 static int anth_xerr(Display *d, XErrorEvent *e) {
   (void)d;
-  fprintf(stderr, "anthracite: x error %u major %u\n", e->error_code, e->request_code);
+  fprintf(stderr, "event=x_error status=failed error_code=%u request_code=%u\n", e->error_code, e->request_code);
   return 0;
 }
 
@@ -164,12 +164,6 @@ static inline void anth_swap(Display *dpy, unsigned long win) {
 static inline void anth_destroy_ctx(Display *dpy, void *ctx) {
   if (ctx) glXDestroyContext(dpy, (GLXContext)ctx);
 }
-static inline void anth_vsync(Display *dpy, unsigned long win) {
-  typedef void (*fn_t)(Display *, GLXDrawable, int);
-  fn_t fn = (fn_t)glXGetProcAddressARB((const GLubyte *)"glXSwapIntervalEXT");
-  if (fn) fn(dpy, (GLXDrawable)win, 1);
-}
-
 static inline void anth_open_im(Display *dpy, unsigned long win, void **im, void **ic) {
   *im = 0;
   *ic = 0;
@@ -188,7 +182,6 @@ static inline void anth_close_im(void *im, void *ic) {
   if (im) XCloseIM((XIM)im);
 }
 
-static inline int anth_fd(Display *dpy) { return ConnectionNumber(dpy); }
 static inline int anth_poll(int fd, int ms) {
   if (anth_sig_exit) return 0;
   struct pollfd p;
@@ -272,12 +265,7 @@ static inline int anth_ev_w(anth_event *e) { return e->w; }
 static inline int anth_ev_h(anth_event *e) { return e->h; }
 static inline int anth_ev_button(anth_event *e) { return e->button; }
 static inline int anth_ev_mods(anth_event *e) { return e->mods; }
-static inline int anth_ev_text_n(anth_event *e) { return e->text_n; }
-static inline unsigned long anth_ev_keysym(anth_event *e) { return e->keysym; }
-static inline unsigned long anth_ev_atom0(anth_event *e) { return e->atom0; }
-static inline unsigned long anth_ev_atom1(anth_event *e) { return e->atom1; }
 static inline unsigned long anth_ev_atom2(anth_event *e) { return e->atom2; }
-static inline unsigned long anth_ev_win(anth_event *e) { return e->win; }
 static inline int anth_ev_text(anth_event *e, void *dst, int n) {
   int k;
   if (!e || !dst || n <= 0) return 0;
@@ -297,13 +285,6 @@ static inline int anth_ev_key_char(anth_event *e) {
   if (ks >= '0' && ks <= '9') return (int)ks;
   return 0;
 }
-static inline int anth_shift_on(anth_event *e) {
-  return (e && (e->mods & ShiftMask)) ? 1 : 0;
-}
-static inline int anth_ctrl_on(anth_event *e) {
-  return (e && (e->mods & ControlMask)) ? 1 : 0;
-}
-
 #define ANTH_KEYSYM_ISO_LEFT_TAB 0xFE20UL
 
 enum anth_key {

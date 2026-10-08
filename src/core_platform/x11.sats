@@ -4,10 +4,8 @@
 
 abst@ype event = $extype"anth_event"
 
-macdef EV_NONE = $extval(int, "ANTH_EV_NONE")
 macdef EV_CLOSE = $extval(int, "ANTH_EV_CLOSE")
 macdef EV_RESIZE = $extval(int, "ANTH_EV_RESIZE")
-macdef EV_EXPOSE = $extval(int, "ANTH_EV_EXPOSE")
 macdef EV_KEY = $extval(int, "ANTH_EV_KEY")
 macdef EV_DOWN = $extval(int, "ANTH_EV_DOWN")
 macdef EV_UP = $extval(int, "ANTH_EV_UP")
@@ -15,7 +13,6 @@ macdef EV_MOTION = $extval(int, "ANTH_EV_MOTION")
 macdef EV_WHEEL = $extval(int, "ANTH_EV_WHEEL")
 macdef EV_SEL_REQ = $extval(int, "ANTH_EV_SEL_REQ")
 macdef EV_SEL_NOTIFY = $extval(int, "ANTH_EV_SEL_NOTIFY")
-macdef EV_SEL_CLEAR = $extval(int, "ANTH_EV_SEL_CLEAR")
 
 macdef KEY_LEFT = $extval(int, "ANTH_KEY_LEFT")
 macdef KEY_RIGHT = $extval(int, "ANTH_KEY_RIGHT")
@@ -58,10 +55,9 @@ fun x_make_current(dpy: ptr, win: ulint, ctx: ptr): int = "mac#anth_make_current
 fun x_make_current_drop(dpy: ptr, win: ulint, ctx: ptr): void = "mac#anth_make_current"
 fun x_swap(dpy: ptr, win: ulint): void = "mac#anth_swap"
 fun x_destroy_ctx(dpy: ptr, ctx: ptr): void = "mac#anth_destroy_ctx"
-fun x_vsync(dpy: ptr, win: ulint): void = "mac#anth_vsync"
 fun x_open_im(dpy: ptr, win: ulint, im: &ptr >> _, ic: &ptr >> _): void = "mac#anth_open_im"
 fun x_close_im(im: ptr, ic: ptr): void = "mac#anth_close_im"
-fun x_fd(dpy: ptr): int = "mac#anth_fd"
+fun x_fd(dpy: ptr): int = "mac#ConnectionNumber"
 fun x_poll(fd: int, ms: int): int = "mac#anth_poll"
 fun x_next(dpy: ptr, ic: ptr, wm: ulint, ev: &event? >> event): void = "mac#anth_next"
 
@@ -72,16 +68,9 @@ fun ev_w(ev: &event): int = "mac#anth_ev_w"
 fun ev_h(ev: &event): int = "mac#anth_ev_h"
 fun ev_button(ev: &event): int = "mac#anth_ev_button"
 fun ev_mods(ev: &event): int = "mac#anth_ev_mods"
-fun ev_text_n(ev: &event): int = "mac#anth_ev_text_n"
-fun ev_keysym(ev: &event): ulint = "mac#anth_ev_keysym"
-fun ev_atom0(ev: &event): ulint = "mac#anth_ev_atom0"
-fun ev_atom1(ev: &event): ulint = "mac#anth_ev_atom1"
 fun ev_atom2(ev: &event): ulint = "mac#anth_ev_atom2"
-fun ev_win(ev: &event): ulint = "mac#anth_ev_win"
 fun ev_text(ev: &event, dst: ptr, n: int): int = "mac#anth_ev_text"
 fun ev_key_char(ev: &event): int = "mac#anth_ev_key_char"
-fun ev_shift_on(ev: &event): int = "mac#anth_shift_on"
-fun ev_ctrl_on(ev: &event): int = "mac#anth_ctrl_on"
 
 fun x_key_is(ev: &event, id: int): int = "mac#anth_key_is"
 fun mod_ctrl(): int = "mac#anth_mod_ctrl"
