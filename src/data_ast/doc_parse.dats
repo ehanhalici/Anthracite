@@ -49,10 +49,10 @@ fun starts_go(d: !Doc, i: int, re: int, s: string, k: int, n: int): int = starts
 fun starts_at(d: !Doc, i: int, re: int, s: string): int =
   starts_go(d, i, re, s, 0, c_strlen(s))
 
-fun blank_line(d: !Doc, i: int, re: int): int = let
+fun blank_line(d: !Doc, i: int, re: int): bool = let
   val j = skip_sp(d, i, re)
 in
-  if ige(j, re) orelse ieq(doc_byte(d, j), CHAR_LF) then 1 else 0
+  ige(j, re) orelse ieq(doc_byte(d, j), CHAR_LF)
 end
 
 extern fun count_hash_exh(d: !Doc, i: int, re: int, n: int): int = "mac#anth_die_int"
@@ -65,11 +65,11 @@ fun count_hash_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: i
 
 fun count_hash(d: !Doc, i: int, re: int, n: int): int = count_hash_m(airlock_nat(MAX_REC_FUEL), d, i, re, n)
 
-fun is_heading(d: !Doc, i: int, re: int): int = let
+fun is_heading(d: !Doc, i: int, re: int): bool = let
   val sp = skip_sp(d, i, re)
   val hashes = count_hash(d, sp, re, 0)
 in
-  if igt(hashes, 0) andalso ilt(iadd(sp, hashes), re) andalso ieq(doc_byte(d, iadd(sp, hashes)), CHAR_SPACE) then 1 else 0
+  igt(hashes, 0) andalso ilt(iadd(sp, hashes), re) andalso ieq(doc_byte(d, iadd(sp, hashes)), CHAR_SPACE)
 end
 
 fun forward(d: !Doc, i: int, re: int, en: int): int =
@@ -91,25 +91,25 @@ fun hr_go_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, re: int, 
 
 fun hr_go(d: !Doc, re: int, c: int, k: int, n: int): int = hr_go_m(airlock_nat(MAX_REC_FUEL), d, re, c, k, n)
 
-fun is_hr(d: !Doc, i: int, re: int): int = let
+fun is_hr(d: !Doc, i: int, re: int): bool = let
   val j = skip_sp(d, i, re)
   val c = if ilt(j, re) then doc_byte(d, j) else 0
 in
-  if ieq(c, CHAR_MINUS) orelse ieq(c, CHAR_STAR) orelse ieq(c, CHAR_UNDERSCORE) then hr_go(d, re, c, j, 0) else 0
+  if ieq(c, CHAR_MINUS) orelse ieq(c, CHAR_STAR) orelse ieq(c, CHAR_UNDERSCORE) then ieq(hr_go(d, re, c, j, 0), 1) else false
 end
 
-fun is_fence(d: !Doc, i: int, re: int): int = let
+fun is_fence(d: !Doc, i: int, re: int): bool = let
   val j = skip_sp(d, i, re)
 in
-  if isub(j, i) > 3 then 0 else starts_at(d, j, re, "```")
+  if isub(j, i) > 3 then false else ieq(starts_at(d, j, re, "```"), 1)
 end
 
-fun is_task(d: !Doc, i: int, re: int): int = let
+fun is_task(d: !Doc, i: int, re: int): bool = let
   val j = skip_sp(d, i, re)
   val c = if ilt(j, re) then doc_byte(d, j) else 0
   val k = skip_sp(d, iadd(j, 1), re)
 in
-  if (ieq(c, CHAR_MINUS) orelse ieq(c, CHAR_STAR) orelse ieq(c, CHAR_PLUS)) andalso ilt(iadd(k, 2), re) andalso ieq(doc_byte(d, k), CHAR_LBRACKET) andalso ieq(doc_byte(d, iadd(k, 2)), CHAR_RBRACKET) then 1 else 0
+  (ieq(c, CHAR_MINUS) orelse ieq(c, CHAR_STAR) orelse ieq(c, CHAR_PLUS)) andalso ilt(iadd(k, 2), re) andalso ieq(doc_byte(d, k), CHAR_LBRACKET) andalso ieq(doc_byte(d, iadd(k, 2)), CHAR_RBRACKET)
 end
 
 fun task_aux(d: !Doc, i: int, re: int): int = let
@@ -120,13 +120,13 @@ in
   task_aux_code(task_mark_of(c))
 end
 
-fun is_ul(d: !Doc, i: int, re: int): int = let
+fun is_ul(d: !Doc, i: int, re: int): bool = let
   val j = skip_sp(d, i, re)
   val c = if ilt(j, re) then doc_byte(d, j) else 0
   val n = if ilt(iadd(j, 1), re) then doc_byte(d, iadd(j, 1)) else 0
 in
-  if is_task(d, i, re) = 1 then 0
-  else if (ieq(c, CHAR_MINUS) orelse ieq(c, CHAR_STAR) orelse ieq(c, CHAR_PLUS)) andalso (ieq(n, CHAR_SPACE) orelse ieq(n, CHAR_TAB)) then 1 else 0
+  if is_task(d, i, re) then false
+  else (ieq(c, CHAR_MINUS) orelse ieq(c, CHAR_STAR) orelse ieq(c, CHAR_PLUS)) andalso (ieq(n, CHAR_SPACE) orelse ieq(n, CHAR_TAB))
 end
 
 extern fun ol_digs_exh(d: !Doc, re: int, k: int): int = "mac#anth_die_int"
@@ -141,16 +141,16 @@ fun ol_digs_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, re: int
 
 fun ol_digs(d: !Doc, re: int, k: int): int = ol_digs_m(airlock_nat(MAX_REC_FUEL), d, re, k)
 
-fun is_ol(d: !Doc, i: int, re: int): int = let
+fun is_ol(d: !Doc, i: int, re: int): bool = let
   val j = skip_sp(d, i, re)
 in
-  if ilt(j, re) andalso ige(doc_byte(d, j), CHAR_ZERO) andalso ile(doc_byte(d, j), CHAR_NINE) then ol_digs(d, re, j) else 0
+  ilt(j, re) andalso ige(doc_byte(d, j), CHAR_ZERO) andalso ile(doc_byte(d, j), CHAR_NINE) andalso ieq(ol_digs(d, re, j), 1)
 end
 
-fun is_quote(d: !Doc, i: int, re: int): int = let
+fun is_quote(d: !Doc, i: int, re: int): bool = let
   val j = skip_sp(d, i, re)
 in
-  if isub(j, i) > 3 then 0 else if ilt(j, re) andalso ieq(doc_byte(d, j), CHAR_GT) then 1 else 0
+  if isub(j, i) > 3 then false else ilt(j, re) andalso ieq(doc_byte(d, j), CHAR_GT)
 end
 
 extern fun table_bar_exh(d: !Doc, e: int, k: int): int = "mac#anth_die_int"
@@ -164,10 +164,10 @@ fun table_bar_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, e: in
 
 fun table_bar(d: !Doc, e: int, k: int): int = table_bar_m(airlock_nat(MAX_REC_FUEL), d, e, k)
 
-fun is_table(d: !Doc, i: int, re: int): int = let
+fun is_table(d: !Doc, i: int, re: int): bool = let
   val j = skip_sp(d, i, re)
 in
-  if ilt(j, re) andalso ieq(doc_byte(d, j), CHAR_PIPE) then 1 else 0
+  ilt(j, re) andalso ieq(doc_byte(d, j), CHAR_PIPE)
 end
 
 extern fun fndef_colon_exh(d: !Doc, e: int, k: int): int = "mac#anth_die_int"
@@ -181,11 +181,10 @@ fun fndef_colon_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, e: 
 
 fun fndef_colon(d: !Doc, e: int, k: int): int = fndef_colon_m(airlock_nat(MAX_REC_FUEL), d, e, k)
 
-fun is_fndef(d: !Doc, i: int, re: int): int = let
+fun is_fndef(d: !Doc, i: int, re: int): bool = let
   val j = skip_sp(d, i, re)
 in
-  if starts_at(d, j, re, "[^") = 0 then 0
-  else fndef_colon(d, at_end(d, j, re), j)
+  ieq(starts_at(d, j, re, "[^"), 1) andalso ieq(fndef_colon(d, at_end(d, j, re), j), 1)
 end
 
 fun ext_tail(d: !Doc, a: int, b: int, s: string): int = let
@@ -415,10 +414,10 @@ extern fun gather_exh(d: !Doc, i: int, re: int, pred: Gather): int = "mac#anth_d
 fun gather_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, re: int, pred: Gather): int =
   if recfuel > 0 then (
     if ige(i, re) then i
-    else if blank_line(d, i, re) = 1 then i
-    else if is_gather(pred, GatherQuote) andalso is_quote(d, i, re) = 0 then i
-    else if is_gather(pred, GatherTable) andalso is_table(d, i, re) = 0 then i
-    else if is_gather(pred, GatherAny) andalso (is_fence(d, i, re) = 1 orelse is_heading(d, i, re) = 1 orelse is_hr(d, i, re) = 1 orelse is_ul(d, i, re) = 1 orelse is_ol(d, i, re) = 1 orelse is_task(d, i, re) = 1 orelse is_quote(d, i, re) = 1 orelse is_table(d, i, re) = 1 orelse is_fndef(d, i, re) = 1) then i
+    else if blank_line(d, i, re) then i
+    else if is_gather(pred, GatherQuote) andalso not(is_quote(d, i, re)) then i
+    else if is_gather(pred, GatherTable) andalso not(is_table(d, i, re)) then i
+    else if is_gather(pred, GatherAny) andalso (is_fence(d, i, re) orelse is_heading(d, i, re) orelse is_hr(d, i, re) orelse is_ul(d, i, re) orelse is_ol(d, i, re) orelse is_task(d, i, re) orelse is_quote(d, i, re) orelse is_table(d, i, re) orelse is_fndef(d, i, re)) then i
     else let
       val e = at_end(d, i, re)
       val n = if ilt(e, re) andalso ieq(doc_byte(d, e), CHAR_LF) then iadd(e, 1) else e
@@ -448,7 +447,7 @@ extern fun fence_close_exh(d: !Doc, re: int, k: int): int = "mac#anth_die_int"
 fun fence_close_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, re: int, k: int): int =
   if recfuel > 0 then (
     if ige(k, re) then re
-    else if is_fence(d, k, re) = 1 then let
+    else if is_fence(d, k, re) then let
       val e = at_end(d, k, re)
     in
       if ilt(e, re) then iadd(e, 1) else e
@@ -562,13 +561,13 @@ fun parse_line_block(d: !Doc, i: int, re: int, depth: int): int = let
   val sp = skip_sp(d, i, re)
   val hashes = count_hash(d, sp, re, 0)
 in
-  if is_heading(d, i, re) = 1 then parse_heading(d, i, re, depth, hashes)
-  else if is_fndef(d, i, re) = 1 then parse_fndef(d, i, re, depth)
-  else if is_task(d, i, re) = 1 then parse_task(d, i, re, depth, sp)
-  else if is_ul(d, i, re) = 1 then parse_ul(d, i, re, depth, sp)
-  else if is_ol(d, i, re) = 1 then parse_ol(d, i, re, depth, sp)
-  else if is_quote(d, i, re) = 1 then parse_quote(d, i, re, depth)
-  else if is_table(d, i, re) = 1 then parse_table(d, i, re, depth)
+  if is_heading(d, i, re) then parse_heading(d, i, re, depth, hashes)
+  else if is_fndef(d, i, re) then parse_fndef(d, i, re, depth)
+  else if is_task(d, i, re) then parse_task(d, i, re, depth, sp)
+  else if is_ul(d, i, re) then parse_ul(d, i, re, depth, sp)
+  else if is_ol(d, i, re) then parse_ol(d, i, re, depth, sp)
+  else if is_quote(d, i, re) then parse_quote(d, i, re, depth)
+  else if is_table(d, i, re) then parse_table(d, i, re, depth)
   else parse_para(d, i, re, depth)
 end
 
@@ -577,14 +576,14 @@ extern fun parse_blocks_exh(d: !Doc, i: int, re: int, depth: int): void = "mac#a
 fun parse_blocks_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, re: int, depth: int): void =
   if recfuel > 0 then (
     if ige(i, re) then ()
-    else if blank_line(d, i, re) = 1 then let
+    else if blank_line(d, i, re) then let
       val e = at_end(d, i, re)
     in
       parse_blocks_m(recfuel - 1, d, if ilt(e, re) then iadd(e, 1) else e, re, depth)
     end
     else if ieq(i, 0) andalso starts_at(d, skip_sp(d, i, re), re, "---") = 1 then parse_blocks_m(recfuel - 1, d, parse_frontmatter(d, i, re, depth), re, depth)
-    else if is_fence(d, i, re) = 1 then parse_blocks_m(recfuel - 1, d, parse_fence(d, i, re, depth), re, depth)
-    else if is_hr(d, i, re) = 1 then parse_blocks_m(recfuel - 1, d, parse_hr(d, i, re, depth), re, depth)
+    else if is_fence(d, i, re) then parse_blocks_m(recfuel - 1, d, parse_fence(d, i, re, depth), re, depth)
+    else if is_hr(d, i, re) then parse_blocks_m(recfuel - 1, d, parse_hr(d, i, re, depth), re, depth)
     else parse_blocks_m(recfuel - 1, d, parse_line_block(d, i, re, depth), re, depth)
   ) else parse_blocks_exh(d, i, re, depth)
 
