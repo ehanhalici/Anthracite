@@ -896,9 +896,9 @@ fun draw_tabrow_impl(f: !Font, r: !Rend, ts: Tabs, x: int, active: int, i: int):
 
 implement draw_tabrow(f, r, ts, x, active, i) = draw_tabrow_impl(f, r, ts, x, active, i)
 
-extern fun tab_hit_test_impl_exh(f: !Font, r: !Rend, ts: !Tabs, x: int, click_x: int, i: int, out_ti: &int >> _, out_close: &int >> _): void = "mac#anth_die_void"
+extern fun tab_hit_test_impl_exh(f: !Font, r: !Rend, ts: !Tabs, x: int, click_x: int, i: int, out_ti: &int >> _, out_close: &bool >> _): void = "mac#anth_die_void"
 
-fun tab_hit_test_impl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, ts: !Tabs, x: int, click_x: int, i: int, out_ti: &int >> _, out_close: &int >> _): void =
+fun tab_hit_test_impl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, ts: !Tabs, x: int, click_x: int, i: int, out_ti: &int >> _, out_close: &bool >> _): void =
   if recfuel > 0 then (
     case+ ts of
     | TNil() => ()
@@ -910,14 +910,14 @@ fun tab_hit_test_impl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Fo
       in
         if ige(click_x, x) andalso ilt(click_x, iadd(x, tab_w)) then (
           out_ti := i;
-          out_close := (if ige(click_x, close_x) then 1 else 0)
+          out_close := ige(click_x, close_x)
         ) else (
           tab_hit_test_impl_m(recfuel - 1, f, r, rest, iadd(x, iadd(tab_w, 4)), click_x, iadd(i, 1), out_ti, out_close)
         )
       end
   ) else tab_hit_test_impl_exh(f, r, ts, x, click_x, i, out_ti, out_close)
 
-fun tab_hit_test_impl(f: !Font, r: !Rend, ts: !Tabs, x: int, click_x: int, i: int, out_ti: &int >> _, out_close: &int >> _): void = tab_hit_test_impl_m(airlock_nat(MAX_REC_FUEL), f, r, ts, x, click_x, i, out_ti, out_close)
+fun tab_hit_test_impl(f: !Font, r: !Rend, ts: !Tabs, x: int, click_x: int, i: int, out_ti: &int >> _, out_close: &bool >> _): void = tab_hit_test_impl_m(airlock_nat(MAX_REC_FUEL), f, r, ts, x, click_x, i, out_ti, out_close)
 
 implement tab_hit_test(f, r, ts, start_x, click_x, out_ti, out_close) =
   tab_hit_test_impl(f, r, ts, start_x, click_x, 0, out_ti, out_close)

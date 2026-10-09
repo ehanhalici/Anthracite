@@ -1471,15 +1471,15 @@ end
 fun handle_down_tab_bar_selection(
   s: &App_record >> _, ts: !Tabs, f: !Font, r: !Rend,
   onbar: Toggle, skip: Toggle, x: int, tab_x0: int, bx: int,
-  ti: &int >> _, close: &int >> _
+  ti: &int >> _, close: &bool >> _
 ): void = let
   val () = if is_on(onbar) andalso is_off(skip) andalso ige(x, tab_x0) andalso ilt(x, bx) then
     tab_hit_test(f, r, ts, tab_x0, x, ti, close)
   else ()
   val ntabs = tabs_len(ts)
-  val pick = if is_on(onbar) andalso is_off(skip) andalso ige(ti, 0) andalso ilt(ti, ntabs) andalso ieq(close, 0) then 1 else 0
+  val pick = is_on(onbar) andalso is_off(skip) andalso ige(ti, 0) andalso ilt(ti, ntabs) andalso not(close)
 in
-  if ieq(pick, 1) then down_pick_tab(s, x, ti) else ()
+  if pick then down_pick_tab(s, x, ti) else ()
 end
 
 fun text_item_hit(s: &App_record, skip: Toggle, inside: Toggle, item: int, which: TextItem): bool =
@@ -1583,11 +1583,11 @@ fun on_down_tabs(s: &App_record >> _, p: !Plat, f: !Font, r: !Rend, ev: &event, 
   val () = s.tabs := TNil()
   val idx = pane_of(s.focus, s.active, s.righti)
   var ti: int = ~1
-  var close: int = 0
+  var close: bool = false
   val () = handle_down_tab_bar_selection(s, ts0, f, r, onbar, skip, x, topbar_tab_start_x(), topbar_mode_btn_x(w), ti, close)
   var imgdel: Toggle = Off
   var clear: Toggle = Off
-  val ts1 = handle_down_context_menu(s, p, ts0, idx, skip, inside, item, ti, toggle_of(ieq(close, 1)), imgdel, clear)
+  val ts1 = handle_down_context_menu(s, p, ts0, idx, skip, inside, item, ti, toggle_of(close), imgdel, clear)
   val ts2 = handle_down_sidebar_click(s, f, ts1, onside, x, y)
   val ts3 = handle_editor_click(s, f, r, ts2, ev, x, y, w, sidew, skip, onbar, onside, button, idx, imgdel, clear)
   val () = handle_down_context_menu_open(s, button, skip, onside, x, y)
@@ -1659,7 +1659,7 @@ end
 fun on_up_reorder_tab(s: &App_record >> _, f: !Font, r: !Rend, x: int): void = let
   val tab_x0 = topbar_tab_start_x()
   var target_ti: int = ~1
-  var dummy_close: int = 0
+  var dummy_close: bool = false
   val () = tab_hit_test(f, r, s.tabs, tab_x0, x, target_ti, dummy_close)
   val ntabs = tabs_len(s.tabs)
   val ti = if ige(target_ti, 0) then target_ti else if ige(x, tab_x0) then isub(ntabs, 1) else 0
