@@ -1448,21 +1448,30 @@ implement doc_up_select(d) = doc_set_caret_extend(d, doc_up_target(d))
 implement doc_down_move(d) = doc_set_caret_move(d, doc_down_target(d))
 implement doc_down_select(d) = doc_set_caret_extend(d, doc_down_target(d))
 
-fun doc_char_class(b: int): int =
-  if b <= 32 then 0
-  else if (b >= 97 andalso b <= 122) orelse (b >= 65 andalso b <= 90) orelse (b >= 48 andalso b <= 57) orelse (b >= 128) then 1
-  else 2
+datatype CharClass = ClassBlank | ClassWord | ClassOther
+
+fun class_code(c: CharClass): int = case+ c of
+  | ClassBlank() => 0
+  | ClassWord() => 1
+  | ClassOther() => 2
+
+fun is_class(a: CharClass, b: CharClass): bool = class_code(a) = class_code(b)
+
+fun doc_char_class(b: int): CharClass =
+  if b <= 32 then ClassBlank()
+  else if (b >= 97 andalso b <= 122) orelse (b >= 65 andalso b <= 90) orelse (b >= 48 andalso b <= 57) orelse (b >= 128) then ClassWord()
+  else ClassOther()
 
 fun word_left_pos(d: !Doc, cur: int): int =
   if cur <= 0 then 0
   else let
     var i: int = cur
-    val () = while (i > 0 andalso doc_char_class(doc_byte(d, isub(i, 1))) = 0) (
+    val () = while (i > 0 andalso is_class(doc_char_class(doc_byte(d, isub(i, 1))), ClassBlank)) (
       i := utf8_prev(d, i)
     )
     val () = if i > 0 then let
       val cls = doc_char_class(doc_byte(d, isub(i, 1)))
-      val () = while (i > 0 andalso doc_char_class(doc_byte(d, isub(i, 1))) = cls) (
+      val () = while (i > 0 andalso is_class(doc_char_class(doc_byte(d, isub(i, 1))), cls)) (
         i := utf8_prev(d, i)
       )
     in
@@ -1471,21 +1480,21 @@ fun word_left_pos(d: !Doc, cur: int): int =
     i
   end
 
-extern fun skip_class_run_exh(d: !Doc, i: int, len: int, cls: int): int = "mac#anth_die_int"
+extern fun skip_class_run_exh(d: !Doc, i: int, len: int, cls: CharClass): int = "mac#anth_die_int"
 
-fun skip_class_run_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, len: int, cls: int): int =
+fun skip_class_run_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, len: int, cls: CharClass): int =
   if recfuel > 0 then (
-    if ilt(i, len) andalso ieq(doc_char_class(doc_byte(d, i)), cls) then skip_class_run_m(recfuel - 1, d, utf8_next(d, i), len, cls)
+    if ilt(i, len) andalso is_class(doc_char_class(doc_byte(d, i)), cls) then skip_class_run_m(recfuel - 1, d, utf8_next(d, i), len, cls)
     else i
   ) else skip_class_run_exh(d, i, len, cls)
 
-fun skip_class_run(d: !Doc, i: int, len: int, cls: int): int = skip_class_run_m(airlock_nat(MAX_REC_FUEL), d, i, len, cls)
+fun skip_class_run(d: !Doc, i: int, len: int, cls: CharClass): int = skip_class_run_m(airlock_nat(MAX_REC_FUEL), d, i, len, cls)
 
 extern fun skip_blank_run_exh(d: !Doc, i: int, len: int): int = "mac#anth_die_int"
 
 fun skip_blank_run_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, len: int): int =
   if recfuel > 0 then (
-    if ilt(i, len) andalso ieq(doc_char_class(doc_byte(d, i)), 0) andalso ine(doc_byte(d, i), 10) then skip_blank_run_m(recfuel - 1, d, utf8_next(d, i), len)
+    if ilt(i, len) andalso is_class(doc_char_class(doc_byte(d, i)), ClassBlank) andalso ine(doc_byte(d, i), 10) then skip_blank_run_m(recfuel - 1, d, utf8_next(d, i), len)
     else i
   ) else skip_blank_run_exh(d, i, len)
 
@@ -1498,7 +1507,7 @@ in
   else let
     val cls = doc_char_class(doc_byte(d, cur))
   in
-    if cls = 0 then skip_class_run(d, cur, len, 0)
+    if is_class(cls, ClassBlank) then skip_class_run(d, cur, len, ClassBlank)
     else skip_blank_run(d, skip_class_run(d, cur, len, cls), len)
   end
 end
