@@ -46,8 +46,8 @@ fun starts_go_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: in
 
 fun starts_go(d: !Doc, i: int, re: int, s: string, k: int, n: int): int = starts_go_m(airlock_nat(MAX_REC_FUEL), d, i, re, s, k, n)
 
-fun starts_at(d: !Doc, i: int, re: int, s: string): int =
-  starts_go(d, i, re, s, 0, c_strlen(s))
+fun starts_at(d: !Doc, i: int, re: int, s: string): bool =
+  ieq(starts_go(d, i, re, s, 0, c_strlen(s)), 1)
 
 fun blank_line(d: !Doc, i: int, re: int): bool = let
   val j = skip_sp(d, i, re)
@@ -89,19 +89,19 @@ fun hr_go_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, re: int, 
     else 0
   ) else hr_go_exh(d, re, c, k, n)
 
-fun hr_go(d: !Doc, re: int, c: int, k: int, n: int): int = hr_go_m(airlock_nat(MAX_REC_FUEL), d, re, c, k, n)
+fun hr_go(d: !Doc, re: int, c: int, k: int, n: int): bool = ieq(hr_go_m(airlock_nat(MAX_REC_FUEL), d, re, c, k, n), 1)
 
 fun is_hr(d: !Doc, i: int, re: int): bool = let
   val j = skip_sp(d, i, re)
   val c = if ilt(j, re) then doc_byte(d, j) else 0
 in
-  if ieq(c, CHAR_MINUS) orelse ieq(c, CHAR_STAR) orelse ieq(c, CHAR_UNDERSCORE) then ieq(hr_go(d, re, c, j, 0), 1) else false
+  if ieq(c, CHAR_MINUS) orelse ieq(c, CHAR_STAR) orelse ieq(c, CHAR_UNDERSCORE) then hr_go(d, re, c, j, 0) else false
 end
 
 fun is_fence(d: !Doc, i: int, re: int): bool = let
   val j = skip_sp(d, i, re)
 in
-  if isub(j, i) > 3 then false else ieq(starts_at(d, j, re, "```"), 1)
+  if isub(j, i) > 3 then false else starts_at(d, j, re, "```")
 end
 
 fun is_task(d: !Doc, i: int, re: int): bool = let
@@ -139,12 +139,12 @@ fun ol_digs_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, re: int
     else 0
   ) else ol_digs_exh(d, re, k)
 
-fun ol_digs(d: !Doc, re: int, k: int): int = ol_digs_m(airlock_nat(MAX_REC_FUEL), d, re, k)
+fun ol_digs(d: !Doc, re: int, k: int): bool = ieq(ol_digs_m(airlock_nat(MAX_REC_FUEL), d, re, k), 1)
 
 fun is_ol(d: !Doc, i: int, re: int): bool = let
   val j = skip_sp(d, i, re)
 in
-  ilt(j, re) andalso ige(doc_byte(d, j), CHAR_ZERO) andalso ile(doc_byte(d, j), CHAR_NINE) andalso ieq(ol_digs(d, re, j), 1)
+  ilt(j, re) andalso ige(doc_byte(d, j), CHAR_ZERO) andalso ile(doc_byte(d, j), CHAR_NINE) andalso ol_digs(d, re, j)
 end
 
 fun is_quote(d: !Doc, i: int, re: int): bool = let
@@ -179,23 +179,23 @@ fun fndef_colon_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, e: 
     else fndef_colon_m(recfuel - 1, d, e, iadd(k, 1))
   ) else fndef_colon_exh(d, e, k)
 
-fun fndef_colon(d: !Doc, e: int, k: int): int = fndef_colon_m(airlock_nat(MAX_REC_FUEL), d, e, k)
+fun fndef_colon(d: !Doc, e: int, k: int): bool = ieq(fndef_colon_m(airlock_nat(MAX_REC_FUEL), d, e, k), 1)
 
 fun is_fndef(d: !Doc, i: int, re: int): bool = let
   val j = skip_sp(d, i, re)
 in
-  ieq(starts_at(d, j, re, "[^"), 1) andalso ieq(fndef_colon(d, at_end(d, j, re), j), 1)
+  starts_at(d, j, re, "[^") andalso fndef_colon(d, at_end(d, j, re), j)
 end
 
-fun ext_tail(d: !Doc, a: int, b: int, s: string): int = let
+fun ext_tail(d: !Doc, a: int, b: int, s: string): bool = let
   val n = c_strlen(s)
   val p = isub(b, n)
 in
-  if ilt(p, a) then 0 else starts_at(d, p, b, s)
+  if ilt(p, a) then false else starts_at(d, p, b, s)
 end
 
 fun ext_image(d: !Doc, a: int, b: int): bool =
-  ieq(ext_tail(d, a, b, ".png"), 1) orelse ieq(ext_tail(d, a, b, ".jpg"), 1) orelse ieq(ext_tail(d, a, b, ".jpeg"), 1) orelse ieq(ext_tail(d, a, b, ".bmp"), 1)
+  ext_tail(d, a, b, ".png") orelse ext_tail(d, a, b, ".jpg") orelse ext_tail(d, a, b, ".jpeg") orelse ext_tail(d, a, b, ".bmp")
 
 extern fun find_close_exh(d: !Doc, i: int, re: int, a: int, b: int): int = "mac#anth_die_int"
 
@@ -433,7 +433,7 @@ extern fun fm_close_exh(d: !Doc, re: int, k: int): int = "mac#anth_die_int"
 fun fm_close_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, re: int, k: int): int =
   if recfuel > 0 then (
     if ige(k, re) then re
-    else if starts_at(d, skip_sp(d, k, re), re, "---") = 1 then let
+    else if starts_at(d, skip_sp(d, k, re), re, "---") then let
       val e = at_end(d, k, re)
     in
       if ilt(e, re) then iadd(e, 1) else e
@@ -581,7 +581,7 @@ fun parse_blocks_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i:
     in
       parse_blocks_m(recfuel - 1, d, if ilt(e, re) then iadd(e, 1) else e, re, depth)
     end
-    else if ieq(i, 0) andalso starts_at(d, skip_sp(d, i, re), re, "---") = 1 then parse_blocks_m(recfuel - 1, d, parse_frontmatter(d, i, re, depth), re, depth)
+    else if ieq(i, 0) andalso starts_at(d, skip_sp(d, i, re), re, "---") then parse_blocks_m(recfuel - 1, d, parse_frontmatter(d, i, re, depth), re, depth)
     else if is_fence(d, i, re) then parse_blocks_m(recfuel - 1, d, parse_fence(d, i, re, depth), re, depth)
     else if is_hr(d, i, re) then parse_blocks_m(recfuel - 1, d, parse_hr(d, i, re, depth), re, depth)
     else parse_blocks_m(recfuel - 1, d, parse_line_block(d, i, re, depth), re, depth)
