@@ -617,9 +617,9 @@ end
 fun maybe_restart(src: !Buf, n: int, st: &JBit >> _, meta: !Buf, mcu_i: int): void = let
   val dri = buf_get32(meta, 6)
   val rem = if ile(dri, 0) then 1 else isub(mcu_i, imul(idiv(mcu_i, dri), dri))
-  val go = if ile(dri, 0) orelse ile(mcu_i, 0) orelse ine(rem, 0) then 0 else 1
+  val go = not(ile(dri, 0) orelse ile(mcu_i, 0) orelse ine(rem, 0))
 in
-  if ieq(go, 1) then rest_do(src, n, st, meta) else rest_go(src, n, st, meta)
+  if go then rest_do(src, n, st, meta) else rest_go(src, n, st, meta)
 end
 
 fun step_idle(src: !Buf, n: int, st: &JBit >> _, meta: !Buf, hf: !Buf, qt: !Buf, coef: !Buf, samp: !Buf, dst: !Buf): void = let
@@ -670,28 +670,28 @@ in
   )
 end
 
-fun jpg_fit(w: int, h: int, nc: int, mh: int, mv: int): int =
-  if ile(w, 0) orelse ile(h, 0) orelse ile(nc, 0) then 0
-  else if igt(w, 8192) orelse igt(h, 8192) orelse igt(imul(w, h), 1048576) then 0
-  else if ilt(mh, 1) orelse igt(mh, 2) orelse ilt(mv, 1) orelse igt(mv, 2) then 0
-  else 1
+fun jpg_fit(w: int, h: int, nc: int, mh: int, mv: int): bool =
+  if ile(w, 0) orelse ile(h, 0) orelse ile(nc, 0) then false
+  else if igt(w, 8192) orelse igt(h, 8192) orelse igt(imul(w, h), 1048576) then false
+  else if ilt(mh, 1) orelse igt(mh, 2) orelse ilt(mv, 1) orelse igt(mv, 2) then false
+  else true
 
-fun jpg_parse(src: !Buf, meta: !Buf, qt: !Buf, hf: !Buf): int = let
+fun jpg_parse(src: !Buf, meta: !Buf, qt: !Buf, hf: !Buf): bool = let
   val () = buf_zero(meta)
   val () = buf_zero(qt)
   val () = buf_zero(hf)
 in
-  jmarkers(src, meta, qt, hf, 0)
+  ieq(jmarkers(src, meta, qt, hf, 0), 1)
 end
 
-fun jpg_fit_of(parsed: Toggle, meta: !Buf): int = let
+fun jpg_fit_of(parsed: Toggle, meta: !Buf): bool = let
   val w = buf_get32(meta, 0)
   val h = buf_get32(meta, 1)
   val nc = buf_get32(meta, 2)
   val mh = buf_get32(meta, 3)
   val mv = buf_get32(meta, 4)
 in
-  if is_on(parsed) then jpg_fit(w, h, nc, mh, mv) else 0
+  if is_on(parsed) then jpg_fit(w, h, nc, mh, mv) else false
 end
 
 fun jpg_out_buf(fit: Toggle, w: int, h: int): Buf =
@@ -727,18 +727,18 @@ implement decode_jpg(src, wout, hout) = let
   var coef = buf_make(256)
   var samp = buf_make(4096)
   val parsed = jpg_parse(src, meta, qt, hf)
-  val fit = jpg_fit_of(toggle_of(ieq(parsed, 1)), meta)
+  val fit = jpg_fit_of(toggle_of(parsed), meta)
   val w = buf_get32(meta, 0)
   val h = buf_get32(meta, 1)
-  val dst = jpg_out_buf(toggle_of(ieq(fit, 1)), w, h)
-  val err = jpg_scan(src, meta, qt, hf, coef, samp, dst, toggle_of(ieq(fit, 1)), w, h)
+  val dst = jpg_out_buf(toggle_of(fit), w, h)
+  val err = jpg_scan(src, meta, qt, hf, coef, samp, dst, toggle_of(fit), w, h)
   val () = buf_free(meta)
   val () = buf_free(qt)
   val () = buf_free(hf)
   val () = buf_free(coef)
   val () = buf_free(samp)
 in
-  jpg_finish(dst, toggle_of(ieq(fit, 1)), w, h, err, wout, hout)
+  jpg_finish(dst, toggle_of(fit), w, h, err, wout, hout)
 end
 
 fun jpg_byte_0(i: int): int =
