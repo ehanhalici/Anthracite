@@ -9,7 +9,7 @@ staload "os/fs.sats"
 staload "data_ast/doc.sats"
 staload "data_ast/doc_parse.sats"
 
-fun npush(d: !Doc, kind: int, st: int, en: int, depth: int, aux: int): void =
+fun npush(d: !Doc, kind: NodeKind, st: int, en: int, depth: int, aux: int): void =
   doc_push_node(d, kind, st, en, depth, aux)
 
 extern fun at_end_exh(d: !Doc, i: int, re: int): int = "mac#anth_die_int"
@@ -255,7 +255,7 @@ fun tag_end_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int,
 
 fun tag_end(d: !Doc, i: int, re: int): int = tag_end_m(airlock_nat(MAX_REC_FUEL), d, i, re)
 
-fun emit_double_inline(d: !Doc, i: int, re: int, depth: int, kind: int, ch: int): int = let
+fun emit_double_inline(d: !Doc, i: int, re: int, depth: int, kind: NodeKind, ch: int): int = let
   val c = find_close(d, iadd(i, 2), re, ch, ch)
 in
   if c < 0 then ~1
@@ -266,7 +266,7 @@ in
   end
 end
 
-fun emit_single_inline(d: !Doc, i: int, re: int, depth: int, kind: int, ch: int): int = let
+fun emit_single_inline(d: !Doc, i: int, re: int, depth: int, kind: NodeKind, ch: int): int = let
   val c = find_one(d, iadd(i, 1), re, ch)
 in
   if c < 0 then ~1
@@ -283,7 +283,7 @@ in
   if c < 0 then ~1
   else let
     val en = iadd(c, 2)
-    val kind = if ext_image(d, iadd(i, 3), c) = 1 then NK_IMAGE else NK_EMBED
+    val kind = if ext_image(d, iadd(i, 3), c) = 1 then KImage else KEmbed
     val () = npush(d, kind, i, en, depth, 0)
   in
     en
@@ -295,7 +295,7 @@ fun emit_image_inline(d: !Doc, i: int, re: int, depth: int): int = let
 in
   if c < 0 then ~1
   else let
-    val () = npush(d, NK_IMAGE, i, iadd(c, 1), depth, 1)
+    val () = npush(d, KImage, i, iadd(c, 1), depth, 1)
   in
     iadd(c, 1)
   end
@@ -306,7 +306,7 @@ fun emit_fn_inline(d: !Doc, i: int, re: int, depth: int): int = let
 in
   if c < 0 then ~1
   else let
-    val () = npush(d, NK_FN, i, iadd(c, 1), depth, 0)
+    val () = npush(d, KFn, i, iadd(c, 1), depth, 0)
   in
     iadd(c, 1)
   end
@@ -322,7 +322,7 @@ in
     if c_paren < 0 then ~1
     else let
       val en = iadd(c_paren, 1)
-      val () = npush(d, NK_LINK, i, en, depth, c_bracket)
+      val () = npush(d, KLink, i, en, depth, c_bracket)
     in
       en
     end
@@ -334,7 +334,7 @@ fun emit_tag_inline(d: !Doc, i: int, re: int, depth: int): int = let
 in
   if ile(e, iadd(i, 1)) then ~1
   else let
-    val () = npush(d, NK_TAG, i, e, depth, 0)
+    val () = npush(d, KTag, i, e, depth, 0)
   in
     e
   end
@@ -346,25 +346,25 @@ fun emit_bang_inline(d: !Doc, i: int, re: int, depth: int): int =
   else ~1
 
 fun emit_bracket_inline(d: !Doc, i: int, re: int, depth: int): int =
-  if ilt(iadd(i, 1), re) andalso ieq(doc_byte(d, iadd(i, 1)), CHAR_LBRACKET) then emit_double_inline(d, i, re, depth, NK_WIKI, CHAR_RBRACKET)
+  if ilt(iadd(i, 1), re) andalso ieq(doc_byte(d, iadd(i, 1)), CHAR_LBRACKET) then emit_double_inline(d, i, re, depth, KWiki, CHAR_RBRACKET)
   else if ilt(iadd(i, 1), re) andalso ieq(doc_byte(d, iadd(i, 1)), CHAR_CARET) then emit_fn_inline(d, i, re, depth)
   else emit_link_inline(d, i, re, depth)
 
 fun emit_star_inline(d: !Doc, i: int, re: int, depth: int): int =
-  if ilt(iadd(i, 1), re) andalso ieq(doc_byte(d, iadd(i, 1)), CHAR_STAR) then emit_double_inline(d, i, re, depth, NK_BOLD, CHAR_STAR)
-  else emit_single_inline(d, i, re, depth, NK_ITALIC, CHAR_STAR)
+  if ilt(iadd(i, 1), re) andalso ieq(doc_byte(d, iadd(i, 1)), CHAR_STAR) then emit_double_inline(d, i, re, depth, KBold, CHAR_STAR)
+  else emit_single_inline(d, i, re, depth, KItalic, CHAR_STAR)
 
 fun emit_strike_inline(d: !Doc, i: int, re: int, depth: int): int =
-  if ilt(iadd(i, 1), re) andalso ieq(doc_byte(d, iadd(i, 1)), CHAR_TILDE) then emit_double_inline(d, i, re, depth, NK_STRIKE, CHAR_TILDE)
+  if ilt(iadd(i, 1), re) andalso ieq(doc_byte(d, iadd(i, 1)), CHAR_TILDE) then emit_double_inline(d, i, re, depth, KStrike, CHAR_TILDE)
   else ~1
 
 fun emit_high_inline(d: !Doc, i: int, re: int, depth: int): int =
-  if ilt(iadd(i, 1), re) andalso ieq(doc_byte(d, iadd(i, 1)), CHAR_EQUAL) then emit_double_inline(d, i, re, depth, NK_HIGH, CHAR_EQUAL)
+  if ilt(iadd(i, 1), re) andalso ieq(doc_byte(d, iadd(i, 1)), CHAR_EQUAL) then emit_double_inline(d, i, re, depth, KHigh, CHAR_EQUAL)
   else ~1
 
 fun emit_math_inline(d: !Doc, i: int, re: int, depth: int): int =
-  if ilt(iadd(i, 1), re) andalso ieq(doc_byte(d, iadd(i, 1)), CHAR_DOLLAR) then emit_double_inline(d, i, re, depth, NK_MATHB, CHAR_DOLLAR)
-  else emit_single_inline(d, i, re, depth, NK_MATH, CHAR_DOLLAR)
+  if ilt(iadd(i, 1), re) andalso ieq(doc_byte(d, iadd(i, 1)), CHAR_DOLLAR) then emit_double_inline(d, i, re, depth, KMathb, CHAR_DOLLAR)
+  else emit_single_inline(d, i, re, depth, KMath, CHAR_DOLLAR)
 
 (* Emits the inline construct starting at i (if any); returns its end, or ~1 when none applies. *)
 fun emit_construct(d: !Doc, i: int, re: int, depth: int): int =
@@ -394,7 +394,7 @@ fun emit_inlines_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i:
 and emit_text_or {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, re: int, depth: int): void =
   if recfuel > 0 then let
     val e = text_nxt(d, re, iadd(i, 1))
-    val () = if igt(e, i) then npush(d, NK_TEXT, i, e, depth, 0) else ()
+    val () = if igt(e, i) then npush(d, KText, i, e, depth, 0) else ()
   in
     emit_inlines_m(recfuel - 1, d, e, re, depth)
   end else ()
@@ -456,7 +456,7 @@ fun parse_frontmatter(d: !Doc, i: int, re: int, depth: int): int = let
   val e1 = at_end(d, i, re)
   val n1 = if ilt(e1, re) then iadd(e1, 1) else e1
   val en = fm_close(d, re, n1)
-  val () = npush(d, NK_FM, i, en, depth, 0)
+  val () = npush(d, KFm, i, en, depth, 0)
 in
   en
 end
@@ -465,7 +465,7 @@ fun parse_fence(d: !Doc, i: int, re: int, depth: int): int = let
   val e1 = at_end(d, i, re)
   val n1 = if ilt(e1, re) then iadd(e1, 1) else e1
   val en = fence_close(d, re, n1)
-  val () = npush(d, NK_CODE, i, en, depth, 0)
+  val () = npush(d, KCode, i, en, depth, 0)
 in
   en
 end
@@ -473,7 +473,7 @@ end
 fun parse_hr(d: !Doc, i: int, re: int, depth: int): int = let
   val e = at_end(d, i, re)
   val n = if ilt(e, re) then iadd(e, 1) else e
-  val () = npush(d, NK_HR, i, n, depth, 0)
+  val () = npush(d, KHr, i, n, depth, 0)
 in
   n
 end
@@ -481,7 +481,7 @@ end
 fun parse_heading(d: !Doc, i: int, re: int, depth: int, hashes: int): int = let
   val e = at_end(d, i, re)
   val n = if ilt(e, re) then iadd(e, 1) else e
-  val kind = iadd(NK_H1, isub(hashes, 1))
+  val kind = heading_kind(hashes)
   val () = npush(d, kind, i, n, depth, hashes)
   val () = emit_inlines(d, i, e, iadd(depth, 1))
 in
@@ -491,7 +491,7 @@ end
 fun parse_fndef(d: !Doc, i: int, re: int, depth: int): int = let
   val e = at_end(d, i, re)
   val n = if ilt(e, re) then iadd(e, 1) else e
-  val () = npush(d, NK_FNDEF, i, n, depth, 0)
+  val () = npush(d, KFndef, i, n, depth, 0)
 in
   n
 end
@@ -499,7 +499,7 @@ end
 fun parse_task(d: !Doc, i: int, re: int, depth: int, sp: int): int = let
   val e = at_end(d, i, re)
   val n = if ilt(e, re) then iadd(e, 1) else e
-  val () = npush(d, NK_TASK, i, n, iadd(depth, idiv(isub(sp, i), 2)), task_aux(d, i, re))
+  val () = npush(d, KTask, i, n, iadd(depth, idiv(isub(sp, i), 2)), task_aux(d, i, re))
   val () = emit_inlines(d, i, e, iadd(depth, 1))
 in
   n
@@ -508,8 +508,8 @@ end
 fun parse_ul(d: !Doc, i: int, re: int, depth: int, sp: int): int = let
   val e = at_end(d, i, re)
   val n = if ilt(e, re) then iadd(e, 1) else e
-  val () = npush(d, NK_LI, i, n, iadd(depth, idiv(isub(sp, i), 2)), 0)
-  val () = npush(d, NK_UL, i, n, depth, 0)
+  val () = npush(d, KLi, i, n, iadd(depth, idiv(isub(sp, i), 2)), 0)
+  val () = npush(d, KUl, i, n, depth, 0)
   val () = emit_inlines(d, i, e, iadd(depth, 1))
 in
   n
@@ -518,8 +518,8 @@ end
 fun parse_ol(d: !Doc, i: int, re: int, depth: int, sp: int): int = let
   val e = at_end(d, i, re)
   val n = if ilt(e, re) then iadd(e, 1) else e
-  val () = npush(d, NK_LI, i, n, iadd(depth, idiv(isub(sp, i), 2)), 1)
-  val () = npush(d, NK_OL, i, n, depth, 0)
+  val () = npush(d, KLi, i, n, iadd(depth, idiv(isub(sp, i), 2)), 1)
+  val () = npush(d, KOl, i, n, depth, 0)
   val () = emit_inlines(d, i, e, iadd(depth, 1))
 in
   n
@@ -527,7 +527,7 @@ end
 
 fun parse_quote(d: !Doc, i: int, re: int, depth: int): int = let
   val en = gather(d, i, re, 1)
-  val () = npush(d, NK_QUOTE, i, en, depth, 0)
+  val () = npush(d, KQuote, i, en, depth, 0)
   val () = emit_inlines(d, i, en, iadd(depth, 1))
 in
   forward(d, i, re, en)
@@ -535,15 +535,15 @@ end
 
 fun parse_table(d: !Doc, i: int, re: int, depth: int): int = let
   val en = gather(d, i, re, 2)
-  val () = npush(d, NK_TABLE, i, en, depth, 0)
-  val () = npush(d, NK_TD, i, en, iadd(depth, 1), 0)
+  val () = npush(d, KTable, i, en, depth, 0)
+  val () = npush(d, KTd, i, en, iadd(depth, 1), 0)
 in
   forward(d, i, re, en)
 end
 
 fun parse_para(d: !Doc, i: int, re: int, depth: int): int = let
   val en = gather(d, i, re, 0)
-  val () = npush(d, NK_PARA, i, en, depth, 0)
+  val () = npush(d, KPara, i, en, depth, 0)
   val () = emit_inlines(d, i, en, iadd(depth, 1))
 in
   forward(d, i, re, en)

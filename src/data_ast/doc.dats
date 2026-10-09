@@ -12,33 +12,6 @@ staload "data_ast/doc.sats"
 staload "data_ast/doc_parse.sats"
 
 #define NS 16
-#define NK_PARA 1
-#define NK_H1 2
-#define NK_H6 7
-#define NK_UL 8
-#define NK_OL 9
-#define NK_LI 10
-#define NK_QUOTE 11
-#define NK_CODE 12
-#define NK_HR 13
-#define NK_TABLE 14
-#define NK_TEXT 15
-#define NK_WIKI 16
-#define NK_EMBED 17
-#define NK_TAG 18
-#define NK_TASK 19
-#define NK_FN 20
-#define NK_FNDEF 21
-#define NK_HIGH 22
-#define NK_MATH 23
-#define NK_MATHB 24
-#define NK_FM 25
-#define NK_IMAGE 26
-#define NK_TD 27
-#define NK_BOLD 28
-#define NK_ITALIC 29
-#define NK_STRIKE 30
-#define NK_LINK 31
 
 #define DOC_FIELD_LO 0
 #define DOC_FIELD_HI 1
@@ -585,6 +558,14 @@ implement kind_code(k) = case+ k of
   | KStrike() => 30
   | KLink() => 31
 
+implement heading_kind(hashes) =
+  if ieq(hashes, 1) then KH1
+  else if ieq(hashes, 2) then KH2
+  else if ieq(hashes, 3) then KH3
+  else if ieq(hashes, 4) then KH4
+  else if ieq(hashes, 5) then KH5
+  else KH6
+
 implement is_kind(k, expect) = ieq(kind_code(k), kind_code(expect))
 
 implement is_heading(k) = case+ k of
@@ -687,12 +668,12 @@ fun node_room(d: !Doc): void =
       fold@(d)
     end
 
-fun npush(d: !Doc, kind: int, st: int, en: int, depth: int, aux: int): void = let
+fun npush(d: !Doc, kind: NodeKind, st: int, en: int, depth: int, aux: int): void = let
   val () = node_room(d)
   val i = d_nnodes(d)
   var f: int = 0
   val () = while (f < NS) (nset(d, i, f, 0); f := iadd(f, 1))
-  val () = nset(d, i, NF_KIND, kind)
+  val () = nset(d, i, NF_KIND, kind_code(kind))
   val () = nset(d, i, NF_START, st)
   val () = nset(d, i, NF_END, en)
   val () = nset(d, i, NF_DEPTH, depth)
@@ -711,7 +692,7 @@ fun copy_node(src: !Buf, i: int, d: !Doc, delta: int): void = let
   val depth = buf_get32(src, iadd(imul(i, NS), NF_DEPTH))
   val aux = buf_get32(src, iadd(imul(i, NS), NF_AUX))
   val col = buf_get32(src, iadd(imul(i, NS), NF_COLLAPSED))
-  val () = npush(d, kind, st, en, depth, aux)
+  val () = npush(d, kind_of(kind), st, en, depth, aux)
   val id = isub(d_nnodes(d), 1)
   val () = doc_node_set_collapsed(d, id, toggle_of(ieq(col, 1)))
 in

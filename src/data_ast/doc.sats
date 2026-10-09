@@ -4,37 +4,6 @@ staload "flag.sats"
 absviewtype Doc = ptr
 
 macdef NS = 16
-macdef NK_PARA = 1
-macdef NK_H1 = 2
-macdef NK_H2 = 3
-macdef NK_H3 = 4
-macdef NK_H4 = 5
-macdef NK_H5 = 6
-macdef NK_H6 = 7
-macdef NK_UL = 8
-macdef NK_OL = 9
-macdef NK_LI = 10
-macdef NK_QUOTE = 11
-macdef NK_CODE = 12
-macdef NK_HR = 13
-macdef NK_TABLE = 14
-macdef NK_TEXT = 15
-macdef NK_WIKI = 16
-macdef NK_EMBED = 17
-macdef NK_TAG = 18
-macdef NK_TASK = 19
-macdef NK_FN = 20
-macdef NK_FNDEF = 21
-macdef NK_HIGH = 22
-macdef NK_MATH = 23
-macdef NK_MATHB = 24
-macdef NK_FM = 25
-macdef NK_IMAGE = 26
-macdef NK_TD = 27
-macdef NK_BOLD = 28
-macdef NK_ITALIC = 29
-macdef NK_STRIKE = 30
-macdef NK_LINK = 31
 
 datatype NodeKind =
   | KNone
@@ -48,6 +17,7 @@ datatype NodeKind =
 
 fun kind_of(n: int): NodeKind
 fun kind_code(k: NodeKind): int
+fun heading_kind(hashes: int): NodeKind
 fun is_kind(k: NodeKind, expect: NodeKind): bool
 fun is_heading(k: NodeKind): bool
 fun is_inline(k: NodeKind): bool
@@ -141,7 +111,7 @@ fun doc_line_of(d: !Doc, off: int): int
 fun doc_nnodes(d: !Doc): int
 fun doc_get(d: !Doc, i: int, f: int): int
 fun doc_set(d: !Doc, i: int, f: int, v: int): void
-fun doc_push_node(d: !Doc, kind: int, st: int, en: int, depth: int, aux: int): void
+fun doc_push_node(d: !Doc, kind: NodeKind, st: int, en: int, depth: int, aux: int): void
 fun doc_toggle(d: !Doc, i: int): void
 fun doc_toggle_task(d: !Doc, i: int): void
 fun doc_span(d: !Doc): int
