@@ -178,22 +178,22 @@ fun skip_spaces_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, i: 
 
 fun skip_spaces(b: !Buf, i: int, n: int): int = skip_spaces_m(airlock_nat(MAX_REC_FUEL), b, i, n)
 
-extern fun parse_digits_sub_exh(b: !Buf, i: int, n: int, acc: int, has_digit: int): int = "mac#anth_die_int"
+extern fun parse_digits_sub_exh(b: !Buf, i: int, n: int, acc: int, has_digit: bool): int = "mac#anth_die_int"
 
-fun parse_digits_sub_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, i: int, n: int, acc: int, has_digit: int): int =
+fun parse_digits_sub_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, i: int, n: int, acc: int, has_digit: bool): int =
   if recfuel > 0 then (
-    if ige(i, n) then (if igt(has_digit, 0) then acc else 0)
+    if ige(i, n) then (if has_digit then acc else 0)
     else let
       val c = buf_get(b, i)
     in
       if ige(c, CHAR_ZERO) andalso ile(c, CHAR_NINE) then
-        parse_digits_sub_m(recfuel - 1, b, iadd(i, 1), n, iadd(imul(acc, 10), isub(c, CHAR_ZERO)), 1)
+        parse_digits_sub_m(recfuel - 1, b, iadd(i, 1), n, iadd(imul(acc, 10), isub(c, CHAR_ZERO)), true)
       else
         acc
     end
   ) else parse_digits_sub_exh(b, i, n, acc, has_digit)
 
-fun parse_digits_sub(b: !Buf, i: int, n: int, acc: int, has_digit: int): int = parse_digits_sub_m(airlock_nat(MAX_REC_FUEL), b, i, n, acc, has_digit)
+fun parse_digits_sub(b: !Buf, i: int, n: int, acc: int, has_digit: bool): int = parse_digits_sub_m(airlock_nat(MAX_REC_FUEL), b, i, n, acc, has_digit)
 
 fun extract_str_after(b: !Buf, pos: int, dst: &Buf >> Buf): bool = let
   val n = buf_len(b)
@@ -224,7 +224,7 @@ in
   else let
     val is_neg = ieq(buf_get(b, start), CHAR_MINUS)
     val num_start = if is_neg then iadd(start, 1) else start
-    val v = parse_digits_sub(b, num_start, n, 0, 0)
+    val v = parse_digits_sub(b, num_start, n, 0, false)
   in
     if is_neg then isub(0, v) else v
   end
