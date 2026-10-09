@@ -760,8 +760,8 @@ fun is_modifying_cmd(cmd: Cmd): int =
 
 fun apply_key_copy(ts: Tabs, idx: int, clip: &Buf >> _, p: !Plat): Tabs = let
   val () = tabs_copy(ts, idx, clip)
-  val () = plat_own(p, 0)
-  val () = plat_own(p, 1)
+  val () = plat_own(p, false)
+  val () = plat_own(p, true)
 in
   ts
 end
@@ -776,7 +776,7 @@ end
 
 fun apply_key_paste(ts: Tabs, paste: &Toggle >> _, p: !Plat): Tabs = let
   val () = paste := On
-  val () = plat_paste(p, 0)
+  val () = plat_paste(p, false)
 in
   ts
 end
@@ -1493,12 +1493,12 @@ fun down_menu_clip(s: &App_record >> _, p: !Plat, ts0: !Tabs, idx: int, cut: Tog
   val () = copy_if(ts0, idx, s.clip, toggle_of(is_on(cut) orelse is_on(copy)))
   val () = clip_image(ts0, idx, s.hiti, s.vault, s.clip, imgcopy)
   val own = if is_on(cut) orelse is_on(copy) orelse is_on(imgcopy) then 1 else 0
-  val () = if ieq(own, 1) then plat_own(p, 0) else ()
-  val () = if ieq(own, 1) then plat_own(p, 1) else ()
+  val () = if ieq(own, 1) then plat_own(p, false) else ()
+  val () = if ieq(own, 1) then plat_own(p, true) else ()
   val () = if is_on(paste) then let
       val () = s.paste := On
     in
-      plat_paste(p, 0)
+      plat_paste(p, false)
     end else ()
   val () = if is_on(imgrev) then s.side := SideFiles else ()
 in

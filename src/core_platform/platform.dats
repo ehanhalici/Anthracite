@@ -259,7 +259,7 @@ implement plat_swap(p) =
 implement plat_own(p, primary) =
   case+ p of
   | @PLAT(r) => let
-      val sel = (if primary <> 0 then r.prim else r.clip): ulint
+      val sel = (if primary then r.prim else r.clip): ulint
       val () = x_sel_own(r.dpy, sel, r.win)
     in
       fold@(p)
@@ -268,7 +268,7 @@ implement plat_own(p, primary) =
 implement plat_paste(p, primary) =
   case+ p of
   | @PLAT(r) => let
-      val sel = (if primary <> 0 then r.prim else r.clip): ulint
+      val sel = (if primary then r.prim else r.clip): ulint
       val () = x_sel_convert(r.dpy, r.win, sel, r.utf8, r.prop)
     in
       fold@(p)
