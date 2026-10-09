@@ -730,15 +730,15 @@ in
   end
 end
 
-fun dirty(d: !Doc, at: int, rs: &int >> _, re: &int >> _): void = let
-  val len = d_len(d)
+(* endat, satir tablosu guncellenmeden onceki uzunluktur. *)
+fun dirty(d: !Doc, at: int, endat: int, rs: &int >> _, re: &int >> _): void = let
   val line = doc_line_of(d, at)
   val a = if line > 0 then isub(line, 1) else 0
   val b0 = iadd(line, 2)
   val nlines = d_nlines(d)
   val b = if b0 < nlines then b0 else nlines
   val () = rs := doc_line_start(d, a)
-  val re0 = if ige(b, nlines) then len else doc_line_start(d, b)
+  val re0 = if ige(b, nlines) then endat else doc_line_start(d, b)
   val () = re := re0
 in
 end
@@ -1071,7 +1071,7 @@ end
 fun reparse(d: !Doc, at: int, oldlen: int): void = let
   var rs: int = 0
   var re: int = 0
-  val () = dirty(d, at, rs, re)
+  val () = dirty(d, at, oldlen, rs, re)
   val delta = isub(d_len(d), oldlen)
   val () = rebuild_lines(d)
   val () = salvage(d, rs, re, delta)
@@ -1250,7 +1250,7 @@ fun doc_insert_core(d: !Doc, p: ptr, n: int): void = let
   val at = d_caret(d)
   var rs: int = 0
   var re: int = 0
-  val () = dirty(d, at, rs, re)
+  val () = dirty(d, at, d_len(d), rs, re)
   val old = d_len(d)
   val () = gap_move(d, at)
   val () = gap_put(d, p, n)
@@ -2118,6 +2118,102 @@ in
   vfs_ok
 end
 
+fun eqb(d: !Doc, i: int, b: int): int =
+  (if ieq(doc_byte(d, i), b) then 1 else 0)
+
+extern fun text_covers_exh(d: !Doc, i: int, n: int, p: int): int = "mac#anth_die_int"
+
+fun text_covers_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, n: int, p: int): int =
+  if recfuel > 0 then (
+    if ige(i, n) then 0
+    else if is_kind(doc_node_kind(d, i), KText) andalso ile(doc_node_start(d, i), p) andalso ilt(p, doc_node_end(d, i)) then 1
+    else text_covers_m(recfuel - 1, d, iadd(i, 1), n, p)
+  ) else text_covers_exh(d, i, n, p)
+
+fun text_covers(d: !Doc, p: int): int =
+  text_covers_m(airlock_nat(MAX_REC_FUEL), d, 0, doc_nnodes(d), p)
+
+extern fun span_covered_exh(d: !Doc, p: int, n: int): int = "mac#anth_die_int"
+
+fun span_covered_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, p: int, n: int): int =
+  if recfuel > 0 then (
+    if ige(p, n) then 1
+    else if ieq(text_covers(d, p), 0) then 0
+    else span_covered_m(recfuel - 1, d, iadd(p, 1), n)
+  ) else span_covered_exh(d, p, n)
+
+fun span_covered(d: !Doc): int =
+  span_covered_m(airlock_nat(MAX_REC_FUEL), d, 0, doc_len(d))
+
+fun mid_bytes(d: !Doc): int =
+  (if ieq(doc_len(d), 5) andalso ieq(eqb(d, 0, 97), 1) andalso ieq(eqb(d, 1, 98), 1) andalso ieq(eqb(d, 2, 99), 1) andalso ieq(eqb(d, 3, 101), 1) andalso ieq(eqb(d, 4, 102), 1) andalso ieq(doc_caret(d), 3) then 1 else 0)
+
+fun selftest_delete_mid(): int = let
+  val d = doc_open()
+  val () = put_str(d, "abcdef")
+  val () = doc_left_move(d)
+  val () = doc_left_move(d)
+  val () = doc_left_move(d)
+  val () = doc_delete(d)
+  val ok = (if ieq(mid_bytes(d), 1) andalso ieq(span_covered(d), 1) then 1 else 0)
+  val () = doc_free(d)
+in
+  ok
+end
+
+fun tail_bytes(d: !Doc): int =
+  (if ieq(doc_len(d), 5) andalso ieq(eqb(d, 0, 97), 1) andalso ieq(eqb(d, 1, 98), 1) andalso ieq(eqb(d, 2, 99), 1) andalso ieq(eqb(d, 3, 100), 1) andalso ieq(eqb(d, 4, 101), 1) andalso ieq(doc_caret(d), 5) then 1 else 0)
+
+fun selftest_delete_tail(): int = let
+  val d = doc_open()
+  val () = put_str(d, "abcdef")
+  val () = doc_left_move(d)
+  val () = doc_delete(d)
+  val ok = (if ieq(tail_bytes(d), 1) andalso ieq(span_covered(d), 1) then 1 else 0)
+  val () = doc_free(d)
+in
+  ok
+end
+
+fun utf_bytes(d: !Doc): int =
+  (if ieq(doc_len(d), 4) andalso ieq(eqb(d, 0, 97), 1) andalso ieq(eqb(d, 1, 98), 1) andalso ieq(eqb(d, 2, 100), 1) andalso ieq(eqb(d, 3, 101), 1) andalso ieq(doc_caret(d), 2) then 1 else 0)
+
+fun selftest_delete_utf(): int = let
+  val d = doc_open()
+  val () = put_str(d, "abğde")
+  val () = doc_set_caret_move(d, 2)
+  val () = doc_delete(d)
+  val ok = (if ieq(utf_bytes(d), 1) andalso ieq(span_covered(d), 1) then 1 else 0)
+  val () = doc_free(d)
+in
+  ok
+end
+
+fun twice_bytes(d: !Doc): int =
+  (if ieq(doc_len(d), 4) andalso ieq(eqb(d, 0, 97), 1) andalso ieq(eqb(d, 1, 98), 1) andalso ieq(eqb(d, 2, 99), 1) andalso ieq(eqb(d, 3, 102), 1) andalso ieq(doc_caret(d), 3) then 1 else 0)
+
+fun selftest_delete_twice(): int = let
+  val d = doc_open()
+  val () = put_str(d, "abcdef")
+  val () = doc_set_caret_move(d, 3)
+  val () = doc_delete(d)
+  val () = doc_delete(d)
+  val ok = (if ieq(twice_bytes(d), 1) andalso ieq(span_covered(d), 1) then 1 else 0)
+  val () = doc_free(d)
+in
+  ok
+end
+
+fun selftest_delete_part(): int = let
+  val mid = selftest_delete_mid()
+  val tail = selftest_delete_tail()
+  val utf = selftest_delete_utf()
+  val twice = selftest_delete_twice()
+  val () = println! ("del_mid=", mid, " del_tail=", tail, " del_utf=", utf, " del_twice=", twice)
+in
+  (if ieq(mid, 1) andalso ieq(tail, 1) andalso ieq(utf, 1) andalso ieq(twice, 1) then 1 else 0)
+end
+
 implement doc_selftest() = let
   val d = doc_open()
   val a_ok = selftest_markdown_part(d)
@@ -2125,7 +2221,8 @@ implement doc_selftest() = let
   val c_ok = selftest_history_part()
   val () = selftest_big_part()
   val v_ok = selftest_vfs_part()
+  val d_ok = selftest_delete_part()
   val () = doc_free(d)
 in
-  (if ieq(a_ok, 1) andalso ieq(b_ok, 1) andalso ieq(c_ok, 1) andalso ieq(v_ok, 1) then 1 else 0)
+  (if ieq(a_ok, 1) andalso ieq(b_ok, 1) andalso ieq(c_ok, 1) andalso ieq(v_ok, 1) andalso ieq(d_ok, 1) then 1 else 0)
 end
