@@ -620,6 +620,15 @@ fun cmap_find_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, i: i
 
 fun cmap_find(f: !Font, i: int, nt: int, cmap: int): int = cmap_find_m(airlock_nat(MAX_REC_FUEL), f, i, nt, cmap)
 
+datatype CmapFmt = CmapSeg | CmapOther
+
+fun cmap_fmt_of(n: int): CmapFmt =
+  if n = 4 then CmapSeg else CmapOther
+
+fun is_cmap_seg(k: CmapFmt): bool = case+ k of
+  | CmapSeg() => true
+  | CmapOther() => false
+
 fun cmap_gid(f: !Font, cp: int): int = let
   val cmap: int = f_get_cmap_off(f)
   val nt: int = (if cmap < 0 then 0 else file_u16(f, iadd(cmap, 2))): int
@@ -627,9 +636,9 @@ fun cmap_gid(f: !Font, cp: int): int = let
 in
   if sub < 0 then 0
   else let
-    val fmt: int = file_u16(f, sub)
+    val fmt = file_u16(f, sub)
   in
-    if fmt = 4 then cmap_fmt4(f, sub, cp) else 0
+    if is_cmap_seg(cmap_fmt_of(fmt)) then cmap_fmt4(f, sub, cp) else 0
   end
 end
 
