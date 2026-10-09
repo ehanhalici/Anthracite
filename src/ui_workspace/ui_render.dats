@@ -1046,10 +1046,10 @@ in
     line_at_y(d, docy, 0, 0)
 end
 
-fun click_doc(f: !Font, r: !Rend, d: !Doc, x: int, y: int, ox: int, pw: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &int >> _, hiti: &int >> _): void = let
+fun click_doc(f: !Font, r: !Rend, d: !Doc, x: int, y: int, ox: int, pw: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &NodeKind >> _, hiti: &int >> _): void = let
   val ni = node_covering_impl(d, y, oy, scroll, 0, ~1)
   val hk = if ige(ni, 0) then doc_node_kind(d, ni) else KNone
-  val () = hitk := kind_code(hk)
+  val () = hitk := hk
   val () = hiti := ni
   val docy = iadd(isub(y, oy), scroll)
   val line0 = line_at_y_fast(d, docy, lh)
@@ -1061,7 +1061,7 @@ in
   else click_place(f, r, d, x, ls, colx, scratch, keep)
 end
 
-fun click_if(f: !Font, r: !Rend, doc: !Doc, x: int, y: int, ox: int, pw: int, sc: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &int >> _, hiti: &int >> _, go: Toggle): void =
+fun click_if(f: !Font, r: !Rend, doc: !Doc, x: int, y: int, ox: int, pw: int, sc: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &NodeKind >> _, hiti: &int >> _, go: Toggle): void =
   if is_on(go) then click_doc(f, r, doc, x, y, ox, pw, 36, sc, lh, scratch, keep, hitk, hiti) else touchb(scratch)
 
 fun click_stop(rest: Tabs, scratch: &Buf >> _): Tabs = let
@@ -1070,9 +1070,9 @@ in
   rest
 end
 
-extern fun tabs_click_impl_exh(f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, pw: int, scroll_hint: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &int >> _, hiti: &int >> _, i: int): Tabs = "mac#anth_die_box"
+extern fun tabs_click_impl_exh(f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, pw: int, scroll_hint: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &NodeKind >> _, hiti: &int >> _, i: int): Tabs = "mac#anth_die_box"
 
-fun tabs_click_impl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, pw: int, scroll_hint: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &int >> _, hiti: &int >> _, i: int): Tabs =
+fun tabs_click_impl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, pw: int, scroll_hint: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &NodeKind >> _, hiti: &int >> _, i: int): Tabs =
   if recfuel > 0 then (
     case+ ts of
     | ~TNil() => TNil()
@@ -1083,7 +1083,7 @@ fun tabs_click_impl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font
       end
   ) else tabs_click_impl_exh(f, r, ts, idx, x, y, ox, pw, scroll_hint, lh, scratch, keep, hitk, hiti, i)
 
-fun tabs_click_impl(f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, pw: int, scroll_hint: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &int >> _, hiti: &int >> _, i: int): Tabs = tabs_click_impl_m(airlock_nat(MAX_REC_FUEL), f, r, ts, idx, x, y, ox, pw, scroll_hint, lh, scratch, keep, hitk, hiti, i)
+fun tabs_click_impl(f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, pw: int, scroll_hint: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &NodeKind >> _, hiti: &int >> _, i: int): Tabs = tabs_click_impl_m(airlock_nat(MAX_REC_FUEL), f, r, ts, idx, x, y, ox, pw, scroll_hint, lh, scratch, keep, hitk, hiti, i)
 
 implement tabs_click(f, r, ts, idx, x, y, ox, pw, scroll_hint, lh, scratch, keep, hitk, hiti, i) = tabs_click_impl(f, r, ts, idx, x, y, ox, pw, scroll_hint, lh, scratch, keep, hitk, hiti, i)
 

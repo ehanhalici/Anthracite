@@ -43,7 +43,7 @@ vtypedef App_record = @{
   clip= Buf, menu= MenuKind, menux= int, menuy= int, drag= DragKind, dragi= int,
   prompt= PromptKind, promptb= Buf, query= Buf, qfocus= Toggle,
   tree= Buf, tmeta= Buf, tn= int, hits= Buf, hmeta= Buf, hn= int,
-  sel= int, treedirty= Toggle, paste= Toggle, hitk= int, hiti= int, downx= int, downy= int,
+  sel= int, treedirty= Toggle, paste= Toggle, hitk= NodeKind, hiti= int, downx= int, downy= int,
   scratch= Buf, imgpath= Buf, viewmode= ViewMode, font_idx= int,
   fpaths= Buf, fnames= Buf, fmeta= Buf, fcnt= int, font_path= Buf,
   vault_select= Toggle, vpaths= Buf, vnames= Buf, vmeta= Buf, vcnt= int,
@@ -235,7 +235,7 @@ in
     clip= buf_make(64), menu= MenuNone, menux= 0, menuy= 0, drag= DragNone, dragi= ~1,
     prompt= PromptNone, promptb= buf_make(256), query= buf_make(64), qfocus= Off,
     tree= buf_make(64), tmeta= buf_make(64), tn= 0, hits= buf_make(64), hmeta= buf_make(64), hn= 0,
-    sel= ~1, treedirty= On, paste= Off, hitk= 0, hiti= ~1, downx= ~1, downy= ~1,
+    sel= ~1, treedirty= On, paste= Off, hitk= KNone, hiti= ~1, downx= ~1, downy= ~1,
     scratch= buf_make(4096), imgpath= buf_make(64), viewmode= view_mode_of_code(vmode), font_idx= 0,
     fpaths= fpaths, fnames= fnames, fmeta= fmeta, fcnt= fcnt, font_path= fpath,
     vault_select= toggle_of(ieq(f_vsel, 1)), vpaths= vpaths, vnames= vnames, vmeta= vmeta, vcnt= vcnt,
@@ -882,7 +882,7 @@ fun open_row(ts: Tabs, tree: !Buf, meta: !Buf, row: int, go: Toggle): Tabs =
     tabs_open(ts, owned)
   end else ts
 
-fun click_go(f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, pw: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &int >> _, hiti: &int >> _, go: Toggle): Tabs =
+fun click_go(f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, pw: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &NodeKind >> _, hiti: &int >> _, go: Toggle): Tabs =
   if is_on(go) then tabs_click(f, r, ts, idx, x, y, ox, pw, 0, lh, scratch, keep, hitk, hiti, 0)
   else let
     val () = touchb(scratch)
@@ -1430,7 +1430,7 @@ fun editor_click_hit(f: !Font, r: !Rend, s: &App_record >> _, ts: Tabs, ev: &eve
   val ts4 = click_go(f, r, ts, idx2, x, y, ox, half, font_line_h(f), s.scratch, toggle_of(ieq(keep, 1)), s.hitk, s.hiti, editor)
   val colx_hit = column_x(ox, half)
   val on_arrow = if is_on(editor) andalso ige(x, isub(colx_hit, 24)) andalso ilt(x, colx_hit) andalso ige(s.hiti, 0) then 1 else 0
-  val on_task = if is_on(editor) andalso is_kind(kind_of(s.hitk), KTask) andalso ige(x, colx_hit) andalso ilt(x, iadd(colx_hit, 36)) andalso ige(s.hiti, 0) then 1 else 0
+  val on_task = if is_on(editor) andalso is_kind(s.hitk, KTask) andalso ige(x, colx_hit) andalso ilt(x, iadd(colx_hit, 36)) andalso ige(s.hiti, 0) then 1 else 0
   val ts4_a = toggle_go(ts4, idx2, s.hiti, toggle_of(ieq(on_arrow, 1)))
   val ts4_b = toggle_task_go(ts4_a, idx2, s.hiti, toggle_of(ieq(on_task, 1)))
 in
@@ -1576,7 +1576,7 @@ fun handle_down_context_menu_open(
       val valid_row = if ige(y, 72) andalso ige(row, 0) andalso ilt(row, s.tn) then 1 else 0
     in
       s.sel := (if ieq(valid_row, 1) then row else ~1)
-    end else s.menu := (if is_kind(kind_of(s.hitk), KImage) then MenuImage else MenuText)
+    end else s.menu := (if is_kind(s.hitk, KImage) then MenuImage else MenuText)
   end else ()
 
 fun on_down_tabs(s: &App_record >> _, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int, x: int, y: int, sidew: int, skip: Toggle, onbar: Toggle, onside: Toggle, button: int, inside: Toggle, item: int): void = let
