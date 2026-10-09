@@ -19,9 +19,11 @@ implement dir_mark_of(n) =
   else if n = 0 then DirNo
   else DirAsk
 
-fun dir_code(k: DirMark): int = case+ k of
+fun dir_mark_code(k: DirMark): int = case+ k of
   | DirYes() => 1
   | DirNo() => 0
   | DirAsk() => 2
 
-implement is_dir_mark(a, b) = dir_code(a) = dir_code(b)
+implement dir_mark_int(k) = dir_mark_code(k)
+
+implement is_dir_mark(a, b) = dir_mark_code(a) = dir_mark_code(b)

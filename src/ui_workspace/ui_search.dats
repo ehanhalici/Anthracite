@@ -192,9 +192,9 @@ and walk_entry {d:nat} .<d, 1>. (path: !Buf, q: !Buf, hits: &Buf >> _, hmeta: &B
   val skip = scan_skip(name)
   val child = join2(path, name)
   val isd = child_kind(child, toggle_of(skip), dir_mark_of(isdir))
-  val godir = if not(skip) andalso ieq(isd, 1) then 1 else 0
+  val godir = if not(skip) andalso is_dir_mark(isd, DirYes) then 1 else 0
   val () = walk_child(child, q, hits, hmeta, hn, d, toggle_of(ieq(godir, 1)))
-  val gofile = if not(skip) andalso ieq(isd, 0) andalso ieq(ends(child, ".md"), 1) then 1 else 0
+  val gofile = if not(skip) andalso is_dir_mark(isd, DirNo) andalso ieq(ends(child, ".md"), 1) then 1 else 0
   val () = search_file_if(child, q, hits, hmeta, hn, toggle_of(ieq(gofile, 1)))
   val () = buf_free(child)
 in

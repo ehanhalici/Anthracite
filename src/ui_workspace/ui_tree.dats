@@ -11,10 +11,10 @@ staload "os/diag.sats"
 staload "ui_workspace/ui_common.sats"
 staload "ui_workspace/ui_tree.sats"
 
-fun tree_add(meta: &Buf >> _, text: &Buf >> _, n: &int >> _, depth: int, isdir: int, path: !Buf): void = let
+fun tree_add(meta: &Buf >> _, text: &Buf >> _, n: &int >> _, depth: int, isdir: DirMark, path: !Buf): void = let
   val () = buf_ensure(meta, imul(iadd(n, 1), 16))
   val () = buf_set32(meta, imul(n, 4), depth)
-  val () = buf_set32(meta, iadd(imul(n, 4), 1), isdir)
+  val () = buf_set32(meta, iadd(imul(n, 4), 1), dir_mark_int(isdir))
   val () = buf_set32(meta, iadd(imul(n, 4), 2), buf_len(text))
   val () = buf_set32(meta, iadd(imul(n, 4), 3), buf_len(path))
   val () = bcat(text, path, 0, buf_len(path))
@@ -22,7 +22,7 @@ in
   n := iadd(n, 1)
 end
 
-fun tree_add_if(meta: &Buf >> _, text: &Buf >> _, n: &int >> _, depth: int, isdir: int, path: !Buf, go: Toggle): void =
+fun tree_add_if(meta: &Buf >> _, text: &Buf >> _, n: &int >> _, depth: int, isdir: DirMark, path: !Buf, go: Toggle): void =
   if is_on(go) then tree_add(meta, text, n, depth, isdir, path)
   else let
     val () = touchb(meta)
@@ -96,7 +96,7 @@ and scan_entry {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), path: !Buf, dep
     val isd = child_kind(child, toggle_of(skip), dir_mark_of(isdir))
     val goadd = if not(skip) andalso ilt(n, MAX_TREE_ITEMS) then 1 else 0
     val () = tree_add_if(meta, text, n, depth, isd, child, toggle_of(ieq(goadd, 1)))
-    val godir = if not(skip) andalso ieq(isd, 1) then 1 else 0
+    val godir = if not(skip) andalso is_dir_mark(isd, DirYes) then 1 else 0
     val () = scan_maybe(recfuel - 1, child, iadd(depth, 1), meta, text, n, toggle_of(ieq(godir, 1)))
     val () = buf_free(child)
   in

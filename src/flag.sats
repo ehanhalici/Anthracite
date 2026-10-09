@@ -12,4 +12,5 @@ fun toggle_int(t: Toggle): int
 datatype DirMark = DirYes | DirNo | DirAsk
 
 fun dir_mark_of(n: int): DirMark
+fun dir_mark_int(k: DirMark): int
 fun is_dir_mark(a: DirMark, b: DirMark): bool

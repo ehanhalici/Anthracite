@@ -226,10 +226,10 @@ implement meta_dir(meta, row) =
 implement path_is_dir(path) = ieq(fs_isdir(path), 1)
 
 implement child_kind(child, skip, isdir) =
-  if is_on(skip) then 0
-  else if is_dir_mark(isdir, DirYes) then 1
-  else if is_dir_mark(isdir, DirNo) then 0
-  else fs_isdir(cstr(child))
+  if is_on(skip) then DirNo
+  else if is_dir_mark(isdir, DirYes) then DirYes
+  else if is_dir_mark(isdir, DirNo) then DirNo
+  else dir_mark_of(fs_isdir(cstr(child)))
 
 implement is_side_none(x) = case+ x of
   | SideNone() => true

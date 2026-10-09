@@ -31,7 +31,7 @@ fun filter_text(b: !Buf, n: int): int
 fun scan_skip(name: !Buf): bool
 fun meta_dir(meta: !Buf, row: int): DirMark
 fun path_is_dir(path: string): bool
-fun child_kind(child: !Buf, skip: Toggle, isdir: DirMark): int
+fun child_kind(child: !Buf, skip: Toggle, isdir: DirMark): DirMark
 
 macdef MAX_TREE_ITEMS = 400
 macdef MAX_TREE_DEPTH = 6
