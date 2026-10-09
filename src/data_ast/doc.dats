@@ -80,13 +80,22 @@ fun hist_trim(h: Hist): Hist =
   | true => hist_drop_oldest(h)
   | false => h
 
+datatype EditOp = OpNone | OpChar | OpBreak
+
+fun op_code(k: EditOp): int = case+ k of
+  | OpNone() => 0
+  | OpChar() => 1
+  | OpBreak() => 2
+
+fun is_op(a: EditOp, b: EditOp): bool = ieq(op_code(a), op_code(b))
+
 datavtype Doc_ = DOC of @{
   gap= Buf, lines= Buf, liney= Buf, nodes= Buf
 , uhist= Hist, rhist= Hist
 , lo= int, hi= int, len= int
 , caret= int, anchor= int
 , nlines= int, nnodes= int, span= int
-, last_op= int, typing_cnt= int, is_md= Toggle
+, last_op= EditOp, typing_cnt= int, is_md= Toggle
 }
 (* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
 assume Doc = Doc_
@@ -97,7 +106,7 @@ implement doc_open() = DOC(@{
 , lo= 0, hi= 256, len= 0
 , caret= 0, anchor= 0
 , nlines= 1, nnodes= 0, span= 0
-, last_op= 0, typing_cnt= 0, is_md= On
+, last_op= OpNone, typing_cnt= 0, is_md= On
 })
 
 implement doc_is_md(d) =
@@ -1183,7 +1192,7 @@ in
   b
 end
 
-fun get_last_op(d: !Doc): int =
+fun get_last_op(d: !Doc): EditOp =
   case+ d of
   | @DOC(s) => let
       val o = s.last_op
@@ -1207,7 +1216,7 @@ fun set_typing_cnt(d: !Doc, c: int): void =
       fold@(d)
     end
 
-fun set_last_op_and_reset_count(d: !Doc, opk: int): void =
+fun set_last_op_and_reset_count(d: !Doc, opk: EditOp): void =
   case+ d of
   | @DOC(s) => let
       val () = s.last_op := opk
@@ -1236,11 +1245,11 @@ in
   put_rhist(d, r3)
 end
 
-fun doc_record(d: !Doc, opk: int): void = let
+fun doc_record(d: !Doc, opk: EditOp): void = let
   val lo = get_last_op(d)
   val tc = get_typing_cnt(d)
 in
-  if ieq(opk, 1) andalso ieq(lo, 1) andalso ilt(tc, 8) then set_typing_cnt(d, iadd(tc, 1))
+  if is_op(opk, OpChar) andalso is_op(lo, OpChar) andalso ilt(tc, 8) then set_typing_cnt(d, iadd(tc, 1))
   else let
     val () = push_undo_current(d)
     val () = put_rhist(d, HNil())
@@ -1274,8 +1283,8 @@ implement doc_insert(d, p, n) = let
   val () = if ieq(n, 1) then let
       val b = mem_byte(p, 1, 0)
     in
-      if ieq(b, 32) orelse ieq(b, 10) then doc_record(d, 2) else doc_record(d, 1)
-    end else doc_record(d, 2)
+      if ieq(b, 32) orelse ieq(b, 10) then doc_record(d, OpBreak) else doc_record(d, OpChar)
+    end else doc_record(d, OpBreak)
 in
   doc_insert_core(d, p, n)
 end
@@ -1323,7 +1332,7 @@ in
 end
 
 implement doc_backspace(d) = let
-  val () = doc_record(d, 2)
+  val () = doc_record(d, OpBreak)
   var a: int = 0
   var b: int = 0
   val () = sel_span(d, a, b)
@@ -1337,7 +1346,7 @@ in
 end
 
 implement doc_delete(d) = let
-  val () = doc_record(d, 2)
+  val () = doc_record(d, OpBreak)
   var a: int = 0
   var b: int = 0
   val () = sel_span(d, a, b)
@@ -1523,7 +1532,7 @@ in
 end
 
 implement doc_del_word_left(d) = let
-  val () = doc_record(d, 2)
+  val () = doc_record(d, OpBreak)
   var a: int = 0
   var b: int = 0
   val () = sel_span(d, a, b)
@@ -1538,7 +1547,7 @@ in
 end
 
 implement doc_del_word_right(d) = let
-  val () = doc_record(d, 2)
+  val () = doc_record(d, OpBreak)
   var a: int = 0
   var b: int = 0
   val () = sel_span(d, a, b)
@@ -1688,7 +1697,7 @@ in
       val () = push_redo_current(d)
       val () = restore_snapshot(d, snap_b, snap_c)
     in
-      set_last_op_and_reset_count(d, 0)
+      set_last_op_and_reset_count(d, OpNone)
     end
 end
 
@@ -1702,7 +1711,7 @@ in
       val () = push_undo_current(d)
       val () = restore_snapshot(d, snap_b, snap_c)
     in
-      set_last_op_and_reset_count(d, 0)
+      set_last_op_and_reset_count(d, OpNone)
     end
 end
 
@@ -1730,7 +1739,7 @@ in
 end
 
 implement doc_wrap(d, pre, plen, suf, suflen) = let
-  val () = doc_record(d, 2)
+  val () = doc_record(d, OpBreak)
   var a: int = 0
   var b: int = 0
   val () = sel_span(d, a, b)
