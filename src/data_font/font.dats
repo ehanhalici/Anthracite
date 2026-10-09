@@ -21,7 +21,7 @@ datavtype Font_ = FONT of @{
   file= Buf, atlas= Buf, cache= Buf
 , xs= Buf, ys= Buf, fl= Buf, ends= Buf, edges= Buf, cov= Buf
 , px= int, units= int, asc= int, desc= int, lgap= int
-, num_h= int, nglyph= int, loca_fmt= int
+, num_h= int, nglyph= int, loca_fmt= Toggle
 , cmap_off= int, glyf_off= int, loca_off= int, hmtx_off= int, kern_off= int
 , npts= int, nends= int, nedges= int
 , pen_x= int, pen_y= int, row_h= int
@@ -98,7 +98,7 @@ implement font_open() = FONT(@{
 , xs= buf_make(8192 * 4), ys= buf_make(8192 * 4), fl= buf_make(8192)
 , ends= buf_make(512 * 4), edges= buf_make(MAXE * 4 * 4), cov= buf_make(256 * 256)
 , px= 16, units= 0, asc= 0, desc= 0, lgap= 0
-, num_h= 0, nglyph= 0, loca_fmt= 0
+, num_h= 0, nglyph= 0, loca_fmt= Off
 , cmap_off= ~1, glyf_off= ~1, loca_off= ~1, hmtx_off= ~1, kern_off= ~1
 , npts= 0, nends= 0, nedges= 0
 , pen_x= 1, pen_y= 1, row_h= 0
@@ -131,7 +131,7 @@ fun f_int_head(f: !Font, which: int): int =
         else if which = FONT_FIELD_LGAP then s.lgap
         else if which = FONT_FIELD_NUM_H then s.num_h
         else if which = FONT_FIELD_NGLYPH then s.nglyph
-        else if which = FONT_FIELD_LOCA_FMT then s.loca_fmt
+        else if which = FONT_FIELD_LOCA_FMT then toggle_int(s.loca_fmt)
         else if which = FONT_FIELD_CMAP_OFF then s.cmap_off
         else if which = FONT_FIELD_GLYF_OFF then s.glyf_off
         else if which = FONT_FIELD_LOCA_OFF then s.loca_off
@@ -175,7 +175,7 @@ fun f_set_head(f: !Font, which: int, v: int): void =
         else if which = FONT_FIELD_LGAP then s.lgap := v
         else if which = FONT_FIELD_NUM_H then s.num_h := v
         else if which = FONT_FIELD_NGLYPH then s.nglyph := v
-        else if which = FONT_FIELD_LOCA_FMT then s.loca_fmt := v
+        else if which = FONT_FIELD_LOCA_FMT then s.loca_fmt := toggle_of(ieq(v, 1))
         else if which = FONT_FIELD_CMAP_OFF then s.cmap_off := v
         else if which = FONT_FIELD_GLYF_OFF then s.glyf_off := v
         else if which = FONT_FIELD_LOCA_OFF then s.loca_off := v
@@ -213,7 +213,7 @@ fun f_get_desc(f: !Font): int = f_int(f, FONT_FIELD_DESC)
 fun f_get_lgap(f: !Font): int = f_int(f, FONT_FIELD_LGAP)
 fun f_get_num_h(f: !Font): int = f_int(f, FONT_FIELD_NUM_H)
 fun f_get_nglyph(f: !Font): int = f_int(f, FONT_FIELD_NGLYPH)
-fun f_get_loca_fmt(f: !Font): int = f_int(f, FONT_FIELD_LOCA_FMT)
+fun f_get_loca_fmt(f: !Font): Toggle = toggle_of(ieq(f_int(f, FONT_FIELD_LOCA_FMT), 1))
 fun f_get_cmap_off(f: !Font): int = f_int(f, FONT_FIELD_CMAP_OFF)
 fun f_get_glyf_off(f: !Font): int = f_int(f, FONT_FIELD_GLYF_OFF)
 fun f_get_loca_off(f: !Font): int = f_int(f, FONT_FIELD_LOCA_OFF)
@@ -233,7 +233,7 @@ fun f_set_desc(f: !Font, v: int): void = f_set(f, FONT_FIELD_DESC, v)
 fun f_set_lgap(f: !Font, v: int): void = f_set(f, FONT_FIELD_LGAP, v)
 fun f_set_num_h(f: !Font, v: int): void = f_set(f, FONT_FIELD_NUM_H, v)
 fun f_set_nglyph(f: !Font, v: int): void = f_set(f, FONT_FIELD_NGLYPH, v)
-fun f_set_loca_fmt(f: !Font, v: int): void = f_set(f, FONT_FIELD_LOCA_FMT, v)
+fun f_set_loca_fmt(f: !Font, v: Toggle): void = f_set(f, FONT_FIELD_LOCA_FMT, toggle_int(v))
 fun f_set_cmap_off(f: !Font, v: int): void = f_set(f, FONT_FIELD_CMAP_OFF, v)
 fun f_set_glyf_off(f: !Font, v: int): void = f_set(f, FONT_FIELD_GLYF_OFF, v)
 fun f_set_loca_off(f: !Font, v: int): void = f_set(f, FONT_FIELD_LOCA_OFF, v)
@@ -384,7 +384,7 @@ fun store_head_hhea(f: !Font, head: int, hhea: int, maxp: int): void = let
   val () = f_set_lgap(f, lgap)
   val () = f_set_num_h(f, nh)
   val () = f_set_nglyph(f, ng)
-  val () = f_set_loca_fmt(f, if locaf <> 0 then 1 else 0: int)
+  val () = f_set_loca_fmt(f, toggle_of(locaf <> 0))
 in
 end
 
@@ -630,7 +630,7 @@ fun loca_at(f: !Font, gid: int): int = let
   val fmt = f_get_loca_fmt(f)
 in
   if off < 0 orelse gid < 0 then 0
-  else if fmt = 0 then file_u16(f, off + gid * 2) * 2
+  else if is_off(fmt) then file_u16(f, off + gid * 2) * 2
   else file_u32(f, off + gid * 4)
 end
 
