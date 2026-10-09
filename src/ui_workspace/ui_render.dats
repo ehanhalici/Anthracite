@@ -67,22 +67,31 @@ fun cache_lookup(c: Cache, path: !Buf, tex: &uint >> _, w: &int >> _, h: &int >>
 fun cache_put(c: Cache, path: Buf, tex: uint, w: int, h: int): Cache =
   CCons(path, tex, w, h, c)
 
+datatype PathScan = ScanSeek | ScanCopy | ScanDone
+
+fun scan_code(m: PathScan): int = case+ m of
+  | ScanSeek() => 0
+  | ScanCopy() => 1
+  | ScanDone() => 2
+
+fun is_scan(a: PathScan, b: PathScan): bool = scan_code(a) = scan_code(b)
+
 implement take_path(d, i, dst) = let
   val a0 = doc_node_start(d, i)
   val b0 = doc_node_end(d, i)
-  var mode: int = 0
+  var mode: PathScan = ScanSeek()
   var i0: int = a0
   val () = bclear(dst)
 in
   while (ilt(i0, b0)) (
-    if ieq(mode, 0) andalso ilt(iadd(i0, 1), b0) andalso ieq(doc_byte(d, i0), 91) andalso ieq(doc_byte(d, iadd(i0, 1)), 91) then (
-      mode := 1; i0 := iadd(i0, 2)
-    ) else if ieq(mode, 0) andalso ieq(doc_byte(d, i0), 40) then (
-      mode := 1; i0 := iadd(i0, 1)
-    ) else if ieq(mode, 1) andalso (ieq(doc_byte(d, i0), 124) orelse ieq(doc_byte(d, i0), 35) orelse ieq(doc_byte(d, i0), 93) orelse ieq(doc_byte(d, i0), 41)) then (
-      mode := 2; i0 := b0
+    if is_scan(mode, ScanSeek) andalso ilt(iadd(i0, 1), b0) andalso ieq(doc_byte(d, i0), 91) andalso ieq(doc_byte(d, iadd(i0, 1)), 91) then (
+      mode := ScanCopy(); i0 := iadd(i0, 2)
+    ) else if is_scan(mode, ScanSeek) andalso ieq(doc_byte(d, i0), 40) then (
+      mode := ScanCopy(); i0 := iadd(i0, 1)
+    ) else if is_scan(mode, ScanCopy) andalso (ieq(doc_byte(d, i0), 124) orelse ieq(doc_byte(d, i0), 35) orelse ieq(doc_byte(d, i0), 93) orelse ieq(doc_byte(d, i0), 41)) then (
+      mode := ScanDone(); i0 := b0
     ) else (
-      if ieq(mode, 1) then buf_push(dst, doc_byte(d, i0)) else ();
+      if is_scan(mode, ScanCopy) then buf_push(dst, doc_byte(d, i0)) else ();
       i0 := iadd(i0, 1)
     )
   )
