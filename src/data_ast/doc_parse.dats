@@ -401,15 +401,24 @@ and emit_text_or {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: i
 
 fun emit_inlines(d: !Doc, i: int, re: int, depth: int): void = emit_inlines_m(airlock_nat(MAX_REC_FUEL), d, i, re, depth)
 
-extern fun gather_exh(d: !Doc, i: int, re: int, pred: int): int = "mac#anth_die_int"
+datatype Gather = GatherAny | GatherQuote | GatherTable
 
-fun gather_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, re: int, pred: int): int =
+fun gather_code(g: Gather): int = case+ g of
+  | GatherAny() => 0
+  | GatherQuote() => 1
+  | GatherTable() => 2
+
+fun is_gather(a: Gather, b: Gather): bool = ieq(gather_code(a), gather_code(b))
+
+extern fun gather_exh(d: !Doc, i: int, re: int, pred: Gather): int = "mac#anth_die_int"
+
+fun gather_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, re: int, pred: Gather): int =
   if recfuel > 0 then (
     if ige(i, re) then i
     else if blank_line(d, i, re) = 1 then i
-    else if pred = 1 andalso is_quote(d, i, re) = 0 then i
-    else if pred = 2 andalso is_table(d, i, re) = 0 then i
-    else if pred = 0 andalso (is_fence(d, i, re) = 1 orelse is_heading(d, i, re) = 1 orelse is_hr(d, i, re) = 1 orelse is_ul(d, i, re) = 1 orelse is_ol(d, i, re) = 1 orelse is_task(d, i, re) = 1 orelse is_quote(d, i, re) = 1 orelse is_table(d, i, re) = 1 orelse is_fndef(d, i, re) = 1) then i
+    else if is_gather(pred, GatherQuote) andalso is_quote(d, i, re) = 0 then i
+    else if is_gather(pred, GatherTable) andalso is_table(d, i, re) = 0 then i
+    else if is_gather(pred, GatherAny) andalso (is_fence(d, i, re) = 1 orelse is_heading(d, i, re) = 1 orelse is_hr(d, i, re) = 1 orelse is_ul(d, i, re) = 1 orelse is_ol(d, i, re) = 1 orelse is_task(d, i, re) = 1 orelse is_quote(d, i, re) = 1 orelse is_table(d, i, re) = 1 orelse is_fndef(d, i, re) = 1) then i
     else let
       val e = at_end(d, i, re)
       val n = if ilt(e, re) andalso ieq(doc_byte(d, e), CHAR_LF) then iadd(e, 1) else e
@@ -418,7 +427,7 @@ fun gather_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, 
     end
   ) else gather_exh(d, i, re, pred)
 
-fun gather(d: !Doc, i: int, re: int, pred: int): int = gather_m(airlock_nat(MAX_REC_FUEL), d, i, re, pred)
+fun gather(d: !Doc, i: int, re: int, pred: Gather): int = gather_m(airlock_nat(MAX_REC_FUEL), d, i, re, pred)
 
 extern fun fm_close_exh(d: !Doc, re: int, k: int): int = "mac#anth_die_int"
 
@@ -526,7 +535,7 @@ in
 end
 
 fun parse_quote(d: !Doc, i: int, re: int, depth: int): int = let
-  val en = gather(d, i, re, 1)
+  val en = gather(d, i, re, GatherQuote)
   val () = npush(d, KQuote, i, en, depth, 0)
   val () = emit_inlines(d, i, en, iadd(depth, 1))
 in
@@ -534,7 +543,7 @@ in
 end
 
 fun parse_table(d: !Doc, i: int, re: int, depth: int): int = let
-  val en = gather(d, i, re, 2)
+  val en = gather(d, i, re, GatherTable)
   val () = npush(d, KTable, i, en, depth, 0)
   val () = npush(d, KTd, i, en, iadd(depth, 1), 0)
 in
@@ -542,7 +551,7 @@ in
 end
 
 fun parse_para(d: !Doc, i: int, re: int, depth: int): int = let
-  val en = gather(d, i, re, 0)
+  val en = gather(d, i, re, GatherAny)
   val () = npush(d, KPara, i, en, depth, 0)
   val () = emit_inlines(d, i, en, iadd(depth, 1))
 in
