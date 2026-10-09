@@ -118,9 +118,9 @@ implement draw_s(f, r, x, y, s, c) =
 implement join2(a, b) = let
   var d = buf_make(iadd(iadd(buf_len(a), buf_len(b)), 2))
   val na = buf_len(a)
-  val slash = if igt(na, 0) andalso ine(buf_get(a, isub(na, 1)), CHAR_SLASH) then 1 else 0
+  val slash = igt(na, 0) andalso ine(buf_get(a, isub(na, 1)), CHAR_SLASH)
   val () = bcat(d, a, 0, na)
-  val () = push_if(d, toggle_of(ieq(slash, 1)), CHAR_SLASH)
+  val () = push_if(d, toggle_of(slash), CHAR_SLASH)
   val () = bcat(d, b, 0, buf_len(b))
 in
   d
@@ -162,8 +162,8 @@ implement child_path(dir, name, dst) = let
   val () = bclear(dst)
   val () = bcat(dst, dir, 0, buf_len(dir))
   val nd = buf_len(dir)
-  val need_slash = if igt(nd, 0) andalso ine(buf_get(dir, isub(nd, 1)), CHAR_SLASH) then 1 else 0
-  val () = if ieq(need_slash, 1) then buf_push(dst, CHAR_SLASH) else ()
+  val need_slash = igt(nd, 0) andalso ine(buf_get(dir, isub(nd, 1)), CHAR_SLASH)
+  val () = if need_slash then buf_push(dst, CHAR_SLASH) else ()
 in
   bcat(dst, name, 0, buf_len(name))
 end

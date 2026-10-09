@@ -94,10 +94,10 @@ and scan_entry {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), path: !Buf, dep
     val skip = scan_skip(name)
     val child = join2(path, name)
     val isd = child_kind(child, toggle_of(skip), dir_mark_of(isdir))
-    val goadd = if not(skip) andalso ilt(n, MAX_TREE_ITEMS) then 1 else 0
-    val () = tree_add_if(meta, text, n, depth, isd, child, toggle_of(ieq(goadd, 1)))
-    val godir = if not(skip) andalso is_dir_mark(isd, DirYes) then 1 else 0
-    val () = scan_maybe(recfuel - 1, child, iadd(depth, 1), meta, text, n, toggle_of(ieq(godir, 1)))
+    val goadd = not(skip) andalso ilt(n, MAX_TREE_ITEMS)
+    val () = tree_add_if(meta, text, n, depth, isd, child, toggle_of(goadd))
+    val godir = not(skip) andalso is_dir_mark(isd, DirYes)
+    val () = scan_maybe(recfuel - 1, child, iadd(depth, 1), meta, text, n, toggle_of(godir))
     val () = buf_free(child)
   in
   end else let
@@ -144,8 +144,8 @@ in
     var path = buf_make(8)
     val () = child_path(dir, name, path)
     val has_dot = has_dot_char(name, 0)
-    val need_md = if not(isdir) andalso ieq(has_dot, 0) then 1 else 0
-    val () = bstr_if(path, toggle_of(ieq(need_md, 1)), ".md")
+    val need_md = not(isdir) andalso ieq(has_dot, 0)
+    val () = bstr_if(path, toggle_of(need_md), ".md")
     val p = cstr(path)
     val () = if isdir then create_dir_report(p) else create_file_report(p)
   in

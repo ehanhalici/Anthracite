@@ -242,8 +242,8 @@ fun resolve_save_path(path: Buf, title: !Buf, vault: !Buf, idx: int): Buf =
   if ieq(idx, 0) andalso ieq(buf_len(path), 0) andalso igt(buf_len(vault), 0) then let
     var nb = buf_make(iadd(buf_len(vault), iadd(buf_len(title), 8)))
     val () = child_path(vault, title, nb)
-    val need_md = if ends(nb, ".md") = 0 then 1 else 0
-    val () = bstr_if(nb, toggle_of(ieq(need_md, 1)), ".md")
+    val need_md = ends(nb, ".md") = 0
+    val () = bstr_if(nb, toggle_of(need_md), ".md")
     val () = buf_free(path)
   in
     nb
