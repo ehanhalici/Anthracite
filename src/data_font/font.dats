@@ -589,6 +589,20 @@ in
   else cmap_search(f, 0, segs, cp, ends, starts, deltas, offs)
 end
 
+datatype CmapEnc = CmapWinBmp | CmapUniBmp | CmapUniFull | CmapOther
+
+fun cmap_enc_of(plat: int, enc: int): CmapEnc =
+  if plat = 3 andalso enc = 1 then CmapWinBmp
+  else if plat = 0 andalso enc = 3 then CmapUniBmp
+  else if plat = 0 andalso enc = 4 then CmapUniFull
+  else CmapOther
+
+fun cmap_usable(k: CmapEnc): bool = case+ k of
+  | CmapWinBmp() => true
+  | CmapUniBmp() => true
+  | CmapUniFull() => true
+  | CmapOther() => false
+
 extern fun cmap_find_exh(f: !Font, i: int, nt: int, cmap: int): int = "mac#anth_die_int"
 
 fun cmap_find_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, i: int, nt: int, cmap: int): int =
@@ -599,14 +613,8 @@ fun cmap_find_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, i: i
       val plat: int = file_u16(f, at)
       val enc: int = file_u16(f, iadd(at, 2))
       val off: int = file_u32(f, iadd(at, 4))
-      val use = (
-        if plat = 3 andalso enc = 1 then 1
-        else if plat = 0 andalso enc = 3 then 1
-        else if plat = 0 andalso enc = 4 then 1
-        else 0
-      ): int
     in
-      if use = 1 then iadd(cmap, off) else cmap_find_m(recfuel - 1, f, i + 1, nt, cmap)
+      if cmap_usable(cmap_enc_of(plat, enc)) then iadd(cmap, off) else cmap_find_m(recfuel - 1, f, i + 1, nt, cmap)
     end
   ) else cmap_find_exh(f, i, nt, cmap)
 
