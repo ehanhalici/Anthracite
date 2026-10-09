@@ -221,19 +221,19 @@ fun find_one_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int
 
 fun find_one(d: !Doc, i: int, re: int, a: int): int = find_one_m(airlock_nat(MAX_REC_FUEL), d, i, re, a)
 
-fun special_at(d: !Doc, i: int, re: int): int =
-  if ige(i, re) then 0
-  else if ieq(doc_byte(d, i), CHAR_DOLLAR) orelse ieq(doc_byte(d, i), CHAR_HASH) orelse ieq(doc_byte(d, i), CHAR_LBRACKET) orelse ieq(doc_byte(d, i), CHAR_STAR) orelse ieq(doc_byte(d, i), CHAR_TILDE) then 1
-  else if ilt(iadd(i, 1), re) andalso ieq(doc_byte(d, i), CHAR_EXCL) andalso ieq(doc_byte(d, iadd(i, 1)), CHAR_LBRACKET) then 1
-  else if ilt(iadd(i, 1), re) andalso ieq(doc_byte(d, i), CHAR_EQUAL) andalso ieq(doc_byte(d, iadd(i, 1)), CHAR_EQUAL) then 1
-  else 0
+fun special_at(d: !Doc, i: int, re: int): bool =
+  if ige(i, re) then false
+  else if ieq(doc_byte(d, i), CHAR_DOLLAR) orelse ieq(doc_byte(d, i), CHAR_HASH) orelse ieq(doc_byte(d, i), CHAR_LBRACKET) orelse ieq(doc_byte(d, i), CHAR_STAR) orelse ieq(doc_byte(d, i), CHAR_TILDE) then true
+  else if ilt(iadd(i, 1), re) andalso ieq(doc_byte(d, i), CHAR_EXCL) andalso ieq(doc_byte(d, iadd(i, 1)), CHAR_LBRACKET) then true
+  else if ilt(iadd(i, 1), re) andalso ieq(doc_byte(d, i), CHAR_EQUAL) andalso ieq(doc_byte(d, iadd(i, 1)), CHAR_EQUAL) then true
+  else false
 
 extern fun text_nxt_exh(d: !Doc, re: int, k: int): int = "mac#anth_die_int"
 
 fun text_nxt_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, re: int, k: int): int =
   if recfuel > 0 then (
     if ige(k, re) then k
-    else if special_at(d, k, re) = 1 orelse ieq(doc_byte(d, k), CHAR_LF) then k
+    else if special_at(d, k, re) orelse ieq(doc_byte(d, k), CHAR_LF) then k
     else text_nxt_m(recfuel - 1, d, re, iadd(k, 1))
   ) else text_nxt_exh(d, re, k)
 
