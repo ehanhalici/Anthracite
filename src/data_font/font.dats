@@ -1504,11 +1504,26 @@ fun write_box_loop_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font,
 
 fun write_box_loop(f: !Font, x0: int, y0: int, r: int, c: int): void = write_box_loop_m(airlock_nat(MAX_REC_FUEL), f, x0, y0, r, c)
 
+datatype GlyphWide = WideMissing | WideNarrow | WideFull
+
+fun wide_of(n: int): GlyphWide =
+  if ieq(n, 0) then WideMissing()
+  else if ieq(n, 16) then WideFull()
+  else WideNarrow()
+
+fun wide_px(w: GlyphWide): int = case+ w of
+  | WideMissing() => 8
+  | WideNarrow() => 8
+  | WideFull() => 16
+
 fun write_bitmap(f: !Font, x0: int, y0: int, cp: int): void = let
-  val ww = if ieq(uf_wide(cp), 16) then 16 else 8
+  val w = wide_of(uf_wide(cp))
+  val ww = wide_px(w)
 in
-  if ieq(uf_wide(cp), 0) then write_box_loop(f, x0, y0, 0, 0)
-  else write_pix_loop(f, x0, y0, cp, ww, 0, 0)
+  case+ w of
+  | WideMissing() => write_box_loop(f, x0, y0, 0, 0)
+  | WideNarrow() => write_pix_loop(f, x0, y0, cp, ww, 0, 0)
+  | WideFull() => write_pix_loop(f, x0, y0, cp, ww, 0, 0)
 end
 
 fun scale_of(f: !Font): double = let
@@ -1576,7 +1591,7 @@ end
 fun raster_bitmap(f: !Font, r: !Rend, cp: int, g: &gmet >> _): void = let
   var x0: int = 0
   var y0: int = 0
-  val w = if ieq(uf_wide(cp), 16) then 16 else 8
+  val w = wide_px(wide_of(uf_wide(cp)))
   val () = reserve(f, w, 16, x0, y0)
   val () = write_bitmap(f, x0, y0, cp)
   val () = upload(f, r, x0, y0, w, 16)
