@@ -155,8 +155,8 @@ implement edit_line(b, ev, scratch) =
   end
 
 implement act_prompt(dir, cur, name, kind) =
-  if is_prompt_newfile(kind) then do_create(dir, name, 0)
-  else if is_prompt_newfolder(kind) then do_create(dir, name, 1)
+  if is_prompt_newfile(kind) then do_create(dir, name, false)
+  else if is_prompt_newfolder(kind) then do_create(dir, name, true)
   else if is_prompt_rename(kind) then do_rename(cur, name)
   else let
     val () = seen_buf(dir)
