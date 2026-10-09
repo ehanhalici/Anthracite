@@ -28,7 +28,7 @@ fun row_path(text: !Buf, meta: !Buf, row: int, dst: &Buf >> Buf): void
 fun has_dot_char(b: !Buf, i: int): int
 fun uok(t: uint): int
 fun filter_text(b: !Buf, n: int): int
-fun scan_skip(name: !Buf): int
+fun scan_skip(name: !Buf): bool
 
 datatype DirMark = DirYes | DirNo | DirAsk
 

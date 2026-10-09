@@ -218,9 +218,7 @@ implement filter_text(b, n) =
   else compact_bytes(b, n, 0, 0)
 
 implement scan_skip(name) =
-  if ieq(buf_len(name), 0) then 1
-  else if ieq(buf_get(name, 0), CHAR_DOT) then 1
-  else 0
+  ieq(buf_len(name), 0) orelse ieq(buf_get(name, 0), CHAR_DOT)
 
 implement dir_mark_of(n) =
   if ieq(n, 1) then DirYes
