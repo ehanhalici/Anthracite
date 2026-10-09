@@ -104,7 +104,7 @@ implement with_md(path, dst) = let
   val () = bclear(dst)
   val () = bcat(dst, path, 0, buf_len(path))
 in
-  bstr_if(dst, toggle_of(ieq((if ieq(ends(path, ".md"), 1) orelse ieq(ends(path, ".png"), 1) orelse ieq(ends(path, ".jpg"), 1) orelse ieq(ends(path, ".jpeg"), 1) orelse ieq(ends(path, ".bmp"), 1) then 0 else 1), 1)), ".md")
+  bstr_if(dst, toggle_of(not(ends(path, ".md") orelse ends(path, ".png") orelse ends(path, ".jpg") orelse ends(path, ".jpeg") orelse ends(path, ".bmp"))), ".md")
 end
 
 extern fun count_nl_exh(b: !Buf, capn: int, i: int, k: int): int = "mac#anth_die_int"

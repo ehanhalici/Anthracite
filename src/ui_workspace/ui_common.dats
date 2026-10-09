@@ -95,21 +95,21 @@ in
   buf_cstr(b)
 end
 
-fun ends_loop {rem:nat} .<rem>. (b: !Buf, s: string, n: int, m: int, rem: int(rem), i: int): int =
+fun ends_loop {rem:nat} .<rem>. (b: !Buf, s: string, n: int, m: int, rem: int(rem), i: int): bool =
   if rem > 0 then
-    (if ine(buf_get(b, iadd(isub(n, m), i)), c_str_byte(s, i)) then 0
+    (if ine(buf_get(b, iadd(isub(n, m), i)), c_str_byte(s, i)) then false
      else ends_loop(b, s, n, m, rem - 1, iadd(i, 1)))
-  else 1
+  else true
 
-fun ends_at(b: !Buf, s: string, n: int, m: int, i: int): int =
-  if ige(i, m) then 1
+fun ends_at(b: !Buf, s: string, n: int, m: int, i: int): bool =
+  if ige(i, m) then true
   else ends_loop(b, s, n, m, airlock_span(i, m), i)
 
 implement ends(b, s) = let
   val n = buf_len(b)
   val m = c_strlen(s)
 in
-  if ilt(n, m) then 0 else ends_at(b, s, n, m, 0)
+  if ilt(n, m) then false else ends_at(b, s, n, m, 0)
 end
 
 implement draw_s(f, r, x, y, s, c) =
@@ -176,24 +176,24 @@ in
   bcat(dst, text, off, iadd(off, n))
 end
 
-fun has_dot_loop {rem:nat} .<rem>. (b: !Buf, rem: int(rem), i: int): int =
+fun has_dot_loop {rem:nat} .<rem>. (b: !Buf, rem: int(rem), i: int): bool =
   if rem > 0 then
-    (if ieq(buf_get(b, i), CHAR_DOT) then 1 else has_dot_loop(b, rem - 1, iadd(i, 1)))
-  else 0
+    (if ieq(buf_get(b, i), CHAR_DOT) then true else has_dot_loop(b, rem - 1, iadd(i, 1)))
+  else false
 
 implement has_dot_char(b, i) =
-  if ige(i, buf_len(b)) then 0
+  if ige(i, buf_len(b)) then false
   else has_dot_loop(b, airlock_span(i, buf_len(b)), i)
 
 implement uok(t) = anth_u2i(t)
 
-fun has_esc_loop {rem:nat} .<rem>. (b: !Buf, rem: int(rem), i: int): int =
+fun has_esc_loop {rem:nat} .<rem>. (b: !Buf, rem: int(rem), i: int): bool =
   if rem > 0 then
-    (if ieq(buf_get(b, i), CHAR_ESC) then 1 else has_esc_loop(b, rem - 1, iadd(i, 1)))
-  else 0
+    (if ieq(buf_get(b, i), CHAR_ESC) then true else has_esc_loop(b, rem - 1, iadd(i, 1)))
+  else false
 
-fun has_esc_byte(b: !Buf, n: int, i: int): int =
-  if ige(i, n) then 0
+fun has_esc_byte(b: !Buf, n: int, i: int): bool =
+  if ige(i, n) then false
   else has_esc_loop(b, airlock_span(i, n), i)
 
 fun compact_loop {rem:nat} .<rem>. (b: !Buf, n: int, rem: int(rem), r: int, w: int): int =
@@ -214,7 +214,7 @@ fun compact_bytes(b: !Buf, n: int, r: int, w: int): int =
   else compact_loop(b, n, airlock_span(r, n), r, w)
 
 implement filter_text(b, n) =
-  if ieq(has_esc_byte(b, n, 0), 1) then 0
+  if has_esc_byte(b, n, 0) then 0
   else compact_bytes(b, n, 0, 0)
 
 implement scan_skip(name) =

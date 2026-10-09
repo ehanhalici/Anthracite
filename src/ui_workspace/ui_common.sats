@@ -17,7 +17,7 @@ fun b_app_int(b: &Buf >> Buf, n: int): void
 fun beq(a: !Buf, b: !Buf, i: int): int
 fun bcopy(src: !Buf): Buf
 fun cstr(b: !Buf): string
-fun ends(b: !Buf, s: string): int
+fun ends(b: !Buf, s: string): bool
 fun draw_s(f: !Font, r: !Rend, x: int, y: int, s: string, c: uint): void
 fun join2(a: !Buf, b: !Buf): Buf
 fun last_slash(path: !Buf, i: int, a: int): int
@@ -25,7 +25,7 @@ fun base_name(path: !Buf, dst: &Buf >> Buf): void
 fun dirname_of(path: !Buf, dst: &Buf >> Buf): void
 fun child_path(dir: !Buf, name: !Buf, dst: &Buf >> Buf): void
 fun row_path(text: !Buf, meta: !Buf, row: int, dst: &Buf >> Buf): void
-fun has_dot_char(b: !Buf, i: int): int
+fun has_dot_char(b: !Buf, i: int): bool
 fun uok(t: uint): int
 fun filter_text(b: !Buf, n: int): int
 fun scan_skip(name: !Buf): bool

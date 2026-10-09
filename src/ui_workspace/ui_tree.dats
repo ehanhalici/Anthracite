@@ -144,7 +144,7 @@ in
     var path = buf_make(8)
     val () = child_path(dir, name, path)
     val has_dot = has_dot_char(name, 0)
-    val need_md = not(isdir) andalso ieq(has_dot, 0)
+    val need_md = not(isdir) andalso not(has_dot)
     val () = bstr_if(path, toggle_of(need_md), ".md")
     val p = cstr(path)
     val () = if isdir then create_dir_report(p) else create_file_report(p)

@@ -1089,7 +1089,7 @@ fun open_created_file(ts: Tabs, dir: !Buf, name: !Buf, kind: PromptKind): Tabs =
     var new_file = buf_make(8)
     val () = child_path(dir, name, new_file)
     val has_dot = has_dot_char(name, 0)
-    val need_md = ieq(has_dot, 0)
+    val need_md = not(has_dot)
     val () = bstr_if(new_file, toggle_of(need_md), ".md")
   in
     tabs_open(ts, new_file)
