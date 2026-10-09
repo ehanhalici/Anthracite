@@ -724,18 +724,18 @@ fun png_chunks_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, id
     end
   ) else png_chunks_exh(src, idat, p, w, h, kind, depth, inter)
 
-fun png_chunks(src: !Buf, idat: &Buf >> _, p: int, w: &int >> _, h: &int >> _, kind: &int >> _, depth: &int >> _, inter: &int >> _): int = png_chunks_m(airlock_nat(MAX_REC_FUEL), src, idat, p, w, h, kind, depth, inter)
+fun png_chunks(src: !Buf, idat: &Buf >> _, p: int, w: &int >> _, h: &int >> _, kind: &int >> _, depth: &int >> _, inter: &int >> _): bool = ieq(png_chunks_m(airlock_nat(MAX_REC_FUEL), src, idat, p, w, h, kind, depth, inter), 1)
 
 fun png_bpp(kind: int): int = color_bpp(color_of(kind))
 
 fun png_fit(w: int, h: int): bool =
   igt(w, 0) andalso igt(h, 0) andalso ile(w, 8192) andalso ile(h, 8192) andalso ile(imul(w, h), 1048576)
 
-fun png_inflate(idat: !Buf, saw: Toggle, inf: &Buf >> _): int = let
+fun png_inflate(idat: !Buf, saw: Toggle, inf: &Buf >> _): bool = let
   val nlen = buf_len(idat)
   val goz = is_on(saw) andalso igt(nlen, 2)
 in
-  inflate_or(idat, nlen, inf, toggle_of(goz))
+  ieq(inflate_or(idat, nlen, inf, toggle_of(goz)), 1)
 end
 
 fun png_raw_init(w: int, h: int, kind: int): Buf = let
@@ -748,12 +748,12 @@ in
   raw
 end
 
-fun png_unfilter(inf: !Buf, raw: &Buf >> _, w: int, h: int, kind: int, depth: int, inter: Toggle, okz: Toggle): int = let
+fun png_unfilter(inf: !Buf, raw: &Buf >> _, w: int, h: int, kind: int, depth: int, inter: Toggle, okz: Toggle): bool = let
   val bpp = png_bpp(kind)
   val fit = png_fit(w, h)
   val gou = is_on(okz) andalso fit andalso ieq(depth, 8) andalso is_off(inter) andalso igt(bpp, 0)
 in
-  unfilter_or(inf, w, h, bpp, raw, toggle_of(gou))
+  ieq(unfilter_or(inf, w, h, bpp, raw, toggle_of(gou)), 1)
 end
 
 fun png_expand_buf(raw: !Buf, w: int, h: int, kind: int, oku: Toggle): Buf = let
@@ -787,16 +787,16 @@ implement decode_png(src, wout, hout) = let
   var idat = buf_make(64)
   val saw = png_chunks(src, idat, 8, w, h, kind, depth, inter)
   var inf = buf_make(64)
-  val okz = png_inflate(idat, toggle_of(ieq(saw, 1)), inf)
+  val okz = png_inflate(idat, toggle_of(saw), inf)
   var raw = png_raw_init(w, h, kind)
-  val oku = png_unfilter(inf, raw, w, h, kind, depth, toggle_of(ieq(inter, 1)), toggle_of(ieq(okz, 1)))
-  var dst = png_expand_buf(raw, w, h, kind, toggle_of(ieq(oku, 1)))
-  val () = png_store_dims(toggle_of(ieq(oku, 1)), w, h, wout, hout)
+  val oku = png_unfilter(inf, raw, w, h, kind, depth, toggle_of(ieq(inter, 1)), toggle_of(okz))
+  var dst = png_expand_buf(raw, w, h, kind, toggle_of(oku))
+  val () = png_store_dims(toggle_of(oku), w, h, wout, hout)
   val () = buf_free(idat)
   val () = buf_free(inf)
   val () = buf_free(raw)
 in
-  png_result(dst, toggle_of(ieq(oku, 1)))
+  png_result(dst, toggle_of(oku))
 end
 
 fun png_byte(i: int): int =
