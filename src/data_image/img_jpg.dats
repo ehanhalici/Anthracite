@@ -530,14 +530,16 @@ in
   buf_get32(samp, iadd(imul(iadd(imul(iadd(imul(ci, 2), by), 2), bx), 64), iadd(imul(oy, 8), ox)))
 end
 
-fun color_chan(y: int, cb: int, cr: int, ch: int): int = let
+datatype RgbChan = ChanR | ChanG | ChanB
+
+fun color_chan(y: int, cb: int, cr: int, ch: RgbChan): int = let
   val Y = n_i2d(y)
   val Cb = n_i2d(isub(cb, 128))
   val Cr = n_i2d(isub(cr, 128))
-  val v =
-    if ieq(ch, 0) then dadd(Y, dmul(1.402, Cr))
-    else if ieq(ch, 1) then dsub(dsub(Y, dmul(0.344136, Cb)), dmul(0.714136, Cr))
-    else dadd(Y, dmul(1.772, Cb))
+  val v = case+ ch of
+    | ChanR() => dadd(Y, dmul(1.402, Cr))
+    | ChanG() => dsub(dsub(Y, dmul(0.344136, Cb)), dmul(0.714136, Cr))
+    | ChanB() => dadd(Y, dmul(1.772, Cb))
 in
   clamp255(v)
 end
@@ -561,9 +563,9 @@ in
     val y0 = plane_at(samp, meta, 0, maxh, maxv, lx, ly)
     val cb = if igt(ncomp, 2) then plane_at(samp, meta, 1, maxh, maxv, lx, ly) else 128
     val cr = if igt(ncomp, 2) then plane_at(samp, meta, 2, maxh, maxv, lx, ly) else 128
-    val r = color_chan(y0, cb, cr, 0)
-    val g = color_chan(y0, cb, cr, 1)
-    val b = color_chan(y0, cb, cr, 2)
+    val r = color_chan(y0, cb, cr, ChanR())
+    val g = color_chan(y0, cb, cr, ChanG())
+    val b = color_chan(y0, cb, cr, ChanB())
   in
     put_rgb(dst, w, ix, iy, r, g, b)
   end
