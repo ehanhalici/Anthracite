@@ -557,27 +557,53 @@ in
   buf_push(dst, a)
 end
 
-extern fun expand_exh(raw: !Buf, dst: &Buf >> _, w: int, h: int, kind: int, y: int, x: int): void = "mac#anth_die_void"
+datatype PngColor = ColGray | ColRgb | ColGrayA | ColRgba | ColOther
 
-fun expand_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), raw: !Buf, dst: &Buf >> _, w: int, h: int, kind: int, y: int, x: int): void =
+fun color_of(n: int): PngColor =
+  if ieq(n, 0) then ColGray()
+  else if ieq(n, 2) then ColRgb()
+  else if ieq(n, 4) then ColGrayA()
+  else if ieq(n, 6) then ColRgba()
+  else ColOther()
+
+fun color_bpp(k: PngColor): int = case+ k of
+  | ColGray() => 1
+  | ColRgb() => 3
+  | ColGrayA() => 2
+  | ColRgba() => 4
+  | ColOther() => 0
+
+fun color_stride(k: PngColor, w: int): int = case+ k of
+  | ColGray() => w
+  | ColGrayA() => imul(w, 2)
+  | ColRgb() => imul(w, 3)
+  | ColRgba() => imul(w, 4)
+  | ColOther() => imul(w, 4)
+
+fun put_color(dst: &Buf >> _, raw: !Buf, k: PngColor, p: int): void = case+ k of
+  | ColGray() => put4(dst, buf_get(raw, p), buf_get(raw, p), buf_get(raw, p), 255)
+  | ColGrayA() => put4(dst, buf_get(raw, p), buf_get(raw, p), buf_get(raw, p), buf_get(raw, iadd(p, 1)))
+  | ColRgb() => put4(dst, buf_get(raw, p), buf_get(raw, iadd(p, 1)), buf_get(raw, iadd(p, 2)), 255)
+  | ColRgba() => put4(dst, buf_get(raw, p), buf_get(raw, iadd(p, 1)), buf_get(raw, iadd(p, 2)), buf_get(raw, iadd(p, 3)))
+  | ColOther() => put4(dst, buf_get(raw, p), buf_get(raw, iadd(p, 1)), buf_get(raw, iadd(p, 2)), buf_get(raw, iadd(p, 3)))
+
+extern fun expand_exh(raw: !Buf, dst: &Buf >> _, w: int, h: int, kind: PngColor, y: int, x: int): void = "mac#anth_die_void"
+
+fun expand_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), raw: !Buf, dst: &Buf >> _, w: int, h: int, kind: PngColor, y: int, x: int): void =
   if recfuel > 0 then (
     if ige(y, h) then ()
     else if ige(x, w) then expand_m(recfuel - 1, raw, dst, w, h, kind, iadd(y, 1), 0)
     else let
-      val stride = if ieq(kind, 0) then w else if ieq(kind, 4) then imul(w, 2) else if ieq(kind, 2) then imul(w, 3) else imul(w, 4)
+      val stride = color_stride(kind, w)
       val bpp = idiv(stride, w)
       val p = iadd(imul(y, stride), imul(x, bpp))
-      val () =
-        if ieq(kind, 0) then put4(dst, buf_get(raw, p), buf_get(raw, p), buf_get(raw, p), 255)
-        else if ieq(kind, 4) then put4(dst, buf_get(raw, p), buf_get(raw, p), buf_get(raw, p), buf_get(raw, iadd(p, 1)))
-        else if ieq(kind, 2) then put4(dst, buf_get(raw, p), buf_get(raw, iadd(p, 1)), buf_get(raw, iadd(p, 2)), 255)
-        else put4(dst, buf_get(raw, p), buf_get(raw, iadd(p, 1)), buf_get(raw, iadd(p, 2)), buf_get(raw, iadd(p, 3)))
+      val () = put_color(dst, raw, kind, p)
     in
       expand_m(recfuel - 1, raw, dst, w, h, kind, y, iadd(x, 1))
     end
   ) else expand_exh(raw, dst, w, h, kind, y, x)
 
-fun expand(raw: !Buf, dst: &Buf >> _, w: int, h: int, kind: int, y: int, x: int): void = expand_m(airlock_nat(MAX_REC_FUEL), raw, dst, w, h, kind, y, x)
+fun expand(raw: !Buf, dst: &Buf >> _, w: int, h: int, kind: int, y: int, x: int): void = expand_m(airlock_nat(MAX_REC_FUEL), raw, dst, w, h, color_of(kind), y, x)
 
 fun seal(b: &Buf >> _): int = 0
 
@@ -670,8 +696,7 @@ fun png_chunks_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, id
 
 fun png_chunks(src: !Buf, idat: &Buf >> _, p: int, w: &int >> _, h: &int >> _, kind: &int >> _, depth: &int >> _, inter: &int >> _): int = png_chunks_m(airlock_nat(MAX_REC_FUEL), src, idat, p, w, h, kind, depth, inter)
 
-fun png_bpp(kind: int): int =
-  if ieq(kind, 0) then 1 else if ieq(kind, 2) then 3 else if ieq(kind, 4) then 2 else if ieq(kind, 6) then 4 else 0
+fun png_bpp(kind: int): int = color_bpp(color_of(kind))
 
 fun png_fit(w: int, h: int): bool =
   igt(w, 0) andalso igt(h, 0) andalso ile(w, 8192) andalso ile(h, 8192) andalso ile(imul(w, h), 1048576)
