@@ -1,3 +1,4 @@
+staload "flag.sats"
 staload "core_platform/x11.sats"
 
 absviewtype Plat = ptr
@@ -7,7 +8,7 @@ fun plat_close(p: Plat): void
 fun plat_ok(p: !Plat): int
 fun plat_wh(p: !Plat, w: &int >> _, h: &int >> _): void
 fun plat_set_wh(p: !Plat, w: int, h: int): void
-fun plat_running(p: !Plat): int
+fun plat_running(p: !Plat): Toggle
 fun plat_stop(p: !Plat): void
 fun plat_pending(p: !Plat): int
 fun plat_wait(p: !Plat, ms: int): int

@@ -3,6 +3,7 @@
 
 staload "mem.sats"
 staload "airlock.sats"
+staload "flag.sats"
 staload "os/fs.sats"
 staload "core_platform/platform.sats"
 staload "core_platform/x11.sats"
@@ -38,7 +39,7 @@ fun drain_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, a: !App,
       val () = if is_ev(k, EvResize) then plat_set_wh(p, ev_w(ev), ev_h(ev)) else ()
       val () = app_event(a, p, f, r, ev, w, h)
     in
-      if plat_running(p) = 0 then () else drain_m(recfuel - 1, p, a, f, r)
+      if is_off(plat_running(p)) then () else drain_m(recfuel - 1, p, a, f, r)
     end
   ) else drain_exh(p, a, f, r)
 
@@ -48,11 +49,11 @@ extern fun frame_exh(p: !Plat, a: !App, f: !Font, r: !Rend, loaded: int): void =
 
 fun frame_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, a: !App, f: !Font, r: !Rend, loaded: int): void =
   if recfuel > 0 then (
-    if plat_running(p) = 0 then ()
+    if is_off(plat_running(p)) then ()
     else let
       val () = drain(p, a, f, r)
     in
-      if plat_running(p) = 0 then ()
+      if is_off(plat_running(p)) then ()
       else let
         val loaded2 = if loaded = 0 then font_load_default(f) else loaded
         var w: int = 0

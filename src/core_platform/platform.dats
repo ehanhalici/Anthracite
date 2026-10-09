@@ -2,6 +2,7 @@
 #include "share/atspre_define.hats"
 #include "share/atspre_staload.hats"
 
+staload "flag.sats"
 staload "core_platform/x11.sats"
 staload "core_platform/platform.sats"
 
@@ -57,7 +58,7 @@ datavtype Plat_ = PLAT of @{
 , w= int
 , h= int
 , fd= int
-, running= int
+, running= Toggle
 , wm= ulint
 , clip= ulint
 , prim= ulint
@@ -74,7 +75,7 @@ fun zuli(): ulint = x_ulint0()
 fun plat_dead(): Plat = PLAT(@{
   dpy= the_null_ptr, win= zuli(), ctx= the_null_ptr, vi= the_null_ptr
 , list= the_null_ptr, im= the_null_ptr, ic= the_null_ptr
-, w= 0, h= 0, fd= ~1, running= 0
+, w= 0, h= 0, fd= ~1, running= Off
 , wm= zuli(), clip= zuli(), prim= zuli(), utf8= zuli()
 , targets= zuli(), prop= zuli(), png= zuli()
 })
@@ -108,7 +109,7 @@ fun plat_finish(dpy: ptr, win: ulint, ctx: ptr, vi: ptr, list: ptr, wm: ulint): 
 in
   PLAT(@{
     dpy= dpy, win= win, ctx= ctx, vi= vi, list= list, im= im, ic= ic
-  , w= 1100, h= 720, fd= x_fd(dpy), running= 1
+  , w= 1100, h= 720, fd= x_fd(dpy), running= On
   , wm= wm, clip= clip, prim= prim, utf8= utf8
   , targets= targets, prop= prop, png= png
   })
@@ -196,7 +197,7 @@ implement plat_set_wh(p, w, h) =
 implement plat_running(p) =
   case+ p of
   | @PLAT(r) => let
-      val k: int = (if x_sig_exit() = 1 then 0 else r.running): int
+      val k = (if x_sig_exit() = 1 then Off else r.running): Toggle
     in
       fold@(p); k
     end
@@ -204,7 +205,7 @@ implement plat_running(p) =
 implement plat_stop(p) =
   case+ p of
   | @PLAT(r) => let
-      val () = r.running := 0
+      val () = r.running := Off
     in
       fold@(p)
     end
