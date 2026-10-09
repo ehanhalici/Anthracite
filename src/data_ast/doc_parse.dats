@@ -117,7 +117,7 @@ fun task_aux(d: !Doc, i: int, re: int): int = let
   val k = skip_sp(d, iadd(j, 1), re)
   val c = doc_byte(d, iadd(k, 1))
 in
-  if ieq(c, TASK_STATE_DONE) orelse ieq(c, TASK_STATE_DONE_UPPER) then 1 else if ieq(c, TASK_STATE_PROGRESS) then 2 else 0
+  task_aux_code(task_mark_of(c))
 end
 
 fun is_ul(d: !Doc, i: int, re: int): int = let

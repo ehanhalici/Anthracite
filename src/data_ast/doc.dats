@@ -566,6 +566,30 @@ implement heading_kind(hashes) =
   else if ieq(hashes, 5) then KH5
   else KH6
 
+implement task_mark_of(c) =
+  if ieq(c, 32) then TaskTodo
+  else if ieq(c, 120) orelse ieq(c, 88) then TaskDone
+  else if ieq(c, 47) then TaskProgress
+  else TaskOther
+
+implement task_next_mark(m) = case+ m of
+  | TaskTodo() => TaskDone
+  | TaskDone() => TaskProgress
+  | TaskProgress() => TaskTodo
+  | TaskOther() => TaskTodo
+
+implement task_mark_byte(m) = case+ m of
+  | TaskTodo() => 32
+  | TaskDone() => 120
+  | TaskProgress() => 47
+  | TaskOther() => 32
+
+implement task_aux_code(m) = case+ m of
+  | TaskDone() => 1
+  | TaskProgress() => 2
+  | TaskTodo() => 0
+  | TaskOther() => 0
+
 implement is_kind(k, expect) = ieq(kind_code(k), kind_code(expect))
 
 implement is_heading(k) = case+ k of
@@ -1801,9 +1825,7 @@ fun task_box_find_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, s
 fun task_box_find(d: !Doc, st: int, en: int, p: int): int = task_box_find_m(airlock_nat(MAX_REC_FUEL), d, st, en, p)
 
 fun task_next_state(cur: int): int =
-  if ieq(cur, TASK_STATE_TODO) then TASK_STATE_DONE
-  else if ieq(cur, TASK_STATE_DONE) orelse ieq(cur, TASK_STATE_DONE_UPPER) then TASK_STATE_PROGRESS
-  else TASK_STATE_TODO
+  task_mark_byte(task_next_mark(task_mark_of(cur)))
 
 fun replace_task_mark(d: !Doc, pos: int, nxt: int): void = let
   var nb = buf_make(2)

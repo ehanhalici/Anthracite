@@ -36,10 +36,12 @@ macdef NF_HIDDEN = 9
 macdef NF_AUX = 10
 macdef NF_Y = 13
 
-macdef TASK_STATE_TODO = 32
-macdef TASK_STATE_DONE = 120
-macdef TASK_STATE_DONE_UPPER = 88
-macdef TASK_STATE_PROGRESS = 47
+datatype TaskMark = TaskTodo | TaskDone | TaskProgress | TaskOther
+
+fun task_mark_of(c: int): TaskMark
+fun task_next_mark(m: TaskMark): TaskMark
+fun task_mark_byte(m: TaskMark): int
+fun task_aux_code(m: TaskMark): int
 
 fun doc_node_kind(d: !Doc, i: int): NodeKind
 fun doc_node_start(d: !Doc, i: int): int
