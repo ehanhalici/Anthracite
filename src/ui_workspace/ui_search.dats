@@ -14,21 +14,21 @@ staload "airlock.sats"
 staload "os/diag.sats"
 
 
-fun eq_loop {rem:nat} .<rem>. (b: !Buf, q: !Buf, i: int, rem: int(rem), k: int): int =
+fun eq_loop {rem:nat} .<rem>. (b: !Buf, q: !Buf, i: int, rem: int(rem), k: int): bool =
   if rem > 0 then
-    (if ine(buf_get(b, iadd(i, k)), buf_get(q, k)) then 0 else eq_loop(b, q, i, rem - 1, iadd(k, 1)))
-  else 1
+    (if ine(buf_get(b, iadd(i, k)), buf_get(q, k)) then false else eq_loop(b, q, i, rem - 1, iadd(k, 1)))
+  else true
 
-fun eq_at(b: !Buf, q: !Buf, i: int, k: int): int =
-  if ige(k, buf_len(q)) then 1
+fun eq_at(b: !Buf, q: !Buf, i: int, k: int): bool =
+  if ige(k, buf_len(q)) then true
   else eq_loop(b, q, i, airlock_span(k, buf_len(q)), k)
 
-fun has_at(b: !Buf, q: !Buf, i: int): int =
-  if igt(iadd(i, buf_len(q)), buf_len(b)) then 0 else eq_at(b, q, i, 0)
+fun has_at(b: !Buf, q: !Buf, i: int): bool =
+  if igt(iadd(i, buf_len(q)), buf_len(b)) then false else eq_at(b, q, i, 0)
 
 fun find_loop {rem:nat} .<rem>. (b: !Buf, q: !Buf, rem: int(rem), i: int): int =
   if rem > 0 then
-    (if ieq(has_at(b, q, i), 1) then i else find_loop(b, q, rem - 1, iadd(i, 1)))
+    (if has_at(b, q, i) then i else find_loop(b, q, rem - 1, iadd(i, 1)))
   else ~1
 
 fun find_in(b: !Buf, q: !Buf, z: int, i: int): int =
