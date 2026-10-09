@@ -5,6 +5,7 @@
 
 staload "mem.sats"
 staload "airlock.sats"
+staload "flag.sats"
 staload "os/fs.sats"
 staload "core_render/render.sats"
 staload "data_image/image.sats"
@@ -26,11 +27,11 @@ fun ishl(a: int, n: int): int = imul(a, pow2(n))
 fun ishr(a: int, n: int): int = if n <= 0 then a else idiv(a, ishl(1, n))
 fun iand(a: int, n: int): int = anth_iand(a, n)
 
-datavtype Image_ = IMG of @{w= int, h= int, px= Buf, ok= int}
+datavtype Image_ = IMG of @{w= int, h= int, px= Buf, ok= Toggle}
 (* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
 assume Image = Image_
 
-implement img_open() = IMG(@{w= 0, h= 0, px= buf_make(4), ok= 0})
+implement img_open() = IMG(@{w= 0, h= 0, px= buf_make(4), ok= Off})
 
 implement img_free(im) = let
   val+~IMG(s) = im
@@ -44,7 +45,7 @@ implement img_h(im) = case+ im of | @IMG(s) => let val v = s.h in fold@(im); v e
 implement img_upload(im, r) =
   case+ im of
   | @IMG(s) => let
-      val t = if s.ok = 0 then u_zero() else rend_tex_buf(r, s.w, s.h, s.px)
+      val t = if is_off(s.ok) then u_zero() else rend_tex_buf(r, s.w, s.h, s.px)
     in
       fold@(im); t
     end
@@ -102,7 +103,7 @@ fun img_store(im: !Image, px: Buf, w: int, h: int): void =
       val () = s.px := px
       val () = s.w := w
       val () = s.h := h
-      val () = s.ok := 1
+      val () = s.ok := On
       val () = fold@(im)
       val () = buf_free(old)
     in
