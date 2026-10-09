@@ -221,15 +221,19 @@ in
   search_dir(vault, q, hits, hmeta, hn, 0)
 end
 
+extern fun hit_head_exh(hmeta: !Buf, r: int): int = "mac#anth_die_int"
+
+fun hit_head_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), hmeta: !Buf, r: int): int =
+  if recfuel > 0 then (
+    if ilt(r, 0) then ~1
+    else if ilt(buf_get32(hmeta, imul(r, 4)), 0) then r
+    else hit_head_m(recfuel - 1, hmeta, isub(r, 1))
+  ) else hit_head_exh(hmeta, r)
+
 implement find_hit_file(hmeta, hits, row, dst) = let
   val () = bclear(dst)
-  var r: int = row
-  var head_row: int = ~1
+  val head_row = hit_head_m(airlock_nat(MAX_REC_FUEL), hmeta, row)
 in
-  while (ige(r, 0) andalso ilt(head_row, 0)) (
-    if ilt(buf_get32(hmeta, imul(r, 4)), 0) then head_row := r
-    else r := isub(r, 1)
-  );
   if ige(head_row, 0) then let
     val off = buf_get32(hmeta, iadd(imul(head_row, 4), 1))
     val n = buf_get32(hmeta, iadd(imul(head_row, 4), 2))

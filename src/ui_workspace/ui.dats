@@ -320,15 +320,22 @@ fun draw_search_row(f: !Font, r: !Rend, hits: !Buf, hmeta: !Buf, row: int): void
   if ilt(buf_get32(hmeta, imul(row, 4)), 0) then draw_search_plain_hit(f, r, hits, hmeta, row)
   else draw_search_marked_hit(f, r, hits, hmeta, row)
 
+extern fun search_rows_exh(f: !Font, r: !Rend, s: &App_record, row: int, hn: int): void = "mac#anth_die_void"
+
+fun search_rows_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, s: &App_record, row: int, hn: int): void =
+  if recfuel > 0 then (
+    if ilt(row, hn) andalso ilt(row, 24) then let
+      val () = draw_search_row(f, r, s.hits, s.hmeta, row)
+    in
+      search_rows_m(recfuel - 1, f, r, s, iadd(row, 1), hn)
+    end else ()
+  ) else search_rows_exh(f, r, s, row, hn)
+
 fun draw_sidebar_search(f: !Font, r: !Rend, s: &App_record): void = let
   val qn = buf_len(s.query)
   val () = ui_line_edit_draw(f, r, 8, 68, 264, 24, s.query, qn, qn, s.qfocus, "Aramak icin yazin...")
-  var row: int = 0
 in
-  while (ilt(row, s.hn) andalso ilt(row, 24)) (
-    draw_search_row(f, r, s.hits, s.hmeta, row);
-    row := iadd(row, 1)
-  )
+  search_rows_m(airlock_nat(MAX_REC_FUEL), f, r, s, 0, s.hn)
 end
 
 fun draw_tree_row(f: !Font, r: !Rend, s: &App_record, row: int): void = let
@@ -348,14 +355,19 @@ fun draw_tree_row(f: !Font, r: !Rend, s: &App_record, row: int): void = let
 in
 end
 
-fun draw_sidebar_files(f: !Font, r: !Rend, s: &App_record): void = let
-  var row: int = 0
-in
-  while (ilt(row, s.tn) andalso ilt(row, 28)) (
-    draw_tree_row(f, r, s, row);
-    row := iadd(row, 1)
-  )
-end
+extern fun file_rows_exh(f: !Font, r: !Rend, s: &App_record, row: int, tn: int): void = "mac#anth_die_void"
+
+fun file_rows_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, s: &App_record, row: int, tn: int): void =
+  if recfuel > 0 then (
+    if ilt(row, tn) andalso ilt(row, 28) then let
+      val () = draw_tree_row(f, r, s, row)
+    in
+      file_rows_m(recfuel - 1, f, r, s, iadd(row, 1), tn)
+    end else ()
+  ) else file_rows_exh(f, r, s, row, tn)
+
+fun draw_sidebar_files(f: !Font, r: !Rend, s: &App_record): void =
+  file_rows_m(airlock_nat(MAX_REC_FUEL), f, r, s, 0, s.tn)
 
 fun draw_config_vault_section(f: !Font, r: !Rend, s: &App_record): void = let
   val () = draw_s(f, r, 12, 76, "Kasa", col_muted())
@@ -393,16 +405,23 @@ fun draw_config_font_row(f: !Font, r: !Rend, s: &App_record, fi: int): void = le
 in
 end
 
+extern fun font_rows_exh(f: !Font, r: !Rend, s: &App_record, fi: int, fcnt: int): void = "mac#anth_die_void"
+
+fun font_rows_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, s: &App_record, fi: int, fcnt: int): void =
+  if recfuel > 0 then (
+    if ilt(fi, fcnt) andalso ilt(fi, 12) then let
+      val () = draw_config_font_row(f, r, s, fi)
+    in
+      font_rows_m(recfuel - 1, f, r, s, iadd(fi, 1), fcnt)
+    end else ()
+  ) else font_rows_exh(f, r, s, fi, fcnt)
+
 fun draw_sidebar_config(f: !Font, r: !Rend, s: &App_record): void = let
   val () = draw_config_vault_section(f, r, s)
   val () = draw_config_font_size(f, r, s)
   val () = draw_s(f, r, 12, 186, "Yazi Tipi (fonts/)", col_text())
-  var fi: int = 0
 in
-  while (ilt(fi, s.fcnt) andalso ilt(fi, 12)) (
-    draw_config_font_row(f, r, s, fi);
-    fi := iadd(fi, 1)
-  )
+  font_rows_m(airlock_nat(MAX_REC_FUEL), f, r, s, 0, s.fcnt)
 end
 
 fun draw_side_frame(r: !Rend, h: int): void = let

@@ -284,32 +284,47 @@ in
   gap_get(d, p)
 end
 
-fun copy_fwd(src: !Buf, so: int, dst: !Buf, dst0: int, n: int): void = let
-  var i: int = 0
-in
-  while (ilt(i, n)) (
-    buf_set(dst, iadd(dst0, i), buf_get(src, iadd(so, i)));
-    i := iadd(i, 1)
-  )
-end
+extern fun copy_fwd_exh(src: !Buf, so: int, dst: !Buf, dst0: int, n: int, i: int): void = "mac#anth_die_void"
 
-fun copy_fwd_same(b: !Buf, so: int, dst0: int, n: int): void = let
-  var i: int = 0
-in
-  while (ilt(i, n)) (
-    buf_set(b, iadd(dst0, i), buf_get(b, iadd(so, i)));
-    i := iadd(i, 1)
-  )
-end
+fun copy_fwd_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, so: int, dst: !Buf, dst0: int, n: int, i: int): void =
+  if recfuel > 0 then (
+    if ilt(i, n) then let
+      val () = buf_set(dst, iadd(dst0, i), buf_get(src, iadd(so, i)))
+    in
+      copy_fwd_m(recfuel - 1, src, so, dst, dst0, n, iadd(i, 1))
+    end else ()
+  ) else copy_fwd_exh(src, so, dst, dst0, n, i)
 
-fun copy_back_same(b: !Buf, so: int, dst0: int, n: int): void = let
-  var i: int = isub(n, 1)
-in
-  while (ige(i, 0)) (
-    buf_set(b, iadd(dst0, i), buf_get(b, iadd(so, i)));
-    i := isub(i, 1)
-  )
-end
+fun copy_fwd(src: !Buf, so: int, dst: !Buf, dst0: int, n: int): void =
+  copy_fwd_m(airlock_nat(MAX_REC_FUEL), src, so, dst, dst0, n, 0)
+
+extern fun copy_same_exh(b: !Buf, so: int, dst0: int, n: int, i: int): void = "mac#anth_die_void"
+
+fun copy_same_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, so: int, dst0: int, n: int, i: int): void =
+  if recfuel > 0 then (
+    if ilt(i, n) then let
+      val () = buf_set(b, iadd(dst0, i), buf_get(b, iadd(so, i)))
+    in
+      copy_same_m(recfuel - 1, b, so, dst0, n, iadd(i, 1))
+    end else ()
+  ) else copy_same_exh(b, so, dst0, n, i)
+
+fun copy_fwd_same(b: !Buf, so: int, dst0: int, n: int): void =
+  copy_same_m(airlock_nat(MAX_REC_FUEL), b, so, dst0, n, 0)
+
+extern fun copy_back_exh(b: !Buf, so: int, dst0: int, i: int): void = "mac#anth_die_void"
+
+fun copy_back_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, so: int, dst0: int, i: int): void =
+  if recfuel > 0 then (
+    if ige(i, 0) then let
+      val () = buf_set(b, iadd(dst0, i), buf_get(b, iadd(so, i)))
+    in
+      copy_back_m(recfuel - 1, b, so, dst0, isub(i, 1))
+    end else ()
+  ) else copy_back_exh(b, so, dst0, i)
+
+fun copy_back_same(b: !Buf, so: int, dst0: int, n: int): void =
+  copy_back_m(airlock_nat(MAX_REC_FUEL), b, so, dst0, isub(n, 1))
 
 fun gap_grow(d: !Doc, need: int): void = let
   val lo = d_lo(d)
@@ -632,11 +647,21 @@ fun node_room(d: !Doc): void =
       fold@(d)
     end
 
+extern fun zero_node_exh(d: !Doc, i: int, f: int): void = "mac#anth_die_void"
+
+fun zero_node_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, f: int): void =
+  if recfuel > 0 then (
+    if f < NS then let
+      val () = nset(d, i, f, 0)
+    in
+      zero_node_m(recfuel - 1, d, i, iadd(f, 1))
+    end else ()
+  ) else zero_node_exh(d, i, f)
+
 fun npush(d: !Doc, kind: NodeKind, st: int, en: int, depth: int, aux: int): void = let
   val () = node_room(d)
   val i = d_nnodes(d)
-  var f: int = 0
-  val () = while (f < NS) (nset(d, i, f, 0); f := iadd(f, 1))
+  val () = zero_node_m(airlock_nat(MAX_REC_FUEL), d, i, 0)
   val () = nset(d, i, NF_KIND, kind_code(kind))
   val () = nset(d, i, NF_START, st)
   val () = nset(d, i, NF_END, en)
@@ -1001,18 +1026,25 @@ fun stamp_nodes_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, lh:
 
 fun stamp_nodes(d: !Doc, lh: int, i: int): void = stamp_nodes_m(airlock_nat(MAX_REC_FUEL), d, lh, i)
 
+extern fun fill_liney_exh(liney: !Buf, i: int, nlines: int, lh: int): void = "mac#anth_die_void"
+
+fun fill_liney_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), liney: !Buf, i: int, nlines: int, lh: int): void =
+  if recfuel > 0 then (
+    if ilt(i, nlines) then let
+      val () = buf_set32(liney, imul(i, 2), imul(i, lh))
+      val () = buf_set32(liney, iadd(imul(i, 2), 1), lh)
+    in
+      fill_liney_m(recfuel - 1, liney, iadd(i, 1), nlines, lh)
+    end else ()
+  ) else fill_liney_exh(liney, i, nlines, lh)
+
 fun fill_plain_lines(d: !Doc, lh: int, nlines: int): void =
   case+ d of
   | @DOC(s) => let
       val need = imul(iadd(nlines, 1), 8)
       val () = if buf_cap(s.liney) < need then buf_resize(s.liney, imax(imul(need, 2), 4096)) else ()
-      var i: int = 0
+      val () = fill_liney_m(airlock_nat(MAX_REC_FUEL), s.liney, 0, nlines, lh)
     in
-      while (ilt(i, nlines)) (
-        buf_set32(s.liney, imul(i, 2), imul(i, lh));
-        buf_set32(s.liney, iadd(imul(i, 2), 1), lh);
-        i := iadd(i, 1)
-      );
       fold@(d)
     end
 
@@ -1047,15 +1079,22 @@ in
   relink(d)
 end
 
+extern fun gap_put_exh(d: !Doc, p: ptr, n: int, lo: int, i: int): void = "mac#anth_die_void"
+
+fun gap_put_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, p: ptr, n: int, lo: int, i: int): void =
+  if recfuel > 0 then (
+    if i < n then let
+      val () = gap_set(d, iadd(lo, i), mem_byte(p, n, i))
+    in
+      gap_put_m(recfuel - 1, d, p, n, lo, iadd(i, 1))
+    end else ()
+  ) else gap_put_exh(d, p, n, lo, i)
+
 fun gap_put(d: !Doc, p: ptr, n: int): void = let
   val () = gap_room(d, n)
   val lo = d_lo(d)
-  var i: int = 0
+  val () = gap_put_m(airlock_nat(MAX_REC_FUEL), d, p, n, lo, 0)
 in
-  while (i < n) (
-    gap_set(d, iadd(lo, i), mem_byte(p, n, i));
-    i := iadd(i, 1)
-  );
   d_set_lo(d, iadd(lo, n));
   d_set_len(d, iadd(d_len(d), n))
 end
@@ -1086,33 +1125,47 @@ in
   end
 end
 
+extern fun slice_exh(d: !Doc, a: int, dst: ptr, cap: int, i: int, n: int): void = "mac#anth_die_void"
+
+fun slice_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, a: int, dst: ptr, cap: int, i: int, n: int): void =
+  if recfuel > 0 then (
+    if ilt(i, n) then let
+      val () = mem_set_byte(dst, cap, i, doc_byte(d, iadd(a, i)))
+    in
+      slice_m(recfuel - 1, d, a, dst, cap, iadd(i, 1), n)
+    end else ()
+  ) else slice_exh(d, a, dst, cap, i, n)
+
 implement doc_slice(d, a0, b0, dst, cap) = let
   val len = d_len(d)
   val a = if a0 < 0 then 0 else a0
   val b = if b0 > len then len else b0
   val n = if igt(isub(b, a), cap) then cap else isub(b, a)
-  var i: int = 0
+  val () = slice_m(airlock_nat(MAX_REC_FUEL), d, a, dst, cap, 0, n)
 in
-  while (ilt(i, n)) (
-    mem_set_byte(dst, cap, i, doc_byte(d, iadd(a, i)));
-    i := iadd(i, 1)
-  );
   n
 end
 
 implement doc_slice_buf(d, a, b, dst, cap) =
   doc_slice(d, a, b, buf_ptr(dst), cap)
 
+extern fun text_copy_exh(d: !Doc, dst: !Buf, i: int, n: int): void = "mac#anth_die_void"
+
+fun text_copy_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, dst: !Buf, i: int, n: int): void =
+  if recfuel > 0 then (
+    if i < n then let
+      val () = buf_set(dst, i, doc_byte(d, i))
+    in
+      text_copy_m(recfuel - 1, d, dst, iadd(i, 1), n)
+    end else ()
+  ) else text_copy_exh(d, dst, i, n)
+
 implement doc_text(d, dst) = let
   val n = d_len(d)
   val () = buf_resize(dst, iadd(n, 1))
-  var i: int = 0
+  val () = text_copy_m(airlock_nat(MAX_REC_FUEL), d, dst, 0, n)
+  val () = buf_set(dst, n, 0)
 in
-  while (i < n) (
-    buf_set(dst, i, doc_byte(d, i));
-    i := iadd(i, 1)
-  );
-  buf_set(dst, n, 0);
   buf_set_len(dst, n)
 end
 
@@ -1395,22 +1448,30 @@ fun doc_char_class(b: int): CharClass =
   else if (b >= 97 andalso b <= 122) orelse (b >= 65 andalso b <= 90) orelse (b >= 48 andalso b <= 57) orelse (b >= 128) then ClassWord()
   else ClassOther()
 
+extern fun blank_back_exh(d: !Doc, i: int): int = "mac#anth_die_int"
+
+fun blank_back_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int): int =
+  if recfuel > 0 then (
+    if i > 0 andalso is_class(doc_char_class(doc_byte(d, isub(i, 1))), ClassBlank) then
+      blank_back_m(recfuel - 1, d, utf8_prev(d, i))
+    else i
+  ) else blank_back_exh(d, i)
+
+extern fun class_back_exh(d: !Doc, i: int, cls: CharClass): int = "mac#anth_die_int"
+
+fun class_back_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, cls: CharClass): int =
+  if recfuel > 0 then (
+    if i > 0 andalso is_class(doc_char_class(doc_byte(d, isub(i, 1))), cls) then
+      class_back_m(recfuel - 1, d, utf8_prev(d, i), cls)
+    else i
+  ) else class_back_exh(d, i, cls)
+
 fun word_left_pos(d: !Doc, cur: int): int =
   if cur <= 0 then 0
   else let
-    var i: int = cur
-    val () = while (i > 0 andalso is_class(doc_char_class(doc_byte(d, isub(i, 1))), ClassBlank)) (
-      i := utf8_prev(d, i)
-    )
-    val () = if i > 0 then let
-      val cls = doc_char_class(doc_byte(d, isub(i, 1)))
-      val () = while (i > 0 andalso is_class(doc_char_class(doc_byte(d, isub(i, 1))), cls)) (
-        i := utf8_prev(d, i)
-      )
-    in
-    end else ()
+    val i = blank_back_m(airlock_nat(MAX_REC_FUEL), d, cur)
   in
-    i
+    if i > 0 then class_back_m(airlock_nat(MAX_REC_FUEL), d, i, doc_char_class(doc_byte(d, isub(i, 1)))) else i
   end
 
 extern fun skip_class_run_exh(d: !Doc, i: int, len: int, cls: CharClass): int = "mac#anth_die_int"
@@ -1509,41 +1570,57 @@ implement doc_doc_start_select(d) = doc_set_caret_extend(d, 0)
 implement doc_doc_end_move(d) = doc_set_caret_move(d, d_len(d))
 implement doc_doc_end_select(d) = doc_set_caret_extend(d, d_len(d))
 
-implement doc_page_up_move(d, nlines) = let
-  var k: int = 0
-in
-  while (k < nlines) (
-    doc_up_move(d);
-    k := iadd(k, 1)
-  )
-end
+extern fun page_up_move_exh(d: !Doc, k: int, nlines: int): void = "mac#anth_die_void"
 
-implement doc_page_up_select(d, nlines) = let
-  var k: int = 0
-in
-  while (k < nlines) (
-    doc_up_select(d);
-    k := iadd(k, 1)
-  )
-end
+fun page_up_move_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, k: int, nlines: int): void =
+  if recfuel > 0 then (
+    if k < nlines then let
+      val () = doc_up_move(d)
+    in
+      page_up_move_m(recfuel - 1, d, iadd(k, 1), nlines)
+    end else ()
+  ) else page_up_move_exh(d, k, nlines)
 
-implement doc_page_down_move(d, nlines) = let
-  var k: int = 0
-in
-  while (k < nlines) (
-    doc_down_move(d);
-    k := iadd(k, 1)
-  )
-end
+implement doc_page_up_move(d, nlines) = page_up_move_m(airlock_nat(MAX_REC_FUEL), d, 0, nlines)
 
-implement doc_page_down_select(d, nlines) = let
-  var k: int = 0
-in
-  while (k < nlines) (
-    doc_down_select(d);
-    k := iadd(k, 1)
-  )
-end
+extern fun page_up_select_exh(d: !Doc, k: int, nlines: int): void = "mac#anth_die_void"
+
+fun page_up_select_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, k: int, nlines: int): void =
+  if recfuel > 0 then (
+    if k < nlines then let
+      val () = doc_up_select(d)
+    in
+      page_up_select_m(recfuel - 1, d, iadd(k, 1), nlines)
+    end else ()
+  ) else page_up_select_exh(d, k, nlines)
+
+implement doc_page_up_select(d, nlines) = page_up_select_m(airlock_nat(MAX_REC_FUEL), d, 0, nlines)
+
+extern fun page_down_move_exh(d: !Doc, k: int, nlines: int): void = "mac#anth_die_void"
+
+fun page_down_move_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, k: int, nlines: int): void =
+  if recfuel > 0 then (
+    if k < nlines then let
+      val () = doc_down_move(d)
+    in
+      page_down_move_m(recfuel - 1, d, iadd(k, 1), nlines)
+    end else ()
+  ) else page_down_move_exh(d, k, nlines)
+
+implement doc_page_down_move(d, nlines) = page_down_move_m(airlock_nat(MAX_REC_FUEL), d, 0, nlines)
+
+extern fun page_down_select_exh(d: !Doc, k: int, nlines: int): void = "mac#anth_die_void"
+
+fun page_down_select_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, k: int, nlines: int): void =
+  if recfuel > 0 then (
+    if k < nlines then let
+      val () = doc_down_select(d)
+    in
+      page_down_select_m(recfuel - 1, d, iadd(k, 1), nlines)
+    end else ()
+  ) else page_down_select_exh(d, k, nlines)
+
+implement doc_page_down_select(d, nlines) = page_down_select_m(airlock_nat(MAX_REC_FUEL), d, 0, nlines)
 
 implement doc_save(d, path) = let
   var b = buf_make(16)

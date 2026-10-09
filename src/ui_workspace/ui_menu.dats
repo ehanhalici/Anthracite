@@ -4,6 +4,7 @@
 #include "common.hats"
 
 staload "mem.sats"
+staload "airlock.sats"
 staload "flag.sats"
 staload "core_platform/x11.sats"
 staload "core_platform/platform.sats"
@@ -98,6 +99,8 @@ implement draw_prompt(f, r, b, prompt) =
   in
   end
 
+extern fun utf8_menu_back_exh(b: !Buf, n: int, k: int): int = "mac#anth_die_int"
+
 fun buf_utf8_prev(b: !Buf, n: int): int =
   if n <= 1 then 0
   else let
@@ -110,7 +113,7 @@ fun buf_utf8_prev(b: !Buf, n: int): int =
           if by < 128 orelse by >= 192 then isub(k, 1)
           else back(b, n, isub(k, 1), lim - 1)
         end
-      ) else k
+      ) else utf8_menu_back_exh(b, n, k)
   in
     back(b, n, n, 4)
   end
@@ -127,20 +130,24 @@ in
   end else EditChanged
 end
 
+extern fun push_typed_exh(b: &Buf >> Buf, scratch: !Buf, j: int, n: int): void = "mac#anth_die_void"
+
+fun push_typed_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: &Buf >> Buf, scratch: !Buf, j: int, n: int): void =
+  if recfuel > 0 then (
+    if ilt(j, n) then let
+      val by = buf_get(scratch, j)
+      val () = if ige(by, 32) andalso ine(by, 127) then buf_push(b, by) else ()
+    in
+      push_typed_m(recfuel - 1, b, scratch, iadd(j, 1), n)
+    end else ()
+  ) else push_typed_exh(b, scratch, j, n)
+
 fun edit_insert_typed(b: &Buf >> Buf, ev: &event, scratch: &Buf >> Buf): void = let
   val cap = buf_cap(scratch)
   val raw_n = ev_text_buf(ev, scratch, cap)
   val n = filter_text(scratch, raw_n)
-  var j: int = 0
 in
-  while (ilt(j, n)) (
-    let
-      val by = buf_get(scratch, j)
-    in
-      if ige(by, 32) andalso ine(by, 127) then buf_push(b, by) else ();
-      j := iadd(j, 1)
-    end
-  )
+  push_typed_m(airlock_nat(MAX_REC_FUEL), b, scratch, 0, n)
 end
 
 implement edit_line(b, ev, scratch) =

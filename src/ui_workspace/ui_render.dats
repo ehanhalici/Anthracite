@@ -79,25 +79,36 @@ fun scan_code(m: PathScan): int = case+ m of
 
 fun is_scan(a: PathScan, b: PathScan): bool = scan_code(a) = scan_code(b)
 
+fun take_advance(d: !Doc, mode: PathScan, i0: int, b0: int, dst: &Buf >> _): @(PathScan, int) =
+  if is_scan(mode, ScanSeek) andalso ilt(iadd(i0, 1), b0) andalso ieq(doc_byte(d, i0), 91) andalso ieq(doc_byte(d, iadd(i0, 1)), 91) then
+    @(ScanCopy(), iadd(i0, 2))
+  else if is_scan(mode, ScanSeek) andalso ieq(doc_byte(d, i0), 40) then
+    @(ScanCopy(), iadd(i0, 1))
+  else if is_scan(mode, ScanCopy) andalso (ieq(doc_byte(d, i0), 124) orelse ieq(doc_byte(d, i0), 35) orelse ieq(doc_byte(d, i0), 93) orelse ieq(doc_byte(d, i0), 41)) then
+    @(ScanDone(), b0)
+  else let
+    val () = if is_scan(mode, ScanCopy) then buf_push(dst, doc_byte(d, i0)) else ()
+  in
+    @(mode, iadd(i0, 1))
+  end
+
+extern fun take_path_exh(d: !Doc, mode: PathScan, i0: int, b0: int, dst: &Buf >> _): void = "mac#anth_die_void"
+
+fun take_path_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, mode: PathScan, i0: int, b0: int, dst: &Buf >> _): void =
+  if recfuel > 0 then (
+    if ilt(i0, b0) then let
+      val nxt = take_advance(d, mode, i0, b0, dst)
+    in
+      take_path_m(recfuel - 1, d, nxt.0, nxt.1, b0, dst)
+    end else ()
+  ) else take_path_exh(d, mode, i0, b0, dst)
+
 implement take_path(d, i, dst) = let
   val a0 = doc_node_start(d, i)
   val b0 = doc_node_end(d, i)
-  var mode: PathScan = ScanSeek()
-  var i0: int = a0
   val () = bclear(dst)
 in
-  while (ilt(i0, b0)) (
-    if is_scan(mode, ScanSeek) andalso ilt(iadd(i0, 1), b0) andalso ieq(doc_byte(d, i0), 91) andalso ieq(doc_byte(d, iadd(i0, 1)), 91) then (
-      mode := ScanCopy(); i0 := iadd(i0, 2)
-    ) else if is_scan(mode, ScanSeek) andalso ieq(doc_byte(d, i0), 40) then (
-      mode := ScanCopy(); i0 := iadd(i0, 1)
-    ) else if is_scan(mode, ScanCopy) andalso (ieq(doc_byte(d, i0), 124) orelse ieq(doc_byte(d, i0), 35) orelse ieq(doc_byte(d, i0), 93) orelse ieq(doc_byte(d, i0), 41)) then (
-      mode := ScanDone(); i0 := b0
-    ) else (
-      if is_scan(mode, ScanCopy) then buf_push(dst, doc_byte(d, i0)) else ();
-      i0 := iadd(i0, 1)
-    )
-  )
+  take_path_m(airlock_nat(MAX_REC_FUEL), d, ScanSeek(), a0, b0, dst)
 end
 
 implement resolve_path(vault, rel, dst) = let
@@ -273,12 +284,16 @@ fun is_box(k: NodeKind): bool =
   is_kind(k, KPara) orelse is_heading(k) orelse is_kind(k, KLi) orelse is_kind(k, KQuote) orelse is_kind(k, KCode) orelse is_kind(k, KTable) orelse is_kind(k, KTask) orelse is_kind(k, KFndef) orelse is_kind(k, KFm)
 
 
-fun text_run_end(d: !Doc, i0: int, b: int): int = let
-  var j: int = i0
-  val () = while (ilt(j, b) andalso ine(doc_byte(d, j), 10)) (j := iadd(j, 1))
-in
-  j
-end
+extern fun text_end_exh(d: !Doc, j: int, b: int): int = "mac#anth_die_int"
+
+fun text_end_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, j: int, b: int): int =
+  if recfuel > 0 then (
+    if ilt(j, b) andalso ine(doc_byte(d, j), 10) then text_end_m(recfuel - 1, d, iadd(j, 1), b)
+    else j
+  ) else text_end_exh(d, j, b)
+
+fun text_run_end(d: !Doc, i0: int, b: int): int =
+  text_end_m(airlock_nat(MAX_REC_FUEL), d, i0, b)
 
 fun draw_bytes_prefix_width(f: !Font, r: !Rend, d: !Doc, a: int, scratch: &Buf >> _): int = let
   val line0 = doc_line_of(d, a)
@@ -297,22 +312,25 @@ in
   font_draw_buf(f, r, x0, y0, scratch, n, c)
 end
 
+extern fun draw_bytes_exh(f: !Font, r: !Rend, d: !Doc, i0: int, b: int, x: int, x0: int, oy: int, scroll: int, c: uint, scratch: &Buf >> _): void = "mac#anth_die_void"
+
+fun draw_bytes_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, i0: int, b: int, x: int, x0: int, oy: int, scroll: int, c: uint, scratch: &Buf >> _): void =
+  if recfuel > 0 then (
+    if ilt(i0, b) then
+      if ieq(doc_byte(d, i0), 10) then draw_bytes_m(recfuel - 1, f, r, d, iadd(i0, 1), b, x, x, oy, scroll, c, scratch)
+      else let
+        val j = text_run_end(d, i0, b)
+        val adv = draw_bytes_run(f, r, d, i0, j, x0, oy, scroll, c, scratch)
+      in
+        draw_bytes_m(recfuel - 1, f, r, d, j, b, x, iadd(x0, adv), oy, scroll, c, scratch)
+      end
+    else ()
+  ) else draw_bytes_exh(f, r, d, i0, b, x, x0, oy, scroll, c, scratch)
+
 fun draw_bytes(f: !Font, r: !Rend, d: !Doc, a: int, b: int, x: int, oy: int, scroll: int, c: uint, scratch: &Buf >> _): void = let
-  var i0: int = a
   val pre_w = draw_bytes_prefix_width(f, r, d, a, scratch)
-  var x0: int = iadd(x, pre_w)
 in
-  while (ilt(i0, b)) (
-    if ieq(doc_byte(d, i0), 10) then (
-      x0 := x; i0 := iadd(i0, 1)
-    ) else let
-      val j = text_run_end(d, i0, b)
-      val adv = draw_bytes_run(f, r, d, i0, j, x0, oy, scroll, c, scratch)
-      val () = x0 := iadd(x0, adv)
-      val () = i0 := j
-    in
-    end
-  )
+  draw_bytes_m(airlock_nat(MAX_REC_FUEL), f, r, d, a, b, x, iadd(x, pre_w), oy, scroll, c, scratch)
 end
 
 extern fun paint_file_exh(f: !Font, r: !Rend, b: !Buf, n: int, nlines: int, x: int, lh: int, c: uint, i0: int, line: int, x0: int, y0: int): void = "mac#anth_die_void"
@@ -363,20 +381,24 @@ fun draw_plain_line(f: !Font, r: !Rend, d: !Doc, li: int, nlines: int, colx: int
 in
 end
 
+extern fun plain_lines_exh(f: !Font, r: !Rend, d: !Doc, li: int, li_end: int, nlines: int, colx: int, oy: int, safe_lh: int, scroll: int, scratch: &Buf >> _): void = "mac#anth_die_void"
+
+fun plain_lines_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, li: int, li_end: int, nlines: int, colx: int, oy: int, safe_lh: int, scroll: int, scratch: &Buf >> _): void =
+  if recfuel > 0 then (
+    if ilt(li, li_end) then let
+      val () = draw_plain_line(f, r, d, li, nlines, colx, oy, safe_lh, scroll, scratch)
+    in
+      plain_lines_m(recfuel - 1, f, r, d, iadd(li, 1), li_end, nlines, colx, oy, safe_lh, scroll, scratch)
+    end else ()
+  ) else plain_lines_exh(f, r, d, li, li_end, nlines, colx, oy, safe_lh, scroll, scratch)
+
 fun draw_plain_doc(f: !Font, r: !Rend, d: !Doc, colx: int, oy: int, pw: int, ph: int, scroll: int, lh: int, scratch: &Buf >> _): void = let
   val nlines = doc_nlines(d)
   val safe_lh = if igt(lh, 0) then lh else 18
   val li_start = imax(0, idiv(scroll, safe_lh))
   val li_end = imin(nlines, iadd(idiv(iadd(scroll, ph), safe_lh), 2))
-  var li: int = li_start
 in
-  while (ilt(li, li_end)) (
-    let
-      val () = draw_plain_line(f, r, d, li, nlines, colx, oy, safe_lh, scroll, scratch)
-    in
-      li := iadd(li, 1)
-    end
-  )
+  plain_lines_m(airlock_nat(MAX_REC_FUEL), f, r, d, li_start, li_end, nlines, colx, oy, safe_lh, scroll, scratch)
 end
 
 extern fun count_before_exh(d: !Doc, a: int, p: int, k0: int): int = "mac#anth_die_int"
@@ -414,26 +436,28 @@ in
   ) else 0
 end
 
-fun draw_view_slice(f: !Font, r: !Rend, d: !Doc, a: int, b: int, colx: int, oy: int, scroll: int, lh: int, ph: int, c: uint, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _): int = let
-  var i0: int = a
-  var total_adv: int = 0
-in
-  while (ilt(i0, b)) (
-    if ieq(doc_byte(d, i0), 10) then (
-      pen_x := colx;
-      pen_line := iadd(pen_line, 1);
-      i0 := iadd(i0, 1)
-    ) else let
-      val j = text_run_end(d, i0, b)
-      val adv = view_run_adv(f, r, d, i0, j, colx, oy, scroll, lh, ph, c, scratch, pen_x, pen_line)
-      val () = pen_x := iadd(pen_x, adv)
-      val () = total_adv := iadd(total_adv, adv)
-      val () = i0 := j
-    in
-    end
-  );
-  total_adv
-end
+extern fun view_slice_exh(f: !Font, r: !Rend, d: !Doc, i0: int, b: int, colx: int, oy: int, scroll: int, lh: int, ph: int, c: uint, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _, total: int): int = "mac#anth_die_int"
+
+fun view_slice_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, i0: int, b: int, colx: int, oy: int, scroll: int, lh: int, ph: int, c: uint, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _, total: int): int =
+  if recfuel > 0 then (
+    if ilt(i0, b) then
+      if ieq(doc_byte(d, i0), 10) then let
+        val () = pen_x := colx
+        val () = pen_line := iadd(pen_line, 1)
+      in
+        view_slice_m(recfuel - 1, f, r, d, iadd(i0, 1), b, colx, oy, scroll, lh, ph, c, scratch, pen_x, pen_line, total)
+      end else let
+        val j = text_run_end(d, i0, b)
+        val adv = view_run_adv(f, r, d, i0, j, colx, oy, scroll, lh, ph, c, scratch, pen_x, pen_line)
+        val () = pen_x := iadd(pen_x, adv)
+      in
+        view_slice_m(recfuel - 1, f, r, d, j, b, colx, oy, scroll, lh, ph, c, scratch, pen_x, pen_line, iadd(total, adv))
+      end
+    else total
+  ) else view_slice_exh(f, r, d, i0, b, colx, oy, scroll, lh, ph, c, scratch, pen_x, pen_line, total)
+
+fun draw_view_slice(f: !Font, r: !Rend, d: !Doc, a: int, b: int, colx: int, oy: int, scroll: int, lh: int, ph: int, c: uint, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _): int =
+  view_slice_m(airlock_nat(MAX_REC_FUEL), f, r, d, a, b, colx, oy, scroll, lh, ph, c, scratch, pen_x, pen_line, 0)
 
 fun heading_scale(k: NodeKind, snum: &int >> _, sden: &int >> _): void =
   if is_kind(k, KH1) then (snum := 7; sden := 4)
@@ -444,19 +468,41 @@ fun heading_scale(k: NodeKind, snum: &int >> _, sden: &int >> _): void =
   else (snum := 1; sden := 1)
 
 
+extern fun skip_hash_exh(d: !Doc, st: int, b: int): int = "mac#anth_die_int"
+
+fun skip_hash_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: int, b: int): int =
+  if recfuel > 0 then (
+    if ilt(st, b) andalso ieq(doc_byte(d, st), 35) then skip_hash_m(recfuel - 1, d, iadd(st, 1), b)
+    else st
+  ) else skip_hash_exh(d, st, b)
+
+extern fun skip_gap_exh(d: !Doc, st: int, b: int): int = "mac#anth_die_int"
+
+fun skip_gap_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: int, b: int): int =
+  if recfuel > 0 then (
+    if ilt(st, b) andalso (ieq(doc_byte(d, st), 32) orelse ieq(doc_byte(d, st), 9)) then skip_gap_m(recfuel - 1, d, iadd(st, 1), b)
+    else st
+  ) else skip_gap_exh(d, st, b)
+
+extern fun trim_tail_exh(d: !Doc, en: int, st: int): int = "mac#anth_die_int"
+
+fun trim_tail_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, en: int, st: int): int =
+  if recfuel > 0 then (
+    if igt(en, st) andalso (ieq(doc_byte(d, isub(en, 1)), 10) orelse ieq(doc_byte(d, isub(en, 1)), 13)) then trim_tail_m(recfuel - 1, d, isub(en, 1), st)
+    else en
+  ) else trim_tail_exh(d, en, st)
+
 fun draw_heading_text(f: !Font, r: !Rend, d: !Doc, a: int, b: int, k: NodeKind, colx: int, yy: int, scratch: &Buf >> _): void = let
   var snum: int = 1
   var sden: int = 1
   val () = heading_scale(k, snum, sden)
-  var st: int = a
-  val () = while (ilt(st, b) andalso ieq(doc_byte(d, st), 35)) (st := iadd(st, 1))
-  val () = while (ilt(st, b) andalso (ieq(doc_byte(d, st), 32) orelse ieq(doc_byte(d, st), 9))) (st := iadd(st, 1))
-  var en_h: int = b
-  val () = while (igt(en_h, st) andalso (ieq(doc_byte(d, isub(en_h, 1)), 10) orelse ieq(doc_byte(d, isub(en_h, 1)), 13))) (en_h := isub(en_h, 1))
+  val st0 = skip_hash_m(airlock_nat(MAX_REC_FUEL), d, a, b)
+  val st = skip_gap_m(airlock_nat(MAX_REC_FUEL), d, st0, b)
+  val en_h = trim_tail_m(airlock_nat(MAX_REC_FUEL), d, b, st)
   val scap = buf_cap(scratch)
   val n = if igt(en_h, st) then doc_slice_buf(d, st, en_h, scratch, scap) else 0
-  val () = seen_int(if igt(n, 0) then font_draw_scaled_buf(f, r, colx, yy, scratch, n, col_heading(), snum, sden) else 0)
 in
+  seen_int(if igt(n, 0) then font_draw_scaled_buf(f, r, colx, yy, scratch, n, col_heading(), snum, sden) else 0)
 end
 
 fun draw_node_heading(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind,
@@ -539,13 +585,20 @@ fun draw_node_embed(f: !Font, r: !Rend, d: !Doc, i: int, colx: int, y: int, lh: 
 in
 end
 
+extern fun skip_bracket_exh(d: !Doc, c: int, b: int): int = "mac#anth_die_int"
+
+fun skip_bracket_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, c: int, b: int): int =
+  if recfuel > 0 then (
+    if ilt(c, b) andalso ine(doc_byte(d, c), 93) then skip_bracket_m(recfuel - 1, d, iadd(c, 1), b)
+    else c
+  ) else skip_bracket_exh(d, c, b)
+
 fun draw_node_read_link(f: !Font, r: !Rend, d: !Doc, i: int, oy: int, ph: int, scroll: int,
                         lh: int, colx: int, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _): void = let
   val a = doc_node_start(d, i)
   val b = doc_node_end(d, i)
   val st = iadd(a, 1)
-  var c_br: int = st
-  val () = while (ilt(c_br, b) andalso ine(doc_byte(d, c_br), 93)) (c_br := iadd(c_br, 1))
+  val c_br = skip_bracket_m(airlock_nat(MAX_REC_FUEL), d, st, b)
   val label_en = (if ilt(c_br, b) then c_br else b) : int
   val line = doc_line_of(d, st)
   val yy = isub(iadd(oy, doc_line_y(d, line)), scroll)
@@ -558,13 +611,18 @@ in
 end
 
 
+extern fun pipe_at_exh(d: !Doc, cur: int, en: int, found: int): int = "mac#anth_die_int"
+
+fun pipe_at_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, cur: int, en: int, found: int): int =
+  if recfuel > 0 then (
+    if ilt(cur, en) then
+      if ieq(doc_byte(d, cur), 124) then pipe_at_m(recfuel - 1, d, iadd(cur, 1), en, cur)
+      else pipe_at_m(recfuel - 1, d, iadd(cur, 1), en, found)
+    else found
+  ) else pipe_at_exh(d, cur, en, found)
+
 fun wiki_label_start(d: !Doc, st: int, en: int): int = let
-  var p_pipe: int = ~1
-  var cur_p: int = st
-  val () = while (ilt(cur_p, en)) (
-    if ieq(doc_byte(d, cur_p), 124) then p_pipe := cur_p else ();
-    cur_p := iadd(cur_p, 1)
-  )
+  val p_pipe = pipe_at_m(airlock_nat(MAX_REC_FUEL), d, st, en, ~1)
 in
   if ige(p_pipe, 0) then iadd(p_pipe, 1) else st
 end
@@ -800,19 +858,21 @@ in
 end
 
 
-fun draw_sel_lines(f: !Font, r: !Rend, d: !Doc, l0: int, l1: int, smin: int, smax: int, colx: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _): void = let
-  var li: int = l0
-in
-  while (ile(li, l1) andalso ilt(li, doc_nlines(d))) (
-    let
+extern fun sel_lines_exh(f: !Font, r: !Rend, d: !Doc, li: int, l1: int, smin: int, smax: int, colx: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _): void = "mac#anth_die_void"
+
+fun sel_lines_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, li: int, l1: int, smin: int, smax: int, colx: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _): void =
+  if recfuel > 0 then (
+    if ile(li, l1) andalso ilt(li, doc_nlines(d)) then let
       val ls = doc_line_start(d, li)
       val le = if ilt(iadd(li, 1), doc_nlines(d)) then doc_line_start(d, iadd(li, 1)) else doc_len(d)
+      val () = draw_sel_line(f, r, d, ls, le, smin, smax, colx, oy, scroll, lh, scratch)
     in
-      draw_sel_line(f, r, d, ls, le, smin, smax, colx, oy, scroll, lh, scratch);
-      li := iadd(li, 1)
-    end
-  )
-end
+      sel_lines_m(recfuel - 1, f, r, d, iadd(li, 1), l1, smin, smax, colx, oy, scroll, lh, scratch)
+    end else ()
+  ) else sel_lines_exh(f, r, d, li, l1, smin, smax, colx, oy, scroll, lh, scratch)
+
+fun draw_sel_lines(f: !Font, r: !Rend, d: !Doc, l0: int, l1: int, smin: int, smax: int, colx: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _): void =
+  sel_lines_m(airlock_nat(MAX_REC_FUEL), f, r, d, l0, l1, smin, smax, colx, oy, scroll, lh, scratch)
 
 fun draw_selection(f: !Font, r: !Rend, d: !Doc, colx: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _): void = let
   val caret = doc_caret(d)
@@ -1008,23 +1068,22 @@ in
   imax(font_width_buf(f, r, scratch, n), 1)
 end
 
-fun click_place(f: !Font, r: !Rend, d: !Doc, x: int, ls: int, colx: int, scratch: &Buf >> _, keep: Toggle): void = let
-  val len = doc_len(d)
-  var i0: int = ls
-  var pen: int = colx
-in
-  while (ilt(i0, len) andalso ine(doc_byte(d, i0), 10) andalso ilt(pen, x)) (
-    let
+extern fun click_walk_exh(f: !Font, r: !Rend, d: !Doc, i0: int, len: int, pen: int, x: int, scratch: &Buf >> _): int = "mac#anth_die_int"
+
+fun click_walk_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, i0: int, len: int, pen: int, x: int, scratch: &Buf >> _): int =
+  if recfuel > 0 then (
+    if ilt(i0, len) andalso ine(doc_byte(d, i0), 10) andalso ilt(pen, x) then let
       val clen = utf8_char_sz(d, i0, len)
       val cw = click_char_width(f, r, d, i0, clen, scratch)
     in
-      if pen + cw / 2 >= x then (pen := x)
-      else (
-        pen := iadd(pen, cw);
-        i0 := iadd(i0, clen)
-      )
-    end
-  );
+      if pen + cw / 2 >= x then i0
+      else click_walk_m(recfuel - 1, f, r, d, iadd(i0, clen), len, iadd(pen, cw), x, scratch)
+    end else i0
+  ) else click_walk_exh(f, r, d, i0, len, pen, x, scratch)
+
+fun click_place(f: !Font, r: !Rend, d: !Doc, x: int, ls: int, colx: int, scratch: &Buf >> _, keep: Toggle): void = let
+  val i0 = click_walk_m(airlock_nat(MAX_REC_FUEL), f, r, d, ls, doc_len(d), colx, x, scratch)
+in
   if is_on(keep) then doc_set_caret_extend(d, i0) else doc_set_caret_move(d, i0)
 end
 

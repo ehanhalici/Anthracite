@@ -4,6 +4,7 @@
 #include "common.hats"
 
 staload "mem.sats"
+staload "airlock.sats"
 staload "flag.sats"
 staload "os/fs.sats"
 staload "core_render/render.sats"
@@ -52,61 +53,65 @@ implement ui_draw_shadow(r, x, y, w, h, rad) = let
 in
 end
 
-fun draw_arrow_right(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
-  var i: int = 0
-  val steps = idiv(sz, 2)
-  val () = while (ilt(i, steps)) (
-    let
+extern fun arrow_right_exh(r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void = "mac#anth_die_void"
+
+fun arrow_right_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void =
+  if recfuel > 0 then (
+    if ilt(i, steps) then let
       val h = isub(sz, imul(i, 2))
       val () = if igt(h, 0) then rend_rect(r, iadd(x, i), iadd(y, i), 1, h, col) else ()
     in
-      i := iadd(i, 1)
-    end
-  )
-in
-end
+      arrow_right_m(recfuel - 1, r, x, y, sz, col, iadd(i, 1), steps)
+    end else ()
+  ) else arrow_right_exh(r, x, y, sz, col, i, steps)
 
-fun draw_arrow_down(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
-  var i: int = 0
-  val steps = idiv(sz, 2)
-  val () = while (ilt(i, steps)) (
-    let
+fun draw_arrow_right(r: !Rend, x: int, y: int, sz: int, col: uint): void =
+  arrow_right_m(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
+
+extern fun arrow_down_exh(r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void = "mac#anth_die_void"
+
+fun arrow_down_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void =
+  if recfuel > 0 then (
+    if ilt(i, steps) then let
       val w = isub(sz, imul(i, 2))
       val () = if igt(w, 0) then rend_rect(r, iadd(x, i), iadd(y, i), w, 1, col) else ()
     in
-      i := iadd(i, 1)
-    end
-  )
-in
-end
+      arrow_down_m(recfuel - 1, r, x, y, sz, col, iadd(i, 1), steps)
+    end else ()
+  ) else arrow_down_exh(r, x, y, sz, col, i, steps)
 
-fun draw_arrow_left(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
-  var i: int = 0
-  val steps = idiv(sz, 2)
-  val () = while (ilt(i, steps)) (
-    let
+fun draw_arrow_down(r: !Rend, x: int, y: int, sz: int, col: uint): void =
+  arrow_down_m(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
+
+extern fun arrow_left_exh(r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void = "mac#anth_die_void"
+
+fun arrow_left_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void =
+  if recfuel > 0 then (
+    if ilt(i, steps) then let
       val h = isub(sz, imul(i, 2))
       val () = if igt(h, 0) then rend_rect(r, isub(iadd(x, sz), i), iadd(y, i), 1, h, col) else ()
     in
-      i := iadd(i, 1)
-    end
-  )
-in
-end
+      arrow_left_m(recfuel - 1, r, x, y, sz, col, iadd(i, 1), steps)
+    end else ()
+  ) else arrow_left_exh(r, x, y, sz, col, i, steps)
 
-fun draw_arrow_up(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
-  var i: int = 0
-  val steps = idiv(sz, 2)
-  val () = while (ilt(i, steps)) (
-    let
+fun draw_arrow_left(r: !Rend, x: int, y: int, sz: int, col: uint): void =
+  arrow_left_m(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
+
+extern fun arrow_up_exh(r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void = "mac#anth_die_void"
+
+fun arrow_up_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void =
+  if recfuel > 0 then (
+    if ilt(i, steps) then let
       val w = isub(sz, imul(i, 2))
       val () = if igt(w, 0) then rend_rect(r, iadd(x, i), isub(iadd(y, sz), i), w, 1, col) else ()
     in
-      i := iadd(i, 1)
-    end
-  )
-in
-end
+      arrow_up_m(recfuel - 1, r, x, y, sz, col, iadd(i, 1), steps)
+    end else ()
+  ) else arrow_up_exh(r, x, y, sz, col, i, steps)
+
+fun draw_arrow_up(r: !Rend, x: int, y: int, sz: int, col: uint): void =
+  arrow_up_m(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
 
 fun draw_check(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
   val h2 = idiv(sz, 2)
@@ -117,18 +122,20 @@ fun draw_check(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
 in
 end
 
-fun draw_close_icon(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
-  var i: int = 0
-  val () = while (ilt(i, sz)) (
-    let
+extern fun close_icon_exh(r: !Rend, x: int, y: int, sz: int, col: uint, i: int): void = "mac#anth_die_void"
+
+fun close_icon_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), r: !Rend, x: int, y: int, sz: int, col: uint, i: int): void =
+  if recfuel > 0 then (
+    if ilt(i, sz) then let
       val () = rend_rect(r, iadd(x, i), iadd(y, i), 1, 1, col)
       val () = rend_rect(r, iadd(x, isub(sz, i)), iadd(y, i), 1, 1, col)
     in
-      i := iadd(i, 1)
-    end
-  )
-in
-end
+      close_icon_m(recfuel - 1, r, x, y, sz, col, iadd(i, 1))
+    end else ()
+  ) else close_icon_exh(r, x, y, sz, col, i)
+
+fun draw_close_icon(r: !Rend, x: int, y: int, sz: int, col: uint): void =
+  close_icon_m(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0)
 
 fun draw_folder_icon(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
   val tab_w = idiv(sz, 2)
@@ -403,25 +410,21 @@ in
   imin(n, iadd(i, step))
 end
 
-fun fit_str_bytes(f: !Font, r: !Rend, p: ptr, n: int, max_w: int): int = let
-  var i: int = 0
-  var last_fit: int = 0
-in
-  while (ilt(i, n)) (
-    let
+extern fun fit_bytes_exh(f: !Font, r: !Rend, p: ptr, n: int, max_w: int, i: int, last_fit: int): int = "mac#anth_die_int"
+
+fun fit_bytes_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, p: ptr, n: int, max_w: int, i: int, last_fit: int): int =
+  if recfuel > 0 then (
+    if ilt(i, n) then let
       val next_i = fit_next_index(p, n, i)
       val w = font_width(f, r, p, next_i)
     in
-      if ile(w, max_w) then (
-        last_fit := next_i;
-        i := next_i
-      ) else (
-        i := n
-      )
-    end
-  );
-  last_fit
-end
+      if ile(w, max_w) then fit_bytes_m(recfuel - 1, f, r, p, n, max_w, next_i, next_i)
+      else last_fit
+    end else last_fit
+  ) else fit_bytes_exh(f, r, p, n, max_w, i, last_fit)
+
+fun fit_str_bytes(f: !Font, r: !Rend, p: ptr, n: int, max_w: int): int =
+  fit_bytes_m(airlock_nat(MAX_REC_FUEL), f, r, p, n, max_w, 0, 0)
 
 
 fun ui_cell_bg(r: !Rend, x: int, y: int, w: int, h: int, is_selected: Toggle, is_hover: Toggle): void =

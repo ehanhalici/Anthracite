@@ -614,20 +614,33 @@ in
   end
 end
 
+extern fun paint_row_exh(samp: !Buf, meta: !Buf, dst: !Buf, w: int, h: int, maxh: int, maxv: int, mx: int, my: int, lx: int, ly: int, mw: int): void = "mac#anth_die_void"
+
+fun paint_row_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), samp: !Buf, meta: !Buf, dst: !Buf, w: int, h: int, maxh: int, maxv: int, mx: int, my: int, lx: int, ly: int, mw: int): void =
+  if recfuel > 0 then (
+    if ilt(lx, mw) then let
+      val () = paint_one(samp, meta, dst, w, h, maxh, maxv, mx, my, lx, ly)
+    in
+      paint_row_m(recfuel - 1, samp, meta, dst, w, h, maxh, maxv, mx, my, iadd(lx, 1), ly, mw)
+    end else ()
+  ) else paint_row_exh(samp, meta, dst, w, h, maxh, maxv, mx, my, lx, ly, mw)
+
+extern fun paint_grid_exh(samp: !Buf, meta: !Buf, dst: !Buf, w: int, h: int, maxh: int, maxv: int, mx: int, my: int, ly: int, mw: int, mh: int): void = "mac#anth_die_void"
+
+fun paint_grid_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), samp: !Buf, meta: !Buf, dst: !Buf, w: int, h: int, maxh: int, maxv: int, mx: int, my: int, ly: int, mw: int, mh: int): void =
+  if recfuel > 0 then (
+    if ilt(ly, mh) then let
+      val () = paint_row_m(recfuel - 1, samp, meta, dst, w, h, maxh, maxv, mx, my, 0, ly, mw)
+    in
+      paint_grid_m(recfuel - 1, samp, meta, dst, w, h, maxh, maxv, mx, my, iadd(ly, 1), mw, mh)
+    end else ()
+  ) else paint_grid_exh(samp, meta, dst, w, h, maxh, maxv, mx, my, ly, mw, mh)
+
 fun paint_mcu(samp: !Buf, meta: !Buf, dst: !Buf, w: int, h: int, maxh: int, maxv: int, mx: int, my: int): void = let
-  var lx: int = 0
-  var ly: int = 0
   val mw = imul(maxh, 8)
   val mh = imul(maxv, 8)
 in
-  while (ilt(ly, mh)) (
-    lx := 0;
-    while (ilt(lx, mw)) (
-      paint_one(samp, meta, dst, w, h, maxh, maxv, mx, my, lx, ly);
-      lx := iadd(lx, 1)
-    );
-    ly := iadd(ly, 1)
-  )
+  paint_grid_m(airlock_nat(MAX_REC_FUEL), samp, meta, dst, w, h, maxh, maxv, mx, my, 0, mw, mh)
 end
 
 extern fun clear_pred_exh(meta: !Buf, i: int): void = "mac#anth_die_void"
@@ -695,24 +708,35 @@ end
 fun mcu_grid(px: int, mdim: int): int =
   if ile(mdim, 0) then 0 else idiv(iadd(px, isub(mdim, 1)), mdim)
 
+extern fun mcu_row_exh(src: !Buf, n: int, st: &JBit >> _, meta: !Buf, hf: !Buf, qt: !Buf, coef: !Buf, samp: !Buf, dst: !Buf, w: int, h: int, maxh: int, maxv: int, mx: int, my: int, mi: int, nx: int): int = "mac#anth_die_int"
+
+fun mcu_row_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &JBit >> _, meta: !Buf, hf: !Buf, qt: !Buf, coef: !Buf, samp: !Buf, dst: !Buf, w: int, h: int, maxh: int, maxv: int, mx: int, my: int, mi: int, nx: int): int =
+  if recfuel > 0 then (
+    if ilt(mx, nx) then let
+      val () = step_mcu(src, n, st, meta, hf, qt, coef, samp, dst, w, h, maxh, maxv, mx, my, mi)
+    in
+      mcu_row_m(recfuel - 1, src, n, st, meta, hf, qt, coef, samp, dst, w, h, maxh, maxv, iadd(mx, 1), my, iadd(mi, 1), nx)
+    end else mi
+  ) else mcu_row_exh(src, n, st, meta, hf, qt, coef, samp, dst, w, h, maxh, maxv, mx, my, mi, nx)
+
+extern fun mcu_grid_exh(src: !Buf, n: int, st: &JBit >> _, meta: !Buf, hf: !Buf, qt: !Buf, coef: !Buf, samp: !Buf, dst: !Buf, w: int, h: int, maxh: int, maxv: int, my: int, mi: int, nx: int, ny: int): void = "mac#anth_die_void"
+
+fun mcu_grid_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &JBit >> _, meta: !Buf, hf: !Buf, qt: !Buf, coef: !Buf, samp: !Buf, dst: !Buf, w: int, h: int, maxh: int, maxv: int, my: int, mi: int, nx: int, ny: int): void =
+  if recfuel > 0 then (
+    if ilt(my, ny) then let
+      val mi2 = mcu_row_m(recfuel - 1, src, n, st, meta, hf, qt, coef, samp, dst, w, h, maxh, maxv, 0, my, mi, nx)
+    in
+      mcu_grid_m(recfuel - 1, src, n, st, meta, hf, qt, coef, samp, dst, w, h, maxh, maxv, iadd(my, 1), mi2, nx, ny)
+    end else ()
+  ) else mcu_grid_exh(src, n, st, meta, hf, qt, coef, samp, dst, w, h, maxh, maxv, my, mi, nx, ny)
+
 fun decode_mcus(src: !Buf, n: int, st: &JBit >> _, meta: !Buf, hf: !Buf, qt: !Buf, coef: !Buf, samp: !Buf, dst: !Buf, w: int, h: int): void = let
-  var mx: int = 0
-  var my: int = 0
-  var mi: int = 0
   val maxh = buf_get32(meta, 3)
   val maxv = buf_get32(meta, 4)
   val nx = mcu_grid(w, imul(maxh, 8))
   val ny = mcu_grid(h, imul(maxv, 8))
 in
-  while (ilt(my, ny)) (
-    mx := 0;
-    while (ilt(mx, nx)) (
-      step_mcu(src, n, st, meta, hf, qt, coef, samp, dst, w, h, maxh, maxv, mx, my, mi);
-      mi := iadd(mi, 1);
-      mx := iadd(mx, 1)
-    );
-    my := iadd(my, 1)
-  )
+  mcu_grid_m(airlock_nat(MAX_REC_FUEL), src, n, st, meta, hf, qt, coef, samp, dst, w, h, maxh, maxv, 0, 0, nx, ny)
 end
 
 fun jpg_fit(w: int, h: int, nc: int, mh: int, mv: int): bool =
