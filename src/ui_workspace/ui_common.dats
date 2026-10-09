@@ -222,10 +222,22 @@ implement scan_skip(name) =
   else if ieq(buf_get(name, 0), CHAR_DOT) then 1
   else 0
 
+implement dir_mark_of(n) =
+  if ieq(n, 1) then DirYes
+  else if ieq(n, 0) then DirNo
+  else DirAsk
+
+fun dir_code(k: DirMark): int = case+ k of
+  | DirYes() => 1
+  | DirNo() => 0
+  | DirAsk() => 2
+
+fun is_dir_mark(a: DirMark, b: DirMark): bool = ieq(dir_code(a), dir_code(b))
+
 implement child_kind(child, skip, isdir) =
   if is_on(skip) then 0
-  else if ieq(isdir, 1) then 1
-  else if ieq(isdir, 0) then 0
+  else if is_dir_mark(isdir, DirYes) then 1
+  else if is_dir_mark(isdir, DirNo) then 0
   else fs_isdir(cstr(child))
 
 implement is_side_none(x) = case+ x of

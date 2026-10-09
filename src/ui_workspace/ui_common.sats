@@ -29,7 +29,11 @@ fun has_dot_char(b: !Buf, i: int): int
 fun uok(t: uint): int
 fun filter_text(b: !Buf, n: int): int
 fun scan_skip(name: !Buf): int
-fun child_kind(child: !Buf, skip: Toggle, isdir: int): int
+
+datatype DirMark = DirYes | DirNo | DirAsk
+
+fun dir_mark_of(n: int): DirMark
+fun child_kind(child: !Buf, skip: Toggle, isdir: DirMark): int
 
 macdef MAX_TREE_ITEMS = 400
 macdef MAX_TREE_DEPTH = 6

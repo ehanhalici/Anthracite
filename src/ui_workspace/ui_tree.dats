@@ -93,7 +93,7 @@ and scan_entry {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), path: !Buf, dep
     val () = buf_set_len(name, c_strlen(ns))
     val skip = scan_skip(name)
     val child = join2(path, name)
-    val isd = child_kind(child, toggle_of(ieq(skip, 1)), isdir)
+    val isd = child_kind(child, toggle_of(ieq(skip, 1)), dir_mark_of(isdir))
     val goadd = if ieq(skip, 0) andalso ilt(n, MAX_TREE_ITEMS) then 1 else 0
     val () = tree_add_if(meta, text, n, depth, isd, child, toggle_of(ieq(goadd, 1)))
     val godir = if ieq(skip, 0) andalso ieq(isd, 1) then 1 else 0
