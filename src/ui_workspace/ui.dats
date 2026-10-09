@@ -333,17 +333,17 @@ end
 
 fun draw_tree_row(f: !Font, r: !Rend, s: &App_record, row: int): void = let
   val depth = buf_get32(s.tmeta, imul(row, 4))
-  val isdir = buf_get32(s.tmeta, iadd(imul(row, 4), 1))
+  val mark = meta_dir(s.tmeta, row)
   val off = buf_get32(s.tmeta, iadd(imul(row, 4), 2))
   val n = buf_get32(s.tmeta, iadd(imul(row, 4), 3))
   var base = buf_make(8)
   val () = bcat(base, s.tree, off, iadd(off, n))
   val () = base_name(base, s.scratch)
-  val icon = if ieq(isdir, 1) then UI_ICON_FOLDER else UI_ICON_FILE
+  val icon = if is_dir_mark(mark, DirYes) then UI_ICON_FOLDER else UI_ICON_FILE
   val is_sel = if ieq(s.sel, row) then 1 else 0
   val row_y = iadd(72, imul(row, 18))
   val is_hov = if ige(s.hoverx, 6) andalso ilt(s.hoverx, 274) andalso ige(s.hovery, row_y) andalso ilt(s.hovery, iadd(row_y, 18)) then 1 else 0
-  val () = ui_cell(f, r, 6, row_y, 268, 18, depth, toggle_of(ieq(isdir, 1)), toggle_of(ieq(isdir, 1)), icon, cstr(s.scratch), "", toggle_of(ieq(is_sel, 1)), toggle_of(ieq(is_hov, 1)))
+  val () = ui_cell(f, r, 6, row_y, 268, 18, depth, toggle_of(is_dir_mark(mark, DirYes)), toggle_of(is_dir_mark(mark, DirYes)), icon, cstr(s.scratch), "", toggle_of(ieq(is_sel, 1)), toggle_of(ieq(is_hov, 1)))
   val () = buf_free(base)
 in
 end
@@ -503,7 +503,7 @@ fun font_load_report(f: !Font, path: string): void =
 
 (* Klasor zaten varsa basarilidir; mkdir hatasi yalnizca klasor yoksa raporlanir. *)
 fun ensure_dir_report(path: string): void =
-  if ieq(fs_isdir(path), 1) then ()
+  if path_is_dir(path) then ()
   else if ieq(fs_mkdir(path), 0) then ()
   else report_failure("vault_dir_create", path)
 
@@ -1118,7 +1118,7 @@ end
 fun prompt_fill_paths(s: &App_record, dir: &Buf >> _, cur: &Buf >> _): void = let
   val sel_valid = if ige(s.sel, 0) andalso ilt(s.sel, s.tn) then 1 else 0
   val () = row_if(s.tree, s.tmeta, s.sel, cur, toggle_of(ieq(sel_valid, 1)))
-  val use_dir = if ieq(sel_valid, 1) andalso ieq(buf_get32(s.tmeta, iadd(imul(s.sel, 4), 1)), 1) then 1 else 0
+  val use_dir = if ieq(sel_valid, 1) andalso is_dir_mark(meta_dir(s.tmeta, s.sel), DirYes) then 1 else 0
   val () = fill_dir(dir, cur, s.vault, toggle_of(ieq(use_dir, 1)), if ieq(sel_valid, 1) then s.sel else ~1)
 in
 end
@@ -1549,7 +1549,7 @@ fun handle_down_sidebar_click(
 ): Tabs = let
   val row = idiv(isub(y, 72), UI_TREE_ROW_HEIGHT)
   val valid_row = if ige(y, 72) andalso ige(row, 0) andalso ilt(row, s.tn) then 1 else 0
-  val openf = if is_on(onside) andalso is_side_files(s.side) andalso ieq(valid_row, 1) andalso ieq(buf_get32(s.tmeta, iadd(imul(row, 4), 1)), 0) then 1 else 0
+  val openf = if is_on(onside) andalso is_side_files(s.side) andalso ieq(valid_row, 1) andalso is_dir_mark(meta_dir(s.tmeta, row), DirNo) then 1 else 0
   val () = if is_on(onside) andalso is_side_files(s.side) then down_select_tree_row(s, row, toggle_of(ieq(valid_row, 1))) else ()
   val srow = if ige(y, 100) then idiv(isub(y, 100), UI_SEARCH_ROW_HEIGHT) else ~1
   val open_hit_flag = if is_on(onside) andalso is_side_search(s.side) andalso ige(srow, 0) andalso ilt(srow, s.hn) then 1 else 0
@@ -1698,7 +1698,7 @@ end
 fun on_up_move_file(s: &App_record >> _, y: int): void = let
   val row = idiv(isub(y, 72), UI_TREE_ROW_HEIGHT)
 in
-  if ige(row, 0) andalso ilt(row, s.tn) andalso ine(row, s.dragi) andalso ieq(buf_get32(s.tmeta, iadd(imul(row, 4), 1)), 1) then move_dragged_file(s, row)
+  if ige(row, 0) andalso ilt(row, s.tn) andalso ine(row, s.dragi) andalso is_dir_mark(meta_dir(s.tmeta, row), DirYes) then move_dragged_file(s, row)
   else ()
 end
 

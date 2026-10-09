@@ -220,17 +220,10 @@ implement filter_text(b, n) =
 implement scan_skip(name) =
   ieq(buf_len(name), 0) orelse ieq(buf_get(name, 0), CHAR_DOT)
 
-implement dir_mark_of(n) =
-  if ieq(n, 1) then DirYes
-  else if ieq(n, 0) then DirNo
-  else DirAsk
+implement meta_dir(meta, row) =
+  dir_mark_of(buf_get32(meta, iadd(imul(row, 4), 1)))
 
-fun dir_code(k: DirMark): int = case+ k of
-  | DirYes() => 1
-  | DirNo() => 0
-  | DirAsk() => 2
-
-fun is_dir_mark(a: DirMark, b: DirMark): bool = ieq(dir_code(a), dir_code(b))
+implement path_is_dir(path) = ieq(fs_isdir(path), 1)
 
 implement child_kind(child, skip, isdir) =
   if is_on(skip) then 0

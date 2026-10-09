@@ -1744,7 +1744,7 @@ fun scan_step_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dp: ptr, dir: 
       val first_b = (if igt(nlen, 0) then buf_get(name_buf, 0) else 0) : int
       val () =
         if ieq(first_b, 46) then ()
-        else if ieq(isdir, 1) then scan_subdir(recfuel - 1, dir, nlen, name_buf, depth, paths, names, meta, cnt)
+        else if is_dir_mark(dir_mark_of(isdir), DirYes) then scan_subdir(recfuel - 1, dir, nlen, name_buf, depth, paths, names, meta, cnt)
         else if is_ttf_filename(fname) then scan_add_font(dir, nlen, name_buf, paths, names, meta, cnt)
         else ()
     in

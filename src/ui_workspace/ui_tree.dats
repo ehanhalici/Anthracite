@@ -167,6 +167,6 @@ end
 
 implement do_delete(path) = let
   val p = cstr(path)
-  val u_ok = if ieq(fs_isdir(p), 1) then fs_rmdir(p) else fs_unlink(p)
+  val u_ok = if path_is_dir(p) then fs_rmdir(p) else fs_unlink(p)
 in
 end

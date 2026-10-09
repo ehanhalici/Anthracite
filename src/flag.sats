@@ -8,3 +8,8 @@ fun toggle_of(b: bool): Toggle
 fun is_on(t: Toggle): bool
 fun is_off(t: Toggle): bool
 fun toggle_int(t: Toggle): int
+
+datatype DirMark = DirYes | DirNo | DirAsk
+
+fun dir_mark_of(n: int): DirMark
+fun is_dir_mark(a: DirMark, b: DirMark): bool

@@ -13,3 +13,15 @@ implement is_on(t) = case+ t of
 implement is_off(t) = not(is_on(t))
 
 implement toggle_int(t) = if is_on(t) then 1 else 0
+
+implement dir_mark_of(n) =
+  if n = 1 then DirYes
+  else if n = 0 then DirNo
+  else DirAsk
+
+fun dir_code(k: DirMark): int = case+ k of
+  | DirYes() => 1
+  | DirNo() => 0
+  | DirAsk() => 2
+
+implement is_dir_mark(a, b) = dir_code(a) = dir_code(b)

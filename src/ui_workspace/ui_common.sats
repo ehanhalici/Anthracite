@@ -29,10 +29,8 @@ fun has_dot_char(b: !Buf, i: int): int
 fun uok(t: uint): int
 fun filter_text(b: !Buf, n: int): int
 fun scan_skip(name: !Buf): bool
-
-datatype DirMark = DirYes | DirNo | DirAsk
-
-fun dir_mark_of(n: int): DirMark
+fun meta_dir(meta: !Buf, row: int): DirMark
+fun path_is_dir(path: string): bool
 fun child_kind(child: !Buf, skip: Toggle, isdir: DirMark): int
 
 macdef MAX_TREE_ITEMS = 400
