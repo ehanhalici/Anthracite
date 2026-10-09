@@ -48,7 +48,7 @@ fun cache_lookup_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: Cache, p
         CNil()
       end
     | ~CCons(p, t, iw, ih, rest) =>
-        if ieq(beq(p, path, 0), 1) then let
+        if beq(p, path, 0) then let
           val () = tex := t
           val () = w := iw
           val () = h := ih

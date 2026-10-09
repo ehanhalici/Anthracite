@@ -70,14 +70,14 @@ end
 implement bcat_if(dst, src, i, n, go) =
   if is_on(go) then bcat(dst, src, i, n) else touchb(dst)
 
-fun beq_loop {rem:nat} .<rem>. (a: !Buf, b: !Buf, rem: int(rem), i: int): int =
+fun beq_loop {rem:nat} .<rem>. (a: !Buf, b: !Buf, rem: int(rem), i: int): bool =
   if rem > 0 then
-    (if ine(buf_get(a, i), buf_get(b, i)) then 0 else beq_loop(a, b, rem - 1, iadd(i, 1)))
-  else 1
+    (if ine(buf_get(a, i), buf_get(b, i)) then false else beq_loop(a, b, rem - 1, iadd(i, 1)))
+  else true
 
 implement beq(a, b, i) =
-  if ine(buf_len(a), buf_len(b)) then 0
-  else if ige(i, buf_len(a)) then 1
+  if ine(buf_len(a), buf_len(b)) then false
+  else if ige(i, buf_len(a)) then true
   else beq_loop(a, b, airlock_span(i, buf_len(a)), i)
 
 implement bcopy(src) = let

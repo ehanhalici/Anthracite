@@ -14,7 +14,7 @@ fun bcat(dst: &Buf >> Buf, src: !Buf, i: int, n: int): void
 fun bcat_all(dst: &Buf >> Buf, src: !Buf): void
 fun bcat_if(dst: &Buf >> Buf, src: !Buf, i: int, n: int, go: Toggle): void
 fun b_app_int(b: &Buf >> Buf, n: int): void
-fun beq(a: !Buf, b: !Buf, i: int): int
+fun beq(a: !Buf, b: !Buf, i: int): bool
 fun bcopy(src: !Buf): Buf
 fun cstr(b: !Buf): string
 fun ends(b: !Buf, s: string): bool
