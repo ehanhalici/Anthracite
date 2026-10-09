@@ -31,6 +31,21 @@ fun ev_code(k: Ev): int = case+ k of
 
 implement is_ev(a, b) = ev_code(a) = ev_code(b)
 
+implement key_id(k) = case+ k of
+  | KeyLeft() => KEY_LEFT
+  | KeyRight() => KEY_RIGHT
+  | KeyUp() => KEY_UP
+  | KeyDown() => KEY_DOWN
+  | KeyBackspace() => KEY_BACKSPACE
+  | KeyDelete() => KEY_DELETE
+  | KeyHome() => KEY_HOME
+  | KeyEnd() => KEY_END
+  | KeyReturn() => KEY_RETURN
+  | KeyTab() => KEY_TAB
+  | KeyEscape() => KEY_ESCAPE
+  | KeyPageUp() => KEY_PAGE_UP
+  | KeyPageDown() => KEY_PAGE_DOWN
+
 datavtype Plat_ = PLAT of @{
   dpy= ptr
 , win= ulint

@@ -45,6 +45,23 @@ macdef KEY_ESCAPE = $extval(int, "ANTH_KEY_ESCAPE")
 macdef KEY_PAGE_UP = $extval(int, "ANTH_KEY_PAGE_UP")
 macdef KEY_PAGE_DOWN = $extval(int, "ANTH_KEY_PAGE_DOWN")
 
+datatype Key =
+  | KeyLeft
+  | KeyRight
+  | KeyUp
+  | KeyDown
+  | KeyBackspace
+  | KeyDelete
+  | KeyHome
+  | KeyEnd
+  | KeyReturn
+  | KeyTab
+  | KeyEscape
+  | KeyPageUp
+  | KeyPageDown
+
+fun key_id(k: Key): int
+
 fun x_err_install(): void = "mac#anth_xerr_install"
 fun x_open(name: ptr): ptr = "mac#XOpenDisplay"
 fun x_default_screen(dpy: ptr): int = "mac#XDefaultScreen"

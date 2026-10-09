@@ -46,23 +46,4 @@ macdef CHAR_TILDE = 126
 macdef CHAR_ESC = 27
 macdef CHAR_DEL = 127
 
-macdef KEY_CHAR_A = 97
-macdef KEY_CHAR_B = 98
-macdef KEY_CHAR_C = 99
-macdef KEY_CHAR_E = 101
-macdef KEY_CHAR_F = 102
-macdef KEY_CHAR_I = 105
-macdef KEY_CHAR_K = 107
-macdef KEY_CHAR_N = 110
-macdef KEY_CHAR_O = 111
-macdef KEY_CHAR_P = 112
-macdef KEY_CHAR_S_UPPER = 83
-macdef KEY_CHAR_S = 115
-macdef KEY_CHAR_T = 116
-macdef KEY_CHAR_V = 118
-macdef KEY_CHAR_W = 119
-macdef KEY_CHAR_X = 120
-macdef KEY_CHAR_Y = 121
-macdef KEY_CHAR_Z = 122
-
 #endif

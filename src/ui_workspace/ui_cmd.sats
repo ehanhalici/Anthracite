@@ -54,3 +54,11 @@ datatype Cmd =
   | CMD_PREV_TAB
 
 fun is_cmd(a: Cmd, b: Cmd): bool
+
+datatype Letter =
+  | LNone
+  | LA | LB | LC | LE | LF | LI | LK | LN | LO | LP
+  | LS | LSup | LT | LV | LW | LX | LY | LZ
+
+fun letter_of(n: int): Letter
+fun is_letter(a: Letter, b: Letter): bool

@@ -702,54 +702,54 @@ in
   tabs_add(ts, d, p, t)
 end
 
-fun key_code_ctrl_char(c: int, sh: Toggle, ev: &event): Cmd =
-  if ieq(c, KEY_CHAR_Z) then (if is_on(sh) then CMD_REDO else CMD_UNDO)
-  else if ieq(c, KEY_CHAR_Y) then CMD_REDO
-  else if ieq(c, KEY_CHAR_S) orelse ieq(c, KEY_CHAR_S_UPPER) orelse ieq(key_is(ev, 15), 1) orelse ieq(key_is(ev, 20), 1) then CMD_SAVE
-  else if ieq(c, KEY_CHAR_A) then CMD_SELECT_ALL
-  else if ieq(c, KEY_CHAR_C) then CMD_COPY
-  else if ieq(c, KEY_CHAR_X) then CMD_CUT
-  else if ieq(c, KEY_CHAR_V) then CMD_PASTE
-  else if ieq(c, KEY_CHAR_F) orelse ieq(c, KEY_CHAR_P) orelse ieq(c, KEY_CHAR_O) then CMD_OPEN_SEARCH
-  else if ieq(c, KEY_CHAR_W) then CMD_CLOSE_TAB
-  else if ieq(c, KEY_CHAR_T) then CMD_NEW_TAB
-  else if ieq(c, KEY_CHAR_N) then (if is_on(sh) then CMD_NEW_FOLDER else CMD_NEW_FILE)
-  else if ieq(c, KEY_CHAR_E) then CMD_TOGGLE_VIEW
-  else if ieq(c, KEY_CHAR_B) then CMD_WRAP_BOLD
-  else if ieq(c, KEY_CHAR_I) then CMD_WRAP_ITALIC
-  else if ieq(c, KEY_CHAR_K) then CMD_WRAP_WIKILINK
+fun key_code_ctrl_char(c: Letter, sh: Toggle, ev: &event): Cmd =
+  if is_letter(c, LZ) then (if is_on(sh) then CMD_REDO else CMD_UNDO)
+  else if is_letter(c, LY) then CMD_REDO
+  else if is_letter(c, LS) orelse is_letter(c, LSup) orelse ieq(x_key_is(ev, 15), 1) orelse ieq(x_key_is(ev, 20), 1) then CMD_SAVE
+  else if is_letter(c, LA) then CMD_SELECT_ALL
+  else if is_letter(c, LC) then CMD_COPY
+  else if is_letter(c, LX) then CMD_CUT
+  else if is_letter(c, LV) then CMD_PASTE
+  else if is_letter(c, LF) orelse is_letter(c, LP) orelse is_letter(c, LO) then CMD_OPEN_SEARCH
+  else if is_letter(c, LW) then CMD_CLOSE_TAB
+  else if is_letter(c, LT) then CMD_NEW_TAB
+  else if is_letter(c, LN) then (if is_on(sh) then CMD_NEW_FOLDER else CMD_NEW_FILE)
+  else if is_letter(c, LE) then CMD_TOGGLE_VIEW
+  else if is_letter(c, LB) then CMD_WRAP_BOLD
+  else if is_letter(c, LI) then CMD_WRAP_ITALIC
+  else if is_letter(c, LK) then CMD_WRAP_WIKILINK
   else CMD_NONE
 
 fun key_code_ctrl_nav(ev: &event, sh: Toggle): Cmd =
-  if ieq(key_is(ev, KEY_LEFT), 1) then (if is_on(sh) then CMD_SELECT_WORD_LEFT else CMD_WORD_LEFT)
-  else if ieq(key_is(ev, KEY_RIGHT), 1) then (if is_on(sh) then CMD_SELECT_WORD_RIGHT else CMD_WORD_RIGHT)
-  else if ieq(key_is(ev, KEY_BACKSPACE), 1) then CMD_DELETE_WORD_LEFT
-  else if ieq(key_is(ev, KEY_DELETE), 1) then CMD_DELETE_WORD_RIGHT
-  else if ieq(key_is(ev, KEY_HOME), 1) then (if is_on(sh) then CMD_SELECT_DOC_START else CMD_DOC_START)
-  else if ieq(key_is(ev, KEY_END), 1) then (if is_on(sh) then CMD_SELECT_DOC_END else CMD_DOC_END)
-  else if ieq(key_is(ev, KEY_TAB), 1) then (if is_on(sh) then CMD_PREV_TAB else CMD_NEXT_TAB)
-  else key_code_ctrl_char(key_char(ev), sh, ev)
+  if ieq(key_is(ev, KeyLeft), 1) then (if is_on(sh) then CMD_SELECT_WORD_LEFT else CMD_WORD_LEFT)
+  else if ieq(key_is(ev, KeyRight), 1) then (if is_on(sh) then CMD_SELECT_WORD_RIGHT else CMD_WORD_RIGHT)
+  else if ieq(key_is(ev, KeyBackspace), 1) then CMD_DELETE_WORD_LEFT
+  else if ieq(key_is(ev, KeyDelete), 1) then CMD_DELETE_WORD_RIGHT
+  else if ieq(key_is(ev, KeyHome), 1) then (if is_on(sh) then CMD_SELECT_DOC_START else CMD_DOC_START)
+  else if ieq(key_is(ev, KeyEnd), 1) then (if is_on(sh) then CMD_SELECT_DOC_END else CMD_DOC_END)
+  else if ieq(key_is(ev, KeyTab), 1) then (if is_on(sh) then CMD_PREV_TAB else CMD_NEXT_TAB)
+  else key_code_ctrl_char(letter_of(key_char(ev)), sh, ev)
 
 fun key_code_non_ctrl(ev: &event, sh: Toggle): Cmd =
-  if ieq(key_is(ev, KEY_ESCAPE), 1) then CMD_ESCAPE
-  else if ieq(key_is(ev, KEY_LEFT), 1) then (if is_on(sh) then CMD_SELECT_LEFT else CMD_CARET_LEFT)
-  else if ieq(key_is(ev, KEY_RIGHT), 1) then (if is_on(sh) then CMD_SELECT_RIGHT else CMD_CARET_RIGHT)
-  else if ieq(key_is(ev, KEY_UP), 1) then (if is_on(sh) then CMD_SELECT_UP else CMD_CARET_UP)
-  else if ieq(key_is(ev, KEY_DOWN), 1) then (if is_on(sh) then CMD_SELECT_DOWN else CMD_CARET_DOWN)
-  else if ieq(key_is(ev, KEY_HOME), 1) then (if is_on(sh) then CMD_SELECT_LINE_START else CMD_CARET_LINE_START)
-  else if ieq(key_is(ev, KEY_END), 1) then (if is_on(sh) then CMD_SELECT_LINE_END else CMD_CARET_LINE_END)
-  else if ieq(key_is(ev, KEY_PAGE_UP), 1) then (if is_on(sh) then CMD_SELECT_PAGE_UP else CMD_PAGE_UP)
-  else if ieq(key_is(ev, KEY_PAGE_DOWN), 1) then (if is_on(sh) then CMD_SELECT_PAGE_DOWN else CMD_PAGE_DOWN)
-  else if ieq(key_is(ev, KEY_BACKSPACE), 1) then CMD_BACKSPACE
-  else if ieq(key_is(ev, KEY_DELETE), 1) then CMD_DELETE
-  else if ieq(key_is(ev, KEY_RETURN), 1) then CMD_NEWLINE
-  else if ieq(key_is(ev, KEY_TAB), 1) then CMD_INDENT
+  if ieq(key_is(ev, KeyEscape), 1) then CMD_ESCAPE
+  else if ieq(key_is(ev, KeyLeft), 1) then (if is_on(sh) then CMD_SELECT_LEFT else CMD_CARET_LEFT)
+  else if ieq(key_is(ev, KeyRight), 1) then (if is_on(sh) then CMD_SELECT_RIGHT else CMD_CARET_RIGHT)
+  else if ieq(key_is(ev, KeyUp), 1) then (if is_on(sh) then CMD_SELECT_UP else CMD_CARET_UP)
+  else if ieq(key_is(ev, KeyDown), 1) then (if is_on(sh) then CMD_SELECT_DOWN else CMD_CARET_DOWN)
+  else if ieq(key_is(ev, KeyHome), 1) then (if is_on(sh) then CMD_SELECT_LINE_START else CMD_CARET_LINE_START)
+  else if ieq(key_is(ev, KeyEnd), 1) then (if is_on(sh) then CMD_SELECT_LINE_END else CMD_CARET_LINE_END)
+  else if ieq(key_is(ev, KeyPageUp), 1) then (if is_on(sh) then CMD_SELECT_PAGE_UP else CMD_PAGE_UP)
+  else if ieq(key_is(ev, KeyPageDown), 1) then (if is_on(sh) then CMD_SELECT_PAGE_DOWN else CMD_PAGE_DOWN)
+  else if ieq(key_is(ev, KeyBackspace), 1) then CMD_BACKSPACE
+  else if ieq(key_is(ev, KeyDelete), 1) then CMD_DELETE
+  else if ieq(key_is(ev, KeyReturn), 1) then CMD_NEWLINE
+  else if ieq(key_is(ev, KeyTab), 1) then CMD_INDENT
   else CMD_TEXT_INPUT
 
 fun key_code(ev: &event, act: Toggle): Cmd =
-  if is_off(act) then (if ieq(key_is(ev, KEY_ESCAPE), 1) then CMD_ESCAPE else CMD_NONE)
-  else if ieq(ctrl_on(ev), 1) then key_code_ctrl_nav(ev, toggle_of(ieq(shift_on(ev), 1)))
-  else key_code_non_ctrl(ev, toggle_of(ieq(shift_on(ev), 1)))
+  if is_off(act) then (if ieq(key_is(ev, KeyEscape), 1) then CMD_ESCAPE else CMD_NONE)
+  else if ctrl_on(ev) then key_code_ctrl_nav(ev, toggle_of(shift_on(ev)))
+  else key_code_non_ctrl(ev, toggle_of(shift_on(ev)))
 
 fun is_modifying_cmd(cmd: Cmd): int =
   if is_cmd(cmd, CMD_BACKSPACE) orelse is_cmd(cmd, CMD_DELETE) orelse is_cmd(cmd, CMD_DELETE_SELECTION)
@@ -808,7 +808,7 @@ fun apply_key(ts: Tabs, idx: int, cmd: Cmd, vault: !Buf, clip: &Buf >> _, scratc
 
 fun key_dispatch(ts: Tabs, idx: int, cmd: Cmd, vault: !Buf, clip: &Buf >> _, scratch: &Buf >> _, p: !Plat, paste: &Toggle >> _, ev: &event): Tabs =
   if is_cmd(cmd, CMD_TEXT_INPUT) then
-    if ieq(ctrl_on(ev), 1) then ts
+    if ctrl_on(ev) then ts
     else let
       val cap = buf_cap(scratch)
       val raw_n = ev_text_buf(ev, scratch, cap)
@@ -1448,7 +1448,7 @@ fun handle_editor_click(s: &App_record >> _, f: !Font, r: !Rend, ts: Tabs, ev: &
   val ox = if is_on(s.focus) then iadd(sidew, half) else sidew
   val idx2 = pane_of(s.focus, s.active, s.righti)
   val ts4 = editor_click_hit(f, r, s, ts, ev, x, y, ox, half, idx2, toggle_of(ieq(editor, 1)))
-  val gowiki = if ieq(editor, 1) andalso ieq(ctrl_on(ev), 1) then 1 else 0
+  val gowiki = if ieq(editor, 1) andalso ctrl_on(ev) then 1 else 0
   val ts5 = wiki_go(ts4, idx2, s.vault, toggle_of(ieq(gowiki, 1)))
   val ts6 = del_go(ts5, idx, s.hiti, toggle_of(is_on(imgdel)))
   val ts7 = clear_go(ts6, idx, toggle_of(is_on(clear)))

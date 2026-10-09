@@ -14,9 +14,9 @@ staload "ui_workspace/ui_common.sats"
 staload "ui_workspace/ui_tree.sats"
 staload "ui_workspace/ui_menu.sats"
 
-implement key_is(ev, id) = x_key_is(ev, id)
-implement ctrl_on(ev) = if anth_iand(ev_mods(ev), mod_ctrl()) <> 0 then 1 else 0
-implement shift_on(ev) = if anth_iand(ev_mods(ev), mod_shift()) <> 0 then 1 else 0
+implement key_is(ev, k) = x_key_is(ev, key_id(k))
+implement ctrl_on(ev) = anth_iand(ev_mods(ev), mod_ctrl()) <> 0
+implement shift_on(ev) = anth_iand(ev_mods(ev), mod_shift()) <> 0
 implement key_char(ev) = ev_key_char(ev)
 
 fun ev_text_buf(ev: &event, dst: !Buf, n: int): int =
@@ -127,10 +127,10 @@ in
 end
 
 implement edit_line(b, ev, scratch) =
-  if ieq(ctrl_on(ev), 1) then EditNone
-  else if ieq(key_is(ev, KEY_BACKSPACE), 1) then edit_backspace(b)
-  else if ieq(key_is(ev, KEY_RETURN), 1) then EditSubmit
-  else if ieq(key_is(ev, KEY_ESCAPE), 1) then EditCancel
+  if ctrl_on(ev) then EditNone
+  else if ieq(key_is(ev, KeyBackspace), 1) then edit_backspace(b)
+  else if ieq(key_is(ev, KeyReturn), 1) then EditSubmit
+  else if ieq(key_is(ev, KeyEscape), 1) then EditCancel
   else let
     val () = edit_insert_typed(b, ev, scratch)
   in

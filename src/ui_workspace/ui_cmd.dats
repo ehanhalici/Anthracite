@@ -61,3 +61,47 @@ fun cmd_code(k: Cmd): int = case+ k of
   | CMD_PREV_TAB() => 58
 
 implement is_cmd(a, b) = ieq(cmd_code(a), cmd_code(b))
+
+fun letter_code(k: Letter): int = case+ k of
+  | LNone() => 0
+  | LA() => 97
+  | LB() => 98
+  | LC() => 99
+  | LE() => 101
+  | LF() => 102
+  | LI() => 105
+  | LK() => 107
+  | LN() => 110
+  | LO() => 111
+  | LP() => 112
+  | LS() => 115
+  | LSup() => 83
+  | LT() => 116
+  | LV() => 118
+  | LW() => 119
+  | LX() => 120
+  | LY() => 121
+  | LZ() => 122
+
+implement letter_of(n) =
+  if ieq(n, 97) then LA
+  else if ieq(n, 98) then LB
+  else if ieq(n, 99) then LC
+  else if ieq(n, 101) then LE
+  else if ieq(n, 102) then LF
+  else if ieq(n, 105) then LI
+  else if ieq(n, 107) then LK
+  else if ieq(n, 110) then LN
+  else if ieq(n, 111) then LO
+  else if ieq(n, 112) then LP
+  else if ieq(n, 115) then LS
+  else if ieq(n, 83) then LSup
+  else if ieq(n, 116) then LT
+  else if ieq(n, 118) then LV
+  else if ieq(n, 119) then LW
+  else if ieq(n, 120) then LX
+  else if ieq(n, 121) then LY
+  else if ieq(n, 122) then LZ
+  else LNone
+
+implement is_letter(a, b) = ieq(letter_code(a), letter_code(b))
