@@ -322,13 +322,11 @@ fun find_table_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, a: 
     if i >= n then ~1
     else let
       val o = 12 + i * 16
-      val hit = (
-        if file_u8(f, o) = a andalso file_u8(f, o + 1) = c
+      val hit =
+        file_u8(f, o) = a andalso file_u8(f, o + 1) = c
           andalso file_u8(f, o + 2) = d andalso file_u8(f, o + 3) = e
-        then 1 else 0
-      ): int
     in
-      if hit = 1 then file_u32(f, o + 8) else find_table_m(recfuel - 1, f, a, c, d, e, i + 1, n)
+      if hit then file_u32(f, o + 8) else find_table_m(recfuel - 1, f, a, c, d, e, i + 1, n)
     end
   ) else find_table_exh(f, a, c, d, e, i, n)
 
@@ -1417,15 +1415,15 @@ fun reserve(f: !Font, bw: int, bh: int, x: &int >> _, y: &int >> _): void = let
   val px0 = f_get_pen_x(f)
   val py0 = f_get_pen_y(f)
   val rh0 = f_get_row_h(f)
-  val wrap = (if iadd(iadd(px0, bw), 1) >= font_atlas_w(f) then 1 else 0) : int
-  val px1 = (if wrap = 1 then 1 else px0) : int
-  val py1 = (if wrap = 1 then iadd(iadd(py0, rh0), 1) else py0) : int
-  val rh1 = (if wrap = 1 then 0 else rh0) : int
-  val boom = (if iadd(iadd(py1, bh), 1) >= font_atlas_h(f) then 1 else 0) : int
-  val () = if boom = 1 then reset_atlas(f) else ()
-  val x0 = (if boom = 1 then 1 else px1) : int
-  val y0 = (if boom = 1 then 1 else py1) : int
-  val rh = (if boom = 1 then 0 else rh1) : int
+  val wrap = iadd(iadd(px0, bw), 1) >= font_atlas_w(f)
+  val px1 = (if wrap then 1 else px0) : int
+  val py1 = (if wrap then iadd(iadd(py0, rh0), 1) else py0) : int
+  val rh1 = (if wrap then 0 else rh0) : int
+  val boom = iadd(iadd(py1, bh), 1) >= font_atlas_h(f)
+  val () = if boom then reset_atlas(f) else ()
+  val x0 = (if boom then 1 else px1) : int
+  val y0 = (if boom then 1 else py1) : int
+  val rh = (if boom then 0 else rh1) : int
   val () = f_set_pen_x(f, iadd(iadd(x0, bw), 1))
   val () = f_set_pen_y(f, y0)
   val () = f_set_row_h(f, if bh > rh then bh else rh)
@@ -1480,10 +1478,10 @@ fun write_pix_loop_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font,
     if r >= 16 then ()
     else if c >= ww then write_pix_loop_m(recfuel - 1, f, x0, y0, cp, ww, r + 1, 0)
     else let
-      val colb = if c >= 8 then 1 else 0
-      val bitn = if c >= 8 then c - 8 else c
-      val on = bit(uf_byte(cp, r, colb), colmask(bitn))
-      val () = if ieq(on, 1) then atlas_set(f, x0 + c, y0 + r, 255) else ()
+      val colb = c >= 8
+      val bitn = if colb then c - 8 else c
+      val on = bit(uf_byte(cp, r, if colb then 1 else 0), colmask(bitn))
+      val () = if on = 1 then atlas_set(f, x0 + c, y0 + r, 255) else ()
     in
       write_pix_loop_m(recfuel - 1, f, x0, y0, cp, ww, r, c + 1)
     end
@@ -1498,8 +1496,8 @@ fun write_box_loop_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font,
     if r >= 16 then ()
     else if c >= 8 then write_box_loop_m(recfuel - 1, f, x0, y0, r + 1, 0)
     else let
-      val edge = if ieq(r, 0) orelse ieq(r, 15) orelse ieq(c, 0) orelse ieq(c, 7) then 1 else 0
-      val () = if ieq(edge, 1) then atlas_set(f, x0 + c, y0 + r, 255) else ()
+      val edge = ieq(r, 0) orelse ieq(r, 15) orelse ieq(c, 0) orelse ieq(c, 7)
+      val () = if edge then atlas_set(f, x0 + c, y0 + r, 255) else ()
     in
       write_box_loop_m(recfuel - 1, f, x0, y0, r, c + 1)
     end
