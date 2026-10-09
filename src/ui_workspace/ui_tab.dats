@@ -52,22 +52,22 @@ fun tabs_len_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs): int
 
 implement tabs_len(ts) = tabs_len_m(airlock_nat(MAX_REC_FUEL), ts)
 
-fun save_ok(doc: !Doc, path: !Buf): int =
+fun save_ok(doc: !Doc, path: !Buf): bool =
   if igt(buf_len(path), 0) then let
     val ok = doc_save_physical(doc, cstr(path))
   in
-    if ieq(ok, 1) then 1
+    if ieq(ok, 1) then true
     else let
       val () = report_failure("doc_save", cstr(path))
     in
-      0
+      false
     end
   end
-  else 1
+  else true
 
 (* Kayit basarisiz olursa sekme korunur: veri kaybi olmaz. *)
 fun drop_head(doc: Doc, path: Buf, title: Buf, sc: int, rest: Tabs): Tabs =
-  if ieq(save_ok(doc, path), 1) then let
+  if save_ok(doc, path) then let
     val () = doc_free(doc)
     val () = buf_free(path)
     val () = buf_free(title)
@@ -255,7 +255,7 @@ fun resolve_one_path(path: Buf, title: !Buf, vault: !Buf): Buf =
 
 fun sync_vfs_one(doc: !Doc, path: !Buf, go: Toggle): void =
   if is_on(go) andalso igt(buf_len(path), 0) then let
-    val () = seen_int(save_ok(doc, path))
+    val () = if save_ok(doc, path) then () else ()
   in
     ()
   end else let
@@ -290,7 +290,7 @@ fun tabs_save_all_physical_impl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfue
     case+ ts of
     | @TNil() => fold@(ts)
     | @TCons(doc, path, title, sc, rest) => let
-        val () = seen_int(save_ok(doc, path))
+        val () = if save_ok(doc, path) then () else ()
         val () = tabs_save_all_physical_impl_m(recfuel - 1, rest)
         val () = seen_int(sc)
       in
@@ -310,7 +310,7 @@ fun tabs_ensure_paths_impl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), t
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) => let
         val p2 = resolve_one_path(path, title, vault)
-        val () = seen_int(save_ok(doc, p2))
+        val () = if save_ok(doc, p2) then () else ()
       in
         TCons(doc, p2, title, sc, tabs_ensure_paths_impl_m(recfuel - 1, rest, vault))
       end
