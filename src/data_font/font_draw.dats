@@ -66,6 +66,22 @@ in
   end else ()
 end
 
+fun place_scaled_glyph(f: !Font, r: !Rend, y0: int, c: uint, pen: int, prev: int, cp: int, snum: int, sden: int): int = let
+  val k = font_kern(f, prev, cp)
+  var g: gmet = @{ax= 0, bx= 0, top= 0, bw= 0, bh= 0, x0= 0, y0= 0, ok= Off}
+  val () = font_glyph(f, r, cp, g)
+  val asc = font_asc(f)
+  val k_bx = scale_val(iadd(k, g.bx), snum, sden)
+  val k_ax = scale_val(iadd(k, g.ax), snum, sden)
+  val x = iadd(pen, k_bx)
+  val y = iadd(y0, scale_val(isub(asc, g.top), snum, sden))
+  val bw = scale_val(g.bw, snum, sden)
+  val bh = scale_val(g.bh, snum, sden)
+  val () = draw_glyph_quad(f, r, g, x, y, bw, bh, c)
+in
+  iadd(pen, k_ax)
+end
+
 extern fun draw_scaled_loop_exh(f: !Font, r: !Rend, x0: int, y0: int, p: ptr, n: int, c: uint, i: int, pen: int, prev: int, snum: int, sden: int): int = "mac#anth_die_int"
 
 fun draw_scaled_loop_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, x0: int, y0: int, p: ptr, n: int, c: uint, i: int, pen: int, prev: int, snum: int, sden: int): int =
@@ -74,19 +90,9 @@ fun draw_scaled_loop_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Fon
     else let
       var j: int = i
       val cp = utf8_next(p, n, j)
-      val k = font_kern(f, prev, cp)
-      var g: gmet = @{ax= 0, bx= 0, top= 0, bw= 0, bh= 0, x0= 0, y0= 0, ok= Off}
-      val () = font_glyph(f, r, cp, g)
-      val asc = font_asc(f)
-      val k_bx = scale_val(iadd(k, g.bx), snum, sden)
-      val k_ax = scale_val(iadd(k, g.ax), snum, sden)
-      val x = iadd(pen, k_bx)
-      val y = iadd(y0, scale_val(isub(asc, g.top), snum, sden))
-      val bw = scale_val(g.bw, snum, sden)
-      val bh = scale_val(g.bh, snum, sden)
-      val () = draw_glyph_quad(f, r, g, x, y, bw, bh, c)
+      val pen2 = place_scaled_glyph(f, r, y0, c, pen, prev, cp, snum, sden)
     in
-      draw_scaled_loop_m(recfuel - 1, f, r, x0, y0, p, n, c, j, iadd(pen, k_ax), cp, snum, sden)
+      draw_scaled_loop_m(recfuel - 1, f, r, x0, y0, p, n, c, j, pen2, cp, snum, sden)
     end
   ) else draw_scaled_loop_exh(f, r, x0, y0, p, n, c, i, pen, prev, snum, sden)
 

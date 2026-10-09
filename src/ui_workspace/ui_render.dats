@@ -39,6 +39,15 @@ implement cache_free(c) = cache_free_m(airlock_nat(MAX_REC_FUEL), c)
 
 extern fun cache_lookup_exh(c: Cache, path: !Buf, tex: &uint >> _, w: &int >> _, h: &int >> _, hit: &Toggle >> _): Cache = "mac#anth_die_box"
 
+fun cache_accept(p: Buf, t: uint, iw: int, ih: int, rest: Cache, tex: &uint >> _, w: &int >> _, h: &int >> _, hit: &Toggle >> _): Cache = let
+  val () = tex := t
+  val () = w := iw
+  val () = h := ih
+  val () = hit := On
+in
+  CCons(p, t, iw, ih, rest)
+end
+
 fun cache_lookup_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: Cache, path: !Buf, tex: &uint >> _, w: &int >> _, h: &int >> _, hit: &Toggle >> _): Cache =
   if recfuel > 0 then (
     case+ c of
@@ -48,14 +57,8 @@ fun cache_lookup_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: Cache, p
         CNil()
       end
     | ~CCons(p, t, iw, ih, rest) =>
-        if beq(p, path, 0) then let
-          val () = tex := t
-          val () = w := iw
-          val () = h := ih
-          val () = hit := On
-        in
-          CCons(p, t, iw, ih, rest)
-        end else let
+        if beq(p, path, 0) then cache_accept(p, t, iw, ih, rest, tex, w, h, hit)
+        else let
           val rest2 = cache_lookup_m(recfuel - 1, rest, path, tex, w, h, hit)
         in
           CCons(p, t, iw, ih, rest2)

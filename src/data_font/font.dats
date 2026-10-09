@@ -792,6 +792,18 @@ fun read_ends_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, i: i
 
 fun read_ends(f: !Font, i: int, ncont: int, p: int, base: int, eb: int): int = read_ends_m(airlock_nat(MAX_REC_FUEL), f, i, ncont, p, base, eb)
 
+extern fun flag_put_exh(f: !Font, k: int, rep: int, i: int, np: int, base: int, flg: int): void = "mac#anth_die_void"
+
+fun flag_put {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, k: int, rep: int, i: int, np: int, base: int, flg: int): void =
+  if recfuel > 0 then (
+    if k >= rep orelse i + k >= np then ()
+    else let
+      val () = set_fl(f, iadd(iadd(base, i), k), flg)
+    in
+      flag_put(recfuel - 1, f, iadd(k, 1), rep, i, np, base, flg)
+    end
+  ) else flag_put_exh(f, k, rep, i, np, base, flg)
+
 extern fun flag_run_exh(f: !Font, i: int, np: int, p: int, base: int): int = "mac#anth_die_int"
 
 fun flag_run_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, i: int, np: int, p: int, base: int): int =
@@ -802,14 +814,7 @@ fun flag_run_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, i: in
       val rep0: int = (if bit(flg, 8) = 1 then file_u8(f, p + 1) else 0): int
       val rep: int = (if rep0 < 0 then 1 else rep0 + 1): int
       val p2 = (if bit(flg, 8) = 1 then iadd(p, 2) else iadd(p, 1)) : int
-      fun put(f: !Font, k: int): void =
-        if k >= rep orelse i + k >= np then ()
-        else let
-          val () = set_fl(f, iadd(iadd(base, i), k), flg)
-        in
-          put(f, iadd(k, 1))
-        end
-      val () = put(f, 0)
+      val () = flag_put(airlock_nat(MAX_REC_FUEL), f, 0, rep, i, np, base, flg)
       val step = (if iadd(i, rep) > np then isub(np, i) else rep) : int
     in
       flag_run_m(recfuel - 1, f, iadd(i, step), np, p2, base)
@@ -910,7 +915,9 @@ fun comp_scale_xf(f: !Font, flags: int, q: int): comp_xf =
     @{cxx= f214(f, q), cyy= f214(f, iadd(q, 6)), cxy= f214(f, iadd(q, 2)), cyx= f214(f, iadd(q, 4)), q= iadd(q, 8)}
   else @{cxx= 1.0, cyy= 1.0, cxy= 0.0, cyx= 0.0, q= q}
 
+extern fun load_glyph_exh(f: !Font, gid: int, dx: double, dy: double, xx: double, yy: double, xy: double, yx: double, depth: int): void = "mac#anth_die_void"
 extern fun comp_loop_exh(f: !Font, p: int, dx: double, dy: double, xx: double, yy: double, xy: double, yx: double, depth: int, left: int): void = "mac#anth_die_void"
+extern fun comp_place_exh(f: !Font, flags: int, gid: int, dx: double, dy: double, xx: double, yy: double, xy: double, yx: double, depth: int, xf: comp_xf, arg1: int, arg2: int): void = "mac#anth_die_void"
 
 fun load_glyph {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, gid: int, dx: double, dy: double, xx: double, yy: double, xy: double, yx: double, depth: int): void =
   if recfuel > 0 then (
@@ -930,7 +937,7 @@ fun load_glyph {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, gid: 
         else ()
       end
     end
-  ) else ()
+  ) else load_glyph_exh(f, gid, dx, dy, xx, yy, xy, yx, depth)
 
 and comp_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, p: int, dx: double, dy: double, xx: double, yy: double, xy: double, yx: double, depth: int, left: int): void =
   if recfuel > 0 then (
@@ -963,7 +970,7 @@ and comp_place {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, flags
   in
     if bit(flags, 2) = 1 then load_glyph(recfuel - 1, f, gid, ndx, ndy, nxx, nyy, nxy, nyx, depth + 1)
     else ()
-  end else ()
+  end else comp_place_exh(f, flags, gid, dx, dy, xx, yy, xy, yx, depth, xf, arg1, arg2)
 
 fun push_out(f: !Font, n: int, x: int, y: int, on: int): int =
   if n >= 1500 then n
@@ -1025,9 +1032,10 @@ in
   push_out(f, n, mx, my, 1)
 end
 
-fun expand_contour(f: !Font, a: int, b: int): int = let
-  val clen = isub(b, a) + 1
-  fun loop(f: !Font, k: int, clen: int, a: int, n: int): int =
+extern fun contour_loop_exh(f: !Font, k: int, clen: int, a: int, n: int): int = "mac#anth_die_int"
+
+fun contour_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, k: int, clen: int, a: int, n: int): int =
+  if recfuel > 0 then (
     if k >= clen then n
     else let
       val curr_i = iadd(a, k)
@@ -1038,10 +1046,14 @@ fun expand_contour(f: !Font, a: int, b: int): int = let
       val n2 = if ieq(curr_on, 0) andalso ieq(prev_on, 0) then push_mid(f, n, prev_i, curr_i) else n
       val n3 = push_out(f, n2, pt_x(f, curr_i), pt_y(f, curr_i), curr_on)
     in
-      loop(f, iadd(k, 1), clen, a, n3)
+      contour_loop(recfuel - 1, f, iadd(k, 1), clen, a, n3)
     end
+  ) else contour_loop_exh(f, k, clen, a, n)
+
+fun expand_contour(f: !Font, a: int, b: int): int = let
+  val clen = isub(b, a) + 1
 in
-  if ilt(clen, 2) then 0 else loop(f, 0, clen, a, 0)
+  if ilt(clen, 2) then 0 else contour_loop(airlock_nat(MAX_REC_FUEL), f, 0, clen, a, 0)
 end
 
 fun emit_line_at(f: !Font, i: int, n: int, minx: int, maxy: int, sc: double): void = let
@@ -1068,21 +1080,24 @@ in
           pix_x(x2, minx, sc), pix_y(y2, maxy, sc), 3)
 end
 
-fun walk_contour(f: !Font, n: int, minx: int, maxy: int, sc: double): void = let
-  fun walk(f: !Font, i: int, n: int, minx: int, maxy: int, sc: double): void =
+extern fun contour_walk_exh(f: !Font, i: int, n: int, minx: int, maxy: int, sc: double): void = "mac#anth_die_void"
+
+fun contour_walk {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, i: int, n: int, minx: int, maxy: int, sc: double): void =
+  if recfuel > 0 then (
     if i >= n then ()
     else if pt_on(f, iadd(OUT0, imod(iadd(i, 1), n))) <> 0 then let
       val () = emit_line_at(f, i, n, minx, maxy, sc)
     in
-      walk(f, iadd(i, 1), n, minx, maxy, sc)
+      contour_walk(recfuel - 1, f, iadd(i, 1), n, minx, maxy, sc)
     end else let
       val () = emit_curve_at(f, i, n, minx, maxy, sc)
     in
-      walk(f, iadd(i, 2), n, minx, maxy, sc)
+      contour_walk(recfuel - 1, f, iadd(i, 2), n, minx, maxy, sc)
     end
-in
-  if igt(n, 1) then walk(f, 0, n, minx, maxy, sc) else ()
-end
+  ) else contour_walk_exh(f, i, n, minx, maxy, sc)
+
+fun walk_contour(f: !Font, n: int, minx: int, maxy: int, sc: double): void =
+  if igt(n, 1) then contour_walk(airlock_nat(MAX_REC_FUEL), f, 0, n, minx, maxy, sc) else ()
 
 fun one_contour(f: !Font, a: int, b: int, minx: int, maxy: int, sc: double): void =
   if b < a then ()
@@ -1173,6 +1188,21 @@ fun atlas_get(f: !Font, x: int, y: int): int =
       fold@(f); v
     end
 
+fun collect_cross(f: !Font, y: int, e: int, nc: int): int = let
+  val y0 = edge_get(f, e, 1)
+  val y1 = edge_get(f, e, 3)
+  val x0 = edge_get(f, e, 0)
+  val x1 = edge_get(f, e, 2)
+  val den = n_i2d(y1 - y0)
+  val t = (n_i2d(y) - n_i2d(y0)) / den
+  val x = iround(n_i2d(x0) + t * n_i2d(x1 - x0))
+  val dir = if y1 > y0 then 1 else ~1
+  val () = end_set(f, nc * 2, x)
+  val () = end_set(f, nc * 2 + 1, dir)
+in
+  nc + 1
+end
+
 extern fun collect_exh(f: !Font, y: int, e: int, ne: int, nc: int): int = "mac#anth_die_int"
 
 fun collect_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, y: int, e: int, ne: int, nc: int): int =
@@ -1181,20 +1211,10 @@ fun collect_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, y: int
     else let
       val y0 = edge_get(f, e, 1)
       val y1 = edge_get(f, e, 3)
+      val hit = (y0 <= y andalso y1 > y) orelse (y1 <= y andalso y0 > y)
+      val nc2 = if y0 = y1 then nc else if hit then collect_cross(f, y, e, nc) else nc
     in
-      if y0 = y1 then collect_m(recfuel - 1, f, y, e + 1, ne, nc)
-      else if (y0 <= y andalso y1 > y) orelse (y1 <= y andalso y0 > y) then let
-        val x0 = edge_get(f, e, 0)
-        val x1 = edge_get(f, e, 2)
-        val den = n_i2d(y1 - y0)
-        val t = (n_i2d(y) - n_i2d(y0)) / den
-        val x = iround(n_i2d(x0) + t * n_i2d(x1 - x0))
-        val dir = if y1 > y0 then 1 else ~1
-        val () = end_set(f, nc * 2, x)
-        val () = end_set(f, nc * 2 + 1, dir)
-      in
-        collect_m(recfuel - 1, f, y, e + 1, ne, nc + 1)
-      end else collect_m(recfuel - 1, f, y, e + 1, ne, nc)
+      collect_m(recfuel - 1, f, y, e + 1, ne, nc2)
     end
   ) else collect_exh(f, y, e, ne, nc)
 
@@ -1239,18 +1259,23 @@ fun cross_sort_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, n: 
 
 fun cross_sort(f: !Font, n: int, i: int): void = cross_sort_m(airlock_nat(MAX_REC_FUEL), f, n, i)
 
-fun paint(f: !Font, sw: int, y: int, x0: int, x1: int): void = let
-  val a = (if x0 < 0 then 0 else x0) : int
-  val b = (if x1 > sw then sw else x1) : int
-  fun pix(f: !Font, x: int): void =
+extern fun paint_pix_exh(f: !Font, x: int, y: int, sw: int, b: int): void = "mac#anth_die_void"
+
+fun paint_pix {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, x: int, y: int, sw: int, b: int): void =
+  if recfuel > 0 then (
     if x >= b then ()
     else let
       val () = cov_set(f, y * sw + x, 255)
     in
-      pix(f, x + 1)
+      paint_pix(recfuel - 1, f, x + 1, y, sw, b)
     end
+  ) else paint_pix_exh(f, x, y, sw, b)
+
+fun paint(f: !Font, sw: int, y: int, x0: int, x1: int): void = let
+  val a = (if x0 < 0 then 0 else x0) : int
+  val b = (if x1 > sw then sw else x1) : int
 in
-  if a < b andalso y >= 0 andalso y < 256 then pix(f, a) else ()
+  if a < b andalso y >= 0 andalso y < 256 then paint_pix(airlock_nat(MAX_REC_FUEL), f, a, y, sw, b) else ()
 end
 
 extern fun wind_exh(f: !Font, sw: int, y: int, n: int, i: int, w: int, prev: int): void = "mac#anth_die_void"
@@ -1286,22 +1311,27 @@ fun scan_rows_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, sw: 
 
 fun scan_rows(f: !Font, sw: int, sh: int, y: int): void = scan_rows_m(airlock_nat(MAX_REC_FUEL), f, sw, sh, y)
 
+extern fun blit_col_exh(f: !Font, x: int, y: int, x0: int, y0: int, sw: int, bw: int): void = "mac#anth_die_void"
+
+fun blit_col {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, x: int, y: int, x0: int, y0: int, sw: int, bw: int): void =
+  if recfuel > 0 then (
+    if x >= bw then ()
+    else let
+      val i00 = (y * 2) * sw + x * 2
+      val s = cov_get(f, i00) + cov_get(f, i00 + 1) + cov_get(f, i00 + sw) + cov_get(f, i00 + sw + 1)
+      val () = atlas_set(f, x0 + x, y0 + y, (s / 4): int)
+    in
+      blit_col(recfuel - 1, f, x + 1, y, x0, y0, sw, bw)
+    end
+  ) else blit_col_exh(f, x, y, x0, y0, sw, bw)
+
 extern fun blit_exh(f: !Font, x0: int, y0: int, sw: int, bw: int, bh: int, y: int): void = "mac#anth_die_void"
 
 fun blit_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, x0: int, y0: int, sw: int, bw: int, bh: int, y: int): void =
   if recfuel > 0 then (
     if y >= bh then ()
     else let
-      fun bx(f: !Font, x: int): void =
-        if x >= bw then ()
-        else let
-          val i00 = (y * 2) * sw + x * 2
-          val s = cov_get(f, i00) + cov_get(f, i00 + 1) + cov_get(f, i00 + sw) + cov_get(f, i00 + sw + 1)
-          val () = atlas_set(f, x0 + x, y0 + y, (s / 4): int)
-        in
-          bx(f, x + 1)
-        end
-      val () = bx(f, 0)
+      val () = blit_col(airlock_nat(MAX_REC_FUEL), f, 0, y, x0, y0, sw, bw)
     in
       blit_m(recfuel - 1, f, x0, y0, sw, bw, bh, y + 1)
     end
@@ -1689,16 +1719,23 @@ implement font_kern(f, a, b) =
     end
   end
 
+extern fun atlas_cols_exh(f: !Font, c: int, w: int, x: int, y: int, row: int, a: int): int = "mac#anth_die_int"
+
+fun atlas_cols {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, c: int, w: int, x: int, y: int, row: int, a: int): int =
+  if recfuel > 0 then (
+    if c >= w then a
+    else atlas_cols(recfuel - 1, f, c + 1, w, x, y, row, a + atlas_get(f, x + c, y + row))
+  ) else atlas_cols_exh(f, c, w, x, y, row, a)
+
 extern fun atlas_sum_exh(f: !Font, x: int, y: int, w: int, h: int, row: int, acc: int): int = "mac#anth_die_int"
 
 fun atlas_sum_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, x: int, y: int, w: int, h: int, row: int, acc: int): int =
   if recfuel > 0 then (
     if row >= h then acc
     else let
-      fun cols(f: !Font, c: int, a: int): int =
-        if c >= w then a else cols(f, c + 1, a + atlas_get(f, x + c, y + row))
+      val acc2 = atlas_cols(airlock_nat(MAX_REC_FUEL), f, 0, w, x, y, row, acc)
     in
-      atlas_sum_m(recfuel - 1, f, x, y, w, h, row + 1, cols(f, 0, acc))
+      atlas_sum_m(recfuel - 1, f, x, y, w, h, row + 1, acc2)
     end
   ) else atlas_sum_exh(f, x, y, w, h, row, acc)
 
@@ -1762,6 +1799,8 @@ in
 end
 
 extern fun scan_step_exh(dp: ptr, dir: string, depth: int, paths: &Buf >> _, names: &Buf >> _, meta: &Buf >> _, cnt: &int >> _, name_buf: &Buf >> _, isdir: &int >> _): void = "mac#anth_die_void"
+extern fun scan_subdir_exh(dir: string, nlen: int, name_buf: !Buf, depth: int, paths: &Buf >> _, names: &Buf >> _, meta: &Buf >> _, cnt: &int >> _): void = "mac#anth_die_void"
+extern fun scan_fonts_rec_exh(dir: string, depth: int, paths: &Buf >> _, names: &Buf >> _, meta: &Buf >> _, cnt: &int >> _): void = "mac#anth_die_void"
 
 fun scan_step_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dp: ptr, dir: string, depth: int, paths: &Buf >> _, names: &Buf >> _, meta: &Buf >> _, cnt: &int >> _, name_buf: &Buf >> _, isdir: &int >> _): void =
   if recfuel > 0 then (
@@ -1791,7 +1830,7 @@ and scan_subdir {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dir: string, n
     val () = scan_fonts_rec(recfuel - 1, buf_cstr(sub_dir), iadd(depth, 1), paths, names, meta, cnt)
     val () = buf_free(sub_dir)
   in
-  end else ()
+  end else scan_subdir_exh(dir, nlen, name_buf, depth, paths, names, meta, cnt)
 
 and scan_fonts_rec {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dir: string, depth: int, paths: &Buf >> _, names: &Buf >> _, meta: &Buf >> _, cnt: &int >> _): void =
   if recfuel > 0 then (
@@ -1809,7 +1848,7 @@ and scan_fonts_rec {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dir: string
       in
       end
     end
-  ) else ()
+  ) else scan_fonts_rec_exh(dir, depth, paths, names, meta, cnt)
 
 fun scan_step(dp: ptr, dir: string, depth: int, paths: &Buf >> _, names: &Buf >> _, meta: &Buf >> _, cnt: &int >> _, name_buf: &Buf >> _, isdir: &int >> _): void = scan_step_m(airlock_nat(MAX_REC_FUEL), dp, dir, depth, paths, names, meta, cnt, name_buf, isdir)
 

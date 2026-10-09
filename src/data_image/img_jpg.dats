@@ -202,6 +202,14 @@ fun zblk_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), coef: !Buf, i: int)
 
 fun zblk(coef: !Buf, i: int): void = zblk_m(airlock_nat(MAX_REC_FUEL), coef, i)
 
+fun jblk_ac_write(src: !Buf, n: int, st: &JBit >> _, coef: !Buf, k: int, s: int): int = let
+  val k2 = iadd(k, ishr(s, 4))
+  val v = jrecv(src, n, st, iand(s, 15))
+  val () = if ilt(k2, 64) then buf_set32(coef, zig(k2), v) else ()
+in
+  k2
+end
+
 extern fun jblk_ac_exh(src: !Buf, n: int, st: &JBit >> _, hf: !Buf, coef: !Buf, act: int, k: int): void = "mac#anth_die_void"
 
 fun jblk_ac_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &JBit >> _, hf: !Buf, coef: !Buf, act: int, k: int): void =
@@ -211,18 +219,11 @@ fun jblk_ac_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: in
       val s = jhdec(src, n, st, hf, act, 1, 0, 0, 0)
     in
       if ile(s, 0) then ()
+      else if ieq(iand(s, 15), 0) then jblk_ac_m(recfuel - 1, src, n, st, hf, coef, act, iadd(k, 16))
       else let
-        val run = ishr(s, 4)
-        val sz = iand(s, 15)
+        val k2 = jblk_ac_write(src, n, st, coef, k, s)
       in
-        if ieq(sz, 0) then jblk_ac_m(recfuel - 1, src, n, st, hf, coef, act, iadd(k, 16))
-        else let
-          val k2 = iadd(k, run)
-          val v = jrecv(src, n, st, sz)
-          val () = if ilt(k2, 64) then buf_set32(coef, zig(k2), v) else ()
-        in
-          if ilt(k2, 63) then jblk_ac_m(recfuel - 1, src, n, st, hf, coef, act, iadd(k2, 1)) else ()
-        end
+        if ilt(k2, 63) then jblk_ac_m(recfuel - 1, src, n, st, hf, coef, act, iadd(k2, 1)) else ()
       end
     end
   ) else jblk_ac_exh(src, n, st, hf, coef, act, k)

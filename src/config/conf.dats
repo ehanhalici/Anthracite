@@ -286,6 +286,20 @@ fun record_vault_meta(meta: &Buf >> Buf, cnt: &int >> int, poff: int, plen: int,
 in
 end
 
+fun scan_one_vault(content: !Buf, p_pos: int, paths: &Buf >> Buf, names: &Buf >> Buf, meta: &Buf >> Buf, cnt: &int >> int, tmp_p: &Buf >> Buf, tmp_n: &Buf >> Buf): void = let
+  val ok_p = extract_str_after(content, iadd(p_pos, KEY_PATH_LEN), tmp_p)
+  val () = if ok_p then () else ()
+  val () = extract_vault_name(content, p_pos, tmp_p, tmp_n)
+  val poff = buf_len(paths)
+  val plen = buf_len(tmp_p)
+  val () = bcat(paths, tmp_p, 0, plen)
+  val noff = buf_len(names)
+  val nlen = buf_len(tmp_n)
+  val () = bcat(names, tmp_n, 0, nlen)
+in
+  record_vault_meta(meta, cnt, poff, plen, noff, nlen)
+end
+
 extern fun scan_vaults_rec_exh(content: !Buf, cursor: int, paths: &Buf >> Buf, names: &Buf >> Buf, meta: &Buf >> Buf, cnt: &int >> int, tmp_p: &Buf >> Buf, tmp_n: &Buf >> Buf): void = "mac#anth_die_void"
 
 fun scan_vaults_rec_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), content: !Buf, cursor: int, paths: &Buf >> Buf, names: &Buf >> Buf, meta: &Buf >> Buf, cnt: &int >> int, tmp_p: &Buf >> Buf, tmp_n: &Buf >> Buf): void =
@@ -295,15 +309,7 @@ fun scan_vaults_rec_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), content:
   in
     if ilt(p_pos, 0) then ()
     else let
-      val ok_p = extract_str_after(content, iadd(p_pos, KEY_PATH_LEN), tmp_p)
-      val () = extract_vault_name(content, p_pos, tmp_p, tmp_n)
-      val poff = buf_len(paths)
-      val plen = buf_len(tmp_p)
-      val () = bcat(paths, tmp_p, 0, plen)
-      val noff = buf_len(names)
-      val nlen = buf_len(tmp_n)
-      val () = bcat(names, tmp_n, 0, nlen)
-      val () = record_vault_meta(meta, cnt, poff, plen, noff, nlen)
+      val () = scan_one_vault(content, p_pos, paths, names, meta, cnt, tmp_p, tmp_n)
     in
       scan_vaults_rec_m(recfuel - 1, content, iadd(p_pos, KEY_PATH_LEN), paths, names, meta, cnt, tmp_p, tmp_n)
     end
@@ -506,26 +512,26 @@ fun append_conf_dir_for_vault(vault: string, dst: &Buf >> Buf, content: !Buf): v
 in
 end
 
+fun vault_conf_dir_fill(vault: string, dst: &Buf >> Buf, base: Buf): void = let
+  val () = bcat_all(dst, base)
+  val () = bstr(dst, "/")
+  var content = buf_make(BUF_SZ_LARGE)
+  val got = read_vaults_json(base, content)
+  val () = if got then () else ()
+  val () = append_conf_dir_for_vault(vault, dst, content)
+  val () = buf_free(content)
+in
+  if ensure_dir(cstr(dst)) then ()
+  else report_failure("vault_dir_create", cstr(dst))
+end
+
 fun vault_conf_dir_path(vault: string, dst: &Buf >> Buf): void = let
   val () = bclear(dst)
   var base = buf_make(BUF_SZ_PATH)
   val ok = conf_init_dirs(base)
 in
-  if not(ok) then let
-    val () = buf_free(base)
-  in
-  end else let
-    val () = bcat_all(dst, base)
-    val () = bstr(dst, "/")
-    var content = buf_make(BUF_SZ_LARGE)
-    val got = read_vaults_json(base, content)
-    val () = if got then () else ()
-    val () = append_conf_dir_for_vault(vault, dst, content)
-    val () = buf_free(content)
-    val () = if ensure_dir(cstr(dst)) then ()
-             else report_failure("vault_dir_create", cstr(dst))
-  in
-  end
+  if not(ok) then buf_free(base)
+  else vault_conf_dir_fill(vault, dst, base)
 end
 
 extern fun tabs_to_json_exh(ts: !Tabs, dst: &Buf >> Buf, i: int): void = "mac#anth_die_void"

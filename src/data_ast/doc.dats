@@ -499,6 +499,24 @@ fun nset(d: !Doc, i: int, f: int, v: int): void =
 implement doc_get(d, i, f) = nget(d, i, f)
 implement doc_set(d, i, f, v) = nset(d, i, f, v)
 
+fun kind_of_tail(n: int): NodeKind =
+  if ieq(n, 17) then KEmbed
+  else if ieq(n, 18) then KTag
+  else if ieq(n, 19) then KTask
+  else if ieq(n, 20) then KFn
+  else if ieq(n, 21) then KFndef
+  else if ieq(n, 22) then KHigh
+  else if ieq(n, 23) then KMath
+  else if ieq(n, 24) then KMathb
+  else if ieq(n, 25) then KFm
+  else if ieq(n, 26) then KImage
+  else if ieq(n, 27) then KTd
+  else if ieq(n, 28) then KBold
+  else if ieq(n, 29) then KItalic
+  else if ieq(n, 30) then KStrike
+  else if ieq(n, 31) then KLink
+  else KNone
+
 implement kind_of(n) =
   if ieq(n, 1) then KPara
   else if ieq(n, 2) then KH1
@@ -516,56 +534,17 @@ implement kind_of(n) =
   else if ieq(n, 14) then KTable
   else if ieq(n, 15) then KText
   else if ieq(n, 16) then KWiki
-  else if ieq(n, 17) then KEmbed
-  else if ieq(n, 18) then KTag
-  else if ieq(n, 19) then KTask
-  else if ieq(n, 20) then KFn
-  else if ieq(n, 21) then KFndef
-  else if ieq(n, 22) then KHigh
-  else if ieq(n, 23) then KMath
-  else if ieq(n, 24) then KMathb
-  else if ieq(n, 25) then KFm
-  else if ieq(n, 26) then KImage
-  else if ieq(n, 27) then KTd
-  else if ieq(n, 28) then KBold
-  else if ieq(n, 29) then KItalic
-  else if ieq(n, 30) then KStrike
-  else if ieq(n, 31) then KLink
-  else KNone
+  else kind_of_tail(n)
 
 implement kind_code(k) = case+ k of
-  | KNone() => 0
-  | KPara() => 1
-  | KH1() => 2
-  | KH2() => 3
-  | KH3() => 4
-  | KH4() => 5
-  | KH5() => 6
-  | KH6() => 7
-  | KUl() => 8
-  | KOl() => 9
-  | KLi() => 10
-  | KQuote() => 11
-  | KCode() => 12
-  | KHr() => 13
-  | KTable() => 14
-  | KText() => 15
-  | KWiki() => 16
-  | KEmbed() => 17
-  | KTag() => 18
-  | KTask() => 19
-  | KFn() => 20
-  | KFndef() => 21
-  | KHigh() => 22
-  | KMath() => 23
-  | KMathb() => 24
-  | KFm() => 25
-  | KImage() => 26
-  | KTd() => 27
-  | KBold() => 28
-  | KItalic() => 29
-  | KStrike() => 30
-  | KLink() => 31
+  | KNone() => 0 | KPara() => 1 | KH1() => 2 | KH2() => 3
+  | KH3() => 4 | KH4() => 5 | KH5() => 6 | KH6() => 7
+  | KUl() => 8 | KOl() => 9 | KLi() => 10 | KQuote() => 11
+  | KCode() => 12 | KHr() => 13 | KTable() => 14 | KText() => 15
+  | KWiki() => 16 | KEmbed() => 17 | KTag() => 18 | KTask() => 19
+  | KFn() => 20 | KFndef() => 21 | KHigh() => 22 | KMath() => 23
+  | KMathb() => 24 | KFm() => 25 | KImage() => 26 | KTd() => 27
+  | KBold() => 28 | KItalic() => 29 | KStrike() => 30 | KLink() => 31
 
 implement heading_kind(hashes) =
   if ieq(hashes, 1) then KH1
@@ -602,72 +581,24 @@ implement task_aux_code(m) = case+ m of
 implement is_kind(k, expect) = ieq(kind_code(k), kind_code(expect))
 
 implement is_heading(k) = case+ k of
-  | KH1() => true
-  | KH2() => true
-  | KH3() => true
-  | KH4() => true
-  | KH5() => true
-  | KH6() => true
-  | KNone() => false
-  | KPara() => false
-  | KUl() => false
-  | KOl() => false
-  | KLi() => false
-  | KQuote() => false
-  | KCode() => false
-  | KHr() => false
-  | KTable() => false
-  | KText() => false
-  | KWiki() => false
-  | KEmbed() => false
-  | KTag() => false
-  | KTask() => false
-  | KFn() => false
-  | KFndef() => false
-  | KHigh() => false
-  | KMath() => false
-  | KMathb() => false
-  | KFm() => false
-  | KImage() => false
-  | KTd() => false
-  | KBold() => false
-  | KItalic() => false
-  | KStrike() => false
-  | KLink() => false
+  | KH1() => true | KH2() => true | KH3() => true | KH4() => true
+  | KH5() => true | KH6() => true | KNone() => false | KPara() => false
+  | KUl() => false | KOl() => false | KLi() => false | KQuote() => false
+  | KCode() => false | KHr() => false | KTable() => false | KText() => false
+  | KWiki() => false | KEmbed() => false | KTag() => false | KTask() => false
+  | KFn() => false | KFndef() => false | KHigh() => false | KMath() => false
+  | KMathb() => false | KFm() => false | KImage() => false | KTd() => false
+  | KBold() => false | KItalic() => false | KStrike() => false | KLink() => false
 
 implement is_inline(k) = case+ k of
-  | KText() => true
-  | KWiki() => true
-  | KEmbed() => true
-  | KTag() => true
-  | KFn() => true
-  | KHigh() => true
-  | KMath() => true
-  | KMathb() => true
-  | KTd() => true
-  | KNone() => false
-  | KPara() => false
-  | KH1() => false
-  | KH2() => false
-  | KH3() => false
-  | KH4() => false
-  | KH5() => false
-  | KH6() => false
-  | KUl() => false
-  | KOl() => false
-  | KLi() => false
-  | KQuote() => false
-  | KCode() => false
-  | KHr() => false
-  | KTable() => false
-  | KTask() => false
-  | KFndef() => false
-  | KFm() => false
-  | KImage() => false
-  | KBold() => false
-  | KItalic() => false
-  | KStrike() => false
-  | KLink() => false
+  | KText() => true | KWiki() => true | KEmbed() => true | KTag() => true
+  | KFn() => true | KHigh() => true | KMath() => true | KMathb() => true
+  | KTd() => true | KNone() => false | KPara() => false | KH1() => false
+  | KH2() => false | KH3() => false | KH4() => false | KH5() => false
+  | KH6() => false | KUl() => false | KOl() => false | KLi() => false
+  | KQuote() => false | KCode() => false | KHr() => false | KTable() => false
+  | KTask() => false | KFndef() => false | KFm() => false | KImage() => false
+  | KBold() => false | KItalic() => false | KStrike() => false | KLink() => false
 
 implement heading_stops(k, limit) =
   is_heading(k) andalso ile(kind_code(k), kind_code(limit))
@@ -1292,21 +1223,23 @@ end
 implement doc_insert_buf(d, src, n) =
   doc_insert(d, buf_ptr(src), n)
 
+extern fun utf8_back_exh(d: !Doc, k: int, limit: int): int = "mac#anth_die_int"
+
+fun utf8_back {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, k: int, limit: int): int =
+  if recfuel > 0 then (
+    if ile(k, 0) then 0
+    else if ile(limit, 0) then k
+    else let
+      val b = doc_byte(d, isub(k, 1))
+    in
+      if b < 128 orelse b >= 192 then isub(k, 1)
+      else utf8_back(recfuel - 1, d, isub(k, 1), isub(limit, 1))
+    end
+  ) else utf8_back_exh(d, k, limit)
+
 fun utf8_prev(d: !Doc, i: int): int =
   if ile(i, 1) then 0
-  else let
-    fun back(d: !Doc, k: int, limit: int): int =
-      if ile(k, 0) then 0
-      else if ile(limit, 0) then k
-      else let
-        val b = doc_byte(d, isub(k, 1))
-      in
-        if b < 128 orelse b >= 192 then isub(k, 1)
-        else back(d, isub(k, 1), isub(limit, 1))
-      end
-  in
-    back(d, i, 4)
-  end
+  else utf8_back(airlock_nat(MAX_REC_FUEL), d, i, 4)
 
 fun utf8_align(d: !Doc, i: int): int =
   if ile(i, 0) then 0

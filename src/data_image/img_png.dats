@@ -377,6 +377,8 @@ fun len_sym(s: int): LenSym =
   else LenBad()
 
 extern fun read_lens_exh(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, nlen: int, i: int, prev: int): int = "mac#anth_die_int"
+extern fun read_lens_code_exh(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, nlen: int, i: int, prev: int, s: int): int = "mac#anth_die_int"
+extern fun read_rep_exh(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, nlen: int, i: int, rep: int, v: int): int = "mac#anth_die_int"
 
 fun read_lens_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, nlen: int, i: int, prev: int): int =
   if recfuel > 0 then (
@@ -416,16 +418,15 @@ and read_lens_code {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, 
       in
         read_rep(recfuel - 1, src, n, st, tab, nlen, i, rep, 0)
       end
-    | LenDirect() => 0
-    | LenBad() => 0
-  ) else 0
+    | LenDirect() => 0 | LenBad() => 0
+  ) else read_lens_code_exh(src, n, st, tab, nlen, i, prev, s)
 
 and read_rep {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, nlen: int, i: int, rep: int, v: int): int =
   if recfuel > 0 then let
     val j = fill_rep(tab, i, nlen, rep, v, 0)
   in
     if ilt(j, 0) then 0 else read_lens_m(recfuel - 1, src, n, st, tab, nlen, j, v)
-  end else 0
+  end else read_rep_exh(src, n, st, tab, nlen, i, rep, v)
 
 fun read_lens(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, nlen: int, i: int, prev: int): int = read_lens_m(airlock_nat(MAX_REC_FUEL), src, n, st, tab, nlen, i, prev)
 

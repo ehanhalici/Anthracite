@@ -46,6 +46,20 @@ fun drain(p: !Plat, a: !App, f: !Font, r: !Rend): void = drain_m(airlock_nat(MAX
 
 extern fun frame_exh(p: !Plat, a: !App, f: !Font, r: !Rend, loaded: bool): void = "mac#anth_die_void"
 
+fun frame_draw(p: !Plat, a: !App, f: !Font, r: !Rend, loaded: bool): bool = let
+  val loaded2 = if not(loaded) then font_load_default(f) else loaded
+  var w: int = 0
+  var h: int = 0
+  val () = plat_wh(p, w, h)
+  val () = rend_begin(r, w, h)
+  val () = app_draw(a, f, r, w, h)
+  val () = rend_flush(r)
+  val () = plat_swap(p)
+  val () = seen_int(plat_wait(p, ~1))
+in
+  loaded2
+end
+
 fun frame_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, a: !App, f: !Font, r: !Rend, loaded: bool): void =
   if recfuel > 0 then (
     if is_off(plat_running(p)) then ()
@@ -53,19 +67,7 @@ fun frame_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, a: !App,
       val () = drain(p, a, f, r)
     in
       if is_off(plat_running(p)) then ()
-      else let
-        val loaded2 = if not(loaded) then font_load_default(f) else loaded
-        var w: int = 0
-        var h: int = 0
-        val () = plat_wh(p, w, h)
-        val () = rend_begin(r, w, h)
-        val () = app_draw(a, f, r, w, h)
-        val () = rend_flush(r)
-        val () = plat_swap(p)
-        val () = seen_int(plat_wait(p, ~1))
-      in
-        frame_m(recfuel - 1, p, a, f, r, loaded2)
-      end
+      else frame_m(recfuel - 1, p, a, f, r, frame_draw(p, a, f, r, loaded))
     end
   ) else frame_exh(p, a, f, r, loaded)
 
