@@ -360,6 +360,14 @@ fun dqt_words_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, qt:
 
 fun dqt_words(src: !Buf, qt: !Buf, tid: int, j: int, k: int): void = dqt_words_m(airlock_nat(MAX_REC_FUEL), src, qt, tid, j, k)
 
+datatype QtPrec = QtByte | QtWord
+
+fun prec_of(n: int): QtPrec = if ieq(n, 0) then QtByte() else QtWord()
+
+fun prec_step(p: QtPrec): int = case+ p of
+  | QtByte() => 65
+  | QtWord() => 129
+
 extern fun dqt_load_exh(src: !Buf, qt: !Buf, j: int, endp: int): void = "mac#anth_die_void"
 
 fun dqt_load_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, qt: !Buf, j: int, endp: int): void =
@@ -368,9 +376,12 @@ fun dqt_load_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, qt: 
     else let
       val info = buf_get(src, j)
       val tid = iand(info, 15)
-      val prec = ishr(info, 4)
-      val step = if ieq(prec, 0) then 65 else 129
-      val () = if igt(tid, 3) then () else if ieq(prec, 0) then dqt_bytes(src, qt, tid, iadd(j, 1), 0) else dqt_words(src, qt, tid, iadd(j, 1), 0)
+      val prec = prec_of(ishr(info, 4))
+      val step = prec_step(prec)
+      val () = if igt(tid, 3) then ()
+        else case+ prec of
+          | QtByte() => dqt_bytes(src, qt, tid, iadd(j, 1), 0)
+          | QtWord() => dqt_words(src, qt, tid, iadd(j, 1), 0)
     in
       dqt_load_m(recfuel - 1, src, qt, iadd(j, step), endp)
     end
