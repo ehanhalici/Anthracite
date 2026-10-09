@@ -256,7 +256,7 @@ implement main0() = let
   val t0 = mono_ns()
   val p = plat_open()
 in
-  if plat_ok(p) = 0 then let
+  if not(plat_ok(p)) then let
     val () = println! ("event=display_error status=failed error=cannot_open_display")
     val () = plat_close(p)
   in

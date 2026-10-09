@@ -171,7 +171,7 @@ end
 implement plat_ok(p) =
   case+ p of
   | @PLAT(r) => let
-      val k: int = (if ptr_is_null(r.dpy) then 0 else 1): int
+      val k = not(ptr_is_null(r.dpy))
     in
       fold@(p); k
     end
