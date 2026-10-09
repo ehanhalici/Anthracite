@@ -751,12 +751,11 @@ fun key_code(ev: &event, act: Toggle): Cmd =
   else if ctrl_on(ev) then key_code_ctrl_nav(ev, toggle_of(shift_on(ev)))
   else key_code_non_ctrl(ev, toggle_of(shift_on(ev)))
 
-fun is_modifying_cmd(cmd: Cmd): int =
-  if is_cmd(cmd, CMD_BACKSPACE) orelse is_cmd(cmd, CMD_DELETE) orelse is_cmd(cmd, CMD_DELETE_SELECTION)
+fun is_modifying_cmd(cmd: Cmd): bool =
+  is_cmd(cmd, CMD_BACKSPACE) orelse is_cmd(cmd, CMD_DELETE) orelse is_cmd(cmd, CMD_DELETE_SELECTION)
      orelse is_cmd(cmd, CMD_UNDO) orelse is_cmd(cmd, CMD_REDO)
      orelse is_cmd(cmd, CMD_WRAP_BOLD) orelse is_cmd(cmd, CMD_WRAP_ITALIC) orelse is_cmd(cmd, CMD_WRAP_WIKILINK)
      orelse is_cmd(cmd, CMD_INDENT) orelse is_cmd(cmd, CMD_DELETE_WORD_LEFT) orelse is_cmd(cmd, CMD_DELETE_WORD_RIGHT)
-  then 1 else 0
 
 fun apply_key_copy(ts: Tabs, idx: int, clip: &Buf >> _, p: !Plat): Tabs = let
   val () = tabs_copy(ts, idx, clip)
@@ -791,7 +790,7 @@ end
 
 fun apply_key_command(ts: Tabs, idx: int, cmd: Cmd): Tabs = let
   val ts2 = tabs_cmd(ts, idx, cmd)
-  val () = if ieq(is_modifying_cmd(cmd), 1) then tabs_sync_vfs(ts2, idx) else ()
+  val () = if is_modifying_cmd(cmd) then tabs_sync_vfs(ts2, idx) else ()
 in
   ts2
 end
