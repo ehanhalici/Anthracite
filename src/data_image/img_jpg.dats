@@ -38,6 +38,32 @@ fun err_code(e: JpgErr): int = case+ e of
 
 fun is_err(a: JpgErr, b: JpgErr): bool = err_code(a) = err_code(b)
 
+datatype JpgMark = MarkSof | MarkDqt | MarkDht | MarkDri | MarkSoi | MarkEoi | MarkSos | MarkRst | MarkOther
+
+fun mark_of(n: int): JpgMark =
+  if ieq(n, 192) then MarkSof()
+  else if ieq(n, 219) then MarkDqt()
+  else if ieq(n, 196) then MarkDht()
+  else if ieq(n, 221) then MarkDri()
+  else if ieq(n, 216) then MarkSoi()
+  else if ieq(n, 217) then MarkEoi()
+  else if ieq(n, 218) then MarkSos()
+  else if ige(n, 208) andalso ile(n, 215) then MarkRst()
+  else MarkOther()
+
+fun mark_code(m: JpgMark): int = case+ m of
+  | MarkSof() => 192
+  | MarkDqt() => 219
+  | MarkDht() => 196
+  | MarkDri() => 221
+  | MarkSoi() => 216
+  | MarkEoi() => 217
+  | MarkSos() => 218
+  | MarkRst() => 208
+  | MarkOther() => 0
+
+fun is_mark(a: JpgMark, b: JpgMark): bool = mark_code(a) = mark_code(b)
+
 typedef JBit = @{p= int, nb= int, acc= int, err= JpgErr}
 
 
@@ -82,7 +108,7 @@ fun jload_marker(src: !Buf, n: int, st: &JBit >> _): int =
     val () = st.p := iadd(st.p, 1)
   in
     if ieq(nx, 0) then 255
-    else if ige(nx, 208) andalso ile(nx, 215) then let
+    else if is_mark(mark_of(nx), MarkRst) then let
       val () = st.err := ErrRestart()
     in
       ~1
@@ -437,12 +463,17 @@ in
   1
 end
 
-fun jmark_store(src: !Buf, meta: !Buf, qt: !Buf, hf: !Buf, m: int, p2: int, pay: int, nxt: int): void =
-  if ieq(m, 192) then jmark_sof(src, meta, p2)
-  else if ieq(m, 219) then dqt_load(src, qt, pay, nxt)
-  else if ieq(m, 196) then dht_load(src, hf, pay, nxt)
-  else if ieq(m, 221) then buf_set32(meta, 6, be16(src, pay))
-  else ()
+fun jmark_store(src: !Buf, meta: !Buf, qt: !Buf, hf: !Buf, m: JpgMark, p2: int, pay: int, nxt: int): void =
+  case+ m of
+  | MarkSof() => jmark_sof(src, meta, p2)
+  | MarkDqt() => dqt_load(src, qt, pay, nxt)
+  | MarkDht() => dht_load(src, hf, pay, nxt)
+  | MarkDri() => buf_set32(meta, 6, be16(src, pay))
+  | MarkSoi() => ()
+  | MarkEoi() => ()
+  | MarkSos() => ()
+  | MarkRst() => ()
+  | MarkOther() => ()
 
 extern fun jmarkers_exh(src: !Buf, meta: !Buf, qt: !Buf, hf: !Buf, p: int): int = "mac#anth_die_int"
 
@@ -452,23 +483,23 @@ fun jmarkers_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, meta
     else if ine(buf_get(src, p), 255) then 0
     else let
       val p2 = next_mark(src, p)
-      val m = buf_get(src, p2)
+      val m = mark_of(buf_get(src, p2))
     in
-      if ieq(m, 216) then jmarkers_m(recfuel - 1, src, meta, qt, hf, iadd(p2, 1))
-      else if ieq(m, 217) then 0
-      else if ige(m, 208) andalso ile(m, 215) then jmarkers_m(recfuel - 1, src, meta, qt, hf, iadd(p2, 1))
+      if is_mark(m, MarkSoi) then jmarkers_m(recfuel - 1, src, meta, qt, hf, iadd(p2, 1))
+      else if is_mark(m, MarkEoi) then 0
+      else if is_mark(m, MarkRst) then jmarkers_m(recfuel - 1, src, meta, qt, hf, iadd(p2, 1))
       else if ige(iadd(p2, 3), buf_len(src)) then 0
       else jmark_seg(recfuel - 1, src, meta, qt, hf, p2, m)
     end
   ) else jmarkers_exh(src, meta, qt, hf, p)
 
-and jmark_seg {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, meta: !Buf, qt: !Buf, hf: !Buf, p2: int, m: int): int =
+and jmark_seg {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, meta: !Buf, qt: !Buf, hf: !Buf, p2: int, m: JpgMark): int =
   if recfuel > 0 then let
     val ln = be16(src, iadd(p2, 1))
     val nxt = iadd(p2, iadd(1, ln))
     val pay = iadd(p2, 3)
   in
-    if ieq(m, 218) then jmark_sos(src, meta, pay, nxt)
+    if is_mark(m, MarkSos) then jmark_sos(src, meta, pay, nxt)
     else let
       val () = jmark_store(src, meta, qt, hf, m, p2, pay, nxt)
     in
