@@ -363,10 +363,9 @@ fun clear_atlas(f: !Font): void =
       fold@(f)
     end
 
-fun tables_present(cmap: int, glyf: int, loca: int, hmtx: int, hhea: int, maxp: int, head: int): int =
-  if cmap < 0 orelse glyf < 0 orelse loca < 0 orelse hmtx < 0
-    orelse hhea < 0 orelse maxp < 0 orelse head < 0
-  then 0 else 1
+fun tables_present(cmap: int, glyf: int, loca: int, hmtx: int, hhea: int, maxp: int, head: int): bool =
+  not(cmap < 0 orelse glyf < 0 orelse loca < 0 orelse hmtx < 0
+    orelse hhea < 0 orelse maxp < 0 orelse head < 0)
 
 fun store_head_hhea(f: !Font, head: int, hhea: int, maxp: int): void = let
   val units: int = file_u16(f, head + 18)
@@ -426,7 +425,7 @@ fun store_ttf_metrics(f: !Font): void = let
 in
 end
 
-fun parse_tables(f: !Font): int = let
+fun parse_tables(f: !Font): bool = let
   val ntab = file_u16(f, 4)
   val cmap = find_table(f, 99, 109, 97, 112, 0, ntab)
   val glyf = find_table(f, 103, 108, 121, 102, 0, ntab)
@@ -437,13 +436,13 @@ fun parse_tables(f: !Font): int = let
   val head = find_table(f, 104, 101, 97, 100, 0, ntab)
   val kern = find_table(f, 107, 101, 114, 110, 0, ntab)
 in
-  if tables_present(cmap, glyf, loca, hmtx, hhea, maxp, head) = 0 then 0
+  if not(tables_present(cmap, glyf, loca, hmtx, hhea, maxp, head)) then false
   else let
     val () = store_head_hhea(f, head, hhea, maxp)
     val () = store_table_offsets(f, cmap, glyf, loca, hmtx, kern)
     val () = store_ttf_metrics(f)
   in
-    1
+    true
   end
 end
 
@@ -515,13 +514,13 @@ in
   font_set_px(f, px_val)
 end
 
-fun load_font_fd(f: !Font, fd: int, sz: int): int = let
+fun load_font_fd(f: !Font, fd: int, sz: int): bool = let
   val n = read_font_file(f, fd, sz)
 in
-  if n < 12 then 0
+  if n < 12 then false
   else let
     val ok = parse_tables(f)
-    val () = if ok = 1 then fit_px_after_load(f) else ()
+    val () = if ok then fit_px_after_load(f) else ()
   in
     ok
   end
@@ -530,11 +529,11 @@ end
 implement font_use_file(f, path) = let
   val sz = fs_size(path)
 in
-  if sz <= 12 orelse sz > 20000000 then 0
+  if sz <= 12 orelse sz > 20000000 then false
   else let
     val fd = fs_open_read(path)
   in
-    if fd < 0 then 0
+    if fd < 0 then false
     else load_font_fd(f, fd, sz)
   end
 end
@@ -1808,7 +1807,7 @@ in
   scan_fonts_rec(airlock_nat(MAX_REC_FUEL), dir, 0, paths, names, meta, cnt)
 end
 
-fun load_first_scanned(f: !Font, paths: !Buf, meta: !Buf, cnt: int): int =
+fun load_first_scanned(f: !Font, paths: !Buf, meta: !Buf, cnt: int): bool =
   if igt(cnt, 0) then let
     val poff = buf_get32(meta, 0)
     val plen = buf_get32(meta, 1)
@@ -1819,9 +1818,9 @@ fun load_first_scanned(f: !Font, paths: !Buf, meta: !Buf, cnt: int): int =
     val () = buf_free(first_p)
   in
     res
-  end else 0
+  end else false
 
-fun load_scanned_default(f: !Font): int = let
+fun load_scanned_default(f: !Font): bool = let
   var paths = buf_make(1024)
   var names = buf_make(512)
   var meta = buf_make(256)
@@ -1835,22 +1834,22 @@ in
   ok
 end
 
-fun load_fontconfig_default(f: !Font): int = let
+fun load_fontconfig_default(f: !Font): bool = let
   var b = buf_make(512)
   val n = c_fc_font_buf(b, 511)
   val s = buf_cstr(b)
-  val hit = (if ieq(n, 1) andalso igt(c_strlen(s), 0) andalso ieq(font_use_file(f, s), 1) then 1 else 0) : int
+  val hit = ieq(n, 1) andalso igt(c_strlen(s), 0) andalso font_use_file(f, s)
   val () = buf_free(b)
 in
   hit
 end
 
-fun load_default(f: !Font): int = let
+fun load_default(f: !Font): bool = let
   val env = c_getenv("ANTHRACITE_FONT")
 in
-  if igt(c_strlen(env), 0) andalso ieq(font_use_file(f, env), 1) then 1
-  else if ieq(load_scanned_default(f), 1) then 1
-  else if ieq(load_fontconfig_default(f), 1) then 1
+  if igt(c_strlen(env), 0) andalso font_use_file(f, env) then true
+  else if load_scanned_default(f) then true
+  else if load_fontconfig_default(f) then true
   else font_use_file(f, "/nix/store/v3n8r3sy38l5f1sj76azj1n4n0ndd6a7-dejavu-fonts-2.37/share/fonts/truetype/DejaVuSansMono.ttf")
 end
 
@@ -1883,7 +1882,7 @@ implement font_selftest(r) = let
   val ok1 = (if igt(g.bw, 0) andalso igt(ink, 0) then 1 else 0) : int
   val ok2 = kern_selftest()
   val loaded = load_default(f)
-  val gid = (if ieq(loaded, 1) then cmap_gid(f, 65) else 0) : int
+  val gid = (if loaded then cmap_gid(f, 65) else 0) : int
   val inkA = glyph_ink65(f, r, g)
   val axA = g.ax
   val bwA = g.bw
@@ -1892,7 +1891,7 @@ implement font_selftest(r) = let
   val sc_ok = font_use_file(f, "fonts/Source-Code-Pro-Regular/sourcecodepro/SourceCodePro-Regular.ttf")
   val inkSC = glyph_ink65(f, r, g)
   val () = font_free(f)
-  val ok3 = (if ieq(loaded, 1) andalso igt(gid, 0) andalso igt(axA, 0) andalso igt(inkA, 20) andalso igt(inkJB, 20) andalso igt(inkSC, 20) andalso ieq(jb_ok, 1) andalso ieq(sc_ok, 1) then 1 else 0) : int
+  val ok3 = (if loaded andalso igt(gid, 0) andalso igt(axA, 0) andalso igt(inkA, 20) andalso igt(inkJB, 20) andalso igt(inkSC, 20) andalso jb_ok andalso sc_ok then 1 else 0) : int
 in
   (if ieq(ok1, 1) andalso ieq(ok2, 1) andalso ieq(ok3, 1) then 1 else 0)
 end

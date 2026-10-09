@@ -44,9 +44,9 @@ fun drain_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, a: !App,
 
 fun drain(p: !Plat, a: !App, f: !Font, r: !Rend): void = drain_m(airlock_nat(MAX_REC_FUEL), p, a, f, r)
 
-extern fun frame_exh(p: !Plat, a: !App, f: !Font, r: !Rend, loaded: int): void = "mac#anth_die_void"
+extern fun frame_exh(p: !Plat, a: !App, f: !Font, r: !Rend, loaded: bool): void = "mac#anth_die_void"
 
-fun frame_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, a: !App, f: !Font, r: !Rend, loaded: int): void =
+fun frame_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, a: !App, f: !Font, r: !Rend, loaded: bool): void =
   if recfuel > 0 then (
     if is_off(plat_running(p)) then ()
     else let
@@ -54,7 +54,7 @@ fun frame_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, a: !App,
     in
       if is_off(plat_running(p)) then ()
       else let
-        val loaded2 = if loaded = 0 then font_load_default(f) else loaded
+        val loaded2 = if not(loaded) then font_load_default(f) else loaded
         var w: int = 0
         var h: int = 0
         val () = plat_wh(p, w, h)
@@ -69,7 +69,7 @@ fun frame_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, a: !App,
     end
   ) else frame_exh(p, a, f, r, loaded)
 
-fun frame(p: !Plat, a: !App, f: !Font, r: !Rend, loaded: int): void = frame_m(airlock_nat(MAX_REC_FUEL), p, a, f, r, loaded)
+fun frame(p: !Plat, a: !App, f: !Font, r: !Rend, loaded: bool): void = frame_m(airlock_nat(MAX_REC_FUEL), p, a, f, r, loaded)
 
 fun take_sel(p: !Plat, ev: &event, data: ptr, n: int, dst: &Buf >> _, got: &int >> _): void = let
   val k = event_of(ev_kind(ev))

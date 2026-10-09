@@ -499,7 +499,7 @@ in
 end
 
 fun font_load_report(f: !Font, path: string): void =
-  if ieq(font_use_file(f, path), 1) then () else report_failure("font_load", path)
+  if font_use_file(f, path) then () else report_failure("font_load", path)
 
 (* Klasor zaten varsa basarilidir; mkdir hatasi yalnizca klasor yoksa raporlanir. *)
 fun ensure_dir_report(path: string): void =
