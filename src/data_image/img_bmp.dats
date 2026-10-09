@@ -55,17 +55,17 @@ end
 implement decode_bmp(src, wout, hout) = let
   val w = le32(src, 18)
   val h0 = le32(src, 22)
-  val bottom = if igt(h0, 0) then 1 else 0
+  val bottom = igt(h0, 0)
   val h = iabs(h0)
   val off = le32(src, 10)
   val bits = iadd(buf_get(src, 28), ishl(buf_get(src, 29), 8))
   val stride = lnot3(w)
-  val fit = if igt(w, 0) andalso igt(h, 0) andalso ile(w, 8192) andalso ile(h, 8192) andalso ieq(bits, 24) andalso ieq(le32(src, 30), 0) then 1 else 0
-  var dst = buf_make(if ieq(fit, 1) then imax(4, imul(imul(w, h), 4)) else 4)
-  val () = bmp_px(src, dst, if ieq(fit, 1) then w else 0, if ieq(fit, 1) then h else 0, off, stride, toggle_of(ieq(bottom, 1)), 0, 0)
-  val () = bmp_store_size(toggle_of(ieq(fit, 1)), w, h, wout, hout)
+  val fit = igt(w, 0) andalso igt(h, 0) andalso ile(w, 8192) andalso ile(h, 8192) andalso ieq(bits, 24) andalso ieq(le32(src, 30), 0)
+  var dst = buf_make(if fit then imax(4, imul(imul(w, h), 4)) else 4)
+  val () = bmp_px(src, dst, if fit then w else 0, if fit then h else 0, off, stride, toggle_of(bottom), 0, 0)
+  val () = bmp_store_size(toggle_of(fit), w, h, wout, hout)
 in
-  if ieq(fit, 1) then dst else let
+  if fit then dst else let
     val () = buf_free(dst)
   in
     buf_make(4)

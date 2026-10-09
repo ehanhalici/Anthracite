@@ -116,10 +116,10 @@ implement rend_flush(r) =
 fun bind_mode(r: !Rend, mode: Shade, tex: uint): void =
   case+ r of
   | @REND(s) => let
-      val changed: int = (if not(is_shade(s.mode, mode)) orelse s.tex <> tex then 1 else 0): int
+      val changed = not(is_shade(s.mode, mode)) orelse s.tex <> tex
     in
       fold@(r);
-      if changed <> 0 then let
+      if changed then let
         val () = rend_flush(r)
       in
         case+ r of

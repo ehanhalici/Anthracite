@@ -222,11 +222,11 @@ fun extract_int_after(b: !Buf, pos: int, default_val: int): int = let
 in
   if ige(start, n) then default_val
   else let
-    val is_neg = if ieq(buf_get(b, start), CHAR_MINUS) then 1 else 0
-    val num_start = if ieq(is_neg, 1) then iadd(start, 1) else start
+    val is_neg = ieq(buf_get(b, start), CHAR_MINUS)
+    val num_start = if is_neg then iadd(start, 1) else start
     val v = parse_digits_sub(b, num_start, n, 0, 0)
   in
-    if ieq(is_neg, 1) then isub(0, v) else v
+    if is_neg then isub(0, v) else v
   end
 end
 

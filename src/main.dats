@@ -125,8 +125,8 @@ fun same_text(b: !Buf, s: string, i: int): int = same_text_m(airlock_nat(MAX_REC
 fun clip_match(b: !Buf, s: string, n: int): int =
   if buf_len(b) <> n then 0 else same_text(b, s, 0)
 
-fun vault_at(cwd: !Buf, use_arg: int): string =
-  if use_arg = 1 then let
+fun vault_at(cwd: !Buf, use_arg: bool): string =
+  if use_arg then let
     val () = seen_buf(cwd)
   in
     c_argv(1)
@@ -236,7 +236,7 @@ fun run_app(p: !Plat, r: !Rend): void = let
   val nclen = if nc > 0 then nc else 0
   val () = buf_set_len(cwd, nclen)
   val () = buf_set(cwd, nclen, 0)
-  val use_arg = if c_argc() > 1 then 1 else 0
+  val use_arg = c_argc() > 1
   val vault = vault_at(cwd, use_arg)
   val a = app_open(vault)
   val () = buf_free(cwd)

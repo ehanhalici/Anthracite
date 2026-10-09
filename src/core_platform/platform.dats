@@ -244,10 +244,10 @@ implement plat_wait(p, ms) =
 implement plat_ensure_im(p) =
   case+ p of
   | @PLAT(r) => let
-      val need: int = (if ptr_is_null(r.ic) then 1 else 0): int
+      val need = ptr_is_null(r.ic)
       var im: ptr = r.im
       var ic: ptr = r.ic
-      val () = if need = 1 then x_open_im(r.dpy, r.win, im, ic) else ()
+      val () = if need then x_open_im(r.dpy, r.win, im, ic) else ()
       val () = r.im := im
       val () = r.ic := ic
     in

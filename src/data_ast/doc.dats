@@ -1002,10 +1002,10 @@ fun line_hidden_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st:
     else let
       val ns = doc_node_start(d, i)
       val ne = doc_node_end(d, i)
-      val hit = if ilt(ns, en) andalso igt(ne, st) then 1 else 0
+      val hit = ilt(ns, en) andalso igt(ne, st)
     in
-      if ieq(hit, 1) andalso is_off(doc_node_hidden(d, i)) then 0
-      else line_hidden_m(recfuel - 1, d, st, en, iadd(i, 1), n, if ieq(hit, 1) then On else saw)
+      if hit andalso is_off(doc_node_hidden(d, i)) then 0
+      else line_hidden_m(recfuel - 1, d, st, en, iadd(i, 1), n, if hit then On else saw)
     end
   ) else line_hidden_exh(d, st, en, i, n, saw)
 
@@ -1752,9 +1752,9 @@ fun resolve_load_path(path: string, vbuf: !Buf): string = let
   val () = fs_vfs_buf(path, vbuf, 511)
   val vp = buf_cstr(vbuf)
   val vlen = c_strlen(vp)
-  val has_vfs = if igt(vlen, 0) andalso ieq(fs_exists(vp), 1) andalso igt(fs_size(vp), 0) then 1 else 0
+  val has_vfs = igt(vlen, 0) andalso ieq(fs_exists(vp), 1) andalso igt(fs_size(vp), 0)
 in
-  if ieq(has_vfs, 1) then vp else path
+  if has_vfs then vp else path
 end
 
 fun is_markdown_path(path: string): bool = let
