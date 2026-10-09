@@ -1331,10 +1331,10 @@ end
 
 fun handle_context_menu_action(s: &App_record >> _, inside: Toggle, item: int): void =
   if is_on(inside) andalso is_menu_filetree(s.menu) then (
-    if ieq(item, MENU_TREE_NEW_FILE) then s.prompt := PromptNewFile
-    else if ieq(item, MENU_TREE_NEW_FOLDER) then s.prompt := PromptNewFolder
-    else if ieq(item, MENU_TREE_RENAME) then s.prompt := PromptRename
-    else if ieq(item, MENU_TREE_DELETE) andalso ige(s.sel, 0) then let
+    if ieq(item, tree_row(TreeNewFile)) then s.prompt := PromptNewFile
+    else if ieq(item, tree_row(TreeNewFolder)) then s.prompt := PromptNewFolder
+    else if ieq(item, tree_row(TreeRename)) then s.prompt := PromptRename
+    else if ieq(item, tree_row(TreeDelete)) andalso ige(s.sel, 0) then let
       var cur = buf_make(8)
       val () = row_path(s.tree, s.tmeta, s.sel, cur)
       val () = do_delete(cur)
@@ -1483,11 +1483,11 @@ in
   if ieq(pick, 1) then down_pick_tab(s, x, ti) else ()
 end
 
-fun text_item_hit(s: &App_record, skip: Toggle, inside: Toggle, item: int, item_id: int): int =
-  if is_on(skip) andalso is_on(inside) andalso is_menu_text(s.menu) andalso ieq(item, item_id) then 1 else 0
+fun text_item_hit(s: &App_record, skip: Toggle, inside: Toggle, item: int, which: TextItem): bool =
+  is_on(skip) andalso is_on(inside) andalso is_menu_text(s.menu) andalso ieq(item, text_row(which))
 
-fun image_item_hit(s: &App_record, skip: Toggle, inside: Toggle, item: int, item_id: int): int =
-  if is_on(skip) andalso is_on(inside) andalso is_menu_image(s.menu) andalso ieq(item, item_id) then 1 else 0
+fun image_item_hit(s: &App_record, skip: Toggle, inside: Toggle, item: int, which: ImageItem): bool =
+  is_on(skip) andalso is_on(inside) andalso is_menu_image(s.menu) andalso ieq(item, image_row(which))
 
 fun down_menu_clip(s: &App_record >> _, p: !Plat, ts0: !Tabs, idx: int, cut: Toggle, copy: Toggle, imgcopy: Toggle, paste: Toggle, imgrev: Toggle): void = let
   val () = copy_if(ts0, idx, s.clip, toggle_of(is_on(cut) orelse is_on(copy)))
@@ -1517,15 +1517,15 @@ fun handle_down_context_menu(
   skip: Toggle, inside: Toggle, item: int, ti: int, close: Toggle,
   imgdel: &Toggle >> _, clear: &Toggle >> _
 ): Tabs = let
-  val cut = text_item_hit(s, skip, inside, item, MENU_TEXT_CUT)
-  val copy = text_item_hit(s, skip, inside, item, MENU_TEXT_COPY)
-  val paste = text_item_hit(s, skip, inside, item, MENU_TEXT_PASTE)
-  val () = clear := toggle_of(ieq(text_item_hit(s, skip, inside, item, MENU_TEXT_CLEAR), 1))
-  val imgcopy = image_item_hit(s, skip, inside, item, MENU_IMG_COPY)
-  val imgrev = image_item_hit(s, skip, inside, item, MENU_IMG_REVEAL)
-  val () = imgdel := toggle_of(ieq(image_item_hit(s, skip, inside, item, MENU_IMG_DELETE), 1))
-  val () = down_menu_clip(s, p, ts0, idx, toggle_of(ieq(cut, 1)), toggle_of(ieq(copy, 1)), toggle_of(ieq(imgcopy, 1)), toggle_of(ieq(paste, 1)), toggle_of(ieq(imgrev, 1)))
-  val ts1 = cmd_if(ts0, idx, CMD_CUT, toggle_of(ieq(cut, 1)))
+  val cut = text_item_hit(s, skip, inside, item, TextCut)
+  val copy = text_item_hit(s, skip, inside, item, TextCopy)
+  val paste = text_item_hit(s, skip, inside, item, TextPaste)
+  val () = clear := toggle_of(text_item_hit(s, skip, inside, item, TextClear))
+  val imgcopy = image_item_hit(s, skip, inside, item, ImageCopy)
+  val imgrev = image_item_hit(s, skip, inside, item, ImageReveal)
+  val () = imgdel := toggle_of(image_item_hit(s, skip, inside, item, ImageDelete))
+  val () = down_menu_clip(s, p, ts0, idx, toggle_of(cut), toggle_of(copy), toggle_of(imgcopy), toggle_of(paste), toggle_of(imgrev))
+  val ts1 = cmd_if(ts0, idx, CMD_CUT, toggle_of(cut))
   val ts2 = tab_keep_one(drop_if(ts1, ti, close), close)
   val () = if is_on(close) then down_menu_close(s, ts2) else ()
 in

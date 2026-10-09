@@ -19,6 +19,23 @@ implement ctrl_on(ev) = anth_iand(ev_mods(ev), mod_ctrl()) <> 0
 implement shift_on(ev) = anth_iand(ev_mods(ev), mod_shift()) <> 0
 implement key_char(ev) = ev_key_char(ev)
 
+implement text_row(t) = case+ t of
+  | TextCut() => 0
+  | TextCopy() => 1
+  | TextPaste() => 2
+  | TextClear() => 3
+
+implement image_row(t) = case+ t of
+  | ImageCopy() => 0
+  | ImageReveal() => 1
+  | ImageDelete() => 2
+
+implement tree_row(t) = case+ t of
+  | TreeNewFile() => 0
+  | TreeNewFolder() => 1
+  | TreeRename() => 2
+  | TreeDelete() => 3
+
 fun ev_text_buf(ev: &event, dst: !Buf, n: int): int =
   ev_text(ev, buf_ptr(dst), n)
 
@@ -28,25 +45,25 @@ fun menu_item_y(base_y: int, idx: int): int = iadd(base_y, imul(idx, UI_MENU_ITE
 
 
 fun draw_menu_text_items(f: !Font, r: !Rend, menux: int, menuy: int, mw: int): void = let
-  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, MENU_TEXT_CUT), mw, UI_MENU_ITEM_HEIGHT, "Kes", Off)
-  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, MENU_TEXT_COPY), mw, UI_MENU_ITEM_HEIGHT, "Kopyala", Off)
-  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, MENU_TEXT_PASTE), mw, UI_MENU_ITEM_HEIGHT, "Yapıştır", Off)
-  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, MENU_TEXT_CLEAR), mw, UI_MENU_ITEM_HEIGHT, "Biçimlendirmeyi Temizle", Off)
+  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, text_row(TextCut)), mw, UI_MENU_ITEM_HEIGHT, "Kes", Off)
+  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, text_row(TextCopy)), mw, UI_MENU_ITEM_HEIGHT, "Kopyala", Off)
+  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, text_row(TextPaste)), mw, UI_MENU_ITEM_HEIGHT, "Yapıştır", Off)
+  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, text_row(TextClear)), mw, UI_MENU_ITEM_HEIGHT, "Biçimlendirmeyi Temizle", Off)
 in
 end
 
 fun draw_menu_image_items(f: !Font, r: !Rend, menux: int, menuy: int, mw: int): void = let
-  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, MENU_IMG_COPY), mw, UI_MENU_ITEM_HEIGHT, "Görseli Kopyala", Off)
-  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, MENU_IMG_REVEAL), mw, UI_MENU_ITEM_HEIGHT, "Dosya Konumunu Aç", Off)
-  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, MENU_IMG_DELETE), mw, UI_MENU_ITEM_HEIGHT, "Dokümandan Kaldır", Off)
+  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, image_row(ImageCopy)), mw, UI_MENU_ITEM_HEIGHT, "Görseli Kopyala", Off)
+  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, image_row(ImageReveal)), mw, UI_MENU_ITEM_HEIGHT, "Dosya Konumunu Aç", Off)
+  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, image_row(ImageDelete)), mw, UI_MENU_ITEM_HEIGHT, "Dokümandan Kaldır", Off)
 in
 end
 
 fun draw_menu_tree_items(f: !Font, r: !Rend, menux: int, menuy: int, mw: int): void = let
-  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, MENU_TREE_NEW_FILE), mw, UI_MENU_ITEM_HEIGHT, "Yeni Dosya Oluştur", Off)
-  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, MENU_TREE_NEW_FOLDER), mw, UI_MENU_ITEM_HEIGHT, "Yeni Klasör Oluştur", Off)
-  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, MENU_TREE_RENAME), mw, UI_MENU_ITEM_HEIGHT, "Yeniden Adlandır", Off)
-  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, MENU_TREE_DELETE), mw, UI_MENU_ITEM_HEIGHT, "Sil", Off)
+  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, tree_row(TreeNewFile)), mw, UI_MENU_ITEM_HEIGHT, "Yeni Dosya Oluştur", Off)
+  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, tree_row(TreeNewFolder)), mw, UI_MENU_ITEM_HEIGHT, "Yeni Klasör Oluştur", Off)
+  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, tree_row(TreeRename)), mw, UI_MENU_ITEM_HEIGHT, "Yeniden Adlandır", Off)
+  val () = ui_hover_label(f, r, menux, menu_item_y(menuy, tree_row(TreeDelete)), mw, UI_MENU_ITEM_HEIGHT, "Sil", Off)
 in
 end
 

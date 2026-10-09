@@ -13,16 +13,10 @@ fun ctrl_on(ev: &event): bool
 fun shift_on(ev: &event): bool
 fun key_char(ev: &event): int
 
-macdef MENU_TEXT_CUT = 0
-macdef MENU_TEXT_COPY = 1
-macdef MENU_TEXT_PASTE = 2
-macdef MENU_TEXT_CLEAR = 3
+datatype TextItem = TextCut | TextCopy | TextPaste | TextClear
+datatype ImageItem = ImageCopy | ImageReveal | ImageDelete
+datatype TreeItem = TreeNewFile | TreeNewFolder | TreeRename | TreeDelete
 
-macdef MENU_IMG_COPY = 0
-macdef MENU_IMG_REVEAL = 1
-macdef MENU_IMG_DELETE = 2
-
-macdef MENU_TREE_NEW_FILE = 0
-macdef MENU_TREE_NEW_FOLDER = 1
-macdef MENU_TREE_RENAME = 2
-macdef MENU_TREE_DELETE = 3
+fun text_row(t: TextItem): int
+fun image_row(t: ImageItem): int
+fun tree_row(t: TreeItem): int
