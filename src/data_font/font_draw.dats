@@ -5,6 +5,7 @@
 
 staload "mem.sats"
 staload "airlock.sats"
+staload "flag.sats"
 staload "os/fs.sats"
 staload "core_render/render.sats"
 staload "data_font/font.sats"
@@ -74,7 +75,7 @@ fun draw_scaled_loop_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Fon
       var j: int = i
       val cp = utf8_next(p, n, j)
       val k = font_kern(f, prev, cp)
-      var g: gmet = @{ax= 0, bx= 0, top= 0, bw= 0, bh= 0, x0= 0, y0= 0, ok= 0}
+      var g: gmet = @{ax= 0, bx= 0, top= 0, bw= 0, bh= 0, x0= 0, y0= 0, ok= Off}
       val () = font_glyph(f, r, cp, g)
       val asc = font_asc(f)
       val k_bx = scale_val(iadd(k, g.bx), snum, sden)
@@ -106,7 +107,7 @@ fun width_scaled_loop_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Fo
       var j: int = i
       val cp = utf8_next(p, n, j)
       val k = font_kern(f, prev, cp)
-      var g: gmet = @{ax= 0, bx= 0, top= 0, bw= 0, bh= 0, x0= 0, y0= 0, ok= 0}
+      var g: gmet = @{ax= 0, bx= 0, top= 0, bw= 0, bh= 0, x0= 0, y0= 0, ok= Off}
       val () = font_glyph(f, r, cp, g)
       val k_ax = scale_val(iadd(k, g.ax), snum, sden)
     in

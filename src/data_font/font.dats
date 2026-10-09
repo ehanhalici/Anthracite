@@ -1319,7 +1319,7 @@ fun fill_g(g: &gmet >> _, ax: int, bx: int, top: int, bw: int, bh: int, x0: int,
   val () = g.bh := bh
   val () = g.x0 := x0
   val () = g.y0 := y0
-  val () = g.ok := 1
+  val () = g.ok := On
 in
 end
 
@@ -1863,7 +1863,7 @@ end
 
 implement font_selftest(r) = let
   val f = font_open()
-  var g: gmet = @{ax= 0, bx= 0, top= 0, bw= 0, bh= 0, x0= 0, y0= 0, ok= 0}
+  var g: gmet = @{ax= 0, bx= 0, top= 0, bw= 0, bh= 0, x0= 0, y0= 0, ok= Off}
   val ink = glyph_ink65(f, r, g)
   val ok1 = (if igt(g.bw, 0) andalso igt(ink, 0) then 1 else 0) : int
   val ok2 = kern_selftest()

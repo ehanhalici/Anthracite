@@ -3,7 +3,7 @@ staload "flag.sats"
 staload "core_render/render.sats"
 
 typedef gmet = @{
-  ax= int, bx= int, top= int, bw= int, bh= int, x0= int, y0= int, ok= int
+  ax= int, bx= int, top= int, bw= int, bh= int, x0= int, y0= int, ok= Toggle
 }
 
 absviewtype Font = ptr
