@@ -490,7 +490,7 @@ fun draw_image_quad(r: !Rend, c: &Cache >> _, shown: !Buf, pw: int, colx: int, y
   val tex = ensure_tex(c, shown, r, iw, ih)
   val dw = if ile(iw, 0) then 32 else imin(column_w(pw), imax(iw, 32))
   val dh = if ile(ih, 0) then h else imax(h, 9)
-  val () = if ine(uok(tex), 0) then rend_quad(r, tex, 2, colx, y, dw, dh, 0.0, 0.0, 1.0, 1.0, col_white()) else ()
+  val () = if ine(uok(tex), 0) then rend_quad(r, tex, ShadeRgba, colx, y, dw, dh, 0.0, 0.0, 1.0, 1.0, col_white()) else ()
 in
 end
 

@@ -19,7 +19,7 @@ datavtype Rend_ = REND of @{
 , loc_tex= int
 , batch= Buf
 , nvert= int
-, mode= int
+, mode= Shade
 , tex= uint
 , vw= int
 , vh= int
@@ -70,7 +70,7 @@ in
   , loc_mode= gl_uloc(prog, "u_mode")
   , loc_tex= gl_uloc(prog, "u_tex")
   , batch= buf_make(nbytes)
-  , nvert= 0, mode= ~1, tex= u0(), vw= 1, vh= 1
+  , nvert= 0, mode= ShadeNone, tex= u0(), vw= 1, vh= 1
   })
 end
 
@@ -85,6 +85,14 @@ in
   buf_free(s.batch)
 end
 
+fun shade_code(m: Shade): int = case+ m of
+  | ShadeNone() => ~1
+  | ShadeSolid() => 0
+  | ShadeAlpha() => 1
+  | ShadeRgba() => 2
+
+fun is_shade(a: Shade, b: Shade): bool = shade_code(a) = shade_code(b)
+
 implement rend_flush(r) =
   case+ r of
   | @REND(s) => let
@@ -94,7 +102,7 @@ implement rend_flush(r) =
           val () = glBindVertexArray(s.vao)
           val () = glBindBuffer(GL_ARRAY_BUFFER, s.vbo)
           val () = glBufferSubData(GL_ARRAY_BUFFER, anth_i2lint(0), anth_i2lint(n * 32), buf_ptr(s.batch))
-          val () = glUniform1i(s.loc_mode, s.mode)
+          val () = glUniform1i(s.loc_mode, shade_code(s.mode))
           val () = glActiveTexture(GL_TEXTURE0)
           val () = glBindTexture(GL_TEXTURE_2D, s.tex)
           val () = glDrawArrays(GL_TRIANGLES, 0, n)
@@ -105,10 +113,10 @@ implement rend_flush(r) =
       fold@(r)
     end
 
-fun bind_mode(r: !Rend, mode: int, tex: uint): void =
+fun bind_mode(r: !Rend, mode: Shade, tex: uint): void =
   case+ r of
   | @REND(s) => let
-      val changed: int = (if s.mode <> mode orelse s.tex <> tex then 1 else 0): int
+      val changed: int = (if not(is_shade(s.mode, mode)) orelse s.tex <> tex then 1 else 0): int
     in
       fold@(r);
       if changed <> 0 then let
@@ -169,7 +177,7 @@ implement rend_begin(r, w, h) =
       val () = s.vw := (if w > 0 then w else 1)
       val () = s.vh := (if h > 0 then h else 1)
       val () = s.nvert := 0
-      val () = s.mode := ~1
+      val () = s.mode := ShadeNone
       val () = glViewport(0, 0, s.vw, s.vh)
       val () = glDisable(GL_SCISSOR_TEST)
       val () = glClearColor(gl_rf(col_bg()), gl_gf(col_bg()), gl_bf(col_bg()), gl_af(col_bg()))
@@ -182,7 +190,7 @@ implement rend_begin(r, w, h) =
     end
 
 implement rend_rect(r, x, y, w, h, c) = let
-  val () = bind_mode(r, 0, u0())
+  val () = bind_mode(r, ShadeSolid, u0())
   val x0 = i2f(x)
   val y0 = i2f(y)
   val x1 = i2f(x + w)

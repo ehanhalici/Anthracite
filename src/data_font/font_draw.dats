@@ -62,7 +62,7 @@ in
     val u1 = n_i2d(iadd(g.x0, g.bw)) / n_i2d(aw)
     val v1 = n_i2d(iadd(g.y0, g.bh)) / n_i2d(ah)
   in
-    rend_quad(r, font_tex(f), 1, x, y, bw, bh, u0, v0, u1, v1, c)
+    rend_quad(r, font_tex(f), ShadeAlpha, x, y, bw, bh, u0, v0, u1, v1, c)
   end else ()
 end
 
