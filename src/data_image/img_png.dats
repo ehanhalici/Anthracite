@@ -32,7 +32,7 @@ fun iand(a: int, n: int): int = anth_iand(a, n)
 #define DS 720
 #define OFS 760
 
-typedef BitS = @{p= int, nb= int, acc= int, err= int}
+typedef BitS = @{p= int, nb= int, acc= int, err= Toggle}
 
 extern fun bzero_exh(b: !Buf, i: int, n: int): void = "mac#anth_die_void"
 
@@ -68,7 +68,7 @@ fun bit1(src: !Buf, n: int, st: &BitS >> _): int = let
   val () = if ilt(st.nb, 1) then bitfill(src, n, st) else ()
 in
   if ilt(st.nb, 1) then let
-    val () = st.err := 1
+    val () = st.err := On
   in
     0
   end else let
@@ -163,7 +163,7 @@ extern fun hdec_go_exh(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, c0: int, s0
 
 fun hdec_go_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, c0: int, s0: int, len: int, code: int, first: int, index: int): int =
   if recfuel > 0 then (
-    if igt(len, 15) orelse st.err <> 0 then ~1
+    if igt(len, 15) orelse is_on(st.err) then ~1
     else let
       val bit = bit1(src, n, st)
       val code2 = iadd(imul(code, 2), bit)
@@ -246,7 +246,7 @@ extern fun symloop_exh(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >
 
 fun symloop_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int =
   if recfuel > 0 then (
-    if igt(buf_len(dst), 4000000) orelse st.err <> 0 then 0
+    if igt(buf_len(dst), 4000000) orelse is_on(st.err) then 0
     else let
       val s = hdec(src, n, st, tab, LC, LS)
     in
@@ -360,7 +360,7 @@ extern fun read_lens_exh(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, nlen: int
 fun read_lens_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, nlen: int, i: int, prev: int): int =
   if recfuel > 0 then (
     if ige(i, nlen) then 1
-    else if st.err <> 0 then 0
+    else if is_on(st.err) then 0
     else let
       val s = hdec(src, n, st, tab, CC, CS)
     in
@@ -458,7 +458,7 @@ extern fun blocks_exh(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >>
 
 fun blocks_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int =
   if recfuel > 0 then (
-    if st.err <> 0 then 0
+    if is_on(st.err) then 0
     else let
       val fin = bit1(src, n, st)
       val ty = bits(src, n, st, 2)
@@ -480,7 +480,7 @@ fun inflate(src: !Buf, n: int, dst: &Buf >> _): int = let
   val cmf = buf_get(src, 0)
   val flg = buf_get(src, 1)
   val tab = buf_make(3200)
-  var st: BitS = @{p= 2, nb= 0, acc= 0, err= 0}
+  var st: BitS = @{p= 2, nb= 0, acc= 0, err= Off}
   val () = if iand(flg, 32) <> 0 then st.p := iadd(st.p, 4) else ()
   val ok = if ine(iand(cmf, 15), 8) then 0 else blocks(src, n, st, tab, dst)
   val () = buf_free(tab)
