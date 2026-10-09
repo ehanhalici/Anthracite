@@ -1,4 +1,5 @@
 staload "mem.sats"
+staload "flag.sats"
 staload "core_render/render.sats"
 
 typedef gmet = @{
@@ -11,7 +12,7 @@ fun font_open(): Font
 fun font_free(f: Font): void
 fun font_use_file(f: !Font, path: string): int
 fun font_load_default(f: !Font): int
-fun font_has_ttf(f: !Font): int
+fun font_has_ttf(f: !Font): Toggle
 fun font_set_px(f: !Font, px: int): void
 fun font_line_h(f: !Font): int
 fun font_asc(f: !Font): int

@@ -5,6 +5,7 @@
 
 staload "mem.sats"
 staload "airlock.sats"
+staload "flag.sats"
 staload "os/fs.sats"
 staload "core_render/gl.sats"
 staload "core_render/render.sats"
@@ -25,7 +26,7 @@ datavtype Font_ = FONT of @{
 , npts= int, nends= int, nedges= int
 , pen_x= int, pen_y= int, row_h= int
 , aw= int, ah= int, tex= uint
-, has_ttf= int, line_h= int, asc_px= int
+, has_ttf= Toggle, line_h= int, asc_px= int
 }
 (* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
 assume Font = Font_
@@ -102,7 +103,7 @@ implement font_open() = FONT(@{
 , npts= 0, nends= 0, nedges= 0
 , pen_x= 1, pen_y= 1, row_h= 0
 , aw= AW, ah= AH, tex= ztex()
-, has_ttf= 0, line_h= 18, asc_px= 14
+, has_ttf= Off, line_h= 18, asc_px= 14
 })
 
 implement font_free(f) = let
@@ -152,7 +153,7 @@ fun f_int_tail(f: !Font, which: int): int =
         else if which = FONT_FIELD_ROW_H then s.row_h
         else if which = FONT_FIELD_AW then s.aw
         else if which = FONT_FIELD_AH then s.ah
-        else if which = FONT_FIELD_HAS_TTF then s.has_ttf
+        else if which = FONT_FIELD_HAS_TTF then toggle_int(s.has_ttf)
         else if which = FONT_FIELD_LINE_H then s.line_h
         else s.asc_px
     in
@@ -194,7 +195,7 @@ fun f_set_tail(f: !Font, which: int, v: int): void =
         else if which = FONT_FIELD_PEN_X then s.pen_x := v
         else if which = FONT_FIELD_PEN_Y then s.pen_y := v
         else if which = FONT_FIELD_ROW_H then s.row_h := v
-        else if which = FONT_FIELD_HAS_TTF then s.has_ttf := v
+        else if which = FONT_FIELD_HAS_TTF then s.has_ttf := toggle_of(ieq(v, 1))
         else if which = FONT_FIELD_LINE_H then s.line_h := v
         else s.asc_px := v
     in
@@ -248,7 +249,7 @@ fun f_set_has_ttf(f: !Font, v: int): void = f_set(f, FONT_FIELD_HAS_TTF, v)
 fun f_set_line_h(f: !Font, v: int): void = f_set(f, FONT_FIELD_LINE_H, v)
 fun f_set_asc_px(f: !Font, v: int): void = f_set(f, FONT_FIELD_ASC_PX, v)
 
-implement font_has_ttf(f) = f_int(f, FONT_FIELD_HAS_TTF)
+implement font_has_ttf(f) = toggle_of(ieq(f_int(f, FONT_FIELD_HAS_TTF), 1))
 implement font_line_h(f) = f_int(f, FONT_FIELD_LINE_H)
 implement font_asc(f) = f_int(f, FONT_FIELD_ASC_PX)
 implement font_atlas_w(f) = f_int(f, FONT_FIELD_AW)
@@ -1570,7 +1571,7 @@ in
 end
 
 fun raster(f: !Font, r: !Rend, cp: int, g: &gmet >> _): void =
-  if font_has_ttf(f) = 0 then raster_bitmap(f, r, cp, g)
+  if is_off(font_has_ttf(f)) then raster_bitmap(f, r, cp, g)
   else let
     val gid = cmap_gid(f, cp)
   in
@@ -1643,7 +1644,7 @@ fun kern_at_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, off: i
 fun kern_at(f: !Font, off: int, left: int, right: int, i: int, p: int, nt: int): int = kern_at_m(airlock_nat(MAX_REC_FUEL), f, off, left, right, i, p, nt)
 
 implement font_kern(f, a, b) =
-  if font_has_ttf(f) = 0 orelse a <= 0 orelse b <= 0 then 0
+  if is_off(font_has_ttf(f)) orelse a <= 0 orelse b <= 0 then 0
   else let
     val off = f_get_kern_off(f)
   in
