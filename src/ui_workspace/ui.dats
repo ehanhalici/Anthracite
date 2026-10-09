@@ -721,33 +721,33 @@ fun key_code_ctrl_char(c: Letter, sh: Toggle, ev: &event): Cmd =
   else CMD_NONE
 
 fun key_code_ctrl_nav(ev: &event, sh: Toggle): Cmd =
-  if ieq(key_is(ev, KeyLeft), 1) then (if is_on(sh) then CMD_SELECT_WORD_LEFT else CMD_WORD_LEFT)
-  else if ieq(key_is(ev, KeyRight), 1) then (if is_on(sh) then CMD_SELECT_WORD_RIGHT else CMD_WORD_RIGHT)
-  else if ieq(key_is(ev, KeyBackspace), 1) then CMD_DELETE_WORD_LEFT
-  else if ieq(key_is(ev, KeyDelete), 1) then CMD_DELETE_WORD_RIGHT
-  else if ieq(key_is(ev, KeyHome), 1) then (if is_on(sh) then CMD_SELECT_DOC_START else CMD_DOC_START)
-  else if ieq(key_is(ev, KeyEnd), 1) then (if is_on(sh) then CMD_SELECT_DOC_END else CMD_DOC_END)
-  else if ieq(key_is(ev, KeyTab), 1) then (if is_on(sh) then CMD_PREV_TAB else CMD_NEXT_TAB)
+  if key_is(ev, KeyLeft) then (if is_on(sh) then CMD_SELECT_WORD_LEFT else CMD_WORD_LEFT)
+  else if key_is(ev, KeyRight) then (if is_on(sh) then CMD_SELECT_WORD_RIGHT else CMD_WORD_RIGHT)
+  else if key_is(ev, KeyBackspace) then CMD_DELETE_WORD_LEFT
+  else if key_is(ev, KeyDelete) then CMD_DELETE_WORD_RIGHT
+  else if key_is(ev, KeyHome) then (if is_on(sh) then CMD_SELECT_DOC_START else CMD_DOC_START)
+  else if key_is(ev, KeyEnd) then (if is_on(sh) then CMD_SELECT_DOC_END else CMD_DOC_END)
+  else if key_is(ev, KeyTab) then (if is_on(sh) then CMD_PREV_TAB else CMD_NEXT_TAB)
   else key_code_ctrl_char(letter_of(key_char(ev)), sh, ev)
 
 fun key_code_non_ctrl(ev: &event, sh: Toggle): Cmd =
-  if ieq(key_is(ev, KeyEscape), 1) then CMD_ESCAPE
-  else if ieq(key_is(ev, KeyLeft), 1) then (if is_on(sh) then CMD_SELECT_LEFT else CMD_CARET_LEFT)
-  else if ieq(key_is(ev, KeyRight), 1) then (if is_on(sh) then CMD_SELECT_RIGHT else CMD_CARET_RIGHT)
-  else if ieq(key_is(ev, KeyUp), 1) then (if is_on(sh) then CMD_SELECT_UP else CMD_CARET_UP)
-  else if ieq(key_is(ev, KeyDown), 1) then (if is_on(sh) then CMD_SELECT_DOWN else CMD_CARET_DOWN)
-  else if ieq(key_is(ev, KeyHome), 1) then (if is_on(sh) then CMD_SELECT_LINE_START else CMD_CARET_LINE_START)
-  else if ieq(key_is(ev, KeyEnd), 1) then (if is_on(sh) then CMD_SELECT_LINE_END else CMD_CARET_LINE_END)
-  else if ieq(key_is(ev, KeyPageUp), 1) then (if is_on(sh) then CMD_SELECT_PAGE_UP else CMD_PAGE_UP)
-  else if ieq(key_is(ev, KeyPageDown), 1) then (if is_on(sh) then CMD_SELECT_PAGE_DOWN else CMD_PAGE_DOWN)
-  else if ieq(key_is(ev, KeyBackspace), 1) then CMD_BACKSPACE
-  else if ieq(key_is(ev, KeyDelete), 1) then CMD_DELETE
-  else if ieq(key_is(ev, KeyReturn), 1) then CMD_NEWLINE
-  else if ieq(key_is(ev, KeyTab), 1) then CMD_INDENT
+  if key_is(ev, KeyEscape) then CMD_ESCAPE
+  else if key_is(ev, KeyLeft) then (if is_on(sh) then CMD_SELECT_LEFT else CMD_CARET_LEFT)
+  else if key_is(ev, KeyRight) then (if is_on(sh) then CMD_SELECT_RIGHT else CMD_CARET_RIGHT)
+  else if key_is(ev, KeyUp) then (if is_on(sh) then CMD_SELECT_UP else CMD_CARET_UP)
+  else if key_is(ev, KeyDown) then (if is_on(sh) then CMD_SELECT_DOWN else CMD_CARET_DOWN)
+  else if key_is(ev, KeyHome) then (if is_on(sh) then CMD_SELECT_LINE_START else CMD_CARET_LINE_START)
+  else if key_is(ev, KeyEnd) then (if is_on(sh) then CMD_SELECT_LINE_END else CMD_CARET_LINE_END)
+  else if key_is(ev, KeyPageUp) then (if is_on(sh) then CMD_SELECT_PAGE_UP else CMD_PAGE_UP)
+  else if key_is(ev, KeyPageDown) then (if is_on(sh) then CMD_SELECT_PAGE_DOWN else CMD_PAGE_DOWN)
+  else if key_is(ev, KeyBackspace) then CMD_BACKSPACE
+  else if key_is(ev, KeyDelete) then CMD_DELETE
+  else if key_is(ev, KeyReturn) then CMD_NEWLINE
+  else if key_is(ev, KeyTab) then CMD_INDENT
   else CMD_TEXT_INPUT
 
 fun key_code(ev: &event, act: Toggle): Cmd =
-  if is_off(act) then (if ieq(key_is(ev, KeyEscape), 1) then CMD_ESCAPE else CMD_NONE)
+  if is_off(act) then (if key_is(ev, KeyEscape) then CMD_ESCAPE else CMD_NONE)
   else if ctrl_on(ev) then key_code_ctrl_nav(ev, toggle_of(shift_on(ev)))
   else key_code_non_ctrl(ev, toggle_of(shift_on(ev)))
 
