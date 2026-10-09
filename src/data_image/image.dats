@@ -84,16 +84,29 @@ in
   end
 end
 
-fun decode_any(src: !Buf, w: &int >> _, h: &int >> _): Buf =
-  if ige(buf_len(src), PNG_HEADER_MIN_LEN) andalso ieq(buf_get(src, 0), PNG_MAGIC_0) andalso ieq(buf_get(src, 1), PNG_MAGIC_1) then decode_png(src, w, h)
-  else if ige(buf_len(src), JPG_HEADER_MIN_LEN) andalso ieq(buf_get(src, 0), JPG_MAGIC_0) andalso ieq(buf_get(src, 1), JPG_MAGIC_1) then decode_jpg(src, w, h)
-  else if ige(buf_len(src), BMP_HEADER_MIN_LEN) andalso ieq(buf_get(src, 0), BMP_MAGIC_0) andalso ieq(buf_get(src, 1), BMP_MAGIC_1) then decode_bmp(src, w, h)
-  else let
-    val () = w := 0
-    val () = h := 0
-  in
-    buf_make(4)
-  end
+datatype ImgFmt = FmtPng | FmtJpg | FmtBmp | FmtOther
+
+fun magic2(src: !Buf, need: int, a: int, b: int): bool =
+  ige(buf_len(src), need) andalso ieq(buf_get(src, 0), a) andalso ieq(buf_get(src, 1), b)
+
+fun fmt_of(src: !Buf): ImgFmt =
+  if magic2(src, PNG_HEADER_MIN_LEN, PNG_MAGIC_0, PNG_MAGIC_1) then FmtPng()
+  else if magic2(src, JPG_HEADER_MIN_LEN, JPG_MAGIC_0, JPG_MAGIC_1) then FmtJpg()
+  else if magic2(src, BMP_HEADER_MIN_LEN, BMP_MAGIC_0, BMP_MAGIC_1) then FmtBmp()
+  else FmtOther()
+
+fun decode_known(src: !Buf, w: &int >> _, h: &int >> _, fmt: ImgFmt): Buf = case+ fmt of
+  | FmtPng() => decode_png(src, w, h)
+  | FmtJpg() => decode_jpg(src, w, h)
+  | FmtBmp() => decode_bmp(src, w, h)
+  | FmtOther() => let
+      val () = w := 0
+      val () = h := 0
+    in
+      buf_make(4)
+    end
+
+fun decode_any(src: !Buf, w: &int >> _, h: &int >> _): Buf = decode_known(src, w, h, fmt_of(src))
 
 
 fun img_store(im: !Image, px: Buf, w: int, h: int): void =
