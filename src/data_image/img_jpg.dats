@@ -29,7 +29,16 @@ fun dsub(a: double, b: double): double = a - b
 fun dmul(a: double, b: double): double = a * b
 fun ddiv(a: double, b: double): double = a / b
 
-typedef JBit = @{p= int, nb= int, acc= int, err= int}
+datatype JpgErr = ErrNone | ErrStop | ErrRestart
+
+fun err_code(e: JpgErr): int = case+ e of
+  | ErrNone() => 0
+  | ErrStop() => 1
+  | ErrRestart() => 2
+
+fun is_err(a: JpgErr, b: JpgErr): bool = err_code(a) = err_code(b)
+
+typedef JBit = @{p= int, nb= int, acc= int, err= JpgErr}
 
 
 fun be16(src: !Buf, i: int): int =
@@ -61,7 +70,7 @@ in
 end
 
 fun jload_eof(st: &JBit >> _): int = let
-  val () = st.err := 1
+  val () = st.err := ErrStop()
 in
   0
 end
@@ -74,11 +83,11 @@ fun jload_marker(src: !Buf, n: int, st: &JBit >> _): int =
   in
     if ieq(nx, 0) then 255
     else if ige(nx, 208) andalso ile(nx, 215) then let
-      val () = st.err := 2
+      val () = st.err := ErrRestart()
     in
       ~1
     end else let
-      val () = st.err := 1
+      val () = st.err := ErrStop()
     in
       0
     end
@@ -94,7 +103,7 @@ fun jload(src: !Buf, n: int, st: &JBit >> _): int =
   end
 
 fun jbit(src: !Buf, n: int, st: &JBit >> _): int =
-  if ine(st.err, 0) then 0
+  if not(is_err(st.err, ErrNone)) then 0
   else if igt(st.nb, 0) then let
     val nb2 = isub(st.nb, 1)
     val () = st.nb := nb2
@@ -103,7 +112,7 @@ fun jbit(src: !Buf, n: int, st: &JBit >> _): int =
   end else let
     val b = jload(src, n, st)
   in
-    if ine(st.err, 0) then 0
+    if not(is_err(st.err, ErrNone)) then 0
     else let
       val () = st.acc := b
       val () = st.nb := 7
@@ -171,7 +180,7 @@ extern fun jblk_ac_exh(src: !Buf, n: int, st: &JBit >> _, hf: !Buf, coef: !Buf, 
 
 fun jblk_ac_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &JBit >> _, hf: !Buf, coef: !Buf, act: int, k: int): void =
   if recfuel > 0 then (
-    if ige(k, 64) orelse ine(st.err, 0) then ()
+    if ige(k, 64) orelse not(is_err(st.err, ErrNone)) then ()
     else let
       val s = jhdec(src, n, st, hf, act, 1, 0, 0, 0)
     in
@@ -473,7 +482,7 @@ extern fun dec_comp_exh(src: !Buf, n: int, st: &JBit >> _, meta: !Buf, hf: !Buf,
 
 fun dec_comp_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &JBit >> _, meta: !Buf, hf: !Buf, qt: !Buf, coef: !Buf, samp: !Buf, ci: int, hs: int, vs: int, by: int, bx: int): void =
   if recfuel > 0 then (
-    if ige(by, vs) orelse ine(st.err, 0) then ()
+    if ige(by, vs) orelse not(is_err(st.err, ErrNone)) then ()
     else if ige(bx, hs) then dec_comp_m(recfuel - 1, src, n, st, meta, hf, qt, coef, samp, ci, hs, vs, iadd(by, 1), 0)
     else let
       val pred = buf_get32(meta, iadd(50, ci))
@@ -495,7 +504,7 @@ extern fun dec_slots_exh(src: !Buf, n: int, st: &JBit >> _, meta: !Buf, hf: !Buf
 
 fun dec_slots_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &JBit >> _, meta: !Buf, hf: !Buf, qt: !Buf, coef: !Buf, samp: !Buf, slot: int): void =
   if recfuel > 0 then (
-    if ige(slot, buf_get32(meta, 36)) orelse ine(st.err, 0) then ()
+    if ige(slot, buf_get32(meta, 36)) orelse not(is_err(st.err, ErrNone)) then ()
     else let
       val ci = buf_get32(meta, iadd(8, slot))
       val hs = buf_get32(meta, iadd(13, imul(ci, 4)))
@@ -600,7 +609,7 @@ end
 fun rest_do(src: !Buf, n: int, st: &JBit >> _, meta: !Buf): void = let
   val () = st.nb := 0
   val () = seen_int(jbit(src, n, st))
-  val () = if ieq(st.err, 2) then st.err := 0 else ()
+  val () = if is_err(st.err, ErrRestart) then st.err := ErrNone() else ()
 in
   clear_pred(meta, 0)
 end
@@ -635,7 +644,7 @@ end
 fun step_mcu(src: !Buf, n: int, st: &JBit >> _, meta: !Buf, hf: !Buf, qt: !Buf, coef: !Buf, samp: !Buf, dst: !Buf, w: int, h: int, maxh: int, maxv: int, mx: int, my: int, mi: int): void = let
   val e = st.err
 in
-  if ieq(e, 0) then step_work(src, n, st, meta, hf, qt, coef, samp, dst, w, h, maxh, maxv, mx, my, mi) else step_idle(src, n, st, meta, hf, qt, coef, samp, dst)
+  if is_err(e, ErrNone) then step_work(src, n, st, meta, hf, qt, coef, samp, dst, w, h, maxh, maxv, mx, my, mi) else step_idle(src, n, st, meta, hf, qt, coef, samp, dst)
 end
 
 fun mcu_grid(px: int, mdim: int): int =
@@ -688,8 +697,8 @@ end
 fun jpg_out_buf(fit: Toggle, w: int, h: int): Buf =
   buf_make(if is_on(fit) then imax(4, imul(imul(w, h), 4)) else 4)
 
-fun jpg_scan(src: !Buf, meta: !Buf, qt: !Buf, hf: !Buf, coef: !Buf, samp: !Buf, dst: !Buf, fit: Toggle, w: int, h: int): int = let
-  var st: JBit = @{p= buf_get32(meta, 5), nb= 0, acc= 0, err= 0}
+fun jpg_scan(src: !Buf, meta: !Buf, qt: !Buf, hf: !Buf, coef: !Buf, samp: !Buf, dst: !Buf, fit: Toggle, w: int, h: int): JpgErr = let
+  var st: JBit = @{p= buf_get32(meta, 5), nb= 0, acc= 0, err= ErrNone()}
   val nsrc = buf_len(src)
   val dw = if is_on(fit) then w else 0
   val dh = if is_on(fit) then h else 0
@@ -698,9 +707,9 @@ in
   st.err
 end
 
-fun jpg_finish(dst: Buf, fit: Toggle, w: int, h: int, err: int, wout: &int >> _, hout: &int >> _): Buf = let
-  val wo = if is_on(fit) andalso ieq(err, 0) then w else 0
-  val ho = if is_on(fit) andalso ieq(err, 0) then h else 0
+fun jpg_finish(dst: Buf, fit: Toggle, w: int, h: int, err: JpgErr, wout: &int >> _, hout: &int >> _): Buf = let
+  val wo = if is_on(fit) andalso is_err(err, ErrNone) then w else 0
+  val ho = if is_on(fit) andalso is_err(err, ErrNone) then h else 0
   val () = wout := wo
   val () = hout := ho
 in
