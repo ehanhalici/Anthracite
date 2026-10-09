@@ -491,8 +491,8 @@ end
 fun be32(src: !Buf, i: int): int =
   iadd(ishl(buf_get(src, i), 24), iadd(ishl(buf_get(src, iadd(i, 1)), 16), iadd(ishl(buf_get(src, iadd(i, 2)), 8), buf_get(src, iadd(i, 3)))))
 
-fun four(src: !Buf, i: int, a: int, b: int, c: int, d: int): int =
-  if ieq(buf_get(src, i), a) andalso ieq(buf_get(src, iadd(i, 1)), b) andalso ieq(buf_get(src, iadd(i, 2)), c) andalso ieq(buf_get(src, iadd(i, 3)), d) then 1 else 0
+fun four(src: !Buf, i: int, a: int, b: int, c: int, d: int): bool =
+  ieq(buf_get(src, i), a) andalso ieq(buf_get(src, iadd(i, 1)), b) andalso ieq(buf_get(src, iadd(i, 2)), c) andalso ieq(buf_get(src, iadd(i, 3)), d)
 
 fun paeth(a: int, b: int, c: int): int = let
   val p = isub(iadd(a, b), c)
@@ -631,12 +631,23 @@ fun png_ihdr(src: !Buf, data: int, w: &int >> _, h: &int >> _, kind: &int >> _, 
 in
 end
 
-fun png_tag(src: !Buf, p: int, ln: int, data: int, nxt: int): int =
-  if ilt(nxt, data) orelse igt(nxt, buf_len(src)) then 0
-  else if ieq(four(src, iadd(p, 4), 73, 72, 68, 82), 1) then 1
-  else if ieq(four(src, iadd(p, 4), 73, 68, 65, 84), 1) then 2
-  else if ieq(four(src, iadd(p, 4), 73, 69, 78, 68), 1) then 3
-  else 4
+datatype PngTag = TagBad | TagIhdr | TagIdat | TagIend | TagOther
+
+fun tag_code(t: PngTag): int = case+ t of
+  | TagBad() => 0
+  | TagIhdr() => 1
+  | TagIdat() => 2
+  | TagIend() => 3
+  | TagOther() => 4
+
+fun is_tag(a: PngTag, b: PngTag): bool = tag_code(a) = tag_code(b)
+
+fun png_tag(src: !Buf, p: int, ln: int, data: int, nxt: int): PngTag =
+  if ilt(nxt, data) orelse igt(nxt, buf_len(src)) then TagBad()
+  else if four(src, iadd(p, 4), 73, 72, 68, 82) then TagIhdr()
+  else if four(src, iadd(p, 4), 73, 68, 65, 84) then TagIdat()
+  else if four(src, iadd(p, 4), 73, 69, 78, 68) then TagIend()
+  else TagOther()
 
 extern fun png_chunks_exh(src: !Buf, idat: &Buf >> _, p: int, w: &int >> _, h: &int >> _, kind: &int >> _, depth: &int >> _, inter: &int >> _): int = "mac#anth_die_int"
 
@@ -648,11 +659,11 @@ fun png_chunks_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, id
       val data = iadd(p, 8)
       val nxt = iadd(data, iadd(ln, 4))
       val tag = png_tag(src, p, ln, data, nxt)
-      val () = if ieq(tag, 1) then png_ihdr(src, data, w, h, kind, depth, inter) else ()
-      val () = if ieq(tag, 2) then png_copy(src, idat, data, ln, 0) else ()
+      val () = if is_tag(tag, TagIhdr) then png_ihdr(src, data, w, h, kind, depth, inter) else ()
+      val () = if is_tag(tag, TagIdat) then png_copy(src, idat, data, ln, 0) else ()
     in
-      if ieq(tag, 0) then 0
-      else if ieq(tag, 3) then 1
+      if is_tag(tag, TagBad) then 0
+      else if is_tag(tag, TagIend) then 1
       else png_chunks_m(recfuel - 1, src, idat, nxt, w, h, kind, depth, inter)
     end
   ) else png_chunks_exh(src, idat, p, w, h, kind, depth, inter)
