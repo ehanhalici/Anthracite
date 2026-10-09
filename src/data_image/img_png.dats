@@ -242,6 +242,14 @@ fun copy_out_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dst: &Buf >> _,
 
 fun copy_out(dst: &Buf >> _, dist: int, len: int, i: int): void = copy_out_m(airlock_nat(MAX_REC_FUEL), dst, dist, len, i)
 
+datatype DeflateSym = SymBad | SymEnd | SymLit | SymLen
+
+fun sym_kind(s: int): DeflateSym =
+  if ilt(s, 0) then SymBad()
+  else if ieq(s, 256) then SymEnd()
+  else if ilt(s, 256) then SymLit()
+  else SymLen()
+
 extern fun symloop_exh(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int = "mac#anth_die_int"
 
 fun symloop_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int =
@@ -249,14 +257,17 @@ fun symloop_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: in
     if igt(buf_len(dst), 4000000) orelse is_on(st.err) then 0
     else let
       val s = hdec(src, n, st, tab, LC, LS)
+      val k = sym_kind(s)
     in
-      if ilt(s, 0) then 0
-      else if ieq(s, 256) then 1
-      else if ilt(s, 256) then let
-        val () = buf_push(dst, s)
-      in
-        symloop_m(recfuel - 1, src, n, st, tab, dst)
-      end else sym_copy(recfuel - 1, src, n, st, tab, dst, s)
+      case+ k of
+      | SymBad() => 0
+      | SymEnd() => 1
+      | SymLit() => let
+          val () = buf_push(dst, s)
+        in
+          symloop_m(recfuel - 1, src, n, st, tab, dst)
+        end
+      | SymLen() => sym_copy(recfuel - 1, src, n, st, tab, dst, s)
     end
   ) else symloop_exh(src, n, st, tab, dst)
 
