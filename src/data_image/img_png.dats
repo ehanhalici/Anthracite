@@ -514,9 +514,25 @@ end
 fun out_at(raw: !Buf, stride: int, x: int, y: int): int =
   if ilt(x, 0) orelse ilt(y, 0) then 0 else buf_get(raw, iadd(imul(y, stride), x))
 
-extern fun unfilter_row_exh(src: !Buf, raw: &Buf >> _, base: int, stride: int, bpp: int, y: int, f: int, x: int): void = "mac#anth_die_void"
+datatype PngFilt = FiltNone | FiltSub | FiltUp | FiltAvg | FiltPaeth
 
-fun unfilter_row_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, raw: &Buf >> _, base: int, stride: int, bpp: int, y: int, f: int, x: int): void =
+fun filt_of(n: int): PngFilt =
+  if ieq(n, 1) then FiltSub()
+  else if ieq(n, 2) then FiltUp()
+  else if ieq(n, 3) then FiltAvg()
+  else if ieq(n, 4) then FiltPaeth()
+  else FiltNone()
+
+fun pred_of(f: PngFilt, left: int, up: int, ul: int): int = case+ f of
+  | FiltSub() => left
+  | FiltUp() => up
+  | FiltAvg() => idiv(iadd(left, up), 2)
+  | FiltPaeth() => paeth(left, up, ul)
+  | FiltNone() => 0
+
+extern fun unfilter_row_exh(src: !Buf, raw: &Buf >> _, base: int, stride: int, bpp: int, y: int, f: PngFilt, x: int): void = "mac#anth_die_void"
+
+fun unfilter_row_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, raw: &Buf >> _, base: int, stride: int, bpp: int, y: int, f: PngFilt, x: int): void =
   if recfuel > 0 then (
     if ige(x, stride) then ()
     else let
@@ -524,19 +540,14 @@ fun unfilter_row_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, 
       val left = out_at(raw, stride, isub(x, bpp), y)
       val up = out_at(raw, stride, x, isub(y, 1))
       val ul = out_at(raw, stride, isub(x, bpp), isub(y, 1))
-      val pred =
-        if ieq(f, 1) then left
-        else if ieq(f, 2) then up
-        else if ieq(f, 3) then idiv(iadd(left, up), 2)
-        else if ieq(f, 4) then paeth(left, up, ul)
-        else 0
+      val pred = pred_of(f, left, up, ul)
       val () = buf_set(raw, iadd(imul(y, stride), x), iand(iadd(v, pred), 255))
     in
       unfilter_row_m(recfuel - 1, src, raw, base, stride, bpp, y, f, iadd(x, 1))
     end
   ) else unfilter_row_exh(src, raw, base, stride, bpp, y, f, x)
 
-fun unfilter_row(src: !Buf, raw: &Buf >> _, base: int, stride: int, bpp: int, y: int, f: int, x: int): void = unfilter_row_m(airlock_nat(MAX_REC_FUEL), src, raw, base, stride, bpp, y, f, x)
+fun unfilter_row(src: !Buf, raw: &Buf >> _, base: int, stride: int, bpp: int, y: int, f: int, x: int): void = unfilter_row_m(airlock_nat(MAX_REC_FUEL), src, raw, base, stride, bpp, y, filt_of(f), x)
 
 extern fun unfilter_rows_exh(inf: !Buf, raw: &Buf >> _, stride: int, bpp: int, h: int, y: int, p: int): int = "mac#anth_die_int"
 
