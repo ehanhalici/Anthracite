@@ -223,6 +223,15 @@ implement scan_skip(name) =
 implement meta_dir(meta, row) =
   dir_mark_of(buf_get32(meta, iadd(imul(row, 4), 1)))
 
+implement meta_depth(meta, row) =
+  buf_get32(meta, imul(row, 4))
+
+implement meta_text_off(meta, row) =
+  buf_get32(meta, iadd(imul(row, 4), 2))
+
+implement meta_text_len(meta, row) =
+  buf_get32(meta, iadd(imul(row, 4), 3))
+
 implement path_is_dir(path) = ieq(fs_isdir(path), 1)
 
 implement child_kind(child, skip, isdir) =
@@ -339,16 +348,25 @@ implement is_drag_none(x) = case+ x of
   | DragNone() => true
   | DragTab() => false
   | DragFile() => false
+  | DragSplit() => false
 
 implement is_drag_tab(x) = case+ x of
   | DragTab() => true
   | DragNone() => false
   | DragFile() => false
+  | DragSplit() => false
 
 implement is_drag_file(x) = case+ x of
   | DragFile() => true
   | DragNone() => false
   | DragTab() => false
+  | DragSplit() => false
+
+implement is_drag_split(x) = case+ x of
+  | DragSplit() => true
+  | DragNone() => false
+  | DragTab() => false
+  | DragFile() => false
 
 implement view_mode_code(v) = case+ v of
   | ViewEdit() => 0

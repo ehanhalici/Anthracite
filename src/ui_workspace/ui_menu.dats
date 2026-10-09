@@ -68,14 +68,14 @@ fun draw_menu_tree_items(f: !Font, r: !Rend, menux: int, menuy: int, mw: int): v
 in
 end
 
-implement draw_menu(f, r, menu, menux, menuy) = let
+implement draw_menu(f, r, menu, menux, menuy, menuw) = let
   val n = if is_menu_text(menu) then 4
           else if is_menu_image(menu) then 3
           else if is_menu_filetree(menu) then 4
           else 0
-  val mw = UI_MENU_WIDTH
+  val mw = if igt(menuw, 0) then menuw else UI_MENU_WIDTH
   val mh = imul(n, UI_MENU_ITEM_HEIGHT)
-  val () = if igt(n, 0) then ui_pane_begin(r, menux, menuy, mw, mh, col_menu()) else ()
+  val () = if igt(n, 0) then ui_pane_begin(r, menux, menuy, mw, mh, col_rgba(42, 44, 49, 108)) else ()
 in
   if is_menu_text(menu) then draw_menu_text_items(f, r, menux, menuy, mw)
   else if is_menu_image(menu) then draw_menu_image_items(f, r, menux, menuy, mw)
@@ -92,7 +92,7 @@ implement draw_prompt(f, r, b, prompt) =
       if is_prompt_newfile(prompt) then "Yeni Dosya:"
       else if is_prompt_newfolder(prompt) then "Yeni Klasör:"
       else "Yeniden Adlandır:"
-    val () = ui_pane_begin(r, 12, 68, 256, 56, col_menu())
+    val () = ui_pane_begin(r, 12, 68, 256, 56, col_rgba(42, 44, 49, 108))
     val () = draw_s(f, r, 18, 72, title, col_accent())
     val n = buf_len(b)
     val () = ui_line_edit_draw(f, r, 16, 92, 248, 26, b, n, n, On, "Isim girin...")

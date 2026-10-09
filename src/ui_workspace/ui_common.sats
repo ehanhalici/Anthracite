@@ -30,6 +30,9 @@ fun uok(t: uint): int
 fun filter_text(b: !Buf, n: int): int
 fun scan_skip(name: !Buf): bool
 fun meta_dir(meta: !Buf, row: int): DirMark
+fun meta_depth(meta: !Buf, row: int): int
+fun meta_text_off(meta: !Buf, row: int): int
+fun meta_text_len(meta: !Buf, row: int): int
 fun path_is_dir(path: string): bool
 fun child_kind(child: !Buf, skip: Toggle, isdir: DirMark): DirMark
 
@@ -43,7 +46,7 @@ datatype MenuKind = MenuNone | MenuText | MenuImage | MenuFileTree
 datatype PromptKind = PromptNone | PromptNewFile | PromptNewFolder | PromptRename
 datatype ViewMode = ViewEdit | ViewRead
 datatype EditResult = EditNone | EditChanged | EditSubmit | EditCancel
-datatype DragKind = DragNone | DragTab | DragFile
+datatype DragKind = DragNone | DragTab | DragFile | DragSplit
 
 fun is_side_none(x: Sidebar): bool
 fun is_side_files(x: Sidebar): bool
@@ -66,6 +69,7 @@ fun is_edit_cancel(x: EditResult): bool
 fun is_drag_none(x: DragKind): bool
 fun is_drag_tab(x: DragKind): bool
 fun is_drag_file(x: DragKind): bool
+fun is_drag_split(x: DragKind): bool
 fun view_mode_code(v: ViewMode): int
 fun view_mode_of_code(n: int): ViewMode
 
@@ -77,6 +81,8 @@ fun view_mode_of_code(n: int): ViewMode
 
 
 macdef UI_SIDEBAR_WIDTH = 280
+macdef UI_SIDEBAR_MIN_WIDTH = 160
+macdef UI_SIDEBAR_GRAB_WIDTH = 6
 macdef UI_TOPBAR_HEIGHT = 36
 macdef UI_TOPBAR_BTN_WIDTH = 96
 macdef UI_MENU_WIDTH = 230

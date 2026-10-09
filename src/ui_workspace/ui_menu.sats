@@ -4,7 +4,7 @@ staload "core_platform/x11.sats"
 staload "core_render/render.sats"
 staload "data_font/font.sats"
 
-fun draw_menu(f: !Font, r: !Rend, menu: MenuKind, menux: int, menuy: int): void
+fun draw_menu(f: !Font, r: !Rend, menu: MenuKind, menux: int, menuy: int, menuw: int): void
 fun draw_prompt(f: !Font, r: !Rend, b: !Buf, prompt: PromptKind): void
 fun edit_line(b: &Buf >> Buf, ev: &event, scratch: &Buf >> Buf): EditResult
 fun act_prompt(dir: !Buf, cur: !Buf, name: !Buf, kind: PromptKind): void

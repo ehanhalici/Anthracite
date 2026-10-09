@@ -42,16 +42,24 @@ vtypedef App_record = @{
   active= int, righti= int, split= Toggle, focus= Toggle, side= Sidebar, fontpx= int,
   clip= Buf, menu= MenuKind, menux= int, menuy= int, drag= DragKind, dragi= int,
   prompt= PromptKind, promptb= Buf, query= Buf, qfocus= Toggle,
-  tree= Buf, tmeta= Buf, tn= int, hits= Buf, hmeta= Buf, hn= int,
+  tree= Buf, tmeta= Buf, topen= Buf, tn= int, treescroll= int,
+  hits= Buf, hmeta= Buf, hn= int,
   sel= int, treedirty= Toggle, paste= Toggle, hitk= NodeKind, hiti= int, downx= int, downy= int,
   scratch= Buf, imgpath= Buf, viewmode= ViewMode, font_idx= int,
   fpaths= Buf, fnames= Buf, fmeta= Buf, fcnt= int, font_path= Buf,
   vault_select= Toggle, vpaths= Buf, vnames= Buf, vmeta= Buf, vcnt= int,
-  hoverx= int, hovery= int
+  hoverx= int, hovery= int, sidew= int, btnw= int, modew= int, menuw= int
 }
 datavtype App_ = APP of App_record
 (* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
 assume App = App_
+
+datatype DownZone = DownMenu | DownResize | DownTopbar | DownSidebar | DownEditor
+
+typedef DownHit = @{
+  x= int, y= int, sidew= int, button= Btn,
+  zone= DownZone, inside= Toggle, item= int
+}
 
 fun save_session_impl(vault: !Buf, font_p: !Buf, font_px: int, viewmode: ViewMode, split: Toggle, active: int, ts: !Tabs): void =
   if igt(buf_len(vault), 0) then
@@ -121,6 +129,7 @@ fun vault_switch_finish(s: &App_record >> _, new_t: Tabs, fpx: int, vm: int, sp:
   val () = s.tabs := new_t
   val () = tabs_free(ph)
   val () = s.fontpx := fpx
+  val () = s.btnw := 0
   val () = s.viewmode := view_mode_of_code(vm)
   val () = s.split := toggle_of(ieq(sp, 1))
   val () = s.active := act
@@ -234,22 +243,24 @@ in
     active= act_idx, righti= 0, split= toggle_of(ieq(sp, 1)), focus= Off, side= SideNone, fontpx= fpx,
     clip= buf_make(64), menu= MenuNone, menux= 0, menuy= 0, drag= DragNone, dragi= ~1,
     prompt= PromptNone, promptb= buf_make(256), query= buf_make(64), qfocus= Off,
-    tree= buf_make(64), tmeta= buf_make(64), tn= 0, hits= buf_make(64), hmeta= buf_make(64), hn= 0,
+    tree= buf_make(64), tmeta= buf_make(64), topen= buf_make(64), tn= 0, treescroll= 0,
+    hits= buf_make(64), hmeta= buf_make(64), hn= 0,
     sel= ~1, treedirty= On, paste= Off, hitk= KNone, hiti= ~1, downx= ~1, downy= ~1,
     scratch= buf_make(4096), imgpath= buf_make(64), viewmode= view_mode_of_code(vmode), font_idx= 0,
     fpaths= fpaths, fnames= fnames, fmeta= fmeta, fcnt= fcnt, font_path= fpath,
     vault_select= toggle_of(ieq(f_vsel, 1)), vpaths= vpaths, vnames= vnames, vmeta= vmeta, vcnt= vcnt,
-    hoverx= ~1, hovery= ~1
+    hoverx= ~1, hovery= ~1, sidew= UI_SIDEBAR_WIDTH, btnw= 0, modew= 0, menuw= 0
   })
 end
 
-fun free_input_bufs(clip: Buf, promptb: Buf, query: Buf, tree: Buf, tmeta: Buf): void = let
+fun free_input_bufs(clip: Buf, promptb: Buf, query: Buf, tree: Buf, tmeta: Buf, topen: Buf): void = let
   val () = buf_free(clip)
   val () = buf_free(promptb)
   val () = buf_free(query)
   val () = buf_free(tree)
   val () = buf_free(tmeta)
 in
+  buf_free(topen)
 end
 
 fun free_search_bufs(hits: Buf, hmeta: Buf, scratch: Buf, imgpath: Buf): void = let
@@ -275,7 +286,7 @@ implement app_free(a) = let
   val () = buf_free(s.vault)
   val () = tabs_free(ts2)
   val () = cache_free(s.cache)
-  val () = free_input_bufs(s.clip, s.promptb, s.query, s.tree, s.tmeta)
+  val () = free_input_bufs(s.clip, s.promptb, s.query, s.tree, s.tmeta, s.topen)
   val () = free_search_bufs(s.hits, s.hmeta, s.scratch, s.imgpath)
   val () = free_font_bufs(s.fpaths, s.fnames, s.fmeta, s.font_path)
   val () = buf_free(s.vpaths)
@@ -286,13 +297,115 @@ end
 
 fun pane_of(sfocus: Toggle, active: int, righti: int): int =
   if is_off(sfocus) then active else righti
+
+fun tree_open_code(state: Toggle): int =
+  case+ state of
+  | Off() => 0
+  | On() => 1
+
+fun tree_open_of_code(code: int): Toggle =
+  if ieq(code, tree_open_code(On)) then On else Off
+
+fun tree_open_defaults_m {rem:nat} .<rem>. (
+  meta: !Buf, open_rows: &Buf >> Buf, i: int, rem: int(rem)
+): void =
+  if rem > 0 then let
+    val mark = meta_dir(meta, i)
+    val state = toggle_of(is_dir_mark(mark, DirYes))
+  in
+    bpush(open_rows, tree_open_code(state));
+    tree_open_defaults_m(meta, open_rows, iadd(i, 1), rem - 1)
+  end else touchb(open_rows)
+
+fun tree_open_defaults(meta: !Buf, open_rows: &Buf >> Buf, n: int, i: int): void =
+  if ige(i, n) then touchb(open_rows)
+  else tree_open_defaults_m(meta, open_rows, i, airlock_span(i, n))
+
+fun tree_row_open_state(s: &App_record, row: int): Toggle =
+  tree_open_of_code(buf_get(s.topen, row))
+
+fun tree_row_is_open(s: &App_record, row: int): bool =
+  is_dir_mark(meta_dir(s.tmeta, row), DirYes) andalso is_on(tree_row_open_state(s, row))
+
+fun tree_row_hidden(depth: int, hidden_depth: int): bool =
+  ige(hidden_depth, 0) andalso igt(depth, hidden_depth)
+
+fun tree_next_hidden(s: &App_record, row: int, depth: int, hidden_depth: int): int =
+  if tree_row_is_open(s, row) then hidden_depth
+  else if is_dir_mark(meta_dir(s.tmeta, row), DirYes) then depth
+  else hidden_depth
+
+fun tree_source_m {rem:nat} .<rem>. (
+  s: &App_record, source: int, wanted: int, visible: int, hidden_depth: int, rem: int(rem)
+): int =
+  if rem <= 0 then ~1
+  else let
+    val depth = meta_depth(s.tmeta, source)
+    val hidden = tree_row_hidden(depth, hidden_depth)
+    val active_hidden = if not(hidden) then ~1 else hidden_depth
+    val next_hidden = tree_next_hidden(s, source, depth, active_hidden)
+  in
+    if hidden then tree_source_m(s, iadd(source, 1), wanted, visible, active_hidden, rem - 1)
+    else if ieq(visible, wanted) then source
+    else tree_source_m(s, iadd(source, 1), wanted, iadd(visible, 1),
+      next_hidden, rem - 1)
+  end
+
+fun tree_source_for_view(s: &App_record, wanted: int): int =
+  if ilt(wanted, 0) orelse ile(s.tn, 0) then ~1
+  else tree_source_m(s, 0, wanted, 0, ~1, airlock_nat(s.tn))
+
+fun tree_count_visible {rem:nat} .<rem>. (
+  s: &App_record, source: int, visible: int, hidden_depth: int, rem: int(rem)
+): int =
+  if rem <= 0 then visible
+  else let
+    val depth = meta_depth(s.tmeta, source)
+    val hidden = tree_row_hidden(depth, hidden_depth)
+    val active_hidden = if not(hidden) then ~1 else hidden_depth
+    val next_visible = if hidden then visible else iadd(visible, 1)
+    val next_hidden = if hidden then active_hidden else tree_next_hidden(s, source, depth, active_hidden)
+  in
+    tree_count_visible(s, iadd(source, 1), next_visible, next_hidden, rem - 1)
+  end
+
+fun tree_visible_count(s: &App_record): int =
+  tree_count_visible(s, 0, 0, ~1, airlock_nat(s.tn))
+
+fun tree_source_at_y(s: &App_record, y: int): int =
+  if ilt(y, 72) then ~1
+  else tree_source_for_view(s, iadd(s.treescroll, idiv(isub(y, 72), UI_TREE_ROW_HEIGHT)))
+
+fun tree_toggle_source(s: &App_record >> _, source: int): void =
+  if ige(source, 0) andalso is_dir_mark(meta_dir(s.tmeta, source), DirYes) then let
+    val current = tree_row_open_state(s, source)
+    val next = case+ current of | Off() => On | On() => Off
+    val () = s.drag := DragNone
+    val () = s.dragi := ~1
+  in
+    buf_set(s.topen, source, tree_open_code(next))
+  end else ()
+
+fun tree_expander_hit(s: &App_record, source: int, x: int): bool =
+  if ilt(source, 0) then false
+  else let
+    val depth = meta_depth(s.tmeta, source)
+    val expander_x = iadd(6, imul(depth, 14))
+  in
+    is_dir_mark(meta_dir(s.tmeta, source), DirYes)
+      andalso ige(x, expander_x) andalso ilt(x, iadd(expander_x, 14))
+  end
+
 fun ensure_tree_fresh(s: &App_record >> _): void =
   if is_on(s.treedirty) andalso is_side_files(s.side) then let
     val () = bclear(s.tree)
     val () = bclear(s.tmeta)
+    val () = bclear(s.topen)
     val () = s.tn := 0
     val () = scan_dir(s.vault, 0, s.tmeta, s.tree, s.tn)
+    val () = tree_open_defaults(s.tmeta, s.topen, s.tn, 0)
     val () = if ige(s.sel, s.tn) then s.sel := ~1 else ()
+    val () = s.treescroll := 0
   in
     s.treedirty := Off
   end else ()
@@ -331,43 +444,57 @@ fun search_rows_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r:
     end else ()
   ) else search_rows_exh(f, r, s, row, hn)
 
-fun draw_sidebar_search(f: !Font, r: !Rend, s: &App_record): void = let
+fun draw_sidebar_search(f: !Font, r: !Rend, s: &App_record, sidew: int): void = let
   val qn = buf_len(s.query)
-  val () = ui_line_edit_draw(f, r, 8, 68, 264, 24, s.query, qn, qn, s.qfocus, "Aramak icin yazin...")
+  val () = ui_line_edit_draw(f, r, 8, 68, isub(sidew, 16), 24, s.query, qn, qn, s.qfocus, "Aramak icin yazin...")
 in
   search_rows_m(airlock_nat(MAX_REC_FUEL), f, r, s, 0, s.hn)
 end
 
-fun draw_tree_row(f: !Font, r: !Rend, s: &App_record, row: int): void = let
-  val depth = buf_get32(s.tmeta, imul(row, 4))
-  val mark = meta_dir(s.tmeta, row)
-  val off = buf_get32(s.tmeta, iadd(imul(row, 4), 2))
-  val n = buf_get32(s.tmeta, iadd(imul(row, 4), 3))
+fun draw_tree_row(f: !Font, r: !Rend, s: &App_record, source: int, viewrow: int, sidew: int): void = let
+  val depth = meta_depth(s.tmeta, source)
+  val mark = meta_dir(s.tmeta, source)
+  val off = meta_text_off(s.tmeta, source)
+  val n = meta_text_len(s.tmeta, source)
   var base = buf_make(8)
   val () = bcat(base, s.tree, off, iadd(off, n))
   val () = base_name(base, s.scratch)
   val icon = if is_dir_mark(mark, DirYes) then UI_ICON_FOLDER else UI_ICON_FILE
-  val is_sel = ieq(s.sel, row)
-  val row_y = iadd(72, imul(row, 18))
-  val is_hov = ige(s.hoverx, 6) andalso ilt(s.hoverx, 274) andalso ige(s.hovery, row_y) andalso ilt(s.hovery, iadd(row_y, 18))
-  val () = ui_cell(f, r, 6, row_y, 268, 18, depth, toggle_of(is_dir_mark(mark, DirYes)), toggle_of(is_dir_mark(mark, DirYes)), icon, cstr(s.scratch), "", toggle_of(is_sel), toggle_of(is_hov))
+  val is_sel = ieq(s.sel, source)
+  val row_y = iadd(72, imul(viewrow, UI_TREE_ROW_HEIGHT))
+  val is_hov = ige(s.hoverx, 6) andalso ilt(s.hoverx, isub(sidew, 6)) andalso ige(s.hovery, row_y) andalso ilt(s.hovery, iadd(row_y, UI_TREE_ROW_HEIGHT))
+  val () = ui_cell(f, r, 6, row_y, isub(sidew, 12), UI_TREE_ROW_HEIGHT, depth,
+    toggle_of(is_dir_mark(mark, DirYes)), toggle_of(tree_row_is_open(s, source)),
+    icon, cstr(s.scratch), "", toggle_of(is_sel), toggle_of(is_hov))
   val () = buf_free(base)
 in
 end
 
-extern fun file_rows_exh(f: !Font, r: !Rend, s: &App_record, row: int, tn: int): void = "mac#anth_die_void"
+extern fun file_rows_exh(f: !Font, r: !Rend, s: &App_record, viewrow: int, limit: int, sidew: int): void = "mac#anth_die_void"
 
-fun file_rows_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, s: &App_record, row: int, tn: int): void =
+fun file_rows_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), f: !Font, r: !Rend, s: &App_record, viewrow: int, limit: int, sidew: int
+): void =
   if recfuel > 0 then (
-    if ilt(row, tn) andalso ilt(row, 28) then let
-      val () = draw_tree_row(f, r, s, row)
+    if ilt(viewrow, limit) then let
+      val source = tree_source_for_view(s, iadd(s.treescroll, viewrow))
     in
-      file_rows_m(recfuel - 1, f, r, s, iadd(row, 1), tn)
+      if ige(source, 0) then (
+        draw_tree_row(f, r, s, source, viewrow, sidew);
+        file_rows_m(recfuel - 1, f, r, s, iadd(viewrow, 1), limit, sidew)
+      ) else ()
     end else ()
-  ) else file_rows_exh(f, r, s, row, tn)
+  ) else file_rows_exh(f, r, s, viewrow, limit, sidew)
 
-fun draw_sidebar_files(f: !Font, r: !Rend, s: &App_record): void =
-  file_rows_m(airlock_nat(MAX_REC_FUEL), f, r, s, 0, s.tn)
+fun draw_sidebar_files(f: !Font, r: !Rend, s: &App_record, sidew: int, h: int): void = let
+  val visible_h = imax(0, isub(h, 72))
+  val rows = idiv(visible_h, UI_TREE_ROW_HEIGHT)
+  val total = tree_visible_count(s)
+  val () = file_rows_m(airlock_nat(MAX_REC_FUEL), f, r, s, 0, rows, sidew)
+in
+  if igt(total, rows) then ui_scroll_bar(r, isub(sidew, 7), 72, 6, visible_h,
+    Vertical, total, rows, s.treescroll, Off, Off) else ()
+end
 
 fun draw_config_vault_section(f: !Font, r: !Rend, s: &App_record): void = let
   val () = draw_s(f, r, 12, 76, "Kasa", col_muted())
@@ -424,11 +551,12 @@ in
   font_rows_m(airlock_nat(MAX_REC_FUEL), f, r, s, 0, s.fcnt)
 end
 
-fun draw_side_frame(r: !Rend, h: int): void = let
-  val () = rend_scissor(r, 0, 36, 280, isub(h, 36))
-  val () = rend_rect(r, 0, 36, 280, isub(h, 36), col_side())
-  val () = ui_divider(r, 0, 64, 280, Horizontal)
-  val () = ui_divider(r, 279, 36, isub(h, 36), Vertical)
+fun draw_side_frame(r: !Rend, sidew: int, h: int): void = let
+  val body_h = isub(h, UI_TOPBAR_HEIGHT)
+  val () = rend_scissor(r, 0, UI_TOPBAR_HEIGHT, sidew, body_h)
+  val () = rend_rect(r, 0, UI_TOPBAR_HEIGHT, sidew, body_h, col_side())
+  val () = ui_divider(r, 0, 64, sidew, Horizontal)
+  val () = ui_divider(r, isub(sidew, 1), UI_TOPBAR_HEIGHT, body_h, Vertical)
 in
 end
 
@@ -442,18 +570,18 @@ fun draw_side_title(f: !Font, r: !Rend, sd: Sidebar): void = let
 in
 end
 
-fun draw_side_body(f: !Font, r: !Rend, s: &App_record): void =
-  if is_side_search(s.side) then draw_sidebar_search(f, r, s)
-  else if is_side_files(s.side) then draw_sidebar_files(f, r, s)
+fun draw_side_body(f: !Font, r: !Rend, s: &App_record, h: int): void =
+  if is_side_search(s.side) then draw_sidebar_search(f, r, s, s.sidew)
+  else if is_side_files(s.side) then draw_sidebar_files(f, r, s, s.sidew, h)
   else draw_sidebar_config(f, r, s)
 
 fun draw_side(f: !Font, r: !Rend, a: !App, h: int): void =
   case+ a of
   | @APP(s) => let
-      val () = draw_side_frame(r, h)
+      val () = draw_side_frame(r, s.sidew, h)
       val () = draw_side_title(f, r, s.side)
       val () = ensure_tree_fresh(s)
-      val () = draw_side_body(f, r, s)
+      val () = draw_side_body(f, r, s, h)
       val () = rend_scissor_off(r)
     in
       fold@(a)
@@ -462,48 +590,101 @@ fun draw_side(f: !Font, r: !Rend, a: !App, h: int): void =
 fun ui_draw_menu(f: !Font, r: !Rend, a: !App): void =
   case+ a of
   | @APP(s) => let
-      val () = draw_menu(f, r, s.menu, s.menux, s.menuy)
+      val () = draw_menu(f, r, s.menu, s.menux, s.menuy, s.menuw)
     in
       fold@(a)
     end
 
-fun topbar_btn_x(idx: int): int =
-  iadd(8, imul(idx, iadd(UI_TOPBAR_BTN_WIDTH, 6)))
+fun label_px(f: !Font, r: !Rend, text: string): int =
+  font_width(f, r, c_str_ptr(text), c_strlen(text))
 
-fun topbar_tab_start_x(): int =
-  iadd(iadd(topbar_btn_x(2), iadd(UI_TOPBAR_BTN_WIDTH, 14)), 16)
+fun wider(a: int, b: int): int =
+  if igt(a, b) then a else b
 
-fun topbar_mode_btn_x(w: int): int =
-  isub(w, iadd(UI_TOPBAR_BTN_WIDTH, 10))
+fun icon_slot(f: !Font, r: !Rend, text: string): int =
+  iadd(label_px(f, r, text), 44)
 
-fun topbar_btn_hovered(s: &App_record, x: int): bool =
-  ige(s.hoverx, x) andalso ilt(s.hoverx, iadd(x, UI_TOPBAR_BTN_WIDTH)) andalso ige(s.hovery, 4) andalso ilt(s.hovery, 32)
+fun side_btn_width(f: !Font, r: !Rend): int =
+  wider(icon_slot(f, r, "Ayarlar"), wider(icon_slot(f, r, "Gezgin"), icon_slot(f, r, "Arama")))
+
+fun mode_slot(f: !Font, r: !Rend, text: string): int =
+  iadd(label_px(f, r, text), 28)
+
+fun mode_btn_width(f: !Font, r: !Rend): int =
+  wider(mode_slot(f, r, "Düzenle"), mode_slot(f, r, "Okuma"))
+
+fun menu_slot(f: !Font, r: !Rend, text: string): int =
+  iadd(label_px(f, r, text), 36)
+
+fun menu_w_pair(f: !Font, r: !Rend, a: string, b: string): int =
+  wider(menu_slot(f, r, a), menu_slot(f, r, b))
+
+fun menu_w_text(f: !Font, r: !Rend): int =
+  wider(menu_slot(f, r, "Biçimlendirmeyi Temizle"), menu_w_pair(f, r, "Yapıştır", "Kopyala"))
+
+fun menu_w_image(f: !Font, r: !Rend): int =
+  wider(menu_slot(f, r, "Dokümandan Kaldır"), menu_w_pair(f, r, "Dosya Konumunu Aç", "Görseli Kopyala"))
+
+fun menu_w_tree(f: !Font, r: !Rend): int =
+  wider(menu_w_pair(f, r, "Yeni Klasör Oluştur", "Yeni Dosya Oluştur"), menu_w_pair(f, r, "Yeniden Adlandır", "Sil"))
+
+fun menu_width(f: !Font, r: !Rend): int =
+  wider(UI_MENU_WIDTH, wider(menu_w_text(f, r), wider(menu_w_image(f, r), menu_w_tree(f, r))))
+
+fun ensure_chrome(f: !Font, r: !Rend, s: &App_record >> _): void =
+  if igt(s.btnw, 0) then ()
+  else let
+    val () = font_set_px(f, s.fontpx)
+    val () = s.btnw := side_btn_width(f, r)
+    val () = s.modew := mode_btn_width(f, r)
+  in
+    s.menuw := menu_width(f, r)
+  end
+
+fun topbar_btn_x(idx: int, btnw: int): int =
+  imul(idx, btnw)
+
+fun topbar_tab_start_x(btnw: int): int =
+  iadd(imul(3, btnw), 8)
+
+fun topbar_mode_btn_x(w: int, modew: int): int =
+  isub(w, iadd(modew, 10))
+
+fun bar_hovered(s: &App_record, x: int, bw: int): bool =
+  ige(s.hoverx, x) andalso ilt(s.hoverx, iadd(x, bw)) andalso ige(s.hovery, 0) andalso ilt(s.hovery, UI_TOPBAR_HEIGHT)
 
 fun draw_topbar_side_buttons(f: !Font, r: !Rend, s: &App_record): void = let
-  val x1 = topbar_btn_x(0)
-  val x2 = topbar_btn_x(1)
-  val x3 = topbar_btn_x(2)
-  val () = ui_icon_button(f, r, UI_ICON_FOLDER, "Gezgin", x1, 4, UI_TOPBAR_BTN_WIDTH, 28, toggle_of(is_side_files(s.side)), toggle_of(topbar_btn_hovered(s, x1)))
-  val () = ui_icon_button(f, r, UI_ICON_SEARCH, "Arama", x2, 4, UI_TOPBAR_BTN_WIDTH, 28, toggle_of(is_side_search(s.side)), toggle_of(topbar_btn_hovered(s, x2)))
-  val () = ui_icon_button(f, r, UI_ICON_SETTINGS, "Ayarlar", x3, 4, UI_TOPBAR_BTN_WIDTH, 28, toggle_of(is_side_config(s.side)), toggle_of(topbar_btn_hovered(s, x3)))
+  val bw = s.btnw
+  val x1 = topbar_btn_x(0, bw)
+  val x2 = topbar_btn_x(1, bw)
+  val x3 = topbar_btn_x(2, bw)
+  val () = ui_icon_button(f, r, UI_ICON_FOLDER, "Gezgin", x1, 0, bw, UI_TOPBAR_HEIGHT, toggle_of(is_side_files(s.side)), toggle_of(bar_hovered(s, x1, bw)))
+  val () = ui_icon_button(f, r, UI_ICON_SEARCH, "Arama", x2, 0, bw, UI_TOPBAR_HEIGHT, toggle_of(is_side_search(s.side)), toggle_of(bar_hovered(s, x2, bw)))
+  val () = ui_icon_button(f, r, UI_ICON_SETTINGS, "Ayarlar", x3, 0, bw, UI_TOPBAR_HEIGHT, toggle_of(is_side_config(s.side)), toggle_of(bar_hovered(s, x3, bw)))
 in
 end
 
 fun draw_topbar_chrome(f: !Font, r: !Rend, s: &App_record, w: int): void = let
-  val tab_sep_x = iadd(topbar_btn_x(2), iadd(UI_TOPBAR_BTN_WIDTH, 14))
-  val btxt = if is_view_edit(s.viewmode) then "Düzenle" else "Okuma"
-  val bx = topbar_mode_btn_x(w)
+  val tab_sep_x = imul(3, s.btnw)
   val () = rend_rect(r, 0, 0, w, UI_TOPBAR_HEIGHT, col_bar())
   val () = ui_divider(r, 0, 35, w, Horizontal)
   val () = draw_topbar_side_buttons(f, r, s)
-  val () = ui_divider(r, tab_sep_x, 8, 20, Vertical)
-  val hov_m = topbar_btn_hovered(s, bx)
+  val () = ui_divider(r, tab_sep_x, 0, UI_TOPBAR_HEIGHT, Vertical)
 in
-  ui_button(f, r, bx, 4, UI_TOPBAR_BTN_WIDTH, 28, btxt, toggle_of(hov_m), toggle_of(is_view_edit(s.viewmode)))
+  seen_int(w)
+end
+
+fun draw_topbar_mode(f: !Font, r: !Rend, s: &App_record, w: int): void = let
+  val text = if is_view_edit(s.viewmode) then "Düzenle" else "Okuma"
+  val bx = topbar_mode_btn_x(w, s.modew)
+  val hover = bar_hovered(s, bx, s.modew)
+in
+  ui_button(f, r, bx, 4, s.modew, 28, text,
+    toggle_of(hover), toggle_of(is_view_edit(s.viewmode)))
 end
 
 fun draw_editor_panes(f: !Font, r: !Rend, s: &App_record >> _, ox: int, half: int, h: int, lh: int): void = let
-  val tab_x0 = topbar_tab_start_x()
+  val tab_x0 = topbar_tab_start_x(s.btnw)
   val ts = s.tabs
   val () = s.tabs := TNil()
   val mark = pane_of(s.focus, s.active, s.righti)
@@ -531,6 +712,7 @@ fun load_font_if_needed(f: !Font, s: &App_record): void =
     val () = font_load_report(f, cstr(s.font_path))
     val () = font_set_px(f, s.fontpx)
     val () = s.font_idx := 1
+    val () = s.btnw := 0
   in
     ()
   end else ()
@@ -539,15 +721,17 @@ fun draw_panes(f: !Font, r: !Rend, a: !App, w: int, h: int): void =
   case+ a of
   | @APP(s) => let
       val () = load_font_if_needed(f, s)
-      val sidew = if not(is_side_none(s.side)) then UI_SIDEBAR_WIDTH else 0
+      val sidew = if not(is_side_none(s.side)) then s.sidew else 0
       val ox = sidew
       val pw = isub(w, sidew)
       val () = font_set_px(f, s.fontpx)
+      val () = ensure_chrome(f, r, s)
       val lh = font_line_h(f)
       val half = if is_on(s.split) then idiv(pw, 2) else pw
       val () = rend_rect(r, 0, 0, w, h, col_bg())
       val () = draw_topbar_chrome(f, r, s, w)
       val () = draw_editor_panes(f, r, s, ox, half, h, lh)
+      val () = draw_topbar_mode(f, r, s, w)
     in
       fold@(a)
     end
@@ -623,15 +807,40 @@ fun draw_vault_select(f: !Font, r: !Rend, a: !App, w: int, h: int): void =
       fold@(a)
     end
 
+fun menu_item_count(menu: MenuKind): int = case+ menu of
+  | MenuNone() => 0
+  | MenuText() => 4
+  | MenuImage() => 3
+  | MenuFileTree() => 4
+
+fun draw_overlay_blur(
+  r: !Rend, prompt: PromptKind, menu: MenuKind,
+  menux: int, menuy: int, menuw: int, vault_select: Toggle, w: int, h: int
+): void = let
+  val menu_n = menu_item_count(menu)
+  val active = not(is_prompt_none(prompt)) orelse igt(menu_n, 0) orelse is_on(vault_select)
+  val () = if active then rend_capture(r) else ()
+  val () = if is_on(vault_select) then rend_blur_rect(r, 0, 0, w, h, 4) else ()
+  val () = if not(is_prompt_none(prompt)) then rend_blur_rect(r, 12, 68, 256, 56, 6) else ()
+in
+  if igt(menu_n, 0) then rend_blur_rect(r, menux, menuy,
+    menuw, imul(menu_n, UI_MENU_ITEM_HEIGHT), 6) else ()
+end
+
+fun app_overlay_state(a: !App): @(Sidebar, PromptKind, MenuKind, int, int, int, Toggle) =
+  case+ a of
+  | @APP(s) => let
+      val result = @(s.side, s.prompt, s.menu, s.menux, s.menuy, s.menuw, s.vault_select)
+    in
+      fold@(a);
+      result
+    end
+
 implement app_draw(a, f, r, w, h) = let
   val () = draw_panes(f, r, a, w, h)
-  val show = let
-    val v = case+ a of
-      | @APP(s) => let val k = s.side in fold@(a); k end
-  in
-    v
-  end
+  val @(show, prompt, menu, menux, menuy, menuw, vault_select) = app_overlay_state(a)
   val () = if not(is_side_none(show)) then draw_side(f, r, a, h) else ()
+  val () = draw_overlay_blur(r, prompt, menu, menux, menuy, menuw, vault_select, w, h)
   val () = ui_draw_prompt(f, r, a)
   val () = ui_draw_menu(f, r, a)
 in
@@ -1387,22 +1596,23 @@ in
 end
 
 fun handle_topbar_action(s: &App_record >> _, w: int, x: int): void = let
-  val top_w = UI_TOPBAR_BTN_WIDTH
-  val x1 = topbar_btn_x(0)
-  val x2 = topbar_btn_x(1)
-  val x3 = topbar_btn_x(2)
-  val bx = topbar_mode_btn_x(w)
+  val bw = s.btnw
+  val x1 = topbar_btn_x(0, bw)
+  val x2 = topbar_btn_x(1, bw)
+  val x3 = topbar_btn_x(2, bw)
+  val bx = topbar_mode_btn_x(w, s.modew)
 in
-  if ige(x, bx) andalso ilt(x, iadd(bx, top_w)) then topbar_toggle_view(s)
-  else if ige(x, x1) andalso ilt(x, iadd(x1, top_w)) then topbar_toggle_files(s)
-  else if ige(x, x2) andalso ilt(x, iadd(x2, top_w)) then topbar_toggle_search(s)
-  else if ige(x, x3) andalso ilt(x, iadd(x3, top_w)) then topbar_toggle_config(s)
+  if ige(x, bx) andalso ilt(x, iadd(bx, s.modew)) then topbar_toggle_view(s)
+  else if ige(x, x1) andalso ilt(x, iadd(x1, bw)) then topbar_toggle_files(s)
+  else if ige(x, x2) andalso ilt(x, iadd(x2, bw)) then topbar_toggle_search(s)
+  else if ige(x, x3) andalso ilt(x, iadd(x3, bw)) then topbar_toggle_config(s)
   else ()
 end
 
 fun config_cycle_font_px(s: &App_record >> _): void = let
   val nxtpx = if ieq(s.fontpx, 16) then 18 else if ieq(s.fontpx, 18) then 20 else 16
   val () = s.fontpx := nxtpx
+  val () = s.btnw := 0
 in
   save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
 end
@@ -1416,6 +1626,7 @@ fun config_select_font(s: &App_record >> _, f: !Font, sel_fi: int): void =
     val () = font_load_report(f, cstr(s.font_path))
     val () = font_set_px(f, s.fontpx)
     val () = s.font_idx := 1
+    val () = s.btnw := 0
     val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
   in
     ()
@@ -1456,16 +1667,17 @@ in
 end
 
 fun handle_editor_click(s: &App_record >> _, f: !Font, r: !Rend, ts: Tabs, ev: &event,
-                        x: int, y: int, w: int, sidew: int, skip: Toggle, onbar: Toggle, onside: Toggle,
-                        button: Btn, idx: int, imgdel: Toggle, clear: Toggle): Tabs = let
-  val pw0 = isub(w, sidew)
+                        w: int, hit: DownHit, idx: int, imgdel: Toggle, clear: Toggle): Tabs = let
+  val editor_zone = case+ hit.zone of | DownEditor() => true | DownMenu() => false
+    | DownResize() => false | DownTopbar() => false | DownSidebar() => false
+  val pw0 = isub(w, hit.sidew)
   val half = if is_on(s.split) then idiv(pw0, 2) else pw0
-  val editor = is_off(skip) andalso is_off(onbar) andalso is_off(onside) andalso is_btn(button, BtnLeft)
-  val foc = editor andalso is_on(s.split) andalso ige(x, iadd(sidew, half))
+  val editor = editor_zone andalso is_btn(hit.button, BtnLeft)
+  val foc = editor andalso is_on(s.split) andalso ige(hit.x, iadd(hit.sidew, half))
   val () = if editor then s.focus := toggle_of(foc) else ()
-  val ox = if is_on(s.focus) then iadd(sidew, half) else sidew
+  val ox = if is_on(s.focus) then iadd(hit.sidew, half) else hit.sidew
   val idx2 = pane_of(s.focus, s.active, s.righti)
-  val ts4 = editor_click_hit(f, r, s, ts, ev, x, y, ox, half, idx2, toggle_of(editor))
+  val ts4 = editor_click_hit(f, r, s, ts, ev, hit.x, hit.y, ox, half, idx2, toggle_of(editor))
   val gowiki = editor andalso ctrl_on(ev)
   val ts5 = wiki_go(ts4, idx2, s.vault, toggle_of(gowiki))
   val ts6 = del_go(ts5, idx, s.hiti, toggle_of(is_on(imgdel)))
@@ -1489,23 +1701,31 @@ end
 
 fun handle_down_tab_bar_selection(
   s: &App_record >> _, ts: !Tabs, f: !Font, r: !Rend,
-  onbar: Toggle, skip: Toggle, x: int, tab_x0: int, bx: int,
+  hit: DownHit, tab_x0: int, bx: int,
   ti: &int >> _, close: &bool >> _
 ): void = let
-  val () = if is_on(onbar) andalso is_off(skip) andalso ige(x, tab_x0) andalso ilt(x, bx) then
-    tab_hit_test(f, r, ts, tab_x0, x, ti, close)
+  val onbar = case+ hit.zone of | DownTopbar() => true | DownMenu() => false
+    | DownResize() => false | DownSidebar() => false | DownEditor() => false
+  val () = if onbar andalso ige(hit.x, tab_x0) andalso ilt(hit.x, bx) then
+    tab_hit_test(f, r, ts, tab_x0, hit.x, ti, close)
   else ()
   val ntabs = tabs_len(ts)
-  val pick = is_on(onbar) andalso is_off(skip) andalso ige(ti, 0) andalso ilt(ti, ntabs) andalso not(close)
+  val pick = onbar andalso ige(ti, 0) andalso ilt(ti, ntabs) andalso not(close)
 in
-  if pick then down_pick_tab(s, x, ti) else ()
+  if pick then down_pick_tab(s, hit.x, ti) else ()
 end
 
-fun text_item_hit(s: &App_record, skip: Toggle, inside: Toggle, item: int, which: TextItem): bool =
-  is_on(skip) andalso is_on(inside) andalso is_menu_text(s.menu) andalso ieq(item, text_row(which))
+fun text_item_hit(s: &App_record, hit: DownHit, which: TextItem): bool =
+  case+ hit.zone of
+  | DownMenu() => is_on(hit.inside) andalso is_menu_text(s.menu) andalso ieq(hit.item, text_row(which))
+  | DownResize() => false | DownTopbar() => false
+  | DownSidebar() => false | DownEditor() => false
 
-fun image_item_hit(s: &App_record, skip: Toggle, inside: Toggle, item: int, which: ImageItem): bool =
-  is_on(skip) andalso is_on(inside) andalso is_menu_image(s.menu) andalso ieq(item, image_row(which))
+fun image_item_hit(s: &App_record, hit: DownHit, which: ImageItem): bool =
+  case+ hit.zone of
+  | DownMenu() => is_on(hit.inside) andalso is_menu_image(s.menu) andalso ieq(hit.item, image_row(which))
+  | DownResize() => false | DownTopbar() => false
+  | DownSidebar() => false | DownEditor() => false
 
 fun down_menu_clip(s: &App_record >> _, p: !Plat, ts0: !Tabs, idx: int, cut: Toggle, copy: Toggle, imgcopy: Toggle, paste: Toggle, imgrev: Toggle): void = let
   val () = copy_if(ts0, idx, s.clip, toggle_of(is_on(cut) orelse is_on(copy)))
@@ -1531,17 +1751,17 @@ in
 end
 
 fun handle_down_context_menu(
-  s: &App_record >> _, p: !Plat, ts0: Tabs, idx: int,
-  skip: Toggle, inside: Toggle, item: int, ti: int, close: Toggle,
+  s: &App_record >> _, p: !Plat, ts0: Tabs, idx: int, hit: DownHit,
+  ti: int, close: Toggle,
   imgdel: &Toggle >> _, clear: &Toggle >> _
 ): Tabs = let
-  val cut = text_item_hit(s, skip, inside, item, TextCut)
-  val copy = text_item_hit(s, skip, inside, item, TextCopy)
-  val paste = text_item_hit(s, skip, inside, item, TextPaste)
-  val () = clear := toggle_of(text_item_hit(s, skip, inside, item, TextClear))
-  val imgcopy = image_item_hit(s, skip, inside, item, ImageCopy)
-  val imgrev = image_item_hit(s, skip, inside, item, ImageReveal)
-  val () = imgdel := toggle_of(image_item_hit(s, skip, inside, item, ImageDelete))
+  val cut = text_item_hit(s, hit, TextCut)
+  val copy = text_item_hit(s, hit, TextCopy)
+  val paste = text_item_hit(s, hit, TextPaste)
+  val () = clear := toggle_of(text_item_hit(s, hit, TextClear))
+  val imgcopy = image_item_hit(s, hit, ImageCopy)
+  val imgrev = image_item_hit(s, hit, ImageReveal)
+  val () = imgdel := toggle_of(image_item_hit(s, hit, ImageDelete))
   val () = down_menu_clip(s, p, ts0, idx, toggle_of(cut), toggle_of(copy), toggle_of(imgcopy), toggle_of(paste), toggle_of(imgrev))
   val ts1 = cmd_if(ts0, idx, CMD_CUT, toggle_of(cut))
   val ts2 = tab_keep_one(drop_if(ts1, ti, close), close)
@@ -1563,77 +1783,185 @@ in
   save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
 end
 
-fun handle_down_sidebar_click(
-  s: &App_record >> _, f: !Font, ts: Tabs, onside: Toggle, x: int, y: int
-): Tabs = let
-  val row = idiv(isub(y, 72), UI_TREE_ROW_HEIGHT)
-  val valid_row = ige(y, 72) andalso ige(row, 0) andalso ilt(row, s.tn)
-  val openf = is_on(onside) andalso is_side_files(s.side) andalso valid_row andalso is_dir_mark(meta_dir(s.tmeta, row), DirNo)
-  val () = if is_on(onside) andalso is_side_files(s.side) then down_select_tree_row(s, row, toggle_of(valid_row)) else ()
-  val srow = if ige(y, 100) then idiv(isub(y, 100), UI_SEARCH_ROW_HEIGHT) else ~1
-  val open_hit_flag = is_on(onside) andalso is_side_search(s.side) andalso ige(srow, 0) andalso ilt(srow, s.hn)
-  val ts_hit = open_hit(ts, s.hmeta, s.hits, srow, toggle_of(open_hit_flag))
-  val ts_row = open_row(ts_hit, s.tree, s.tmeta, row, toggle_of(openf))
-  val () = if openf orelse open_hit_flag then down_activate_first_tab(s) else ()
-  val () = if is_on(onside) andalso is_side_search(s.side) andalso not(open_hit_flag) then s.qfocus := On else ()
-  val () = if is_on(onside) andalso is_side_config(s.side) then handle_sidebar_config_action(s, f, x, y) else ()
+fun handle_tree_click(s: &App_record >> _, ts: Tabs, x: int, y: int): Tabs = let
+  val row = tree_source_at_y(s, y)
+  val valid_row = ige(row, 0) andalso ilt(row, s.tn)
+  val on_expander = valid_row andalso tree_expander_hit(s, row, x)
+  val openf = valid_row andalso not(on_expander)
+    andalso is_dir_mark(meta_dir(s.tmeta, row), DirNo)
+  val () = down_select_tree_row(s, row, toggle_of(valid_row))
+  val () = if on_expander then tree_toggle_source(s, row) else ()
+  val result = open_row(ts, s.tree, s.tmeta, row, toggle_of(openf))
 in
-  ts_row
+  if openf then (down_activate_first_tab(s); result) else result
 end
 
-fun handle_down_context_menu_open(
-  s: &App_record >> _, button: Btn, skip: Toggle, onside: Toggle, x: int, y: int
-): void =
-  if is_btn(button, BtnRight) andalso is_off(skip) then let
-    val () = s.menux := x
-    val () = s.menuy := y
-  in
-    if is_on(onside) then let
-      val () = s.menu := MenuFileTree
-      val row = idiv(isub(y, 72), UI_TREE_ROW_HEIGHT)
-      val valid_row = ige(y, 72) andalso ige(row, 0) andalso ilt(row, s.tn)
-    in
-      s.sel := (if valid_row then row else ~1)
-    end else s.menu := (if is_kind(s.hitk, KImage) then MenuImage else MenuText)
-  end else ()
+fun handle_search_click(s: &App_record >> _, ts: Tabs, y: int): Tabs = let
+  val srow = if ige(y, 100) then idiv(isub(y, 100), UI_SEARCH_ROW_HEIGHT) else ~1
+  val hit = ige(srow, 0) andalso ilt(srow, s.hn)
+  val result = open_hit(ts, s.hmeta, s.hits, srow, toggle_of(hit))
+  val () = if hit then down_activate_first_tab(s) else s.qfocus := On
+in
+  result
+end
 
-fun on_down_tabs(s: &App_record >> _, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int, x: int, y: int, sidew: int, skip: Toggle, onbar: Toggle, onside: Toggle, button: Btn, inside: Toggle, item: int): void = let
+fun handle_config_click(s: &App_record >> _, f: !Font, ts: Tabs, x: int, y: int): Tabs = let
+  val () = handle_sidebar_config_action(s, f, x, y)
+in
+  ts
+end
+
+fun handle_down_sidebar_click(
+  s: &App_record >> _, f: !Font, ts: Tabs, hit: DownHit
+): Tabs = case+ hit.zone of
+  | DownSidebar() =>
+      (case+ s.side of
+       | SideNone() => ts
+       | SideFiles() => handle_tree_click(s, ts, hit.x, hit.y)
+       | SideSearch() => handle_search_click(s, ts, hit.y)
+       | SideConfig() => handle_config_click(s, f, ts, hit.x, hit.y))
+  | DownMenu() => ts | DownResize() => ts
+  | DownTopbar() => ts | DownEditor() => ts
+
+fun open_tree_context(s: &App_record >> _, hit: DownHit): void = let
+  val row = tree_source_at_y(s, hit.y)
+  val valid_row = ige(row, 0) andalso ilt(row, s.tn)
+  val () = s.menu := MenuFileTree
+in
+  s.sel := (if valid_row then row else ~1)
+end
+
+fun place_context(s: &App_record >> _, hit: DownHit): void = let
+  val () = s.menux := hit.x
+in
+  s.menuy := hit.y
+end
+
+fun open_general_context(s: &App_record >> _, hit: DownHit): void = let
+  val () = place_context(s, hit)
+in
+  s.menu := (if is_kind(s.hitk, KImage) then MenuImage else MenuText)
+end
+
+fun handle_down_context_menu_open(s: &App_record >> _, hit: DownHit): void =
+  if not(is_btn(hit.button, BtnRight)) then ()
+  else case+ hit.zone of
+    | DownMenu() => ()
+    | DownResize() => ()
+    | DownSidebar() => (
+        place_context(s, hit); open_tree_context(s, hit)
+      )
+    | DownTopbar() => open_general_context(s, hit)
+    | DownEditor() => open_general_context(s, hit)
+
+fun transform_down_tabs(
+  s: &App_record >> _, p: !Plat, f: !Font, r: !Rend,
+  ev: &event, w: int, hit: DownHit, ts0: Tabs, idx: int
+): Tabs = let
+  var ti: int = ~1
+  var close: bool = false
+  val () = handle_down_tab_bar_selection(s, ts0, f, r, hit,
+    topbar_tab_start_x(s.btnw), topbar_mode_btn_x(w, s.modew), ti, close)
+  var imgdel: Toggle = Off
+  var clear: Toggle = Off
+  val ts1 = handle_down_context_menu(s, p, ts0, idx, hit,
+    ti, toggle_of(close), imgdel, clear)
+  val ts2 = handle_down_sidebar_click(s, f, ts1, hit)
+  val ts3 = handle_editor_click(s, f, r, ts2, ev, w, hit, idx, imgdel, clear)
+  val () = handle_down_context_menu_open(s, hit)
+  val room = imax(0, isub(w, s.menuw))
+  val () = if igt(s.menux, room) then s.menux := room else ()
+in
+  ts3
+end
+
+fun on_down_tabs(s: &App_record >> _, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int, hit: DownHit): void = let
   val ts0 = s.tabs
   val () = s.tabs := TNil()
   val idx = pane_of(s.focus, s.active, s.righti)
-  var ti: int = ~1
-  var close: bool = false
-  val () = handle_down_tab_bar_selection(s, ts0, f, r, onbar, skip, x, topbar_tab_start_x(), topbar_mode_btn_x(w), ti, close)
-  var imgdel: Toggle = Off
-  var clear: Toggle = Off
-  val ts1 = handle_down_context_menu(s, p, ts0, idx, skip, inside, item, ti, toggle_of(close), imgdel, clear)
-  val ts2 = handle_down_sidebar_click(s, f, ts1, onside, x, y)
-  val ts3 = handle_editor_click(s, f, r, ts2, ev, x, y, w, sidew, skip, onbar, onside, button, idx, imgdel, clear)
-  val () = handle_down_context_menu_open(s, button, skip, onside, x, y)
+  val ts3 = transform_down_tabs(s, p, f, r, ev, w, hit, ts0, idx)
   val ph = s.tabs
   val () = s.tabs := ts3
   val () = tabs_free(ph)
-  val () = if is_on(skip) then s.menu := MenuNone else ()
+  val () = case+ hit.zone of
+    | DownMenu() => s.menu := MenuNone
+    | DownResize() => () | DownTopbar() => ()
+    | DownSidebar() => () | DownEditor() => ()
 in
 end
 
-fun on_down_panes(s: &App_record >> _, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int): void = let
+fun side_split_hit(s: &App_record, button: Btn, x: int, y: int): bool =
+  not(is_side_none(s.side)) andalso is_btn(button, BtnLeft)
+    andalso ige(y, UI_TOPBAR_HEIGHT)
+    andalso ige(x, isub(s.sidew, idiv(UI_SIDEBAR_GRAB_WIDTH, 2)))
+    andalso ilt(x, iadd(s.sidew, idiv(UI_SIDEBAR_GRAB_WIDTH, 2)))
+
+fun begin_side_split(s: &App_record >> _, x: int, y: int): void = let
+  val () = s.drag := DragSplit
+  val () = s.dragi := ~1
+  val () = s.downx := x
+in
+  s.downy := y
+end
+
+fun down_zone(s: &App_record, button: Btn, x: int, y: int, sidew: int): DownZone =
+  if not(is_menu_none(s.menu)) then DownMenu
+  else if side_split_hit(s, button, x, y) then DownResize
+  else if ilt(y, UI_TOPBAR_HEIGHT) then DownTopbar
+  else if igt(sidew, 0) andalso ilt(x, sidew) then DownSidebar
+  else DownEditor
+
+fun down_hit(s: &App_record, ev: &event): DownHit = let
   val x = ev_x(ev)
   val y = ev_y(ev)
-  val () = s.downx := x
-  val () = s.downy := y
-  val sidew = if not(is_side_none(s.side)) then UI_SIDEBAR_WIDTH else 0
+  val sidew = if not(is_side_none(s.side)) then s.sidew else 0
   val button = button_of(ev_button(ev))
-  val skip = not(is_menu_none(s.menu))
-  val onbar = ilt(y, UI_TOPBAR_HEIGHT)
-  val onside = not(skip) andalso igt(sidew, 0) andalso ilt(x, sidew) andalso not(onbar)
   val item = idiv(isub(y, s.menuy), UI_MENU_ITEM_HEIGHT)
-  val inside = ige(x, s.menux) andalso ilt(x, iadd(s.menux, UI_MENU_WIDTH)) andalso ige(y, s.menuy)
-  val () = if skip then handle_context_menu_action(s, toggle_of(inside), item) else ()
-  val () = font_set_px(f, s.fontpx)
-  val () = if onbar andalso not(skip) then handle_topbar_action(s, w, x) else ()
-  val () = on_down_tabs(s, p, f, r, ev, w, x, y, sidew, toggle_of(skip), toggle_of(onbar), toggle_of(onside), button, toggle_of(inside), item)
+  val mw = if igt(s.menuw, 0) then s.menuw else UI_MENU_WIDTH
+  val inside = ige(x, s.menux) andalso ilt(x, iadd(s.menux, mw)) andalso ige(y, s.menuy)
 in
+  @{x=x, y=y, sidew=sidew, button=button,
+    zone=down_zone(s, button, x, y, sidew), inside=toggle_of(inside), item=item}
+end
+
+fun dispatch_menu_down(
+  s: &App_record >> _, p: !Plat, f: !Font, r: !Rend,
+  ev: &event, w: int, hit: DownHit
+): void = let
+  val () = handle_context_menu_action(s, hit.inside, hit.item)
+in
+  on_down_tabs(s, p, f, r, ev, w, hit)
+end
+
+fun dispatch_topbar_down(
+  s: &App_record >> _, p: !Plat, f: !Font, r: !Rend,
+  ev: &event, w: int, hit: DownHit
+): void = let
+  val () = handle_topbar_action(s, w, hit.x)
+in
+  on_down_tabs(s, p, f, r, ev, w, hit)
+end
+
+fun dispatch_down_hit(
+  s: &App_record >> _, p: !Plat, f: !Font, r: !Rend,
+  ev: &event, w: int, hit: DownHit
+): void = let
+  val () = font_set_px(f, s.fontpx)
+in
+  case+ hit.zone of
+  | DownResize() => begin_side_split(s, hit.x, hit.y)
+  | DownMenu() => dispatch_menu_down(s, p, f, r, ev, w, hit)
+  | DownTopbar() => dispatch_topbar_down(s, p, f, r, ev, w, hit)
+  | DownSidebar() => on_down_tabs(s, p, f, r, ev, w, hit)
+  | DownEditor() => on_down_tabs(s, p, f, r, ev, w, hit)
+end
+
+fun on_down_panes(s: &App_record >> _, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int): void = let
+  val hit = down_hit(s, ev)
+  val () = s.downx := hit.x
+  val () = s.downy := hit.y
+in
+  dispatch_down_hit(s, p, f, r, ev, w, hit)
 end
 
 fun on_down(a: !App, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int, h: int): void =
@@ -1649,22 +1977,38 @@ fun on_down(a: !App, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int, h: int): 
         fold@(a)
       end
 
-fun on_motion(a: !App, ev: &event): void =
+fun resize_side(s: &App_record >> _, x: int, w: int): void = let
+  val max_width = imax(UI_SIDEBAR_MIN_WIDTH, idiv(w, 2))
+in
+  s.sidew := imax(UI_SIDEBAR_MIN_WIDTH, imin(max_width, x))
+end
+
+fun motion_tab_drag(s: &App_record >> _, x: int): void =
+  if ige(s.downx, 0) andalso ige(s.dragi, 0) andalso ilt(s.downy, UI_TOPBAR_HEIGHT) then
+    if igt(iabs(isub(x, s.downx)), 8) then s.drag := DragTab else ()
+  else ()
+
+fun motion_drag(s: &App_record >> _, x: int, w: int): void =
+  case+ s.drag of
+  | DragNone() => motion_tab_drag(s, x)
+  | DragTab() => ()
+  | DragFile() => ()
+  | DragSplit() => resize_side(s, x, w)
+
+fun on_motion(a: !App, ev: &event, w: int): void =
   case+ a of
   | @APP(s) => let
       val x = ev_x(ev)
       val y = ev_y(ev)
       val () = s.hoverx := x
       val () = s.hovery := y
-      val () = if ige(s.downx, 0) andalso ige(s.dragi, 0) andalso ilt(s.downy, UI_TOPBAR_HEIGHT) then
-        if igt(iabs(isub(x, s.downx)), 8) then s.drag := DragTab else ()
-      else ()
+      val () = motion_drag(s, x, w)
     in
       fold@(a)
     end
 
 fun on_up_split_tab(s: &App_record >> _, w: int, x: int): void = let
-  val sidew = if not(is_side_none(s.side)) then UI_SIDEBAR_WIDTH else 0
+  val sidew = if not(is_side_none(s.side)) then s.sidew else 0
   val mid = iadd(sidew, idiv(isub(w, sidew), 2))
 in
   if ige(x, mid) then (
@@ -1676,7 +2020,7 @@ in
 end
 
 fun on_up_reorder_tab(s: &App_record >> _, f: !Font, r: !Rend, x: int): void = let
-  val tab_x0 = topbar_tab_start_x()
+  val tab_x0 = topbar_tab_start_x(s.btnw)
   var target_ti: int = ~1
   var dummy_close: bool = false
   val () = tab_hit_test(f, r, s.tabs, tab_x0, x, target_ti, dummy_close)
@@ -1715,17 +2059,21 @@ in
 end
 
 fun on_up_move_file(s: &App_record >> _, y: int): void = let
-  val row = idiv(isub(y, 72), UI_TREE_ROW_HEIGHT)
+  val row = tree_source_at_y(s, y)
 in
   if ige(row, 0) andalso ilt(row, s.tn) andalso ine(row, s.dragi) andalso is_dir_mark(meta_dir(s.tmeta, row), DirYes) then move_dragged_file(s, row)
   else ()
 end
 
 fun on_up_drop(s: &App_record >> _, f: !Font, r: !Rend, w: int, x: int, y: int): void =
-  if is_drag_tab(s.drag) andalso igt(y, UI_TOPBAR_HEIGHT) then on_up_split_tab(s, w, x)
-  else if is_drag_tab(s.drag) andalso ilt(y, UI_TOPBAR_HEIGHT) andalso ige(s.dragi, 0) then on_up_reorder_tab(s, f, r, x)
-  else if is_drag_file(s.drag) andalso ige(s.sel, 0) then on_up_move_file(s, y)
-  else ()
+  case+ s.drag of
+  | DragNone() => ()
+  | DragSplit() => ()
+  | DragFile() => if ige(s.sel, 0) then on_up_move_file(s, y) else ()
+  | DragTab() =>
+      if igt(y, UI_TOPBAR_HEIGHT) then on_up_split_tab(s, w, x)
+      else if ige(s.dragi, 0) then on_up_reorder_tab(s, f, r, x)
+      else ()
 
 fun on_up_clamp_active(s: &App_record >> _): void = let
   val n = tabs_len(s.tabs)
@@ -1749,18 +2097,32 @@ fun on_up(a: !App, f: !Font, r: !Rend, ev: &event, w: int): void =
       fold@(a)
     end
 
+fun scroll_tree(s: &App_record >> _, delta: int, h: int): void = let
+  val visible_rows = imax(1, idiv(imax(0, isub(h, 72)), UI_TREE_ROW_HEIGHT))
+  val max_scroll = imax(0, isub(tree_visible_count(s), visible_rows))
+in
+  s.treescroll := imax(0, imin(max_scroll, iadd(s.treescroll, delta)))
+end
+
+fun scroll_document(s: &App_record >> _, delta: int): void = let
+  val idx = pane_of(s.focus, s.active, s.righti)
+  val ts = s.tabs
+  val () = s.tabs := TNil()
+  val ph = s.tabs
+  val () = s.tabs := tabs_scroll(ts, idx, delta, 100000)
+in
+  tabs_free(ph)
+end
+
 fun on_wheel(a: !App, ev: &event, w: int, h: int): void =
   case+ a of
   | @APP(s) => let
-      val dv = if is_btn(button_of(ev_button(ev)), BtnWheelUp) then ~48 else 48
-      val idx = pane_of(s.focus, s.active, s.righti)
-      val ts = s.tabs
-      val () = s.tabs := TNil()
-      val ph = s.tabs
-      val () = s.tabs := tabs_scroll(ts, idx, dv, 100000)
-      val () = tabs_free(ph)
+      val upward = is_btn(button_of(ev_button(ev)), BtnWheelUp)
+      val on_tree = is_side_files(s.side) andalso ilt(ev_x(ev), s.sidew)
+        andalso ige(ev_y(ev), UI_TOPBAR_HEIGHT)
+      val () = if on_tree then scroll_tree(s, if upward then ~3 else 3, h)
+        else scroll_document(s, if upward then ~48 else 48)
       val () = seen_int(w)
-      val () = seen_int(h)
     in
       fold@(a)
     end
@@ -1792,13 +2154,23 @@ fun on_sel(a: !App, p: !Plat, ev: &event): void =
       fold@(a)
     end
 
+fun prepare_chrome(a: !App, f: !Font, r: !Rend): void =
+  case+ a of
+  | @APP(s) => let
+      val () = load_font_if_needed(f, s)
+      val () = ensure_chrome(f, r, s)
+    in
+      fold@(a)
+    end
+
 implement app_event(a, p, f, r, ev, w, h) = let
+  val () = prepare_chrome(a, f, r)
   val k = event_of(ev_kind(ev))
 in
   if is_ev(k, EvKey) then on_key(a, p, f, ev)
   else if is_ev(k, EvDown) then on_down(a, p, f, r, ev, w, h)
   else if is_ev(k, EvUp) then on_up(a, f, r, ev, w)
-  else if is_ev(k, EvMotion) then on_motion(a, ev)
+  else if is_ev(k, EvMotion) then on_motion(a, ev, w)
   else if is_ev(k, EvWheel) then on_wheel(a, ev, w, h)
   else if is_ev(k, EvSelReq) orelse is_ev(k, EvSelNotify) then on_sel(a, p, ev)
   else ()

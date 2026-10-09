@@ -42,6 +42,23 @@ static const char *anth_fs_src =
   "  }\n"
   "}\n";
 
+static const char *anth_blur_fs_src =
+  "#version 330 core\n"
+  "in vec4 v_col;\n"
+  "in vec2 v_uv;\n"
+  "uniform sampler2D u_tex;\n"
+  "uniform vec2 u_pixel;\n"
+  "out vec4 frag;\n"
+  "void main() {\n"
+  "  vec4 sum = vec4(0.0);\n"
+  "  for (int y = -4; y <= 4; ++y) {\n"
+  "    for (int x = -4; x <= 4; ++x) {\n"
+  "      sum += texture(u_tex, v_uv + vec2(x, y) * u_pixel);\n"
+  "    }\n"
+  "  }\n"
+  "  frag = v_col * (sum / 81.0);\n"
+  "}\n";
+
 static unsigned anth_compile(GLenum type, const char *src) {
   GLuint s = glCreateShader(type);
   glShaderSource(s, 1, &src, 0);
@@ -56,9 +73,9 @@ static unsigned anth_compile(GLenum type, const char *src) {
   return s;
 }
 
-static inline unsigned anth_make_program(void) {
+static inline unsigned anth_link_program(const char *fragment_src) {
   GLuint vs = anth_compile(GL_VERTEX_SHADER, anth_vs_src);
-  GLuint fs = anth_compile(GL_FRAGMENT_SHADER, anth_fs_src);
+  GLuint fs = anth_compile(GL_FRAGMENT_SHADER, fragment_src);
   GLuint p = glCreateProgram();
   glAttachShader(p, vs);
   glAttachShader(p, fs);
@@ -73,6 +90,14 @@ static inline unsigned anth_make_program(void) {
   glDeleteShader(vs);
   glDeleteShader(fs);
   return p;
+}
+
+static inline unsigned anth_make_program(void) {
+  return anth_link_program(anth_fs_src);
+}
+
+static inline unsigned anth_make_blur_program(void) {
+  return anth_link_program(anth_blur_fs_src);
 }
 
 static inline int anth_uloc(unsigned prog, const char *name) {
