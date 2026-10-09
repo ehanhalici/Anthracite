@@ -367,12 +367,12 @@ fun search_conf_dir_rec_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), cont
 
 fun search_conf_dir_rec(content: !Buf, cur: int, vault: string, dst: &Buf >> Buf, pbuf: &Buf >> Buf): int = search_conf_dir_rec_m(airlock_nat(MAX_REC_FUEL), content, cur, vault, dst, pbuf)
 
-fun find_vault_conf_dir_impl(content: !Buf, vault: string, dst: &Buf >> Buf): int = let
+fun find_vault_conf_dir_impl(content: !Buf, vault: string, dst: &Buf >> Buf): bool = let
   var pbuf = buf_make(BUF_SZ_PATH)
   val res = search_conf_dir_rec(content, 0, vault, dst, pbuf)
   val () = buf_free(pbuf)
 in
-  res
+  ieq(res, 1)
 end
 
 fun load_vault_strings(paths: !Buf, names: !Buf, meta: !Buf, vi: int, p_cur: &Buf >> Buf, n_cur: &Buf >> Buf): void = let
@@ -501,7 +501,7 @@ fun append_vault_dir(dst: &Buf >> Buf, found: Toggle, cdir: !Buf): void =
 fun append_conf_dir_for_vault(vault: string, dst: &Buf >> Buf, content: !Buf): void = let
   var cdir = buf_make(BUF_SZ_NAME)
   val found = find_vault_conf_dir_impl(content, vault, cdir)
-  val () = append_vault_dir(dst, toggle_of(ieq(found, 1)), cdir)
+  val () = append_vault_dir(dst, toggle_of(found), cdir)
   val () = buf_free(cdir)
 in
 end
