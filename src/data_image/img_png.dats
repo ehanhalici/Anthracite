@@ -454,6 +454,14 @@ in
   end
 end
 
+datatype DeflateBlock = BlkStored | BlkFixed | BlkDyn | BlkBad
+
+fun block_of(n: int): DeflateBlock =
+  if ieq(n, 0) then BlkStored()
+  else if ieq(n, 1) then BlkFixed()
+  else if ieq(n, 2) then BlkDyn()
+  else BlkBad()
+
 extern fun blocks_exh(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int = "mac#anth_die_int"
 
 fun blocks_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int =
@@ -461,12 +469,12 @@ fun blocks_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int
     if is_on(st.err) then 0
     else let
       val fin = bit1(src, n, st)
-      val ty = bits(src, n, st, 2)
-      val ok =
-        if ieq(ty, 0) then decode_stored(src, n, st, dst)
-        else if ieq(ty, 1) then decode_fixed(src, n, st, tab, dst)
-        else if ieq(ty, 2) then decode_dyn(src, n, st, tab, dst)
-        else 0
+      val ty = block_of(bits(src, n, st, 2))
+      val ok = case+ ty of
+        | BlkStored() => decode_stored(src, n, st, dst)
+        | BlkFixed() => decode_fixed(src, n, st, tab, dst)
+        | BlkDyn() => decode_dyn(src, n, st, tab, dst)
+        | BlkBad() => 0
     in
       if ieq(ok, 0) then 0
       else if ieq(fin, 1) then 1
