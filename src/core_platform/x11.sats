@@ -62,6 +62,11 @@ datatype Key =
 
 fun key_id(k: Key): int
 
+datatype Btn = BtnLeft | BtnRight | BtnWheelUp | BtnOther
+
+fun button_of(n: int): Btn
+fun is_btn(a: Btn, b: Btn): bool
+
 fun x_err_install(): void = "mac#anth_xerr_install"
 fun x_open(name: ptr): ptr = "mac#XOpenDisplay"
 fun x_default_screen(dpy: ptr): int = "mac#XDefaultScreen"

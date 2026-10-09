@@ -47,6 +47,20 @@ implement key_id(k) = case+ k of
   | KeyPageUp() => KEY_PAGE_UP
   | KeyPageDown() => KEY_PAGE_DOWN
 
+implement button_of(n) =
+  if n = 1 then BtnLeft
+  else if n = 3 then BtnRight
+  else if n = 4 then BtnWheelUp
+  else BtnOther
+
+fun btn_code(k: Btn): int = case+ k of
+  | BtnLeft() => 1
+  | BtnRight() => 3
+  | BtnWheelUp() => 4
+  | BtnOther() => 0
+
+implement is_btn(a, b) = btn_code(a) = btn_code(b)
+
 datavtype Plat_ = PLAT of @{
   dpy= ptr
 , win= ulint

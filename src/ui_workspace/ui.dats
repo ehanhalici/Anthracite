@@ -1438,10 +1438,10 @@ end
 
 fun handle_editor_click(s: &App_record >> _, f: !Font, r: !Rend, ts: Tabs, ev: &event,
                         x: int, y: int, w: int, sidew: int, skip: Toggle, onbar: Toggle, onside: Toggle,
-                        button: int, idx: int, imgdel: Toggle, clear: Toggle): Tabs = let
+                        button: Btn, idx: int, imgdel: Toggle, clear: Toggle): Tabs = let
   val pw0 = isub(w, sidew)
   val half = if is_on(s.split) then idiv(pw0, 2) else pw0
-  val editor = if is_off(skip) andalso is_off(onbar) andalso is_off(onside) andalso ieq(button, 1) then 1 else 0
+  val editor = if is_off(skip) andalso is_off(onbar) andalso is_off(onside) andalso is_btn(button, BtnLeft) then 1 else 0
   val foc = if ieq(editor, 1) andalso is_on(s.split) andalso ige(x, iadd(sidew, half)) then 1 else 0
   val () = if ieq(editor, 1) then s.focus := toggle_of(ieq(foc, 1)) else ()
   val ox = if is_on(s.focus) then iadd(sidew, half) else sidew
@@ -1563,9 +1563,9 @@ in
 end
 
 fun handle_down_context_menu_open(
-  s: &App_record >> _, button: int, skip: Toggle, onside: Toggle, x: int, y: int
+  s: &App_record >> _, button: Btn, skip: Toggle, onside: Toggle, x: int, y: int
 ): void =
-  if ieq(button, 3) andalso is_off(skip) then let
+  if is_btn(button, BtnRight) andalso is_off(skip) then let
     val () = s.menux := x
     val () = s.menuy := y
   in
@@ -1578,7 +1578,7 @@ fun handle_down_context_menu_open(
     end else s.menu := (if is_kind(s.hitk, KImage) then MenuImage else MenuText)
   end else ()
 
-fun on_down_tabs(s: &App_record >> _, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int, x: int, y: int, sidew: int, skip: Toggle, onbar: Toggle, onside: Toggle, button: int, inside: Toggle, item: int): void = let
+fun on_down_tabs(s: &App_record >> _, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int, x: int, y: int, sidew: int, skip: Toggle, onbar: Toggle, onside: Toggle, button: Btn, inside: Toggle, item: int): void = let
   val ts0 = s.tabs
   val () = s.tabs := TNil()
   val idx = pane_of(s.focus, s.active, s.righti)
@@ -1604,7 +1604,7 @@ fun on_down_panes(s: &App_record >> _, p: !Plat, f: !Font, r: !Rend, ev: &event,
   val () = s.downx := x
   val () = s.downy := y
   val sidew = if not(is_side_none(s.side)) then UI_SIDEBAR_WIDTH else 0
-  val button = ev_button(ev)
+  val button = button_of(ev_button(ev))
   val skip = if not(is_menu_none(s.menu)) then 1 else 0
   val onbar = if ilt(y, UI_TOPBAR_HEIGHT) then 1 else 0
   val onside = if ieq(skip, 0) andalso igt(sidew, 0) andalso ilt(x, sidew) andalso ieq(onbar, 0) then 1 else 0
@@ -1733,7 +1733,7 @@ fun on_up(a: !App, f: !Font, r: !Rend, ev: &event, w: int): void =
 fun on_wheel(a: !App, ev: &event, w: int, h: int): void =
   case+ a of
   | @APP(s) => let
-      val dv = if ieq(ev_button(ev), 4) then ~48 else 48
+      val dv = if is_btn(button_of(ev_button(ev)), BtnWheelUp) then ~48 else 48
       val idx = pane_of(s.focus, s.active, s.righti)
       val ts = s.tabs
       val () = s.tabs := TNil()
