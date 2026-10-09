@@ -365,7 +365,7 @@ implement tabs_open(ts, path) = let
   val doc = doc_open()
   val ok = doc_load_checked(doc, cstr(path))
 in
-  if ieq(ok, 1) then open_loaded(ts, doc, path)
+  if ok then open_loaded(ts, doc, path)
   else let
     val () = doc_free(doc)
     val () = buf_free(path)

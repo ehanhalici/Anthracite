@@ -1765,7 +1765,7 @@ in
   else false
 end
 
-fun read_doc_bytes(d: !Doc, path: string, fd: int, sz: int): int = let
+fun read_doc_bytes(d: !Doc, path: string, fd: int, sz: int): bool = let
   val b = buf_make(iadd(sz, 1))
   val n = fs_read_buf(fd, b, sz)
   val () = fs_close(fd)
@@ -1774,17 +1774,17 @@ fun read_doc_bytes(d: !Doc, path: string, fd: int, sz: int): int = let
   val () = replace_all_buf(d, b, if n > 0 then n else 0)
   val () = buf_free(b)
 in
-  1
+  true
 end
 
-fun load_doc_file(d: !Doc, path: string, actual_path: string): int = let
+fun load_doc_file(d: !Doc, path: string, actual_path: string): bool = let
   val sz = fs_size(actual_path)
 in
-  if sz < 0 orelse sz > 50000000 then 0
+  if sz < 0 orelse sz > 50000000 then false
   else let
     val fd = fs_open_read(actual_path)
   in
-    if fd < 0 then 0 else read_doc_bytes(d, path, fd, sz)
+    if fd < 0 then false else read_doc_bytes(d, path, fd, sz)
   end
 end
 
@@ -1802,13 +1802,13 @@ end
 implement doc_load_checked(d, path) = let
   val res = doc_load(d, path)
 in
-  if ieq(res, 1) then 1
+  if res then true
   else if ieq(fs_exists(path), 1) then let
     val () = report_failure("doc_load", path)
   in
-    0
+    false
   end
-  else 1
+  else true
 end
 
 implement doc_toggle(d, i) = let
@@ -2059,7 +2059,8 @@ fun selftest_big_part(): void = let
   val big_h = doc_layout(d_big, 18)
   val big_c_line = doc_line_of(d_big, isub(doc_len(d_big), 10))
   val () = doc_free(d_big)
-  val () = println! ("big_load=", big_ok, " lines=", big_lines, " h=", big_h, " last_line=", big_c_line)
+  val big_digit = (if big_ok then 1 else 0) : int
+  val () = println! ("big_load=", big_digit, " lines=", big_lines, " h=", big_h, " last_line=", big_c_line)
 in
 end
 

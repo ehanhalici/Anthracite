@@ -605,7 +605,7 @@ fun open_tab(ts: Tabs, tmp_path: Buf, sc: int): Tabs = let
   val d = doc_open()
   val ok = doc_load_checked(d, cstr(tmp_path))
 in
-  if ieq(ok, 1) then open_tab_with(ts, d, tmp_path, sc)
+  if ok then open_tab_with(ts, d, tmp_path, sc)
   else let
     val () = doc_free(d)
     val () = buf_free(tmp_path)

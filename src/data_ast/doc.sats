@@ -101,8 +101,8 @@ fun doc_byte(d: !Doc, i: int): int
 fun doc_slice(d: !Doc, a: int, b: int, dst: ptr, cap: int): int
 fun doc_slice_buf(d: !Doc, a: int, b: int, dst: !Buf, cap: int): int
 fun doc_text(d: !Doc, dst: &Buf >> _): void
-fun doc_load(d: !Doc, path: string): int
-fun doc_load_checked(d: !Doc, path: string): int
+fun doc_load(d: !Doc, path: string): bool
+fun doc_load_checked(d: !Doc, path: string): bool
 fun doc_save(d: !Doc, path: string): int
 fun doc_save_vfs(d: !Doc, path: string): int
 fun doc_save_physical(d: !Doc, path: string): int
