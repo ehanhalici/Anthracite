@@ -15,7 +15,6 @@ staload "data_image/image.sats"
 staload "ui_workspace/ui.sats"
 
 fun is0(n: int): bool = n = 0
-fun is1(n: int): bool = n = 1
 
 fun plat_read_buf(p: !Plat, ev: &event, dst: !Buf, cap: int): int =
   plat_read(p, ev, buf_ptr(dst), cap)
@@ -249,8 +248,8 @@ in
   app_free(a)
 end
 
-fun launch(p: !Plat, r: !Rend, t0: lint, self: int): void =
-  if is1(self) then run_self(p, r, t0) else run_app(p, r)
+fun launch(p: !Plat, r: !Rend, t0: lint, selftest: bool): void =
+  if selftest then run_self(p, r, t0) else run_app(p, r)
 
 implement main0() = let
   val t0 = mono_ns()
@@ -263,8 +262,8 @@ in
     ()
   end else let
     val r = rend_open()
-    val self = if c_argc() > 1 andalso is0(c_strcmp(c_argv(1), "--selftest")) then 1 else 0
-    val () = launch(p, r, t0, self)
+    val selftest = c_argc() > 1 andalso is0(c_strcmp(c_argv(1), "--selftest"))
+    val () = launch(p, r, t0, selftest)
     val () = rend_close(r)
     val () = plat_close(p)
   in
