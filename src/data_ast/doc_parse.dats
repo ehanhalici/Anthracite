@@ -194,8 +194,8 @@ in
   if ilt(p, a) then 0 else starts_at(d, p, b, s)
 end
 
-fun ext_image(d: !Doc, a: int, b: int): int =
-  if ext_tail(d, a, b, ".png") = 1 orelse ext_tail(d, a, b, ".jpg") = 1 orelse ext_tail(d, a, b, ".jpeg") = 1 orelse ext_tail(d, a, b, ".bmp") = 1 then 1 else 0
+fun ext_image(d: !Doc, a: int, b: int): bool =
+  ieq(ext_tail(d, a, b, ".png"), 1) orelse ieq(ext_tail(d, a, b, ".jpg"), 1) orelse ieq(ext_tail(d, a, b, ".jpeg"), 1) orelse ieq(ext_tail(d, a, b, ".bmp"), 1)
 
 extern fun find_close_exh(d: !Doc, i: int, re: int, a: int, b: int): int = "mac#anth_die_int"
 
@@ -282,7 +282,7 @@ in
   if c < 0 then ~1
   else let
     val en = iadd(c, 2)
-    val kind = if ext_image(d, iadd(i, 3), c) = 1 then KImage else KEmbed
+    val kind = if ext_image(d, iadd(i, 3), c) then KImage else KEmbed
     val () = npush(d, kind, i, en, depth, 0)
   in
     en
