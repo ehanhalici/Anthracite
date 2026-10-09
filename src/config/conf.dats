@@ -195,21 +195,21 @@ fun parse_digits_sub_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf
 
 fun parse_digits_sub(b: !Buf, i: int, n: int, acc: int, has_digit: int): int = parse_digits_sub_m(airlock_nat(MAX_REC_FUEL), b, i, n, acc, has_digit)
 
-fun extract_str_after(b: !Buf, pos: int, dst: &Buf >> Buf): int = let
+fun extract_str_after(b: !Buf, pos: int, dst: &Buf >> Buf): bool = let
   val n = buf_len(b)
   val i = skip_to_char(b, pos, n, CHAR_QUOTE)
 in
-  if ige(i, n) then 0
+  if ige(i, n) then false
   else let
     val start = iadd(i, 1)
     val end_i = skip_to_char(b, start, n, CHAR_QUOTE)
   in
-    if ige(end_i, n) then 0
+    if ige(end_i, n) then false
     else let
       val () = bclear(dst)
       val () = bcat(dst, b, start, end_i)
     in
-      1
+      true
     end
   end
 end
@@ -230,13 +230,13 @@ in
   end
 end
 
-fun parse_active_vault(read_ok: Toggle, content: !Buf, dst: &Buf >> Buf): int =
+fun parse_active_vault(read_ok: Toggle, content: !Buf, dst: &Buf >> Buf): bool =
   if is_on(read_ok) then let
     val pos = find_substr(content, KEY_ACTIVE_VAULT, 0)
   in
     if ige(pos, 0) then extract_str_after(content, iadd(pos, KEY_ACTIVE_VAULT_LEN), dst)
-    else 0
-  end else 0
+    else false
+  end else false
 
 fun read_vaults_json(base: Buf, content: &Buf >> Buf): bool = let
   var vpath = buf_make(BUF_SZ_PATH)
@@ -257,7 +257,7 @@ in
   if not(ok) then let
     val () = buf_free(base)
   in
-    0
+    false
   end else let
     var content = buf_make(BUF_SZ_CONTENT)
     val read_ok = read_vaults_json(base, content)
@@ -270,7 +270,7 @@ end
 
 fun extract_vault_name(content: !Buf, p_pos: int, tmp_p: !Buf, tmp_n: &Buf >> Buf): void = let
   val n_pos = find_substr(content, KEY_NAME, p_pos)
-  val () = if ige(n_pos, 0) then seen_int(extract_str_after(content, iadd(n_pos, KEY_NAME_LEN), tmp_n)) else base_name(tmp_p, tmp_n)
+  val () = if ige(n_pos, 0) then (if extract_str_after(content, iadd(n_pos, KEY_NAME_LEN), tmp_n) then () else ()) else base_name(tmp_p, tmp_n)
 in
 end
 
@@ -352,13 +352,13 @@ fun search_conf_dir_rec_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), cont
     if ilt(p_pos, 0) then 0
     else let
       val ok_p = extract_str_after(content, iadd(p_pos, KEY_PATH_LEN), pbuf)
-      val matches = ieq(ok_p, 1) andalso ieq(c_strcmp(cstr(pbuf), vault), 0)
+      val matches = ok_p andalso ieq(c_strcmp(cstr(pbuf), vault), 0)
     in
       if matches then let
         val cd_pos = find_substr(content, KEY_CONF_DIR, p_pos)
-        val ok_cd = if ige(cd_pos, 0) then extract_str_after(content, iadd(cd_pos, KEY_CONF_DIR_LEN), dst) else 0
+        val ok_cd = if ige(cd_pos, 0) then extract_str_after(content, iadd(cd_pos, KEY_CONF_DIR_LEN), dst) else false
       in
-        if ieq(ok_cd, 1) then 1 else 0
+        if ok_cd then 1 else 0
       end else
         search_conf_dir_rec_m(recfuel - 1, content, iadd(p_pos, KEY_PATH_LEN), vault, dst, pbuf)
     end
@@ -620,7 +620,7 @@ fun parse_one_tab(content: !Buf, p_pos: int, ts: Tabs): Tabs = let
   val sc = read_tab_scroll(content, p_pos)
   val p_str = cstr(tmp_path)
   val ex = fs_exists(p_str)
-  val exists = ieq(ok_p, 1) andalso ieq(ex, 1)
+  val exists = ok_p andalso ieq(ex, 1)
 in
   if exists then open_tab(ts, tmp_path, sc)
   else let
@@ -650,7 +650,7 @@ fun parse_tabs_rec(content: !Buf, cursor: int, ts: Tabs): Tabs = parse_tabs_rec_
 
 fun extract_session_fields(content: !Buf, font_p: &Buf >> Buf, font_px: &int >> int, viewmode: &int >> int, split: &int >> int, active: &int >> int): void = let
   val fp_pos = find_substr(content, KEY_FONT_PATH, 0)
-  val () = if ige(fp_pos, 0) then seen_int(extract_str_after(content, iadd(fp_pos, KEY_FONT_PATH_LEN), font_p)) else ()
+  val () = if ige(fp_pos, 0) then (if extract_str_after(content, iadd(fp_pos, KEY_FONT_PATH_LEN), font_p) then () else ()) else ()
   val px_pos = find_substr(content, KEY_FONT_PX, 0)
   val () = if ige(px_pos, 0) then font_px := extract_int_after(content, iadd(px_pos, KEY_FONT_PX_LEN), SESSION_DEFAULT_FONT_PX) else ()
   val vm_pos = find_substr(content, KEY_VIEWMODE, 0)

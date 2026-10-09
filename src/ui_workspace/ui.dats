@@ -161,7 +161,7 @@ fun resolve_vault_buffer(vb: &Buf >> Buf, out_vsel: &int >> int): void =
     val found = conf_get_active_vault(act)
     val s_act = cstr(act)
     val act_ex = if igt(buf_len(act), 0) then fs_exists(s_act) else 0
-    val () = if ieq(found, 1) andalso ieq(act_ex, 1) then set_vault_from_active(vb, out_vsel, s_act)
+    val () = if found andalso ieq(act_ex, 1) then set_vault_from_active(vb, out_vsel, s_act)
       else set_vault_from_picker(out_vsel)
     val () = buf_free(act)
   in
