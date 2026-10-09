@@ -1,7 +1,7 @@
 staload "mem.sats"
 staload "ui_workspace/ui_tab.sats"
 
-fun conf_init_dirs(base: &Buf >> Buf): int
+fun conf_init_dirs(base: &Buf >> Buf): bool
 fun conf_get_active_vault(dst: &Buf >> Buf): int
 fun conf_set_active_vault(vault: string): void
 

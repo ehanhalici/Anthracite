@@ -62,14 +62,14 @@ macdef SESSION_DEFAULT_VIEWMODE = 0
 macdef SESSION_DEFAULT_SPLIT = 0
 macdef SESSION_DEFAULT_ACTIVE = 0
 
-fun read_file(path: string, dst: &Buf >> Buf): int = let
+fun read_file(path: string, dst: &Buf >> Buf): bool = let
   val sz = fs_size(path)
 in
-  if sz <= 0 orelse sz > MAX_CONF_FILE_SIZE then 0
+  if sz <= 0 orelse sz > MAX_CONF_FILE_SIZE then false
   else let
     val fd = fs_open_read(path)
   in
-    if fd < 0 then 0
+    if fd < 0 then false
     else let
       val () = bclear(dst)
       val () = buf_ensure(dst, iadd(sz, 1))
@@ -77,7 +77,7 @@ in
       val () = fs_close(fd)
       val () = buf_set_len(dst, if igt(n, 0) then n else 0)
     in
-      if igt(n, 0) then 1 else 0
+      igt(n, 0)
     end
   end
 end
@@ -91,13 +91,13 @@ end
 fun write_checked(event: string, path: string, src: !Buf): void =
   if ieq(write_file(path, src), 1) then () else report_failure(event, path)
 
-fun ensure_dir(path: string): int =
-  if ine(fs_exists(path), 0) then 1
-  else if ieq(fs_mkdir(path), 0) then 1
-  else if ine(fs_exists(path), 0) then 1
-  else 0
+fun ensure_dir(path: string): bool =
+  if ine(fs_exists(path), 0) then true
+  else if ieq(fs_mkdir(path), 0) then true
+  else if ine(fs_exists(path), 0) then true
+  else false
 
-fun init_dirs_sub(base: &Buf >> Buf, home: string, hlen: int): int =
+fun init_dirs_sub(base: &Buf >> Buf, home: string, hlen: int): bool =
   if igt(hlen, 0) then let
     val () = bstr(base, home)
     val () = bstr(base, "/.config")
@@ -105,14 +105,14 @@ fun init_dirs_sub(base: &Buf >> Buf, home: string, hlen: int): int =
     val () = bstr(base, "/anthracite")
     val m2 = ensure_dir(cstr(base))
   in
-    if ieq(m1, 1) andalso ieq(m2, 1) then 1 else 0
+    m1 andalso m2
   end else let
     val () = bstr(base, ".config")
     val m1 = ensure_dir(cstr(base))
     val () = bstr(base, "/anthracite")
     val m2 = ensure_dir(cstr(base))
   in
-    if ieq(m1, 1) andalso ieq(m2, 1) then 1 else 0
+    m1 andalso m2
   end
 
 implement conf_init_dirs(base) = let
@@ -238,7 +238,7 @@ fun parse_active_vault(read_ok: Toggle, content: !Buf, dst: &Buf >> Buf): int =
     else 0
   end else 0
 
-fun read_vaults_json(base: Buf, content: &Buf >> Buf): int = let
+fun read_vaults_json(base: Buf, content: &Buf >> Buf): bool = let
   var vpath = buf_make(BUF_SZ_PATH)
   val () = bcat_all(vpath, base)
   val () = buf_free(base)
@@ -254,14 +254,14 @@ implement conf_get_active_vault(dst) = let
   var base = buf_make(BUF_SZ_PATH)
   val ok = conf_init_dirs(base)
 in
-  if ieq(ok, 0) then let
+  if not(ok) then let
     val () = buf_free(base)
   in
     0
   end else let
     var content = buf_make(BUF_SZ_CONTENT)
     val read_ok = read_vaults_json(base, content)
-    val res = parse_active_vault(toggle_of(ieq(read_ok, 1)), content, dst)
+    val res = parse_active_vault(toggle_of(read_ok), content, dst)
     val () = buf_free(content)
   in
     res
@@ -330,13 +330,13 @@ implement conf_list_vaults(paths, names, meta, cnt) = let
   var base = buf_make(BUF_SZ_PATH)
   val ok = conf_init_dirs(base)
 in
-  if ieq(ok, 0) then let
+  if not(ok) then let
     val () = buf_free(base)
   in
   end else let
     var content = buf_make(BUF_SZ_CONTENT)
     val read_ok = read_vaults_json(base, content)
-    val () = parse_vault_list(toggle_of(ieq(read_ok, 1)), content, paths, names, meta, cnt)
+    val () = parse_vault_list(toggle_of(read_ok), content, paths, names, meta, cnt)
     val () = buf_free(content)
   in
   end
@@ -352,9 +352,9 @@ fun search_conf_dir_rec_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), cont
     if ilt(p_pos, 0) then 0
     else let
       val ok_p = extract_str_after(content, iadd(p_pos, KEY_PATH_LEN), pbuf)
-      val matches = if ieq(ok_p, 1) andalso ieq(c_strcmp(cstr(pbuf), vault), 0) then 1 else 0
+      val matches = ieq(ok_p, 1) andalso ieq(c_strcmp(cstr(pbuf), vault), 0)
     in
-      if ieq(matches, 1) then let
+      if matches then let
         val cd_pos = find_substr(content, KEY_CONF_DIR, p_pos)
         val ok_cd = if ige(cd_pos, 0) then extract_str_after(content, iadd(cd_pos, KEY_CONF_DIR_LEN), dst) else 0
       in
@@ -480,7 +480,7 @@ implement conf_set_active_vault(vault) = let
   var base = buf_make(BUF_SZ_PATH)
   val ok = conf_init_dirs(base)
 in
-  if ieq(ok, 0) then let
+  if not(ok) then let
     val () = buf_free(base)
   in
   end else let
@@ -511,17 +511,18 @@ fun vault_conf_dir_path(vault: string, dst: &Buf >> Buf): void = let
   var base = buf_make(BUF_SZ_PATH)
   val ok = conf_init_dirs(base)
 in
-  if ieq(ok, 0) then let
+  if not(ok) then let
     val () = buf_free(base)
   in
   end else let
     val () = bcat_all(dst, base)
     val () = bstr(dst, "/")
     var content = buf_make(BUF_SZ_LARGE)
-    val () = seen_int(read_vaults_json(base, content))
+    val got = read_vaults_json(base, content)
+    val () = if got then () else ()
     val () = append_conf_dir_for_vault(vault, dst, content)
     val () = buf_free(content)
-    val () = if ieq(ensure_dir(cstr(dst)), 1) then ()
+    val () = if ensure_dir(cstr(dst)) then ()
              else report_failure("vault_dir_create", cstr(dst))
   in
   end
@@ -619,9 +620,9 @@ fun parse_one_tab(content: !Buf, p_pos: int, ts: Tabs): Tabs = let
   val sc = read_tab_scroll(content, p_pos)
   val p_str = cstr(tmp_path)
   val ex = fs_exists(p_str)
-  val exists = if ieq(ok_p, 1) andalso ieq(ex, 1) then 1 else 0
+  val exists = ieq(ok_p, 1) andalso ieq(ex, 1)
 in
-  if ieq(exists, 1) then open_tab(ts, tmp_path, sc)
+  if exists then open_tab(ts, tmp_path, sc)
   else let
     val () = buf_free(tmp_path)
   in
@@ -668,7 +669,7 @@ implement conf_load_session(vault, font_p, font_px, viewmode, split, active, ts)
   val r_ok = read_file(cstr(spath), content)
   val () = buf_free(spath)
 in
-  if ieq(r_ok, 1) then let
+  if r_ok then let
     val () = extract_session_fields(content, font_p, font_px, viewmode, split, active)
     val res = parse_tabs_rec(content, 0, ts)
     val () = buf_free(content)
