@@ -25,6 +25,12 @@ staload "ui_workspace/ui_render.sats"
 staload "ui_workspace/ui_widgets.sats"
 staload "config/conf.sats"
 staload "ui_workspace/ui_cmd.sats"
+staload "search/ix_store.sats"
+staload "search/ix_fold.sats"
+staload "search/ix_query.sats"
+staload "search/ix_build.sats"
+staload "search/ix_match.sats"
+staload "search/ix_test.sats"
 
 fun iand(a: int, n: int): int = anth_iand(a, n)
 
@@ -44,6 +50,9 @@ vtypedef App_record = @{
   prompt= PromptKind, promptb= Buf, query= Buf, qfocus= Toggle,
   tree= Buf, tmeta= Buf, topen= Buf, tn= int, treescroll= int,
   hits= Buf, hmeta= Buf, hn= int,
+  ixf= Buf, ixs= Buf, ixp= Buf, ixb= Buf, ixq= Buf, hjump= Buf,
+  jump_line= int, jump_col= int, jump_fid= int,
+  scope= int, hscroll= int, search_state= int, search_nfiles= int,
   sel= int, treedirty= Toggle, paste= Toggle, hitk= NodeKind, hiti= int, downx= int, downy= int,
   scratch= Buf, imgpath= Buf, viewmode= ViewMode, font_idx= int,
   fpaths= Buf, fnames= Buf, fmeta= Buf, fcnt= int, font_path= Buf,
@@ -124,6 +133,15 @@ fun vault_switch_begin(s: &App_record >> _, target: string): void = let
 in
 end
 
+fun reset_index_state(s: &App_record >> _): void = let
+  val () = bclear(s.ixf); val () = bclear(s.ixs); val () = bclear(s.ixp)
+  val () = bclear(s.ixb); val () = bclear(s.ixq); val () = bclear(s.hjump)
+  val () = s.jump_line := ~1; val () = s.jump_col := ~1; val () = s.jump_fid := ~1
+  val () = s.scope := 0; val () = s.hscroll := 0; val () = s.search_state := 0
+in
+  s.search_nfiles := 0
+end
+
 fun vault_switch_finish(s: &App_record >> _, new_t: Tabs, fpx: int, vm: int, sp: int, act: int): void = let
   val ph = s.tabs
   val () = s.tabs := new_t
@@ -137,6 +155,7 @@ fun vault_switch_finish(s: &App_record >> _, new_t: Tabs, fpx: int, vm: int, sp:
   val () = s.treedirty := On
   val () = bclear(s.promptb)
   val () = s.vault_select := Off
+  val () = reset_index_state(s)
 in
 end
 
@@ -245,6 +264,9 @@ in
     prompt= PromptNone, promptb= buf_make(256), query= buf_make(64), qfocus= Off,
     tree= buf_make(64), tmeta= buf_make(64), topen= buf_make(64), tn= 0, treescroll= 0,
     hits= buf_make(64), hmeta= buf_make(64), hn= 0,
+    ixf= buf_make(64), ixs= buf_make(64), ixp= buf_make(64), ixb= buf_make(64), ixq= buf_make(64), hjump= buf_make(64),
+    jump_line= ~1, jump_col= ~1, jump_fid= ~1,
+    scope= 0, hscroll= 0, search_state= 0, search_nfiles= 0,
     sel= ~1, treedirty= On, paste= Off, hitk= KNone, hiti= ~1, downx= ~1, downy= ~1,
     scratch= buf_make(4096), imgpath= buf_make(64), viewmode= view_mode_of_code(vmode), font_idx= 0,
     fpaths= fpaths, fnames= fnames, fmeta= fmeta, fcnt= fcnt, font_path= fpath,
@@ -271,6 +293,16 @@ fun free_search_bufs(hits: Buf, hmeta: Buf, scratch: Buf, imgpath: Buf): void = 
 in
 end
 
+fun free_index_bufs(ixf: Buf, ixs: Buf, ixp: Buf, ixb: Buf, ixq: Buf, hjump: Buf): void = let
+  val () = buf_free(ixf)
+  val () = buf_free(ixs)
+  val () = buf_free(ixp)
+  val () = buf_free(ixb)
+  val () = buf_free(ixq)
+  val () = buf_free(hjump)
+in
+end
+
 fun free_font_bufs(fpaths: Buf, fnames: Buf, fmeta: Buf, font_path: Buf): void = let
   val () = buf_free(fpaths)
   val () = buf_free(fnames)
@@ -288,6 +320,7 @@ implement app_free(a) = let
   val () = cache_free(s.cache)
   val () = free_input_bufs(s.clip, s.promptb, s.query, s.tree, s.tmeta, s.topen)
   val () = free_search_bufs(s.hits, s.hmeta, s.scratch, s.imgpath)
+  val () = free_index_bufs(s.ixf, s.ixs, s.ixp, s.ixb, s.ixq, s.hjump)
   val () = free_font_bufs(s.fpaths, s.fnames, s.fmeta, s.font_path)
   val () = buf_free(s.vpaths)
   val () = buf_free(s.vnames)
@@ -410,45 +443,60 @@ fun ensure_tree_fresh(s: &App_record >> _): void =
     s.treedirty := Off
   end else ()
 
-fun draw_search_plain_hit(f: !Font, r: !Rend, hits: !Buf, hmeta: !Buf, row: int): void = let
+fun draw_search_plain_hit(f: !Font, r: !Rend, hits: !Buf, hmeta: !Buf, row: int, scroll: int): void = let
+  val vrow = isub(row, scroll)
   val off = buf_get32(hmeta, iadd(imul(row, 4), 1))
   val n = buf_get32(hmeta, iadd(imul(row, 4), 2))
-  val () = seen_int(hit_text(hits, off, n, f, r, 12, iadd(100, imul(row, 18)), col_accent()))
+  val () = seen_int(hit_text(hits, off, n, f, r, 12, iadd(100, imul(vrow, 18)), col_accent()))
 in
 end
 
-fun draw_search_marked_hit(f: !Font, r: !Rend, hits: !Buf, hmeta: !Buf, row: int): void = let
+fun draw_search_marked_hit(f: !Font, r: !Rend, hits: !Buf, hmeta: !Buf, row: int, scroll: int): void = let
+  val vrow = isub(row, scroll)
   val moff = buf_get32(hmeta, imul(row, 4))
   val off = buf_get32(hmeta, iadd(imul(row, 4), 1))
   val n = buf_get32(hmeta, iadd(imul(row, 4), 2))
   val ml = buf_get32(hmeta, iadd(imul(row, 4), 3))
-  val y = iadd(100, imul(row, 18))
+  val y = iadd(100, imul(vrow, 18))
   val a1 = hit_text(hits, off, moff, f, r, 20, y, col_muted())
   val a2 = hit_text(hits, iadd(off, moff), ml, f, r, iadd(20, a1), y, col_hightxt())
   val () = seen_int(hit_text(hits, iadd(off, iadd(moff, ml)), isub(n, iadd(moff, ml)), f, r, iadd(20, iadd(a1, a2)), y, col_muted()))
 in
 end
 
-fun draw_search_row(f: !Font, r: !Rend, hits: !Buf, hmeta: !Buf, row: int): void =
-  if ilt(buf_get32(hmeta, imul(row, 4)), 0) then draw_search_plain_hit(f, r, hits, hmeta, row)
-  else draw_search_marked_hit(f, r, hits, hmeta, row)
+fun draw_search_row(f: !Font, r: !Rend, hits: !Buf, hmeta: !Buf, row: int, scroll: int): void =
+  if ilt(buf_get32(hmeta, imul(row, 4)), 0) then draw_search_plain_hit(f, r, hits, hmeta, row, scroll)
+  else draw_search_marked_hit(f, r, hits, hmeta, row, scroll)
 
 extern fun search_rows_exh(f: !Font, r: !Rend, s: &App_record, row: int, hn: int): void = "mac#anth_die_void"
 
 fun search_rows_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, s: &App_record, row: int, hn: int): void =
   if recfuel > 0 then (
-    if ilt(row, hn) andalso ilt(row, 24) then let
-      val () = draw_search_row(f, r, s.hits, s.hmeta, row)
+    if ilt(row, hn) andalso ilt(isub(row, s.hscroll), 30) then let
+      val () = if ige(row, s.hscroll) then draw_search_row(f, r, s.hits, s.hmeta, row, s.hscroll) else ()
     in
       search_rows_m(recfuel - 1, f, r, s, iadd(row, 1), hn)
     end else ()
   ) else search_rows_exh(f, r, s, row, hn)
 
+fun search_status_text(state: int, hn: int, qlen: int, scope: int): string =
+  if ieq(qlen, 0) then ""
+  else if ieq(state, 1) then "Indeksleniyor..."
+  else if ieq(state, 2) then "Kısmi sonuç..."
+  else if ieq(hn, 0) andalso ieq(scope, 0) then "Sonuç bulunamadı"
+  else if ieq(scope, 1) then "Belge içi (Enter: sonraki)"
+  else "Arama tamamlandı"
+
 fun draw_sidebar_search(f: !Font, r: !Rend, s: &App_record, sidew: int): void = let
   val qn = buf_len(s.query)
-  val () = ui_line_edit_draw(f, r, 8, 68, isub(sidew, 16), 24, s.query, qn, qn, s.qfocus, "Aramak icin yazin...")
+  val () = ui_button(f, r, 8, 40, 56, 22, "Kasa", Off, toggle_of(ieq(s.scope, 0)))
+  val () = ui_button(f, r, 68, 40, 56, 22, "Belge", Off, toggle_of(ieq(s.scope, 1)))
+  val ph = (if ieq(s.scope, 1) then "Belgede ara (Enter: bul)..." else "Kasada ara..."): string
+  val () = ui_line_edit_draw(f, r, 8, 68, isub(sidew, 16), 24, s.query, qn, qn, s.qfocus, ph)
+  val st = search_status_text(s.search_state, s.hn, qn, s.scope)
+  val () = if igt(c_strlen(st), 0) then draw_s(f, r, 12, 96, st, col_muted()) else ()
 in
-  search_rows_m(airlock_nat(MAX_REC_FUEL), f, r, s, 0, s.hn)
+  search_rows_m(airlock_nat(MAX_REC_FUEL), f, r, s, s.hscroll, s.hn)
 end
 
 fun draw_tree_row(f: !Font, r: !Rend, s: &App_record, source: int, viewrow: int, sidew: int): void = let
@@ -683,10 +731,15 @@ in
     toggle_of(hover), toggle_of(is_view_edit(s.viewmode)))
 end
 
+fun apply_jump_if(ts: Tabs, act: int, jline: int, jcol: int): Tabs =
+  if ige(jline, 0) then tabs_jump(ts, act, jline, jcol) else ts
+
 fun draw_editor_panes(f: !Font, r: !Rend, s: &App_record >> _, ox: int, half: int, h: int, lh: int): void = let
   val tab_x0 = topbar_tab_start_x(s.btnw)
-  val ts = s.tabs
+  val ts0 = s.tabs
   val () = s.tabs := TNil()
+  val ts = apply_jump_if(ts0, s.active, s.jump_line, s.jump_col)
+  val () = if ige(s.jump_line, 0) then (s.jump_line := ~1; s.jump_col := ~1) else ()
   val mark = pane_of(s.focus, s.active, s.righti)
   val ts2 = draw_tabrow(f, r, ts, tab_x0, mark, 0)
   val ts3 = draw_focus(f, r, ts2, s.active, ox, UI_TOPBAR_HEIGHT, half, isub(h, UI_TOPBAR_HEIGHT), lh, s.vault, s.cache, s.scratch, 0, s.viewmode)
@@ -717,9 +770,21 @@ fun load_font_if_needed(f: !Font, s: &App_record): void =
     ()
   end else ()
 
+fun ensure_index_step(s: &App_record >> _): void = let
+  val () = if is_on(s.treedirty) then let
+    var trunc: int = 0
+    val () = ix_walk_vault(s.vault, s.ixf, s.ixp, trunc)
+  in
+  end else ()
+  val rem = ix_step_all(s.vault, s.ixf, s.ixs, s.ixp, s.ixb, 3000000L)
+in
+  s.search_state := (if rem > 0 then 1 else 0)
+end
+
 fun draw_panes(f: !Font, r: !Rend, a: !App, w: int, h: int): void =
   case+ a of
   | @APP(s) => let
+      val () = ensure_index_step(s)
       val () = load_font_if_needed(f, s)
       val sidew = if not(is_side_none(s.side)) then s.sidew else 0
       val ox = sidew
@@ -1302,14 +1367,44 @@ fun toggle_task_go(ts: Tabs, idx: int, ni: int, go: Toggle): Tabs =
     ts2
   end else ts
 
-fun open_hit(ts: Tabs, hmeta: !Buf, hits: !Buf, srow: int, go: Toggle): Tabs =
+fun open_hit_jump(s: &App_record >> _, srow: int): void = let
+  val nwords = idiv(buf_len(s.hjump), 4)
+  val base = imul(srow, 3)
+in
+  if ilt(iadd(base, 2), nwords) then let
+    val () = s.jump_fid := buf_get32(s.hjump, base)
+    val () = s.jump_line := buf_get32(s.hjump, iadd(base, 1))
+    val () = s.jump_col := buf_get32(s.hjump, iadd(base, 2))
+  in
+  end else let
+    val () = s.jump_fid := ~1
+    val () = s.jump_line := 0
+    val () = s.jump_col := 0
+  in
+  end
+end
+
+fun open_hit_file(ts: Tabs, path: !Buf, act: &int >> _): Tabs = let
+  val existing = tabs_find_path(ts, path)
+in
+  if ige(existing, 0) then (act := existing; ts)
+  else let
+    val res = tabs_open(ts, bcopy(path))
+    val () = act := isub(tabs_len(res), 1)
+  in
+    res
+  end
+end
+
+fun open_hit(s: &App_record >> _, ts: Tabs, srow: int, go: Toggle): Tabs =
   if is_on(go) then let
     var hitfile = buf_make(16)
-    val () = find_hit_file(hmeta, hits, srow, hitfile)
-    val owned = bcopy(hitfile)
+    val () = find_hit_file(s.hmeta, s.hits, srow, hitfile)
+    val ts2 = open_hit_file(ts, hitfile, s.active)
     val () = buf_free(hitfile)
+    val () = open_hit_jump(s, srow)
   in
-    tabs_open(ts, owned)
+    ts2
   end else ts
 
 fun open_created_file(ts: Tabs, dir: !Buf, name: !Buf, kind: PromptKind): Tabs =
@@ -1328,8 +1423,8 @@ fun apply_tab_cmd(ts: Tabs, cmd: Cmd, idx: int): Tabs =
   else if is_cmd(cmd, CMD_NEW_TAB) then new_empty_tab(ts)
   else ts
 
-fun hit_open_if(ts: Tabs, hmeta: !Buf, hits: !Buf, hn: int, qf: Toggle, qr: EditResult): Tabs =
-  if is_on(qf) andalso is_edit_submit(qr) andalso igt(hn, 0) then open_hit(ts, hmeta, hits, 0, On) else ts
+fun hit_open_if(s: &App_record >> _, ts: Tabs, hn: int, qf: Toggle, qr: EditResult): Tabs =
+  if is_on(qf) andalso is_edit_submit(qr) andalso igt(hn, 0) then open_hit(s, ts, 0, On) else ts
 
 fun handle_vault_select_key(s: &App_record >> _, ev: &event): void = let
   val vr = edit_line(s.promptb, ev, s.scratch)
@@ -1385,9 +1480,10 @@ fun handle_prompt_submission(s: &App_record >> _, pr: EditResult): void =
   end else if is_edit_submit(pr) orelse is_edit_cancel(pr) then prompt_reset(s)
   else ()
 
-fun open_search_panel(s: &App_record >> _): void = let
+fun open_search_panel(s: &App_record >> _, sc: int): void = let
   val () = s.side := SideSearch
   val () = s.qfocus := On
+  val () = s.scope := sc
 in
   bclear(s.query)
 end
@@ -1413,8 +1509,13 @@ in
   bclear(s.promptb)
 end
 
-fun handle_sidebar_shortcut_cmd(s: &App_record >> _, cmd: Cmd): void =
-  if is_cmd(cmd, CMD_OPEN_SEARCH) then open_search_panel(s)
+fun handle_sidebar_shortcut_cmd(s: &App_record >> _, cmd: Cmd, ev: &event): void =
+  if is_cmd(cmd, CMD_OPEN_SEARCH) then let
+    val kc = key_char(ev)
+    val is_doc = ieq(kc, 102) orelse ieq(kc, 70)
+  in
+    open_search_panel(s, if is_doc then 1 else 0)
+  end
   else if is_cmd(cmd, CMD_NEW_FILE) then begin_prompt(s, PromptNewFile)
   else if is_cmd(cmd, CMD_NEW_FOLDER) then begin_prompt(s, PromptNewFolder)
   else if is_cmd(cmd, CMD_TOGGLE_VIEW) then toggle_view_mode(s)
@@ -1460,23 +1561,67 @@ fun handle_tab_nav_cmd(s: &App_record >> _, cmd: Cmd, ts_inter: !Tabs): void =
   else if is_cmd(cmd, CMD_PREV_TAB) then tab_cycle_prev(s, ts_inter)
   else ()
 
+fun run_vault_search(s: &App_record >> _): void = let
+  var is_partial: int = 0
+  val () = s.hscroll := 0
+  val () = ix_match_search(s.query, s.vault, s.tabs, s.ixf, s.ixs, s.ixp, s.ixb, s.hits, s.hmeta, s.hjump, s.hn, s.search_nfiles, is_partial)
+  val () = s.search_state := (if is_partial > 0 then 2 else 0)
+in
+end
+
+fun run_query_refresh(s: &App_record >> _): void =
+  if ieq(s.scope, 0) then run_vault_search(s)
+  else let
+    val () = bclear(s.hits)
+    val () = bclear(s.hmeta)
+    val () = bclear(s.hjump)
+    val () = s.hn := 0
+    val () = s.hscroll := 0
+  in
+  end
+
 fun search_query_edit(s: &App_record >> _, qr: EditResult): void = let
-  val () = if is_on(s.qfocus) andalso is_edit_none(qr) then refresh_search(s.vault, s.query, s.hits, s.hmeta, s.hn) else ()
+  val changed = is_on(s.qfocus) andalso (is_edit_changed(qr) orelse is_edit_none(qr))
+  val () = if changed then run_query_refresh(s) else ()
   val () = if is_on(s.qfocus) andalso is_edit_cancel(qr) then s.qfocus := Off else ()
 in
 end
 
 fun search_hit_focus(s: &App_record >> _): void = let
   val () = s.qfocus := Off
-  val () = s.active := 0
 in
   save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
 end
 
-fun key_tabs_step(s: &App_record >> _, p: !Plat, ev: &event, cmd: Cmd, hit_go: Toggle): void = let
+fun run_doc_find(ts: Tabs, idx: int, q: !Buf, sh: Toggle): Tabs = let
+  val qlen = buf_len(q)
+in
+  if ieq(qlen, 0) then ts
+  else let
+    val from = tabs_caret(ts, idx)
+    val dir = if is_on(sh) then ~1 else 1
+    val start_pos = if is_on(sh) then isub(from, 1) else iadd(from, 1)
+    val off = tabs_find_doc(ts, idx, q, imax(0, start_pos), dir)
+    val off2 = if ilt(off, 0) then (
+      if is_on(sh) then tabs_find_doc(ts, idx, q, 100000000, dir)
+      else tabs_find_doc(ts, idx, q, 0, dir)
+    ) else off
+  in
+    if ige(off2, 0) then tabs_select_range(ts, idx, off2, iadd(off2, qlen))
+    else ts
+  end
+end
+
+fun resolve_search_enter(s: &App_record >> _, ts0: Tabs, qr: EditResult, hit_go: Toggle, ev: &event): Tabs =
+  if ieq(s.scope, 1) andalso is_on(s.qfocus) andalso is_edit_submit(qr) then
+    run_doc_find(ts0, s.active, s.query, toggle_of(shift_on(ev)))
+  else
+    hit_open_if(s, ts0, s.hn, toggle_of(is_on(hit_go)), EditSubmit)
+
+fun key_tabs_step(s: &App_record >> _, p: !Plat, ev: &event, cmd: Cmd, hit_go: Toggle, qr: EditResult): void = let
   val ts0 = s.tabs
   val () = s.tabs := TNil()
-  val ts = hit_open_if(ts0, s.hmeta, s.hits, s.hn, toggle_of(is_on(hit_go)), EditSubmit)
+  val ts: Tabs = resolve_search_enter(s, ts0, qr, hit_go, ev)
   val idx = pane_of(s.focus, s.active, s.righti)
   var ts_inter: Tabs = apply_tab_cmd(ts, cmd, idx)
   val () = handle_tab_nav_cmd(s, cmd, ts_inter)
@@ -1496,8 +1641,8 @@ fun key_editor_step(s: &App_record >> _, p: !Plat, f: !Font, ev: &event): void =
   val () = if hit_go then search_hit_focus(s) else ()
   val () = handle_prompt_submission(s, pr)
   val cmd = key_code(ev, toggle_of(act))
-  val () = handle_sidebar_shortcut_cmd(s, cmd)
-  val () = key_tabs_step(s, p, ev, cmd, toggle_of(hit_go))
+  val () = handle_sidebar_shortcut_cmd(s, cmd, ev)
+  val () = key_tabs_step(s, p, ev, cmd, toggle_of(hit_go), qr)
   val () = if is_cmd(cmd, CMD_SAVE) then let
       val () = s.treedirty := On
       val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
@@ -1586,6 +1731,7 @@ end
 fun topbar_toggle_search(s: &App_record >> _): void = let
   val () = s.side := (if is_side_search(s.side) then SideNone else SideSearch)
   val () = s.qfocus := toggle_of(is_side_search(s.side))
+  val () = if is_side_search(s.side) then s.scope := 0 else ()
 in
 end
 
@@ -1796,14 +1942,21 @@ in
   if openf then (down_activate_first_tab(s); result) else result
 end
 
-fun handle_search_click(s: &App_record >> _, ts: Tabs, y: int): Tabs = let
-  val srow = if ige(y, 100) then idiv(isub(y, 100), UI_SEARCH_ROW_HEIGHT) else ~1
-  val hit = ige(srow, 0) andalso ilt(srow, s.hn)
-  val result = open_hit(ts, s.hmeta, s.hits, srow, toggle_of(hit))
-  val () = if hit then down_activate_first_tab(s) else s.qfocus := On
-in
-  result
-end
+fun handle_search_click(s: &App_record >> _, ts: Tabs, x: int, y: int): Tabs =
+  if ige(y, 40) andalso ilt(y, 64) then let
+    val new_scope = if ilt(x, 68) then 0 else 1
+    val () = if ine(s.scope, new_scope) then (s.scope := new_scope; run_query_refresh(s)) else ()
+  in
+    ts
+  end else let
+    val vrow = if ige(y, 100) then idiv(isub(y, 100), UI_SEARCH_ROW_HEIGHT) else ~1
+    val srow = if ige(vrow, 0) then iadd(vrow, s.hscroll) else ~1
+    val hit = ige(srow, 0) andalso ilt(srow, s.hn)
+    val result = open_hit(s, ts, srow, toggle_of(hit))
+    val () = if not(hit) then s.qfocus := On else ()
+  in
+    result
+  end
 
 fun handle_config_click(s: &App_record >> _, f: !Font, ts: Tabs, x: int, y: int): Tabs = let
   val () = handle_sidebar_config_action(s, f, x, y)
@@ -1818,7 +1971,7 @@ fun handle_down_sidebar_click(
       (case+ s.side of
        | SideNone() => ts
        | SideFiles() => handle_tree_click(s, ts, hit.x, hit.y)
-       | SideSearch() => handle_search_click(s, ts, hit.y)
+       | SideSearch() => handle_search_click(s, ts, hit.x, hit.y)
        | SideConfig() => handle_config_click(s, f, ts, hit.x, hit.y))
   | DownMenu() => ts | DownResize() => ts
   | DownTopbar() => ts | DownEditor() => ts
@@ -2104,6 +2257,13 @@ in
   s.treescroll := imax(0, imin(max_scroll, iadd(s.treescroll, delta)))
 end
 
+fun scroll_search(s: &App_record >> _, delta: int, h: int): void = let
+  val max_scroll = imax(0, isub(s.hn, 5))
+  val () = seen_int(h)
+in
+  s.hscroll := imax(0, imin(max_scroll, iadd(s.hscroll, delta)))
+end
+
 fun scroll_document(s: &App_record >> _, delta: int): void = let
   val idx = pane_of(s.focus, s.active, s.righti)
   val ts = s.tabs
@@ -2120,7 +2280,10 @@ fun on_wheel(a: !App, ev: &event, w: int, h: int): void =
       val upward = is_btn(button_of(ev_button(ev)), BtnWheelUp)
       val on_tree = is_side_files(s.side) andalso ilt(ev_x(ev), s.sidew)
         andalso ige(ev_y(ev), UI_TOPBAR_HEIGHT)
-      val () = if on_tree then scroll_tree(s, if upward then ~3 else 3, h)
+      val on_search = is_side_search(s.side) andalso ilt(ev_x(ev), s.sidew)
+        andalso ige(ev_y(ev), UI_TOPBAR_HEIGHT)
+      val () = if on_search then scroll_search(s, if upward then ~3 else 3, h)
+        else if on_tree then scroll_tree(s, if upward then ~3 else 3, h)
         else scroll_document(s, if upward then ~48 else 48)
       val () = seen_int(w)
     in
@@ -2359,7 +2522,7 @@ implement app_selftest(r) = let
   var d1 = buf_make(32)
   val () = bstr(d1, "/tmp/anth-s")
   val () = seen_int(fs_mkdir(cstr(d1)))
-  val search_ok = selftest_search(d1)
+  val search_ok = if ieq(selftest_search(d1), 1) andalso ieq(ix_selftest(), 1) then 1 else 0
   val @(flow_ok, ih, doc, cache, vault, scratch) = selftest_flow(r)
   val chrome_ok = selftest_tabs(d1)
   val files_ok = selftest_files()

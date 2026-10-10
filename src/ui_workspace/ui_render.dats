@@ -11,6 +11,7 @@ staload "core_render/render.sats"
 staload "core_render/gl.sats"
 staload "data_font/font.sats"
 staload "data_ast/doc.sats"
+staload "data_ast/ast.sats"
 staload "data_image/image.sats"
 staload "ui_workspace/ui_common.sats"
 staload "ui_workspace/ui_tab.sats"
@@ -103,12 +104,32 @@ fun take_path_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, mode:
     end else ()
   ) else take_path_exh(d, mode, i0, b0, dst)
 
+fun doc_buf_push_slice_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: int, en: int, i: int, dst: &Buf >> _): void =
+  if recfuel > 0 then (
+    if ilt(i, en) then let
+      val () = buf_push(dst, doc_byte(d, i))
+    in
+      doc_buf_push_slice_m(recfuel - 1, d, st, en, iadd(i, 1), dst)
+    end else ()
+  ) else ()
+
 implement take_path(d, i, dst) = let
-  val a0 = doc_node_start(d, i)
-  val b0 = doc_node_end(d, i)
   val () = bclear(dst)
+  val kd = doc_find_child(d, i, KLinkDest)
+  val kw = (if ilt(kd, 0) then doc_find_child(d, i, KWikiTarget) else ~1)
+  val target = (if ige(kd, 0) then kd else kw)
 in
-  take_path_m(airlock_nat(MAX_REC_FUEL), d, ScanSeek(), a0, b0, dst)
+  if ige(target, 0) then let
+    val cs = doc_node_start(d, target)
+    val ce = doc_node_end(d, target)
+  in
+    doc_buf_push_slice_m(airlock_nat(MAX_REC_FUEL), d, cs, ce, cs, dst)
+  end else let
+    val a0 = doc_node_start(d, i)
+    val b0 = doc_node_end(d, i)
+  in
+    take_path_m(airlock_nat(MAX_REC_FUEL), d, ScanSeek(), a0, b0, dst)
+  end
 end
 
 implement resolve_path(vault, rel, dst) = let
@@ -209,14 +230,21 @@ fun bind_image_height(d: !Doc, i: int, c: &Cache >> _, r: !Rend, shown: !Buf, co
   val () = seen_uint(ensure_tex(c, shown, r, iw, ih))
   val dw = if ile(iw, 0) then 32 else imin(colw, imax(iw, 32))
   val dh = if ile(iw, 0) then 32 else imax(9, idiv(imul(ih, dw), iw))
+  val old_h = doc_node_height(d, i)
+  val () = if ine(old_h, dh) then doc_bump_ver(d) else ()
 in
+  doc_set(d, i, NF_HEIGHT, dh);
   doc_set(d, i, NF_AUX, dh)
 end
 
 fun bind_embed_height(d: !Doc, i: int, shown: !Buf, lh: int): void = let
   val lines = file_lines(shown, 12)
+  val dh = imax(9, imul(imin(lines, 12), lh))
+  val old_h = doc_node_height(d, i)
+  val () = if ine(old_h, dh) then doc_bump_ver(d) else ()
 in
-  doc_set(d, i, NF_AUX, imax(9, imul(imin(lines, 12), lh)))
+  doc_set(d, i, NF_HEIGHT, dh);
+  doc_set(d, i, NF_AUX, dh)
 end
 
 fun resolve_media_path(d: !Doc, i: int, vault: !Buf, rel: &Buf >> _, full: &Buf >> _, shown: &Buf >> _): void = let
@@ -233,15 +261,18 @@ fun bind_one_kind(d: !Doc, i: int, k: NodeKind, c: &Cache >> _, r: !Rend, lh: in
 
 fun bind_one(d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int): void = let
   val k = doc_node_kind(d, i)
-  var rel = buf_make(8)
-  var full = buf_make(8)
-  var shown = buf_make(8)
-  val () = resolve_media_path(d, i, vault, rel, full, shown)
-  val () = bind_one_kind(d, i, k, c, r, lh, colw, shown)
-  val () = buf_free(rel)
-  val () = buf_free(full)
 in
-  buf_free(shown)
+  if is_kind(k, KImage) orelse is_kind(k, KEmbed) then let
+    var rel = buf_make(8)
+    var full = buf_make(8)
+    var shown = buf_make(8)
+    val () = resolve_media_path(d, i, vault, rel, full, shown)
+    val () = bind_one_kind(d, i, k, c, r, lh, colw, shown)
+    val () = buf_free(rel)
+    val () = buf_free(full)
+  in
+    buf_free(shown)
+  end else ()
 end
 
 extern fun bind_media_exh(d: !Doc, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int, i: int): void = "mac#anth_die_void"
@@ -585,200 +616,65 @@ fun draw_node_embed(f: !Font, r: !Rend, d: !Doc, i: int, colx: int, y: int, lh: 
 in
 end
 
-extern fun skip_bracket_exh(d: !Doc, c: int, b: int): int = "mac#anth_die_int"
+fun leaf_color(k: NodeKind, style: int): uint =
+  if is_kind(k, KMark) then col_muted()
+  else if is_kind(k, KTag) then col_tag()
+  else if iand(style, STYLE_LINK) != 0 then col_link()
+  else if iand(style, STYLE_HIGH) != 0 then col_hightxt()
+  else if iand(style, STYLE_BOLD) != 0 then col_white()
+  else if iand(style, STYLE_ITALIC) != 0 then col_accent()
+  else if iand(style, STYLE_STRIKE) != 0 then col_muted()
+  else if iand(style, STYLE_MATH) != 0 then col_math()
+  else if iand(style, STYLE_CODE) != 0 then col_code()
+  else if iand(style, STYLE_HEADING) != 0 then col_heading()
+  else kind_col(k)
 
-fun skip_bracket_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, c: int, b: int): int =
-  if recfuel > 0 then (
-    if ilt(c, b) andalso ine(doc_byte(d, c), 93) then skip_bracket_m(recfuel - 1, d, iadd(c, 1), b)
-    else c
-  ) else skip_bracket_exh(d, c, b)
-
-fun draw_node_read_link(f: !Font, r: !Rend, d: !Doc, i: int, oy: int, ph: int, scroll: int,
-                        lh: int, colx: int, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _): void = let
-  val a = doc_node_start(d, i)
-  val b = doc_node_end(d, i)
-  val st = iadd(a, 1)
-  val c_br = skip_bracket_m(airlock_nat(MAX_REC_FUEL), d, st, b)
-  val label_en = (if ilt(c_br, b) then c_br else b) : int
-  val line = doc_line_of(d, st)
-  val yy = isub(iadd(oy, doc_line_y(d, line)), scroll)
-  val x0 = (if ine(line, pen_line) then colx else pen_x) : int
-  val tw = draw_view_slice(f, r, d, st, label_en, colx, oy, scroll, lh, ph, col_link(), scratch, pen_x, pen_line)
-in
-  if igt(tw, 0) andalso ige(iadd(yy, lh), oy) andalso ile(yy, iadd(oy, ph)) then
-    rend_rect(r, x0, iadd(yy, isub(lh, 2)), tw, 1, col_link())
-  else ()
-end
-
-
-extern fun pipe_at_exh(d: !Doc, cur: int, en: int, found: int): int = "mac#anth_die_int"
-
-fun pipe_at_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, cur: int, en: int, found: int): int =
-  if recfuel > 0 then (
-    if ilt(cur, en) then
-      if ieq(doc_byte(d, cur), 124) then pipe_at_m(recfuel - 1, d, iadd(cur, 1), en, cur)
-      else pipe_at_m(recfuel - 1, d, iadd(cur, 1), en, found)
-    else found
-  ) else pipe_at_exh(d, cur, en, found)
-
-fun wiki_label_start(d: !Doc, st: int, en: int): int = let
-  val p_pipe = pipe_at_m(airlock_nat(MAX_REC_FUEL), d, st, en, ~1)
-in
-  if ige(p_pipe, 0) then iadd(p_pipe, 1) else st
-end
-
-fun draw_node_read_wiki(f: !Font, r: !Rend, d: !Doc, i: int, oy: int, ph: int, scroll: int,
-                        lh: int, colx: int, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _): void = let
-  val a = doc_node_start(d, i)
-  val b = doc_node_end(d, i)
-  val st = iadd(a, 2)
-  val en = (if igt(b, 2) then isub(b, 2) else b) : int
-  val label_st = wiki_label_start(d, st, en)
-  val label_en = en
-  val line = doc_line_of(d, label_st)
-  val yy = isub(iadd(oy, doc_line_y(d, line)), scroll)
-  val x0 = (if ine(line, pen_line) then colx else pen_x) : int
-  val tw = draw_view_slice(f, r, d, label_st, label_en, colx, oy, scroll, lh, ph, col_link(), scratch, pen_x, pen_line)
-in
-  if igt(tw, 0) andalso ige(iadd(yy, lh), oy) andalso ile(yy, iadd(oy, ph)) then
-    rend_rect(r, x0, iadd(yy, isub(lh, 2)), tw, 1, col_link())
-  else ()
-end
-
-fun draw_node_read_high(f: !Font, r: !Rend, d: !Doc, i: int, oy: int, ph: int, scroll: int,
-                        lh: int, colx: int, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _): void = let
-  val a = doc_node_start(d, i)
-  val b = doc_node_end(d, i)
-  val st = (if ile(iadd(a, 2), b) then iadd(a, 2) else a) : int
-  val en = (if ige(isub(b, 2), st) then isub(b, 2) else b) : int
-  val line = doc_line_of(d, st)
-  val yy = isub(iadd(oy, doc_line_y(d, line)), scroll)
-  val x0 = (if ine(line, pen_line) then colx else pen_x) : int
-  val scap = buf_cap(scratch)
-  val n = if igt(en, st) then doc_slice_buf(d, st, en, scratch, scap) else 0
-  val tw0 = if igt(n, 0) then font_width_buf(f, r, scratch, n) else 0
-  val () = if igt(tw0, 0) andalso ige(iadd(yy, lh), oy) andalso ile(yy, iadd(oy, ph)) then
-    rend_rect(r, x0, yy, tw0, lh, col_highbg())
-  else ()
-  val () = seen_int(draw_view_slice(f, r, d, st, en, colx, oy, scroll, lh, ph, col_hightxt(), scratch, pen_x, pen_line))
-in
-end
-
-fun draw_node_read_bold(f: !Font, r: !Rend, d: !Doc, i: int, oy: int, ph: int, scroll: int,
-                        lh: int, colx: int, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _): void = let
-  val a = doc_node_start(d, i)
-  val b = doc_node_end(d, i)
-  val st = (if ile(iadd(a, 2), b) then iadd(a, 2) else a) : int
-  val en = (if ige(isub(b, 2), st) then isub(b, 2) else b) : int
-  val () = seen_int(draw_view_slice(f, r, d, st, en, colx, oy, scroll, lh, ph, col_white(), scratch, pen_x, pen_line))
-in
-end
-
-fun draw_node_read_italic(f: !Font, r: !Rend, d: !Doc, i: int, oy: int, ph: int, scroll: int,
-                          lh: int, colx: int, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _): void = let
-  val a = doc_node_start(d, i)
-  val b = doc_node_end(d, i)
-  val st = (if ile(iadd(a, 1), b) then iadd(a, 1) else a) : int
-  val en = (if ige(isub(b, 1), st) then isub(b, 1) else b) : int
-  val () = seen_int(draw_view_slice(f, r, d, st, en, colx, oy, scroll, lh, ph, col_accent(), scratch, pen_x, pen_line))
-in
-end
-
-fun draw_node_read_strike(f: !Font, r: !Rend, d: !Doc, i: int, oy: int, ph: int, scroll: int,
-                          lh: int, colx: int, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _): void = let
-  val a = doc_node_start(d, i)
-  val b = doc_node_end(d, i)
-  val st = (if ile(iadd(a, 2), b) then iadd(a, 2) else a) : int
-  val en = (if ige(isub(b, 2), st) then isub(b, 2) else b) : int
-  val line = doc_line_of(d, st)
-  val yy = isub(iadd(oy, doc_line_y(d, line)), scroll)
-  val x0 = (if ine(line, pen_line) then colx else pen_x) : int
-  val tw = draw_view_slice(f, r, d, st, en, colx, oy, scroll, lh, ph, col_muted(), scratch, pen_x, pen_line)
-in
-  if igt(tw, 0) andalso ige(iadd(yy, lh), oy) andalso ile(yy, iadd(oy, ph)) then
-    rend_rect(r, x0, iadd(yy, idiv(lh, 2)), tw, 1, col_muted())
-  else ()
-end
-
-fun draw_node_read_math(f: !Font, r: !Rend, d: !Doc, i: int, oy: int, ph: int, scroll: int,
-                        lh: int, colx: int, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _): void = let
-  val a = doc_node_start(d, i)
-  val b = doc_node_end(d, i)
-  val st = (if ile(iadd(a, 1), b) then iadd(a, 1) else a) : int
-  val en = (if ige(isub(b, 1), st) then isub(b, 1) else b) : int
-  val () = seen_int(draw_view_slice(f, r, d, st, en, colx, oy, scroll, lh, ph, col_math(), scratch, pen_x, pen_line))
-in
-end
-
-
-fun draw_node_read_text(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, oy: int, ph: int, scroll: int,
-                        lh: int, colx: int, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _): void = let
-  val a = doc_node_start(d, i)
-  val b = doc_node_end(d, i)
-  val c = (if is_kind(k, KTag) then col_tag() else col_text()) : uint
-  val () = seen_int(draw_view_slice(f, r, d, a, b, colx, oy, scroll, lh, ph, c, scratch, pen_x, pen_line))
-in
-end
-
-fun draw_node_read_inline(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, oy: int, ph: int, scroll: int,
-                          lh: int, colx: int, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _): void =
-  if is_kind(k, KLink) then
-    draw_node_read_link(f, r, d, i, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line)
-  else if is_kind(k, KWiki) then
-    draw_node_read_wiki(f, r, d, i, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line)
-  else if is_kind(k, KHigh) then
-    draw_node_read_high(f, r, d, i, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line)
-  else if is_kind(k, KBold) then
-    draw_node_read_bold(f, r, d, i, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line)
-  else if is_kind(k, KItalic) then
-    draw_node_read_italic(f, r, d, i, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line)
-  else if is_kind(k, KStrike) then
-    draw_node_read_strike(f, r, d, i, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line)
-  else if is_kind(k, KMath) then
-    draw_node_read_math(f, r, d, i, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line)
-  else
-    draw_node_read_text(f, r, d, i, k, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line)
-
-
-fun edit_highlight_bg(f: !Font, r: !Rend, d: !Doc, a: int, b: int, oy: int, scroll: int, lh: int, colx: int, scratch: &Buf >> _): void = let
-  val line = doc_line_of(d, a)
-  val ls = doc_line_start(d, line)
-  val yy = isub(iadd(oy, doc_line_y(d, line)), scroll)
-  val scap = buf_cap(scratch)
-  val n_pre = if igt(a, ls) then doc_slice_buf(d, ls, a, scratch, scap) else 0
-  val pre_w = if igt(n_pre, 0) then font_width_buf(f, r, scratch, n_pre) else 0
-  val n = doc_slice_buf(d, a, b, scratch, scap)
-  val w_hi = font_width_buf(f, r, scratch, n)
-  val () = rend_rect(r, iadd(colx, pre_w), yy, w_hi, lh, col_highbg())
-in
-end
-
-fun draw_node_edit_fallback(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind,
-                            oy: int, ph: int, scroll: int, lh: int, colx: int,
-                            scratch: &Buf >> _): void =
-  if is_kind(k, KHigh) then let
-    val a = doc_node_start(d, i)
-    val b = doc_node_end(d, i)
-    val () = edit_highlight_bg(f, r, d, a, b, oy, scroll, lh, colx, scratch)
+fun draw_leaf_effects(r: !Rend, x0: int, yy: int, tw: int, lh: int, style: int): void =
+  if igt(tw, 0) then let
+    val () = if iand(style, STYLE_HIGH) != 0 then rend_rect(r, x0, yy, tw, lh, col_highbg()) else ()
+    val () = if iand(style, STYLE_LINK) != 0 then rend_rect(r, x0, iadd(yy, isub(lh, 2)), tw, 1, col_link()) else ()
+    val () = if iand(style, STYLE_STRIKE) != 0 then rend_rect(r, x0, iadd(yy, idiv(lh, 2)), tw, 1, col_muted()) else ()
   in
-    draw_bytes(f, r, d, a, b, colx, oy, scroll, kind_col(k), scratch)
-  end else let
-    val a = doc_node_start(d, i)
-    val b = doc_node_end(d, i)
-    val yy = isub(iadd(oy, doc_line_y(d, doc_line_of(d, a))), scroll)
+  end else ()
+
+fun draw_leaf_styled(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind,
+                     oy: int, ph: int, scroll: int, lh: int, colx: int,
+                     scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _,
+                     viewmode: ViewMode): void = let
+  val flags = doc_node_flags(d, i)
+  val is_read = is_view_read(viewmode)
+  val skip = is_read andalso (is_kind(k, KMark) orelse iand(flags, FL_READ_HIDDEN) != 0)
+in
+  if skip then ()
+  else let
+    val st0 = doc_node_start(d, i)
+    val st = (if is_read andalso is_kind(k, KEscape) then iadd(st0, 1) else st0)
+    val en = doc_node_end(d, i)
+    val style = ast_style(d, i)
+    val col = leaf_color(k, style)
+    val line = doc_line_of(d, st)
+    val yy = isub(iadd(oy, doc_line_y(d, line)), scroll)
+    val x0 = (if ine(line, pen_line) then colx else pen_x) : int
+    val tw = draw_view_slice(f, r, d, st, en, colx, oy, scroll, lh, ph, col, scratch, pen_x, pen_line)
   in
-    if ilt(iadd(yy, lh), oy) orelse igt(yy, iadd(oy, ph)) then ()
-    else draw_bytes(f, r, d, a, b, colx, oy, scroll, kind_col(k), scratch)
+    draw_leaf_effects(r, x0, yy, tw, lh, style)
   end
+end
 
+fun draw_container_box(r: !Rend, k: NodeKind, colx: int, y: int, h: int, lh: int, pw: int): void =
+  if is_kind(k, KQuote) then
+    rend_rect(r, isub(colx, 8), y, 3, imax(h, lh), col_quote())
+  else if is_kind(k, KCallout) then
+    rend_rect(r, isub(colx, 8), y, 4, imax(h, lh), col_accent())
+  else if is_kind(k, KCode) orelse is_kind(k, KMathBlock) then
+    rend_rect(r, colx, y, column_w(pw), imax(h, lh), col_highbg())
+  else ()
 
 fun draw_node_content(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, oy: int, pw: int, ph: int, scroll: int,
                       lh: int, colx: int, y: int, h: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _,
                       py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode): void =
   if is_heading(k) then
     draw_node_heading(f, r, d, i, k, oy, ph, scroll, lh, colx, y, viewmode, scratch, py, pa, pen_x, pen_line)
-  else if is_box(k) then
-    draw_node_box(f, r, d, i, k, oy, scroll, lh, colx, y, h, scratch, py, pa, pen_x, pen_line)
   else if is_kind(k, KHr) then (
     pen_line := ~1; pen_x := colx;
     rend_rect(r, colx, iadd(y, 4), column_w(pw), 2, col_line())
@@ -787,10 +683,10 @@ fun draw_node_content(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, oy: int,
     draw_node_image(r, d, i, pw, colx, y, h, vault, c, pen_x, pen_line)
   else if is_kind(k, KEmbed) then
     draw_node_embed(f, r, d, i, colx, y, lh, vault, pen_x, pen_line)
-  else if is_view_read(viewmode) then
-    draw_node_read_inline(f, r, d, i, k, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line)
+  else if kind_is_leaf(k) then
+    draw_leaf_styled(f, r, d, i, k, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line, viewmode)
   else
-    draw_node_edit_fallback(f, r, d, i, k, oy, ph, scroll, lh, colx, scratch)
+    draw_container_box(r, k, colx, y, h, lh, pw)
 
 fun draw_node(f: !Font, r: !Rend, d: !Doc, i: int, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode): void = let
   val k = doc_node_kind(d, i)
@@ -816,9 +712,14 @@ fun draw_nodes_impl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font
   if recfuel > 0 then (
     if ige(i, doc_nnodes(d)) then ()
     else let
-      val () = draw_node(f, r, d, i, ox, oy, pw, ph, scroll, lh, vault, c, scratch, py, pa, pen_x, pen_line, viewmode)
+      val y = doc_node_y(d, i)
     in
-      draw_nodes_impl_m(recfuel - 1, f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, iadd(i, 1), py, pa, pen_x, pen_line, viewmode)
+      if igt(y, iadd(scroll, iadd(ph, 64))) then ()
+      else let
+        val () = draw_node(f, r, d, i, ox, oy, pw, ph, scroll, lh, vault, c, scratch, py, pa, pen_x, pen_line, viewmode)
+      in
+        draw_nodes_impl_m(recfuel - 1, f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, iadd(i, 1), py, pa, pen_x, pen_line, viewmode)
+      end
     end
   ) else draw_nodes_impl_exh(f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, i, py, pa, pen_x, pen_line, viewmode)
 
@@ -898,10 +799,57 @@ fun draw_caret(f: !Font, r: !Rend, d: !Doc, colx: int, oy: int, scroll: int, lh:
 in
 end
 
+fun find_first_vis_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, lo: int, hi: int, target_y: int): int =
+  if recfuel > 0 then (
+    if ige(lo, hi) then lo
+    else let
+      val mid = iadd(lo, idiv(isub(hi, lo), 2))
+      val y = doc_node_y(d, mid)
+      val h = doc_node_height(d, mid)
+    in
+      if ilt(iadd(y, h), target_y) then
+        find_first_vis_m(recfuel - 1, d, iadd(mid, 1), hi, target_y)
+      else
+        find_first_vis_m(recfuel - 1, d, lo, mid, target_y)
+    end
+  ) else lo
+
+fun rewind_line_start_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, idx: int, target_line: int): int =
+  if recfuel > 0 then (
+    if ile(idx, 0) then 0
+    else let
+      val prev = isub(idx, 1)
+      val pline = doc_line_of(d, doc_node_start(d, prev))
+    in
+      if ieq(pline, target_line) then
+        rewind_line_start_m(recfuel - 1, d, prev, target_line)
+      else idx
+    end
+  ) else idx
+
+fun first_vis_node(d: !Doc, scroll: int): int = let
+  val n = doc_nnodes(d)
+in
+  if ile(n, 0) then 0
+  else if ile(scroll, 0) then 0
+  else let
+    val raw_idx = find_first_vis_m(airlock_nat(MAX_REC_FUEL), d, 0, n, scroll)
+  in
+    if ige(raw_idx, n) then raw_idx
+    else let
+      val target_line = doc_line_of(d, doc_node_start(d, raw_idx))
+    in
+      rewind_line_start_m(airlock_nat(MAX_REC_FUEL), d, raw_idx, target_line)
+    end
+  end
+end
+
 fun draw_doc_content(f: !Font, r: !Rend, d: !Doc, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, viewmode: ViewMode, colx: int, py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _): void =
-  if doc_nnodes(d) > 0 then
-    draw_nodes_impl(f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, 0, py, pa, pen_x, pen_line, viewmode)
-  else
+  if doc_nnodes(d) > 0 then let
+    val start_i = first_vis_node(d, scroll)
+  in
+    draw_nodes_impl(f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, start_i, py, pa, pen_x, pen_line, viewmode)
+  end else
     draw_plain_doc(f, r, d, colx, oy, pw, ph, scroll, lh, scratch)
 
 implement draw_doc(f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, viewmode) = let

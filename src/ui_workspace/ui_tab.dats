@@ -11,6 +11,7 @@ staload "data_ast/doc.sats"
 staload "ui_workspace/ui_common.sats"
 staload "ui_workspace/ui_tab.sats"
 staload "ui_workspace/ui_cmd.sats"
+staload "search/ix_match.sats"
 
 #include "common.hats"
 
@@ -445,3 +446,102 @@ fun tabs_toggle_task_impl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts
 fun tabs_toggle_task_impl(ts: Tabs, idx: int, ni: int): Tabs = tabs_toggle_task_impl_m(airlock_nat(MAX_REC_FUEL), ts, idx, ni)
 
 implement tabs_toggle_task(ts, idx, ni) = tabs_toggle_task_impl(ts, idx, ni)
+
+fun doc_jump_loc(d: !Doc, line: int, col: int): void = let
+  val ls = doc_line_start(d, line)
+  val caret = iadd(ls, col)
+  val () = doc_reveal(d, caret)
+  val () = doc_set_caret_move(d, caret)
+in
+end
+
+fun tabs_jump_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, line: int, col: int): Tabs =
+  if recfuel > 0 then (
+    case+ ts of
+    | ~TNil() => TNil()
+    | ~TCons(doc, path, title, sc, rest) => let
+        val () = if ieq(idx, 0) andalso ige(line, 0) then doc_jump_loc(doc, line, col) else ()
+      in
+        if ieq(idx, 0) then TCons(doc, path, title, sc, rest)
+        else TCons(doc, path, title, sc, tabs_jump_m(recfuel - 1, rest, isub(idx, 1), line, col))
+      end
+  ) else ts
+
+implement tabs_jump(ts, idx, line, col) = tabs_jump_m(airlock_nat(MAX_REC_FUEL), ts, idx, line, col)
+
+fun tabs_find_doc_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, idx: int, q: !Buf, from: int, dir: int): int =
+  if recfuel > 0 then (
+    case+ ts of
+    | TNil() => ~1
+    | TCons(doc, path, title, sc, rest) =>
+        if ieq(idx, 0) then ix_doc_find(doc, q, from, dir)
+        else tabs_find_doc_m(recfuel - 1, rest, isub(idx, 1), q, from, dir)
+  ) else ~1
+
+implement tabs_find_doc(ts, idx, q, from, dir) = tabs_find_doc_m(airlock_nat(MAX_REC_FUEL), ts, idx, q, from, dir)
+
+fun doc_select_rng(doc: !Doc, st: int, en: int): void = let
+  val () = doc_reveal(doc, st)
+  val () = doc_set_caret_move(doc, st)
+  val () = doc_set_caret_extend(doc, en)
+in
+end
+
+fun tabs_select_range_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, st: int, en: int): Tabs =
+  if recfuel > 0 then (
+    case+ ts of
+    | ~TNil() => TNil()
+    | ~TCons(doc, path, title, sc, rest) => let
+        val () = if ieq(idx, 0) andalso ige(st, 0) then doc_select_rng(doc, st, en) else ()
+      in
+        if ieq(idx, 0) then TCons(doc, path, title, sc, rest)
+        else TCons(doc, path, title, sc, tabs_select_range_m(recfuel - 1, rest, isub(idx, 1), st, en))
+      end
+  ) else ts
+
+implement tabs_select_range(ts, idx, st, en) = tabs_select_range_m(airlock_nat(MAX_REC_FUEL), ts, idx, st, en)
+
+fun tabs_find_path_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, p: !Buf, cur: int): int =
+  if recfuel > 0 then (
+    case+ ts of
+    | TNil() => ~1
+    | TCons(doc, path, title, sc, rest) => let
+        val found = ieq(c_strcmp(cstr(path), cstr(p)), 0)
+      in
+        if found then cur
+        else tabs_find_path_m(recfuel - 1, rest, p, iadd(cur, 1))
+      end
+  ) else ~1
+
+implement tabs_find_path(ts, p) = tabs_find_path_m(airlock_nat(MAX_REC_FUEL), ts, p, 0)
+
+fun tabs_caret_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, idx: int): int =
+  if recfuel > 0 then (
+    case+ ts of
+    | TNil() => 0
+    | TCons(doc, path, title, sc, rest) =>
+        if ieq(idx, 0) then doc_caret(doc)
+        else tabs_caret_m(recfuel - 1, rest, isub(idx, 1))
+  ) else 0
+
+implement tabs_caret(ts, idx) = tabs_caret_m(airlock_nat(MAX_REC_FUEL), ts, idx)
+
+fun tabs_copy_doc_text_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, p: !Buf, dst: &Buf >> _): int =
+  if recfuel > 0 then (
+    case+ ts of
+    | TNil() => 0
+    | TCons(doc, path, title, sc, rest) =>
+        if ieq(c_strcmp(cstr(path), cstr(p)), 0) then let
+          val dlen = doc_len(doc)
+          val () = buf_ensure(dst, iadd(dlen, 2))
+          val cap = buf_cap(dst)
+          val n = doc_slice_buf(doc, 0, dlen, dst, cap)
+          val () = buf_set_len(dst, n)
+        in
+          1
+        end
+        else tabs_copy_doc_text_m(recfuel - 1, rest, p, dst)
+  ) else 0
+
+implement tabs_copy_doc_text(ts, p, dst) = tabs_copy_doc_text_m(airlock_nat(MAX_REC_FUEL), ts, p, dst)
+

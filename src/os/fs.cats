@@ -56,6 +56,11 @@ static inline int anth_size(const char *p) {
   if (st.st_size > 0x7fffffff) return -1;
   return (int)st.st_size;
 }
+static inline int anth_mtime(const char *p) {
+  struct stat st;
+  if (stat(p, &st) != 0) return -1;
+  return (int)st.st_mtime;
+}
 static inline int anth_isdir(const char *p) {
   struct stat st;
   if (stat(p, &st) != 0) return 0;

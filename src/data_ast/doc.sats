@@ -14,6 +14,11 @@ datatype NodeKind =
   | KText | KWiki | KEmbed | KTag | KTask
   | KFn | KFndef | KHigh | KMath | KMathb | KFm
   | KImage | KTd | KBold | KItalic | KStrike | KLink
+  | KMark | KRaw | KInfo | KEscape | KCodeSpan | KUrl
+  | KHtmlBlock | KHtmlInline | KBreak | KComment | KBlockId
+  | KCallout | KCalloutHead | KTableRow | KTableCell | KTableDelim
+  | KLinkDest | KLinkTitle | KWikiTarget | KWikiHeading | KWikiBlock | KWikiAlias
+  | KFnInline | KMathBlock | KDirective
 
 fun kind_of(n: int): NodeKind
 fun kind_code(k: NodeKind): int
@@ -21,7 +26,11 @@ fun heading_kind(hashes: int): NodeKind
 fun is_kind(k: NodeKind, expect: NodeKind): bool
 fun is_heading(k: NodeKind): bool
 fun is_inline(k: NodeKind): bool
+fun kind_is_leaf(k: NodeKind): bool
+fun kind_is_block(k: NodeKind): bool
+fun kind_is_container(k: NodeKind): bool
 fun heading_stops(k: NodeKind, limit: NodeKind): bool
+fun ast_style(d: !Doc, i: int): int
 
 macdef NF_KIND = 0
 macdef NF_START = 1
@@ -34,7 +43,11 @@ macdef NF_NEXT_SIB = 7
 macdef NF_FIRST_CHILD = 8
 macdef NF_HIDDEN = 9
 macdef NF_AUX = 10
+macdef NF_CSTART = 11
+macdef NF_CEND = 12
 macdef NF_Y = 13
+macdef NF_SUBEND = 14
+macdef NF_FLAGS = 15
 
 datatype TaskMark = TaskTodo | TaskDone | TaskProgress | TaskOther
 
@@ -50,9 +63,22 @@ fun doc_node_depth(d: !Doc, i: int): int
 fun doc_node_collapsed(d: !Doc, i: int): Toggle
 fun doc_node_height(d: !Doc, i: int): int
 fun doc_node_parent(d: !Doc, i: int): int
+fun doc_node_first_child(d: !Doc, i: int): int
+fun doc_node_next_sib(d: !Doc, i: int): int
 fun doc_node_hidden(d: !Doc, i: int): Toggle
 fun doc_node_aux(d: !Doc, i: int): int
+fun doc_node_cstart(d: !Doc, i: int): int
+fun doc_node_cend(d: !Doc, i: int): int
 fun doc_node_y(d: !Doc, i: int): int
+fun doc_node_subend(d: !Doc, i: int): int
+fun doc_node_flags(d: !Doc, i: int): int
+
+fun doc_node_add(d: !Doc, kind: NodeKind, st: int, en: int, parent: int, prev_sib: int, aux: int, flags: int): int
+fun doc_node_close(d: !Doc, i: int, en: int, cs: int, ce: int): void
+fun doc_find_child(d: !Doc, i: int, kind: NodeKind): int
+fun doc_ver(d: !Doc): int
+fun doc_bump_ver(d: !Doc): void
+fun doc_clear_nodes(d: !Doc): void
 
 fun doc_open(): Doc
 fun doc_is_md(d: !Doc): Toggle
@@ -117,6 +143,8 @@ fun doc_push_node(d: !Doc, kind: NodeKind, st: int, en: int, depth: int, aux: in
 fun doc_toggle(d: !Doc, i: int): void
 fun doc_toggle_task(d: !Doc, i: int): void
 fun doc_span(d: !Doc): int
+fun doc_set_span(d: !Doc, v: int): void
+fun lines_apply_edit(d: !Doc, at: int, oldlen: int, newlen: int): void
 fun doc_layout(d: !Doc, lh: int): int
 fun column_w(avail: int): int
 fun column_x(pane: int, avail: int): int

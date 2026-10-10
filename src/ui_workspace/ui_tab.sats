@@ -28,3 +28,10 @@ fun tabs_sync_vfs(ts: !Tabs, idx: int): void
 fun tabs_save_all_physical(ts: !Tabs): void
 fun tabs_ensure_paths(ts: Tabs, vault: !Buf): Tabs
 fun touch_doc(d: !Doc): void
+fun tabs_jump(ts: Tabs, idx: int, line: int, col: int): Tabs
+fun tabs_find_doc(ts: !Tabs, idx: int, q: !Buf, from: int, dir: int): int
+fun tabs_select_range(ts: Tabs, idx: int, st: int, en: int): Tabs
+fun tabs_find_path(ts: !Tabs, p: !Buf): int
+fun tabs_caret(ts: !Tabs, idx: int): int
+fun tabs_copy_doc_text(ts: !Tabs, p: !Buf, dst: &Buf >> _): int
+
