@@ -10,7 +10,10 @@ staload "os/fs.sats"
 staload "core_render/render.sats"
 staload "data_font/font.sats"
 
+
+
 fun u_land(a: int, m: int): int = anth_iand(a, m)
+
 
 fun byte_at(p: ptr, n: int, i: int): int =
   if i < 0 orelse i >= n then 0
@@ -137,3 +140,6 @@ implement font_draw_scaled_buf(f, r, x, y, b, n, c, snum, sden) =
 
 implement font_width_buf(f, r, b, n) =
   font_width(f, r, buf_ptr(b), n)
+
+extern fun anth_font_width_exp(f: !Font, r: !Rend, p: ptr, n: int): int = "mac#anth_font_width"
+implement anth_font_width_exp(f, r, p, n) = font_width(f, r, p, n)

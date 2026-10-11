@@ -18,6 +18,7 @@ fun beq(a: !Buf, b: !Buf, i: int): bool
 fun bcopy(src: !Buf): Buf
 fun cstr(b: !Buf): string
 fun ends(b: !Buf, s: string): bool
+fun is_image_path(path: !Buf): bool
 fun draw_s(f: !Font, r: !Rend, x: int, y: int, s: string, c: uint): void
 fun join2(a: !Buf, b: !Buf): Buf
 fun last_slash(path: !Buf, i: int, a: int): int
@@ -46,7 +47,7 @@ datatype MenuKind = MenuNone | MenuText | MenuImage | MenuFileTree
 datatype PromptKind = PromptNone | PromptNewFile | PromptNewFolder | PromptRename
 datatype ViewMode = ViewEdit | ViewRead
 datatype EditResult = EditNone | EditChanged | EditSubmit | EditCancel
-datatype DragKind = DragNone | DragTab | DragFile | DragSplit
+datatype DragKind = DragNone | DragTab | DragFile | DragSplit | DragEditor
 
 fun is_side_none(x: Sidebar): bool
 fun is_side_files(x: Sidebar): bool
@@ -70,6 +71,7 @@ fun is_drag_none(x: DragKind): bool
 fun is_drag_tab(x: DragKind): bool
 fun is_drag_file(x: DragKind): bool
 fun is_drag_split(x: DragKind): bool
+fun is_drag_editor(x: DragKind): bool
 fun view_mode_code(v: ViewMode): int
 fun view_mode_of_code(n: int): ViewMode
 

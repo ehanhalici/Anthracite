@@ -60,6 +60,7 @@ static inline int anth_die_msg(void)
 
 #define anth_die_void(...) (anth_die_msg())
 #define anth_die_int(...) (anth_die_msg())
+#define anth_die_bool(...) (anth_die_msg(), 0)
 #define anth_die_dbl(...) (anth_die_msg(), 0.0)
 #define anth_die_box(...) (anth_die_msg(), (void *)0)
 

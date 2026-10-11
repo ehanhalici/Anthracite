@@ -2,4 +2,4 @@ build/
 GPATH
 GRTAGS
 GTAGS
-	
+fonts/*

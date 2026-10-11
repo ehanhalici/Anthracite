@@ -135,7 +135,10 @@ fun doc_save_physical(d: !Doc, path: string): int
 fun doc_nlines(d: !Doc): int
 fun doc_line_start(d: !Doc, i: int): int
 fun doc_line_y(d: !Doc, i: int): int
+fun doc_line_step(d: !Doc, i: int): int
 fun doc_line_of(d: !Doc, off: int): int
+fun doc_set_flash(d: !Doc, line: int, until: lint): void
+fun doc_get_flash(d: !Doc, now: lint): int
 fun doc_nnodes(d: !Doc): int
 fun doc_get(d: !Doc, i: int, f: int): int
 fun doc_set(d: !Doc, i: int, f: int, v: int): void
@@ -146,6 +149,9 @@ fun doc_span(d: !Doc): int
 fun doc_set_span(d: !Doc, v: int): void
 fun lines_apply_edit(d: !Doc, at: int, oldlen: int, newlen: int): void
 fun doc_layout(d: !Doc, lh: int): int
+fun doc_layout_mode(d: !Doc, lh: int, is_read: int, colw: int): int
+fun doc_wrap_cols(colw: int): int
+fun doc_get_wrap(d: !Doc): int
 fun column_w(avail: int): int
 fun column_x(pane: int, avail: int): int
 fun doc_selftest(): int

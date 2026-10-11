@@ -100,7 +100,8 @@ datavtype Doc_ = DOC of @{
 , nlines= int, nnodes= int, span= int
 , last_op= EditOp, typing_cnt= int, is_md= Toggle
 , ver= int, folds= Buf
-, lay_ver= int, lay_lh= int, lay_h= int
+, lay_ver= int, lay_lh= int, lay_h= int, lay_read= int, wrap_cols= int
+, flash_line= int, flash_time= lint
 }
 (* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
 assume Doc = Doc_
@@ -113,8 +114,26 @@ implement doc_open() = DOC(@{
 , nlines= 1, nnodes= 0, span= 0
 , last_op= OpNone, typing_cnt= 0, is_md= On
 , ver= 0, folds= buf_make(64 * 4)
-, lay_ver= ~1, lay_lh= 0, lay_h= 0
+, lay_ver= ~1, lay_lh= 0, lay_h= 0, lay_read= ~1, wrap_cols= 80
+, flash_line= ~1, flash_time= 0L
 })
+
+implement doc_set_flash(d, line, until) =
+  case+ d of
+  | @DOC(s) => let
+      val () = s.flash_line := line
+      val () = s.flash_time := until
+    in
+      fold@(d)
+    end
+
+implement doc_get_flash(d, now) =
+  case+ d of
+  | @DOC(s) => let
+      val res = (if ige(s.flash_line, 0) andalso now < s.flash_time then s.flash_line else ~1)
+    in
+      fold@(d); res
+    end
 
 implement doc_is_md(d) =
   case+ d of
@@ -186,14 +205,24 @@ fun d_lay_h(d: !Doc): int =
       fold@(d); v
     end
 
-fun d_set_lay(d: !Doc, v: int, lh: int, h: int): void =
+fun d_set_lay(d: !Doc, v: int, lh: int, h: int, is_read: int, wc: int): void =
   case+ d of
   | @DOC(s) => let
       val () = s.lay_ver := v
       val () = s.lay_lh := lh
       val () = s.lay_h := h
+      val () = s.lay_read := is_read
+      val () = s.wrap_cols := wc
     in
       fold@(d)
+    end
+
+fun d_lay_read(d: !Doc): int =
+  case+ d of
+  | @DOC(s) => let
+      val r = s.lay_read
+    in
+      fold@(d); r
     end
 
 fun fold_count(d: !Doc): int =
@@ -603,6 +632,14 @@ implement doc_line_y(d, i) =
   case+ d of
   | @DOC(s) => let
       val v = if i >= 0 andalso i < s.nlines then buf_get32(s.liney, imul(i, 2)) else 0
+    in
+      fold@(d); v
+    end
+
+implement doc_line_step(d, i) =
+  case+ d of
+  | @DOC(s) => let
+      val v = if i >= 0 andalso i < s.nlines then buf_get32(s.liney, iadd(imul(i, 2), 1)) else 0
     in
       fold@(d); v
     end
@@ -1022,6 +1059,8 @@ fun style_bit(k: NodeKind): int =
 fun lor_int(a: int, b: int): int =
   g0uint2int_uint_int(g0uint_lor(g0int2uint_int_uint(a), g0int2uint_int_uint(b)))
 
+fun iand(a: int, n: int): int = anth_iand(a, n)
+
 extern fun ast_style_exh(d: !Doc, cur: int, acc: int): int = "mac#anth_die_int"
 
 fun ast_style_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, cur: int, acc: int): int =
@@ -1029,15 +1068,22 @@ fun ast_style_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, cur: 
     if cur < 0 then acc
     else let
       val k = doc_node_kind(d, cur)
+      val fl = doc_node_flags(d, cur)
       val bit = style_bit(k)
+      val err_bit = (if iand(fl, FL_ERROR) != 0 then STYLE_ERROR else 0)
       val p = doc_node_parent(d, cur)
+      val n_acc = lor_int(acc, lor_int(bit, err_bit))
     in
-      ast_style_m(recfuel - 1, d, p, lor_int(acc, bit))
+      ast_style_m(recfuel - 1, d, p, n_acc)
     end
   ) else ast_style_exh(d, cur, acc)
 
-implement ast_style(d, i) =
-  ast_style_m(airlock_nat(MAX_REC_FUEL), d, doc_node_parent(d, i), 0)
+implement ast_style(d, i) = let
+  val self_fl = doc_node_flags(d, i)
+  val init_err = (if iand(self_fl, FL_ERROR) != 0 then STYLE_ERROR else 0)
+in
+  ast_style_m(airlock_nat(MAX_REC_FUEL), d, doc_node_parent(d, i), init_err)
+end
 
 implement doc_node_kind(d, i) = kind_of(nget(d, i, NF_KIND))
 implement doc_node_start(d, i) = nget(d, i, NF_START)
@@ -1337,29 +1383,64 @@ fun widget_h_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: in
 
 fun widget_h(d: !Doc, st: int, en: int, i: int, n: int, acc: int): int = widget_h_m(airlock_nat(MAX_REC_FUEL), d, st, en, i, n, acc)
 
-extern fun assign_lines_exh(d: !Doc, lh: int, line: int, y: int): int = "mac#anth_die_int"
+fun line_heading_extra(k: NodeKind, lh: int): int =
+  if is_kind(k, KH1) then iadd(idiv(imul(lh, 3), 4), 24)
+  else if is_kind(k, KH2) then iadd(idiv(lh, 2), 18)
+  else if is_kind(k, KH3) then iadd(idiv(lh, 4), 14)
+  else if is_kind(k, KH4) then 12
+  else if is_kind(k, KH5) then 8
+  else 0
 
-fun assign_lines_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, lh: int, line: int, y: int): int =
+extern fun line_heading_pad_exh(d: !Doc, st: int, en: int, i: int, n: int, lh: int, acc: int): int = "mac#anth_die_int"
+
+fun line_heading_pad_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), d: !Doc, st: int, en: int, i: int, n: int, lh: int, acc: int
+): int =
   if recfuel > 0 then (
-  let
-    val nlines = d_nlines(d)
-  in
-    if ige(line, nlines) then y
+    if ige(i, n) then acc
     else let
-      val n = d_nnodes(d)
-      val st = doc_line_start(d, line)
-      val en = if iadd(line, 1) < nlines then doc_line_start(d, iadd(line, 1)) else d_len(d)
-      val hid = line_hidden(d, st, en, 0, n, Off)
-      val extra = if ieq(hid, 1) then 0 else widget_h(d, st, en, 0, n, 0)
-      val step = if ieq(hid, 1) then 0 else iadd(lh, extra)
+      val k = doc_node_kind(d, i)
+      val ns = doc_node_start(d, i)
+      val ex = if ige(ns, st) andalso ilt(ns, en) then line_heading_extra(k, lh) else 0
+    in
+      line_heading_pad_m(recfuel - 1, d, st, en, iadd(i, 1), n, lh, imax(acc, ex))
+    end
+  ) else line_heading_pad_exh(d, st, en, i, n, lh, acc)
+
+fun line_heading_pad(d: !Doc, st: int, en: int, i: int, n: int, lh: int): int =
+  line_heading_pad_m(airlock_nat(MAX_REC_FUEL), d, st, en, i, n, lh, 0)
+
+extern fun assign_lines_exh(d: !Doc, lh: int, line: int, y: int, is_read: int, wc: int): int = "mac#anth_die_int"
+
+fun line_calc_step(d: !Doc, line: int, n: int, lh: int, is_read: int, wc: int): int = let
+  val nlines = d_nlines(d)
+  val st = doc_line_start(d, line)
+  val en = if iadd(line, 1) < nlines then doc_line_start(d, iadd(line, 1)) else d_len(d)
+  val raw_len = isub(en, st)
+  val llen = (if igt(raw_len, 0) andalso ieq(doc_byte(d, isub(en, 1)), 10) then isub(raw_len, 1) else raw_len) : int
+  val rows = (if wc > 0 andalso llen > wc then idiv(iadd(llen, isub(wc, 1)), wc) else 1) : int
+  val hid = line_hidden(d, st, en, 0, n, Off)
+  val extra = if ieq(hid, 1) then 0 else widget_h(d, st, en, 0, n, 0)
+  val hpad = (if ieq(hid, 1) orelse ieq(is_read, 0) then 0 else line_heading_pad(d, st, en, 0, n, lh))
+in
+  if ieq(hid, 1) then 0 else iadd(iadd(imul(rows, lh), extra), hpad)
+end
+
+fun assign_lines_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), d: !Doc, lh: int, line: int, y: int, is_read: int, wc: int
+): int =
+  if recfuel > 0 then (
+    if ige(line, d_nlines(d)) then y
+    else let
+      val step = line_calc_step(d, line, d_nnodes(d), lh, is_read, wc)
       val () = line_put(d, line, y, step)
     in
-      assign_lines_m(recfuel - 1, d, lh, iadd(line, 1), iadd(y, step))
+      assign_lines_m(recfuel - 1, d, lh, iadd(line, 1), iadd(y, step), is_read, wc)
     end
-  end
-  ) else assign_lines_exh(d, lh, line, y)
+  ) else assign_lines_exh(d, lh, line, y, is_read, wc)
 
-fun assign_lines(d: !Doc, lh: int, line: int, y: int): int = assign_lines_m(airlock_nat(MAX_REC_FUEL), d, lh, line, y)
+fun assign_lines(d: !Doc, lh: int, line: int, y: int): int =
+  assign_lines_m(airlock_nat(MAX_REC_FUEL), d, lh, line, y, 0, 80)
 
 extern fun stamp_nodes_exh(d: !Doc, lh: int, i: int): void = "mac#anth_die_void"
 
@@ -1379,55 +1460,80 @@ fun stamp_nodes_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, lh:
 
 fun stamp_nodes(d: !Doc, lh: int, i: int): void = stamp_nodes_m(airlock_nat(MAX_REC_FUEL), d, lh, i)
 
-extern fun fill_liney_exh(liney: !Buf, i: int, nlines: int, lh: int): void = "mac#anth_die_void"
+extern fun fill_liney_exh(d: !Doc, i: int, nlines: int, lh: int, y: int, wc: int): int = "mac#anth_die_int"
 
-fun fill_liney_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), liney: !Buf, i: int, nlines: int, lh: int): void =
+fun plain_line_step(d: !Doc, i: int, lh: int, wc: int): int = let
+  val nlines = d_nlines(d)
+  val st = doc_line_start(d, i)
+  val en = if iadd(i, 1) < nlines then doc_line_start(d, iadd(i, 1)) else d_len(d)
+  val raw_len = isub(en, st)
+  val llen = (if igt(raw_len, 0) andalso ieq(doc_byte(d, isub(en, 1)), 10) then isub(raw_len, 1) else raw_len) : int
+  val rows = (if wc > 0 andalso llen > wc then idiv(iadd(llen, isub(wc, 1)), wc) else 1) : int
+in
+  imul(rows, lh)
+end
+
+fun fill_liney_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), d: !Doc, i: int, nlines: int, lh: int, y: int, wc: int
+): int =
   if recfuel > 0 then (
     if ilt(i, nlines) then let
-      val () = buf_set32(liney, imul(i, 2), imul(i, lh))
-      val () = buf_set32(liney, iadd(imul(i, 2), 1), lh)
+      val step = plain_line_step(d, i, lh, wc)
+      val () = line_put(d, i, y, step)
     in
-      fill_liney_m(recfuel - 1, liney, iadd(i, 1), nlines, lh)
-    end else ()
-  ) else fill_liney_exh(liney, i, nlines, lh)
+      fill_liney_m(recfuel - 1, d, iadd(i, 1), nlines, lh, iadd(y, step), wc)
+    end else y
+  ) else fill_liney_exh(d, i, nlines, lh, y, wc)
 
-fun fill_plain_lines(d: !Doc, lh: int, nlines: int): void =
-  case+ d of
-  | @DOC(s) => let
-      val need = imul(iadd(nlines, 1), 8)
-      val () = if buf_cap(s.liney) < need then buf_resize(s.liney, imax(imul(need, 2), 4096)) else ()
-      val () = fill_liney_m(airlock_nat(MAX_REC_FUEL), s.liney, 0, nlines, lh)
-    in
-      fold@(d)
-    end
+fun fill_plain_lines(d: !Doc, lh: int, nlines: int, wc: int): int =
+  fill_liney_m(airlock_nat(MAX_REC_FUEL), d, 0, nlines, lh, 0, wc)
 
-fun doc_layout_calc(d: !Doc, lh: int, n: int): int =
-  if is_off(doc_is_md(d)) orelse ieq(n, 0) then let
-    val nlines = d_nlines(d)
-    val () = fill_plain_lines(d, lh, nlines)
-  in
-    imul(nlines, lh)
-  end else let
+fun doc_layout_calc(d: !Doc, lh: int, n: int, is_read: int, colw: int): int = let
+  val wc = doc_wrap_cols(colw)
+in
+  if is_off(doc_is_md(d)) orelse ieq(n, 0) then
+    fill_plain_lines(d, lh, d_nlines(d), wc)
+  else let
     val () = clear_hide(d, n, 0)
     val () = place_one(d, n, 0, lh)
-    val t = assign_lines(d, lh, 0, 0)
+    val t = assign_lines_m(airlock_nat(MAX_REC_FUEL), d, lh, 0, 0, is_read, wc)
     val () = stamp_nodes(d, lh, 0)
   in
     t
   end
+end
 
-implement doc_layout(d, lh0) = let
+implement doc_get_wrap(d) =
+  case+ d of
+  | @DOC(s) => let
+      val v = s.wrap_cols
+    in
+      fold@(d); (if igt(v, 0) then v else 80)
+    end
+
+implement doc_wrap_cols(colw) = let
+  val w = isub(colw, 80)
+in
+  if w <= 180 then 25
+  else imin(120, idiv(w, 9))
+end
+
+implement doc_layout_mode(d, lh0, is_read, colw) = let
   val lh = if ilt(lh0, 8) then 8 else lh0
   val cur_ver = doc_ver(d)
+  val wc = doc_wrap_cols(colw)
+  val key_lh = iadd(lh, imul(wc, 1000))
 in
-  if ieq(cur_ver, d_lay_ver(d)) andalso ieq(lh, d_lay_lh(d)) then d_lay_h(d)
+  if ieq(cur_ver, d_lay_ver(d)) andalso ieq(key_lh, d_lay_lh(d)) andalso ieq(is_read, d_lay_read(d)) then d_lay_h(d)
   else let
-    val total = doc_layout_calc(d, lh, d_nnodes(d))
-    val () = d_set_lay(d, cur_ver, lh, total)
+    val total = doc_layout_calc(d, lh, d_nnodes(d), is_read, colw)
+    val () = d_set_lay(d, cur_ver, key_lh, total, is_read, wc)
   in
     total
   end
 end
+
+implement doc_layout(d, lh0) = doc_layout_mode(d, lh0, 0, 800)
 
 fun reparse(d: !Doc, at: int, oldlen: int): void = let
   val curlen = d_len(d)
@@ -1765,35 +1871,51 @@ implement doc_home_select(d) = doc_set_caret_extend(d, doc_home_target(d))
 implement doc_end_move(d) = doc_set_caret_move(d, doc_end_target(d))
 implement doc_end_select(d) = doc_set_caret_extend(d, doc_end_target(d))
 
+fun prev_line_target(d: !Doc, prev: int, ls: int, off: int, wc: int): int = let
+  val st = doc_line_start(d, prev)
+  val stop = if igt(ls, st) andalso ieq(doc_byte(d, isub(ls, 1)), 10) then isub(ls, 1) else ls
+  val plen = isub(stop, st)
+  val col = (if wc > 0 then imod(off, wc) else off) : int
+  val prow = (if wc > 0 andalso plen > wc then idiv(isub(plen, 1), wc) else 0) : int
+in
+  utf8_align(d, imin(iadd(st, iadd(imul(prow, wc), col)), stop))
+end
+
 fun doc_up_target(d: !Doc): int = let
   val c = d_caret(d)
   val line = doc_line_of(d, c)
-  val col = isub(c, doc_line_start(d, line))
+  val ls = doc_line_start(d, line)
+  val off = isub(c, ls)
+  val wc = doc_get_wrap(d)
 in
-  if line <= 0 then 0
-  else let
-    val st = doc_line_start(d, isub(line, 1))
-    val en = doc_line_start(d, line)
-    val stop = if igt(en, st) andalso ieq(doc_byte(d, isub(en, 1)), 10) then isub(en, 1) else en
-  in
-    utf8_align(d, imin(iadd(st, col), stop))
-  end
+  if wc > 0 andalso off >= wc then utf8_align(d, isub(c, wc))
+  else if line <= 0 then 0
+  else prev_line_target(d, isub(line, 1), ls, off, wc)
+end
+
+fun next_line_target(d: !Doc, n: int, next_line: int, off: int, wc: int): int = let
+  val st = doc_line_start(d, next_line)
+  val en = if iadd(next_line, 1) >= n then d_len(d) else doc_line_start(d, iadd(next_line, 1))
+  val stop = if igt(en, st) andalso ieq(doc_byte(d, isub(en, 1)), 10) then isub(en, 1) else en
+  val col = (if wc > 0 then imod(off, wc) else off) : int
+in
+  utf8_align(d, imin(iadd(st, col), stop))
 end
 
 fun doc_down_target(d: !Doc): int = let
   val c = d_caret(d)
   val line = doc_line_of(d, c)
   val n = d_nlines(d)
-  val col = isub(c, doc_line_start(d, line))
+  val ls = doc_line_start(d, line)
+  val en0 = if iadd(line, 1) < n then doc_line_start(d, iadd(line, 1)) else d_len(d)
+  val stop0 = if igt(en0, ls) andalso ieq(doc_byte(d, isub(en0, 1)), 10) then isub(en0, 1) else en0
+  val llen = isub(stop0, ls)
+  val off = isub(c, ls)
+  val wc = doc_get_wrap(d)
 in
-  if iadd(line, 1) >= n then d_len(d)
-  else let
-    val st = doc_line_start(d, iadd(line, 1))
-    val en = if iadd(line, 2) >= n then d_len(d) else doc_line_start(d, iadd(line, 2))
-    val stop = if igt(en, st) andalso ieq(doc_byte(d, isub(en, 1)), 10) then isub(en, 1) else en
-  in
-    utf8_align(d, imin(iadd(st, col), stop))
-  end
+  if wc > 0 andalso iadd(off, wc) < llen then utf8_align(d, iadd(c, wc))
+  else if iadd(line, 1) >= n then d_len(d)
+  else next_line_target(d, n, iadd(line, 1), off, wc)
 end
 
 implement doc_up_move(d) = doc_set_caret_move(d, doc_up_target(d))

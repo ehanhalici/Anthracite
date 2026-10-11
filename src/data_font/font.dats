@@ -11,6 +11,15 @@ staload "core_render/gl.sats"
 staload "core_render/render.sats"
 staload "data_font/font.sats"
 
+%{#
+#include "data_font/arabic.cats"
+%}
+extern fun anth_fc_arabic_font(dst: ptr, n: int): int = "mac#anth_fc_arabic_font"
+extern fun anth_fb_active(): int = "mac#anth_fb_active"
+extern fun anth_fb_set_active(a: int): void = "mac#anth_fb_set_active"
+extern fun anth_fb_load(p: string): int = "mac#anth_fb_load"
+extern fun anth_fb_u8(o: int): int = "mac#anth_fb_u8"
+
 #define AW 1024
 #define AH 1024
 #define MAXP 3000
@@ -27,6 +36,9 @@ datavtype Font_ = FONT of @{
 , pen_x= int, pen_y= int, row_h= int
 , aw= int, ah= int, tex= uint
 , has_ttf= Toggle, line_h= int, asc_px= int
+, fb_has= Toggle
+, fb_units= int, fb_cmap= int, fb_glyf= int, fb_loca= int, fb_hmtx= int, fb_loca_fmt= Toggle
+, fb_nglyph= int, fb_num_h= int
 }
 (* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
 assume Font = Font_
@@ -61,7 +73,8 @@ fun ztex(): uint = u_zero()
 fun bit(a: int, m: int): int = anth_bit(a, m)
 
 fun u8(b: !Buf, o: int): int =
-  if o < 0 then 0 else buf_get(b, o)
+  if ieq(anth_fb_active(), 1) then anth_fb_u8(o)
+  else if o < 0 then 0 else buf_get(b, o)
 
 fun u16(b: !Buf, o: int): int = u8(b, o) * 256 + u8(b, o + 1)
 
@@ -104,6 +117,9 @@ implement font_open() = FONT(@{
 , pen_x= 1, pen_y= 1, row_h= 0
 , aw= AW, ah= AH, tex= ztex()
 , has_ttf= Off, line_h= 18, asc_px= 14
+, fb_has= Off
+, fb_units= 0, fb_cmap= ~1, fb_glyf= ~1, fb_loca= ~1, fb_hmtx= ~1, fb_loca_fmt= Off
+, fb_nglyph= 0, fb_num_h= 0
 })
 
 implement font_free(f) = let
@@ -446,6 +462,99 @@ in
   end
 end
 
+fun swap_fb_loca(f: !Font): void =
+  case+ f of
+  | @FONT(s) => let
+      val tl = s.loca_off; val () = s.loca_off := s.fb_loca; val () = s.fb_loca := tl
+      val th = s.hmtx_off; val () = s.hmtx_off := s.fb_hmtx; val () = s.fb_hmtx := th
+      val tfmt = s.loca_fmt; val () = s.loca_fmt := s.fb_loca_fmt; val () = s.fb_loca_fmt := tfmt
+      val tng = s.nglyph; val () = s.nglyph := s.fb_nglyph; val () = s.fb_nglyph := tng
+      val tnh = s.num_h; val () = s.num_h := s.fb_num_h; val () = s.fb_num_h := tnh
+    in
+      fold@(f)
+    end
+
+fun swap_fb(f: !Font): void =
+  case+ f of
+  | @FONT(s) => let
+      val act = if ieq(anth_fb_active(), 1) then 0 else 1
+      val () = anth_fb_set_active(act)
+      val tu = s.units
+      val () = s.units := s.fb_units
+      val () = s.fb_units := tu
+      val tc = s.cmap_off
+      val () = s.cmap_off := s.fb_cmap
+      val () = s.fb_cmap := tc
+      val tg = s.glyf_off
+      val () = s.glyf_off := s.fb_glyf
+      val () = s.fb_glyf := tg
+      val () = fold@(f)
+    in
+      swap_fb_loca(f)
+    end
+
+fun find_tb_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, a: int, c: int, d: int, e: int, i: int, n: int): int =
+  if recfuel > 0 then (
+    if i >= n then ~1
+    else let
+      val o = 12 + i * 16
+    in
+      if u8(b, o) = a andalso u8(b, o + 1) = c andalso u8(b, o + 2) = d andalso u8(b, o + 3) = e then
+        u32(b, o + 8)
+      else
+        find_tb_m(recfuel - 1, b, a, c, d, e, i + 1, n)
+    end
+  ) else ~1
+
+fun find_fb(b: !Buf, a: int, c: int, d: int, e: int, n: int): int =
+  find_tb_m(airlock_nat(MAX_REC_FUEL), b, a, c, d, e, 0, n)
+
+fun parse_fb_tables(f: !Font): bool =
+  case+ f of
+  | @FONT(s) => let
+      val nt = u16(s.file, 4)
+      val cmap = find_fb(s.file, 99, 109, 97, 112, nt); val glyf = find_fb(s.file, 103, 108, 121, 102, nt)
+      val loca = find_fb(s.file, 108, 111, 99, 97, nt); val hmtx = find_fb(s.file, 104, 109, 116, 120, nt)
+      val head = find_fb(s.file, 104, 101, 97, 100, nt); val maxp = find_fb(s.file, 109, 97, 120, 112, nt)
+      val hhea = find_fb(s.file, 104, 104, 101, 97, nt)
+      val ok = not(cmap < 0 orelse glyf < 0 orelse loca < 0 orelse hmtx < 0 orelse head < 0)
+      val () = if ok then (
+        s.fb_units := u16(s.file, head + 18);
+        s.fb_loca_fmt := toggle_of(ieq(i16(s.file, head + 50), 1));
+        s.fb_cmap := cmap; s.fb_glyf := glyf; s.fb_loca := loca; s.fb_hmtx := hmtx;
+        s.fb_nglyph := (if maxp >= 0 then u16(s.file, maxp + 4) else 65535);
+        s.fb_num_h := (if hhea >= 0 then u16(s.file, hhea + 34) else 65535);
+        s.fb_has := On
+      ) else ()
+    in
+      fold@(f); ok
+    end
+
+fun font_has_fb(f: !Font): bool =
+  case+ f of
+  | @FONT(s) => let
+      val h = is_on(s.fb_has)
+    in
+      fold@(f); h
+    end
+
+fun init_fallback_font(f: !Font): void =
+  if font_has_fb(f) then ()
+  else let
+    var pbuf = buf_make(512)
+    val ok = anth_fc_arabic_font(buf_ptr(pbuf), 512)
+    val p = buf_cstr(pbuf)
+    val loaded = if igt(ok, 0) then anth_fb_load(p) else 0
+    val () = buf_free(pbuf)
+  in
+    if igt(loaded, 0) then let
+      val () = anth_fb_set_active(1)
+      val _ = parse_fb_tables(f)
+      val () = anth_fb_set_active(0)
+    in
+    end else ()
+  end
+
 fun drop_tex(f: !Font): void =
   case+ f of
   | @FONT(s) => let
@@ -520,7 +629,7 @@ in
   if n < 12 then false
   else let
     val ok = parse_tables(f)
-    val () = if ok then fit_px_after_load(f) else ()
+    val () = if ok then (fit_px_after_load(f); init_fallback_font(f)) else ()
   in
     ok
   end
@@ -1629,13 +1738,32 @@ in
   fill_g(g, w, 0, 14, w, 16, x0, y0)
 end
 
+fun raster_fallback(f: !Font, r: !Rend, cp: int, g: &gmet >> _): bool =
+  if not(font_has_fb(f)) then false
+  else let
+    val () = swap_fb(f)
+    val gid = cmap_gid(f, cp)
+  in
+    if igt(gid, 0) then let
+      val () = raster_ttf(f, r, cp, gid, g)
+      val () = swap_fb(f)
+    in
+      true
+    end else let
+      val () = swap_fb(f)
+    in
+      false
+    end
+  end
+
 fun raster(f: !Font, r: !Rend, cp: int, g: &gmet >> _): void =
   if is_off(font_has_ttf(f)) then raster_bitmap(f, r, cp, g)
   else let
     val gid = cmap_gid(f, cp)
   in
     if gid <= 0 then
-      if cp = CHAR_SPACE orelse cp = CHAR_TAB then fill_g(g, idiv(f_get_px(f), 2), 0, font_asc(f), 0, 0, 0, 0)
+      if raster_fallback(f, r, cp, g) then ()
+      else if cp = CHAR_SPACE orelse cp = CHAR_TAB then fill_g(g, idiv(f_get_px(f), 2), 0, font_asc(f), 0, 0, 0, 0)
       else raster_bitmap(f, r, cp, g)
     else raster_ttf(f, r, cp, gid, g)
   end
@@ -1944,8 +2072,10 @@ implement font_selftest(r) = let
   val inkJB = glyph_ink65(f, r, g)
   val sc_ok = font_use_file(f, "fonts/Source-Code-Pro-Regular/sourcecodepro/SourceCodePro-Regular.ttf")
   val inkSC = glyph_ink65(f, r, g)
+  val () = font_glyph(f, r, 1576, g)
+  val ar_ok = (if igt(g.bw, 0) then 1 else 0) : int
   val () = font_free(f)
-  val ok3 = (if loaded andalso igt(gid, 0) andalso igt(axA, 0) andalso igt(inkA, 20) andalso igt(inkJB, 20) andalso igt(inkSC, 20) andalso jb_ok andalso sc_ok then 1 else 0) : int
+  val ok3 = (if loaded andalso igt(gid, 0) andalso igt(axA, 0) andalso igt(inkA, 20) andalso igt(inkJB, 20) andalso igt(inkSC, 20) andalso jb_ok andalso sc_ok andalso ieq(ar_ok, 1) then 1 else 0) : int
 in
   (if ieq(ok1, 1) andalso ieq(ok2, 1) andalso ieq(ok3, 1) then 1 else 0)
 end

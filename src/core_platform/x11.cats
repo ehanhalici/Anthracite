@@ -338,17 +338,49 @@ static inline void anth_sel_reply(Display *dpy, anth_event *ev,
   sev.target = (Atom)ev->atom1;
   sev.time = ev->timev;
   sev.property = (Atom)ev->atom2;
+  if (sev.property == None) {
+    sev.property = (Atom)ev->atom1;
+  }
+
+  Atom a_text = XInternAtom(dpy, "TEXT", False);
+  Atom a_plain = XInternAtom(dpy, "text/plain", False);
+  Atom a_plain_utf8 = XInternAtom(dpy, "text/plain;charset=utf-8", False);
+  Atom a_plain_UTF8 = XInternAtom(dpy, "text/plain;charset=UTF-8", False);
+  Atom a_timestamp = XInternAtom(dpy, "TIMESTAMP", False);
+  int is_png = (data && n >= 8 && memcmp(data, "\x89PNG\r\n\x1a\n", 8) == 0);
+
   if ((Atom)ev->atom1 == (Atom)targets) {
-    Atom arr[3];
-    arr[0] = (Atom)utf8;
-    arr[1] = XA_STRING;
-    arr[2] = (Atom)png;
+    Atom arr[9];
+    int cnt = 0;
+    arr[cnt++] = (Atom)targets;
+    arr[cnt++] = a_timestamp;
+    if (is_png) {
+      arr[cnt++] = (Atom)png;
+    } else {
+      arr[cnt++] = (Atom)utf8;
+      arr[cnt++] = XA_STRING;
+      arr[cnt++] = a_text;
+      arr[cnt++] = a_plain;
+      arr[cnt++] = a_plain_utf8;
+      arr[cnt++] = a_plain_UTF8;
+    }
     XChangeProperty(dpy, sev.requestor, sev.property, XA_ATOM, 32,
-      PropModeReplace, (unsigned char *)arr, 3);
-  } else if ((Atom)ev->atom1 == (Atom)utf8 || (Atom)ev->atom1 == XA_STRING) {
-    XChangeProperty(dpy, sev.requestor, sev.property, (Atom)ev->atom1, 8,
+      PropModeReplace, (unsigned char *)arr, cnt);
+  } else if ((Atom)ev->atom1 == a_timestamp) {
+    unsigned long t = ev->timev;
+    XChangeProperty(dpy, sev.requestor, sev.property, XA_INTEGER, 32,
+      PropModeReplace, (unsigned char *)&t, 1);
+  } else if (!is_png && ((Atom)ev->atom1 == (Atom)utf8 ||
+                         (Atom)ev->atom1 == a_text ||
+                         (Atom)ev->atom1 == a_plain ||
+                         (Atom)ev->atom1 == a_plain_utf8 ||
+                         (Atom)ev->atom1 == a_plain_UTF8)) {
+    XChangeProperty(dpy, sev.requestor, sev.property, (Atom)utf8, 8,
       PropModeReplace, data ? data : (const unsigned char *)"", n > 0 ? n : 0);
-  } else if ((Atom)ev->atom1 == (Atom)png && data && n > 0) {
+  } else if (!is_png && (Atom)ev->atom1 == XA_STRING) {
+    XChangeProperty(dpy, sev.requestor, sev.property, XA_STRING, 8,
+      PropModeReplace, data ? data : (const unsigned char *)"", n > 0 ? n : 0);
+  } else if (is_png && (Atom)ev->atom1 == (Atom)png && data && n > 0) {
     XChangeProperty(dpy, sev.requestor, sev.property, (Atom)png, 8,
       PropModeReplace, data, n);
   } else {

@@ -22,6 +22,7 @@ macdef FL_READ_HIDDEN = 512
 macdef FL_UNDERSCORE = 1024
 macdef FL_EXTERNAL = 2048
 macdef FL_TRUNCATED = 4096
+macdef FL_ERROR = 8192
 macdef FL_ALIGN_SHIFT = 13
 
 macdef STYLE_BOLD = 1
@@ -33,3 +34,4 @@ macdef STYLE_CODE = 32
 macdef STYLE_MATH = 64
 macdef STYLE_HEADING = 128
 macdef STYLE_QUOTE = 256
+macdef STYLE_ERROR = 512

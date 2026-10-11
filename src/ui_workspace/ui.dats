@@ -14,6 +14,7 @@ staload "core_render/render.sats"
 staload "core_render/gl.sats"
 staload "data_font/font.sats"
 staload "data_ast/doc.sats"
+staload "data_ast/ast.sats"
 staload "data_image/image.sats"
 staload "ui_workspace/ui.sats"
 staload "ui_workspace/ui_common.sats"
@@ -57,7 +58,9 @@ vtypedef App_record = @{
   scratch= Buf, imgpath= Buf, viewmode= ViewMode, font_idx= int,
   fpaths= Buf, fnames= Buf, fmeta= Buf, fcnt= int, font_path= Buf,
   vault_select= Toggle, vpaths= Buf, vnames= Buf, vmeta= Buf, vcnt= int,
-  hoverx= int, hovery= int, sidew= int, btnw= int, modew= int, menuw= int
+  hoverx= int, hovery= int, sidew= int, btnw= int, modew= int, menuw= int,
+  preview_tab= int, last_tree_row= int, last_tree_time= lint,
+  tab_pane= Buf, open_dirs= Buf, flash_line= int, flash_until_ns= lint
 }
 datavtype App_ = APP of App_record
 (* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
@@ -70,10 +73,88 @@ typedef DownHit = @{
   zone= DownZone, inside= Toggle, item= int
 }
 
-fun save_session_impl(vault: !Buf, font_p: !Buf, font_px: int, viewmode: ViewMode, split: Toggle, active: int, ts: !Tabs): void =
+fun tab_pane_has_val_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, pane: int, i: int): bool =
+  if recfuel > 0 then (
+    if i >= buf_len(b) then false
+    else if buf_get(b, i) = pane then true
+    else tab_pane_has_val_m(recfuel - 1, b, pane, i + 1)
+  ) else false
+
+fun tab_pane_has(b: !Buf, pane: int): bool =
+  tab_pane_has_val_m(airlock_nat(MAX_REC_FUEL), b, pane, 0)
+
+fun sync_tab_pane_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), tab_pane: &Buf >> _, n: int, sp: Toggle, righti: int): void =
+  if recfuel > 0 then (
+    if buf_len(tab_pane) < n then let
+      val () = buf_push(tab_pane, 0)
+    in
+      sync_tab_pane_m(recfuel - 1, tab_pane, n, sp, righti)
+    end else if buf_len(tab_pane) > n then buf_set_len(tab_pane, n)
+    else ()
+  ) else ()
+
+fun sync_tab_pane(tab_pane: &Buf >> _, n: int, sp: Toggle, righti: int): void =
+  sync_tab_pane_m(airlock_nat(MAX_REC_FUEL), tab_pane, n, sp, righti)
+
+fun tab_pane_find_first_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, pane: int, i: int): int =
+  if recfuel > 0 then (
+    if i >= buf_len(b) then ~1
+    else if buf_get(b, i) = pane then i
+    else tab_pane_find_first_m(recfuel - 1, b, pane, i + 1)
+  ) else ~1
+
+fun tab_pane_find_first(b: !Buf, pane: int): int =
+  tab_pane_find_first_m(airlock_nat(MAX_REC_FUEL), b, pane, 0)
+
+fun save_session_impl(
+  vault: !Buf, font_p: !Buf, font_px: int, viewmode: ViewMode,
+  split: Toggle, active: int, righti: int, side_open: int, sidew: int,
+  tab_pane: !Buf, open_dirs: !Buf, ts: !Tabs
+): void =
   if igt(buf_len(vault), 0) then
-    conf_save_session(cstr(vault), cstr(font_p), font_px, view_mode_code(viewmode), toggle_int(split), active, ts)
+    conf_save_session(cstr(vault), cstr(font_p), font_px, view_mode_code(viewmode), toggle_int(split), active, righti, side_open, sidew, tab_pane, open_dirs, ts)
   else ()
+
+fun collect_open_dirs_m {rem:nat} .<rem>. (
+  tree: !Buf, meta: !Buf, topen: !Buf, open_dirs: &Buf >> Buf, i: int, rem: int(rem)
+): void =
+  if rem > 0 then let
+    val is_dir = is_dir_mark(meta_dir(meta, i), DirYes)
+    val is_open = ieq(buf_get(topen, i), 1)
+    val () = if is_dir andalso is_open then let
+      val off = buf_get32(meta, iadd(imul(i, 4), 2))
+      val n = buf_get32(meta, iadd(imul(i, 4), 3))
+    in
+      bcat(open_dirs, tree, off, iadd(off, n));
+      buf_push(open_dirs, CHAR_LF)
+    end else ()
+  in
+    collect_open_dirs_m(tree, meta, topen, open_dirs, iadd(i, 1), rem - 1)
+  end else touchb(open_dirs)
+
+fun collect_open_dirs(tree: !Buf, meta: !Buf, topen: !Buf, n: int, open_dirs: &Buf >> Buf): void = let
+  val () = bclear(open_dirs)
+in
+  if igt(n, 0) then collect_open_dirs_m(tree, meta, topen, open_dirs, 0, airlock_nat(n))
+  else touchb(open_dirs)
+end
+
+fun sync_open_dirs_from_tree(s: &App_record >> _): void =
+  if igt(s.tn, 0) then
+    collect_open_dirs(s.tree, s.tmeta, s.topen, s.tn, s.open_dirs)
+  else ()
+
+fun save_app_session(s: &App_record >> _): void = let
+  val n = tabs_len(s.tabs)
+in
+  if n > 0 then let
+    val () = sync_open_dirs_from_tree(s)
+    val () = sync_tab_pane(s.tab_pane, n, s.split, s.righti)
+    val side_open = (if is_side_none(s.side) then 0 else 1)
+  in
+    save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.righti, side_open, s.sidew, s.tab_pane, s.open_dirs, s.tabs)
+  end else ()
+end
 
 fun make_empty_tabs(): Tabs = let
   var title = buf_make(16)
@@ -89,44 +170,81 @@ fun tabs_fallback(ts: Tabs): Tabs =
   | ~TNil() => make_empty_tabs()
   | ~TCons(d, p, t, s, rest) => TCons(d, p, t, s, rest)
 
-fun load_vault_tabs(target: string, font_path: &Buf >> Buf, out_fpx: &int >> int, out_vm: &int >> int, out_sp: &int >> int, out_act: &int >> int): Tabs = let
-  var fpx: int = 18
-  var vmode: int = 0
-  var sp: int = 0
-  var act_idx: int = 0
-  val loaded_tabs = conf_load_session(target, font_path, fpx, vmode, sp, act_idx, TNil())
+fun apply_tab_indices(
+  n_tabs: int, act_idx: int, right_idx: int, out_act: &int >> int, out_righti: &int >> int
+): void = let
+  val () = out_act := imax(0, imin(isub(n_tabs, 1), act_idx))
+  val () = out_righti := imax(0, imin(isub(n_tabs, 1), right_idx))
+in
+end
+
+fun load_vault_tabs(
+  target: string, font_path: &Buf >> Buf, out_fpx: &int >> int,
+  out_vm: &int >> int, out_sp: &int >> int, out_act: &int >> int,
+  out_righti: &int >> int, out_side_open: &int >> int, out_sidew: &int >> int,
+  out_tab_pane: &Buf >> Buf, out_open_dirs: &Buf >> Buf
+): Tabs = let
+  var fpx: int = 18; var vmode: int = 0; var sp: int = 0; var act_idx: int = 0; var right_idx: int = 0
+  var side_open: int = 1; var sidew: int = UI_SIDEBAR_WIDTH
+  val loaded_tabs = conf_load_session(target, font_path, fpx, vmode, sp, act_idx, right_idx, side_open, sidew, out_tab_pane, out_open_dirs, TNil())
   val new_tabs = tabs_fallback(loaded_tabs)
+  val () = if ieq(buf_len(out_tab_pane), 0) then buf_push(out_tab_pane, 0) else ()
+  val n_tabs = tabs_len(new_tabs)
   val () = out_fpx := (if igt(fpx, 0) then fpx else 18)
   val () = out_vm := vmode
-  val () = out_sp := sp
-  val () = out_act := act_idx
+  val () = out_sp := (if is_on(toggle_of(ieq(sp, 1))) andalso tab_pane_has(out_tab_pane, 1) then 1 else 0)
+  val () = out_side_open := side_open
+  val () = out_sidew := imax(UI_SIDEBAR_MIN_WIDTH, sidew)
+  val () = apply_tab_indices(n_tabs, act_idx, right_idx, out_act, out_righti)
 in
   new_tabs
 end
 
-fun init_vault_tabs(vb: !Buf, f_vsel: Toggle, font_path: &Buf >> Buf, out_fpx: &int >> int, out_vm: &int >> int, out_sp: &int >> int, out_act: &int >> int): Tabs =
-  if ieq(buf_len(vb), 0) orelse is_on(f_vsel) then let
-    val () = out_fpx := 18
-    val () = out_vm := 0
-    val () = out_sp := 0
-    val () = out_act := 0
-  in
-    make_empty_tabs()
-  end else let
+fun init_vault_tabs_empty(
+  out_fpx: &int >> int, out_vm: &int >> int, out_sp: &int >> int,
+  out_act: &int >> int, out_righti: &int >> int,
+  out_side_open: &int >> int, out_sidew: &int >> int,
+  out_tab_pane: &Buf >> Buf, out_open_dirs: &Buf >> Buf
+): Tabs = let
+  val () = out_fpx := 18; val () = out_vm := 0; val () = out_sp := 0
+  val () = out_act := 0; val () = out_righti := 0
+  val () = out_side_open := 1; val () = out_sidew := UI_SIDEBAR_WIDTH
+  val () = bclear(out_tab_pane); val () = buf_push(out_tab_pane, 0)
+  val () = bclear(out_open_dirs)
+in
+  make_empty_tabs()
+end
+
+fun init_vault_tabs(
+  vb: !Buf, f_vsel: Toggle, font_path: &Buf >> Buf,
+  out_fpx: &int >> int, out_vm: &int >> int, out_sp: &int >> int,
+  out_act: &int >> int, out_righti: &int >> int,
+  out_side_open: &int >> int, out_sidew: &int >> int,
+  out_tab_pane: &Buf >> Buf, out_open_dirs: &Buf >> Buf
+): Tabs =
+  if ieq(buf_len(vb), 0) orelse is_on(f_vsel) then
+    init_vault_tabs_empty(out_fpx, out_vm, out_sp, out_act, out_righti, out_side_open, out_sidew, out_tab_pane, out_open_dirs)
+  else let
     val () = conf_set_active_vault(cstr(vb))
   in
-    load_vault_tabs(cstr(vb), font_path, out_fpx, out_vm, out_sp, out_act)
+    load_vault_tabs(cstr(vb), font_path, out_fpx, out_vm, out_sp, out_act, out_righti, out_side_open, out_sidew, out_tab_pane, out_open_dirs)
   end
 
-fun switch_vault_tabs(old_tabs: Tabs, target: string, font_path: &Buf >> Buf, out_fpx: &int >> int, out_vm: &int >> int, out_sp: &int >> int, out_act: &int >> int): Tabs = let
+fun switch_vault_tabs(
+  old_tabs: Tabs, target: string, font_path: &Buf >> Buf,
+  out_fpx: &int >> int, out_vm: &int >> int, out_sp: &int >> int,
+  out_act: &int >> int, out_righti: &int >> int,
+  out_side_open: &int >> int, out_sidew: &int >> int,
+  out_tab_pane: &Buf >> Buf, out_open_dirs: &Buf >> Buf
+): Tabs = let
   val () = tabs_save_all_physical(old_tabs)
   val () = tabs_free(old_tabs)
 in
-  load_vault_tabs(target, font_path, out_fpx, out_vm, out_sp, out_act)
+  load_vault_tabs(target, font_path, out_fpx, out_vm, out_sp, out_act, out_righti, out_side_open, out_sidew, out_tab_pane, out_open_dirs)
 end
 
 fun vault_switch_begin(s: &App_record >> _, target: string): void = let
-  val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+  val () = save_app_session(s)
   val () = bclear(s.vault)
   val () = bstr(s.vault, target)
   val () = conf_set_active_vault(target)
@@ -142,7 +260,10 @@ in
   s.search_nfiles := 0
 end
 
-fun vault_switch_finish(s: &App_record >> _, new_t: Tabs, fpx: int, vm: int, sp: int, act: int): void = let
+fun vault_switch_finish(
+  s: &App_record >> _, new_t: Tabs, fpx: int, vm: int, sp: int,
+  act: int, righti: int, side_open: int, sidew: int
+): void = let
   val ph = s.tabs
   val () = s.tabs := new_t
   val () = tabs_free(ph)
@@ -151,7 +272,9 @@ fun vault_switch_finish(s: &App_record >> _, new_t: Tabs, fpx: int, vm: int, sp:
   val () = s.viewmode := view_mode_of_code(vm)
   val () = s.split := toggle_of(ieq(sp, 1))
   val () = s.active := act
-  val () = s.righti := 0
+  val () = s.righti := righti
+  val () = s.side := (if ieq(side_open, 1) then SideFiles else SideNone)
+  val () = s.sidew := sidew
   val () = s.treedirty := On
   val () = bclear(s.promptb)
   val () = s.vault_select := Off
@@ -167,8 +290,11 @@ fun switch_to_vault(s: &App_record >> _, target: string): void = let
   var n_vm: int = 0
   var n_sp: int = 0
   var n_act: int = 0
-  val new_t = switch_vault_tabs(old_t, target, s.font_path, n_fpx, n_vm, n_sp, n_act)
-  val () = vault_switch_finish(s, new_t, n_fpx, n_vm, n_sp, n_act)
+  var n_righti: int = 0
+  var n_side_open: int = 1
+  var n_sidew: int = UI_SIDEBAR_WIDTH
+  val new_t = switch_vault_tabs(old_t, target, s.font_path, n_fpx, n_vm, n_sp, n_act, n_righti, n_side_open, n_sidew, s.tab_pane, s.open_dirs)
+  val () = vault_switch_finish(s, new_t, n_fpx, n_vm, n_sp, n_act, n_righti, n_side_open, n_sidew)
 in
 end
 
@@ -239,40 +365,60 @@ in
   @(vpaths, vnames, vmeta, vcnt)
 end
 
-fun open_init_session(vb: !Buf, f_vsel: Toggle, fpaths: !Buf, fmeta: !Buf, fcnt: int): @(Tabs, Buf, int, int, int, int) = let
+fun open_init_session(
+  vb: !Buf, f_vsel: Toggle, fpaths: !Buf, fmeta: !Buf, fcnt: int,
+  tab_pane: &Buf >> Buf, open_dirs: &Buf >> Buf
+): @(Tabs, Buf, int, int, int, int, int, int, int) = let
   var fpath = buf_make(256)
   var fpx: int = 18
   var vmode: int = 0
   var sp: int = 0
   var act_idx: int = 0
-  val tabs = init_vault_tabs(vb, f_vsel, fpath, fpx, vmode, sp, act_idx)
+  var right_idx: int = 0
+  var side_open: int = 1
+  var sidew: int = UI_SIDEBAR_WIDTH
+  val tabs = init_vault_tabs(vb, f_vsel, fpath, fpx, vmode, sp, act_idx, right_idx, side_open, sidew, tab_pane, open_dirs)
   val () = pick_first_font(fpath, fpaths, fmeta, fcnt)
 in
-  @(tabs, fpath, fpx, vmode, sp, act_idx)
+  @(tabs, fpath, fpx, vmode, sp, act_idx, right_idx, side_open, sidew)
 end
+
+fun app_record_make(
+  vb: Buf, tabs: Tabs, fpaths: Buf, fnames: Buf, fmeta: Buf, fcnt: int,
+  vpaths: Buf, vnames: Buf, vmeta: Buf, vcnt: int, tab_pane: Buf, open_dirs: Buf,
+  fpath: Buf, fpx: int, vmode: int, sp: int, act_idx: int, right_idx: int,
+  side_open: int, sidew: int, f_vsel: int
+): App_record = @{
+  vault= vb, tabs= tabs, cache= CNil(), active= act_idx, righti= right_idx, split= toggle_of(ieq(sp, 1)),
+  focus= Off, side= (if ieq(side_open, 1) then SideFiles else SideNone), fontpx= fpx, clip= buf_make(64), menu= MenuNone, menux= 0, menuy= 0,
+  drag= DragNone, dragi= ~1, prompt= PromptNone, promptb= buf_make(256), query= buf_make(64), qfocus= Off,
+  tree= buf_make(64), tmeta= buf_make(64), topen= buf_make(64), tn= 0, treescroll= 0, hits= buf_make(64),
+  hmeta= buf_make(64), hn= 0, ixf= buf_make(64), ixs= buf_make(64), ixp= buf_make(64), ixb= buf_make(64),
+  ixq= buf_make(64), hjump= buf_make(64), jump_line= ~1, jump_col= ~1, jump_fid= ~1, scope= 0,
+  hscroll= 0, search_state= 0, search_nfiles= 0, sel= ~1, treedirty= On, paste= Off, hitk= KNone,
+  hiti= ~1, downx= ~1, downy= ~1, scratch= buf_make(4096), imgpath= buf_make(64),
+  viewmode= view_mode_of_code(vmode), font_idx= 0, fpaths= fpaths, fnames= fnames, fmeta= fmeta,
+  fcnt= fcnt, font_path= fpath, vault_select= toggle_of(ieq(f_vsel, 1)), vpaths= vpaths, vnames= vnames,
+  vmeta= vmeta, vcnt= vcnt, hoverx= ~1, hovery= ~1, sidew= (if igt(sidew, 0) then sidew else UI_SIDEBAR_WIDTH), btnw= 0, modew= 0,
+  menuw= 0, preview_tab= ~1, last_tree_row= ~1, last_tree_time= 0L, tab_pane= tab_pane,
+  open_dirs= open_dirs, flash_line= ~1, flash_until_ns= 0L
+}
 
 implement app_open(vault) = let
   val @(vb, f_vsel) = open_resolve_vault(vault)
   val @(fpaths, fnames, fmeta, fcnt) = open_scan_fonts()
   val @(vpaths, vnames, vmeta, vcnt) = open_scan_vaults()
-  val @(tabs, fpath, fpx, vmode, sp, act_idx) = open_init_session(vb, toggle_of(ieq(f_vsel, 1)), fpaths, fmeta, fcnt)
+  var tab_pane = buf_make(16)
+  var open_dirs = buf_make(128)
+  val @(tabs, fpath, fpx, vmode, sp, act_idx, right_idx, side_open, sidew) =
+    open_init_session(vb, toggle_of(ieq(f_vsel, 1)), fpaths, fmeta, fcnt, tab_pane, open_dirs)
+  val r = app_record_make(
+    vb, tabs, fpaths, fnames, fmeta, fcnt, vpaths, vnames, vmeta, vcnt,
+    tab_pane, open_dirs, fpath, fpx, vmode, sp, act_idx, right_idx,
+    side_open, sidew, f_vsel
+  )
 in
-  APP(@{
-    vault= vb, tabs= tabs, cache= CNil(),
-    active= act_idx, righti= 0, split= toggle_of(ieq(sp, 1)), focus= Off, side= SideNone, fontpx= fpx,
-    clip= buf_make(64), menu= MenuNone, menux= 0, menuy= 0, drag= DragNone, dragi= ~1,
-    prompt= PromptNone, promptb= buf_make(256), query= buf_make(64), qfocus= Off,
-    tree= buf_make(64), tmeta= buf_make(64), topen= buf_make(64), tn= 0, treescroll= 0,
-    hits= buf_make(64), hmeta= buf_make(64), hn= 0,
-    ixf= buf_make(64), ixs= buf_make(64), ixp= buf_make(64), ixb= buf_make(64), ixq= buf_make(64), hjump= buf_make(64),
-    jump_line= ~1, jump_col= ~1, jump_fid= ~1,
-    scope= 0, hscroll= 0, search_state= 0, search_nfiles= 0,
-    sel= ~1, treedirty= On, paste= Off, hitk= KNone, hiti= ~1, downx= ~1, downy= ~1,
-    scratch= buf_make(4096), imgpath= buf_make(64), viewmode= view_mode_of_code(vmode), font_idx= 0,
-    fpaths= fpaths, fnames= fnames, fmeta= fmeta, fcnt= fcnt, font_path= fpath,
-    vault_select= toggle_of(ieq(f_vsel, 1)), vpaths= vpaths, vnames= vnames, vmeta= vmeta, vcnt= vcnt,
-    hoverx= ~1, hovery= ~1, sidew= UI_SIDEBAR_WIDTH, btnw= 0, modew= 0, menuw= 0
-  })
+  APP(r)
 end
 
 fun free_input_bufs(clip: Buf, promptb: Buf, query: Buf, tree: Buf, tmeta: Buf, topen: Buf): void = let
@@ -311,21 +457,37 @@ fun free_font_bufs(fpaths: Buf, fnames: Buf, fmeta: Buf, font_path: Buf): void =
 in
 end
 
-implement app_free(a) = let
-  val+ ~APP(s) = a
-  val ts2 = tabs_ensure_paths(s.tabs, s.vault)
-  val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, ts2)
-  val () = buf_free(s.vault)
+fun free_app_state(vault: Buf, ts2: Tabs, cache: Cache, vpaths: Buf, vnames: Buf, vmeta: Buf, tab_pane: Buf, open_dirs: Buf): void = let
+  val () = buf_free(vault)
   val () = tabs_free(ts2)
-  val () = cache_free(s.cache)
+  val () = cache_free(cache)
+  val () = buf_free(vpaths)
+  val () = buf_free(vnames)
+  val () = buf_free(tab_pane)
+  val () = buf_free(open_dirs)
+in
+  buf_free(vmeta)
+end
+
+implement app_free(a) = let
+  var app_val = a
+  val () = case+ app_val of
+  | @APP(s) => let
+      val () = sync_open_dirs_from_tree(s)
+      val () = sync_tab_pane(s.tab_pane, tabs_len(s.tabs), s.split, s.righti)
+    in
+      fold@(app_val)
+    end
+  val+ ~APP(s) = app_val
+  val ts2 = tabs_ensure_paths(s.tabs, s.vault)
+  val side_open = (if is_side_none(s.side) then 0 else 1)
+  val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.righti, side_open, s.sidew, s.tab_pane, s.open_dirs, ts2)
   val () = free_input_bufs(s.clip, s.promptb, s.query, s.tree, s.tmeta, s.topen)
   val () = free_search_bufs(s.hits, s.hmeta, s.scratch, s.imgpath)
   val () = free_index_bufs(s.ixf, s.ixs, s.ixp, s.ixb, s.ixq, s.hjump)
   val () = free_font_bufs(s.fpaths, s.fnames, s.fmeta, s.font_path)
-  val () = buf_free(s.vpaths)
-  val () = buf_free(s.vnames)
 in
-  buf_free(s.vmeta)
+  free_app_state(s.vault, ts2, s.cache, s.vpaths, s.vnames, s.vmeta, s.tab_pane, s.open_dirs)
 end
 
 fun pane_of(sfocus: Toggle, active: int, righti: int): int =
@@ -339,20 +501,65 @@ fun tree_open_code(state: Toggle): int =
 fun tree_open_of_code(code: int): Toggle =
   if ieq(code, tree_open_code(On)) then On else Off
 
+fun buf_span_eq_m {rem:nat} .<rem>. (
+  b1: !Buf, p1: int, b2: !Buf, p2: int, rem: int(rem)
+): bool =
+  if rem > 0 then (
+    if ine(buf_get(b1, p1), buf_get(b2, p2)) then false
+    else buf_span_eq_m(b1, iadd(p1, 1), b2, iadd(p2, 1), rem - 1)
+  ) else true
+
+fun skip_to_lf_m {rem:nat} .<rem>. (b: !Buf, i: int, rem: int(rem)): int =
+  if rem > 0 then (
+    if ieq(buf_get(b, i), CHAR_LF) then i
+    else skip_to_lf_m(b, iadd(i, 1), rem - 1)
+  ) else i
+
+fun skip_to_lf(b: !Buf, i: int, n: int): int =
+  if ige(i, n) then n
+  else skip_to_lf_m(b, i, airlock_span(i, n))
+
+fun is_in_lines_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), lines: !Buf, p: !Buf, cur: int, n: int
+): bool =
+  if recfuel > 0 then (
+    if ilt(cur, n) then let
+      val e = skip_to_lf(lines, cur, n)
+      val len = isub(e, cur)
+      val plen = buf_len(p)
+      val matches = ieq(len, plen) andalso buf_span_eq_m(lines, cur, p, 0, airlock_nat(len))
+    in
+      if matches then true
+      else is_in_lines_m(recfuel - 1, lines, p, iadd(e, 1), n)
+    end else false
+  ) else false
+
+fun is_in_lines(lines: !Buf, p: !Buf): bool =
+  is_in_lines_m(airlock_nat(MAX_REC_FUEL), lines, p, 0, buf_len(lines))
+
+fun check_row_open(tree: !Buf, meta: !Buf, open_dirs: !Buf, i: int): int =
+  if is_dir_mark(meta_dir(meta, i), DirYes) andalso igt(buf_len(open_dirs), 0) then let
+    var tmp = buf_make(256)
+    val () = row_path(tree, meta, i, tmp)
+    val is_open = is_in_lines(open_dirs, tmp)
+    val () = buf_free(tmp)
+  in
+    if is_open then 1 else 0
+  end else 0
+
 fun tree_open_defaults_m {rem:nat} .<rem>. (
-  meta: !Buf, open_rows: &Buf >> Buf, i: int, rem: int(rem)
+  tree: !Buf, meta: !Buf, open_dirs: !Buf, open_rows: &Buf >> Buf, i: int, rem: int(rem)
 ): void =
   if rem > 0 then let
-    val mark = meta_dir(meta, i)
-    val state = toggle_of(is_dir_mark(mark, DirYes))
+    val code = check_row_open(tree, meta, open_dirs, i)
   in
-    bpush(open_rows, tree_open_code(state));
-    tree_open_defaults_m(meta, open_rows, iadd(i, 1), rem - 1)
+    bpush(open_rows, code);
+    tree_open_defaults_m(tree, meta, open_dirs, open_rows, iadd(i, 1), rem - 1)
   end else touchb(open_rows)
 
-fun tree_open_defaults(meta: !Buf, open_rows: &Buf >> Buf, n: int, i: int): void =
-  if ige(i, n) then touchb(open_rows)
-  else tree_open_defaults_m(meta, open_rows, i, airlock_span(i, n))
+fun tree_open_defaults(tree: !Buf, meta: !Buf, open_dirs: !Buf, open_rows: &Buf >> Buf, n: int): void =
+  if igt(n, 0) then tree_open_defaults_m(tree, meta, open_dirs, open_rows, 0, airlock_nat(n))
+  else touchb(open_rows)
 
 fun tree_row_open_state(s: &App_record, row: int): Toggle =
   tree_open_of_code(buf_get(s.topen, row))
@@ -415,8 +622,10 @@ fun tree_toggle_source(s: &App_record >> _, source: int): void =
     val next = case+ current of | Off() => On | On() => Off
     val () = s.drag := DragNone
     val () = s.dragi := ~1
+    val () = buf_set(s.topen, source, tree_open_code(next))
+    val () = sync_open_dirs_from_tree(s)
   in
-    buf_set(s.topen, source, tree_open_code(next))
+    save_app_session(s)
   end else ()
 
 fun tree_expander_hit(s: &App_record, source: int, x: int): bool =
@@ -431,12 +640,13 @@ fun tree_expander_hit(s: &App_record, source: int, x: int): bool =
 
 fun ensure_tree_fresh(s: &App_record >> _): void =
   if is_on(s.treedirty) andalso is_side_files(s.side) then let
+    val () = if igt(s.tn, 0) then sync_open_dirs_from_tree(s) else ()
     val () = bclear(s.tree)
     val () = bclear(s.tmeta)
     val () = bclear(s.topen)
     val () = s.tn := 0
     val () = scan_dir(s.vault, 0, s.tmeta, s.tree, s.tn)
-    val () = tree_open_defaults(s.tmeta, s.topen, s.tn, 0)
+    val () = tree_open_defaults(s.tree, s.tmeta, s.open_dirs, s.topen, s.tn)
     val () = if ige(s.sel, s.tn) then s.sel := ~1 else ()
     val () = s.treescroll := 0
   in
@@ -734,21 +944,69 @@ end
 fun apply_jump_if(ts: Tabs, act: int, jline: int, jcol: int): Tabs =
   if ige(jline, 0) then tabs_jump(ts, act, jline, jcol) else ts
 
-fun draw_editor_panes(f: !Font, r: !Rend, s: &App_record >> _, ox: int, half: int, h: int, lh: int): void = let
+
+fun validate_pane_left(s: &App_record >> _, n: int): void = let
+  val act_ok = ige(s.active, 0) andalso ilt(s.active, n) andalso ieq(buf_get(s.tab_pane, s.active), 0)
+in
+  if not(act_ok) then let
+    val f_left = tab_pane_find_first(s.tab_pane, 0)
+    val () = if ige(f_left, 0) then s.active := f_left else ()
+  in end else ()
+end
+
+fun validate_pane_right(s: &App_record >> _, n: int): void = let
+  val right_ok = ige(s.righti, 0) andalso ilt(s.righti, n) andalso ieq(buf_get(s.tab_pane, s.righti), 1)
+in
+  if not(right_ok) then let
+    val f_right = tab_pane_find_first(s.tab_pane, 1)
+    val () = if ige(f_right, 0) then s.righti := f_right else ()
+  in end else ()
+end
+
+fun validate_panes_len(s: &App_record >> _, n: int): void = let
+  val () = if buf_len(s.tab_pane) < n then sync_tab_pane(s.tab_pane, n, s.split, s.righti) else ()
+  val has_right = tab_pane_has(s.tab_pane, 1)
+  val has_left = tab_pane_has(s.tab_pane, 0)
+in
+  if is_on(s.split) then (
+    if not(has_right) orelse not(has_left) then (s.split := Off; s.focus := Off)
+    else (validate_pane_left(s, n); validate_pane_right(s, n))
+  ) else ()
+end
+
+fun draw_split_tabs(f: !Font, r: !Rend, ts: Tabs, tab_x0: int, mid: int, bx: int, act: int, righti: int, tab_pane: !Buf): Tabs = let
+  val () = rend_scissor(r, tab_x0, 0, isub(mid, tab_x0), UI_TOPBAR_HEIGHT)
+  val ts_l = draw_tabrow_pane(f, r, ts, tab_x0, act, 0, 0, tab_pane)
+  val () = rend_scissor_off(r)
+  val () = rend_scissor(r, iadd(mid, 4), 0, isub(bx, mid), UI_TOPBAR_HEIGHT)
+  val ts_r = draw_tabrow_pane(f, r, ts_l, iadd(mid, 4), righti, 0, 1, tab_pane)
+  val () = rend_scissor_off(r)
+in
+  ts_r
+end
+
+fun choose_tabrow(f: !Font, r: !Rend, ts: Tabs, tab_x0: int, mid: int, bx: int, s: &App_record): Tabs =
+  if is_on(s.split) then draw_split_tabs(f, r, ts, tab_x0, mid, bx, s.active, s.righti, s.tab_pane)
+  else draw_tabrow_pane(f, r, ts, tab_x0, pane_of(s.focus, s.active, s.righti), 0, ~1, s.tab_pane)
+
+fun draw_editor_panes(f: !Font, r: !Rend, s: &App_record >> _, ox: int, half: int, w: int, h: int, lh: int): void = let
   val tab_x0 = topbar_tab_start_x(s.btnw)
   val ts0 = s.tabs
   val () = s.tabs := TNil()
   val ts = apply_jump_if(ts0, s.active, s.jump_line, s.jump_col)
   val () = if ige(s.jump_line, 0) then (s.jump_line := ~1; s.jump_col := ~1) else ()
-  val mark = pane_of(s.focus, s.active, s.righti)
-  val ts2 = draw_tabrow(f, r, ts, tab_x0, mark, 0)
+  val mid = iadd(ox, half)
+  val bx = topbar_mode_btn_x(w, s.modew)
+  val () = sync_tab_pane(s.tab_pane, tabs_len(ts), s.split, s.righti)
+  val () = validate_panes_len(s, tabs_len(ts))
+  val ts2 = choose_tabrow(f, r, ts, tab_x0, mid, bx, s)
   val ts3 = draw_focus(f, r, ts2, s.active, ox, UI_TOPBAR_HEIGHT, half, isub(h, UI_TOPBAR_HEIGHT), lh, s.vault, s.cache, s.scratch, 0, s.viewmode)
-  val ts4 = draw_right(f, r, ts3, s.split, s.righti, iadd(ox, half), UI_TOPBAR_HEIGHT, half, isub(h, UI_TOPBAR_HEIGHT), lh, s.vault, s.cache, s.scratch, s.viewmode)
+  val ts4 = draw_right(f, r, ts3, s.split, s.righti, mid, UI_TOPBAR_HEIGHT, half, isub(h, UI_TOPBAR_HEIGHT), lh, s.vault, s.cache, s.scratch, s.viewmode)
   val ph = s.tabs
   val () = s.tabs := ts4
   val () = tabs_free(ph)
 in
-  if is_on(s.split) then ui_divider(r, iadd(ox, half), UI_TOPBAR_HEIGHT, isub(h, UI_TOPBAR_HEIGHT), Vertical) else ()
+  if is_on(s.split) then ui_divider(r, mid, 0, h, Vertical) else ()
 end
 
 fun font_load_report(f: !Font, path: string): void =
@@ -795,7 +1053,7 @@ fun draw_panes(f: !Font, r: !Rend, a: !App, w: int, h: int): void =
       val half = if is_on(s.split) then idiv(pw, 2) else pw
       val () = rend_rect(r, 0, 0, w, h, col_bg())
       val () = draw_topbar_chrome(f, r, s, w)
-      val () = draw_editor_panes(f, r, s, ox, half, h, lh)
+      val () = draw_editor_panes(f, r, s, ox, half, w, h, lh)
       val () = draw_topbar_mode(f, r, s, w)
     in
       fold@(a)
@@ -930,48 +1188,260 @@ fun open_or(rest: Tabs, owned: Buf, go: Toggle): Tabs =
     rest
   end
 
+extern fun doc_seek_sub_at_exh(d: !Doc, n: int, a: !Buf, al: int, dp: int, ai: int): bool = "mac#anth_die_bool"
+
+fun doc_seek_sub_at_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), d: !Doc, n: int, a: !Buf, al: int, dp: int, ai: int
+): bool =
+  if recfuel > 0 then (
+    if ige(ai, al) then true
+    else if ige(dp, n) then false
+    else if ieq(doc_byte(d, dp), buf_get(a, ai)) then
+      doc_seek_sub_at_m(recfuel - 1, d, n, a, al, iadd(dp, 1), iadd(ai, 1))
+    else false
+  ) else doc_seek_sub_at_exh(d, n, a, al, dp, ai)
+
+extern fun doc_seek_anchor_exh(d: !Doc, n: int, a: !Buf, al: int, i: int): int = "mac#anth_die_int"
+
+fun doc_seek_anchor_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), d: !Doc, n: int, a: !Buf, al: int, i: int
+): int =
+  if recfuel > 0 then (
+    if igt(iadd(i, al), n) then ~1
+    else if doc_seek_sub_at_m(airlock_nat(MAX_REC_FUEL), d, n, a, al, i, 0) then i
+    else doc_seek_anchor_m(recfuel - 1, d, n, a, al, iadd(i, 1))
+  ) else doc_seek_anchor_exh(d, n, a, al, i)
+
+fun doc_jump_anchor(d: !Doc, anchor: &Buf >> _, cur_sc: int): int = let
+  val alen = buf_len(anchor)
+in
+  if igt(alen, 0) then let
+    val pos = doc_seek_anchor_m(airlock_nat(MAX_REC_FUEL), d, doc_len(d), anchor, alen, 0)
+  in
+    if ige(pos, 0) then let
+      val () = doc_set_caret_move(d, pos)
+      val line = doc_line_of(d, pos)
+      val () = doc_set_flash(d, line, mono_ns() + 1000000000L)
+      val ly = doc_line_y(d, line)
+    in
+      imax(0, isub(ly, 350))
+    end else cur_sc
+  end else cur_sc
+end
+
+
+fun take_anchor_if(doc: !Doc, w: int, anchor: &Buf >> _, go: Toggle): void =
+  if is_on(go) then take_anchor(doc, w, anchor) else touchb(anchor)
+
 fun take_if(doc: !Doc, w: int, rel: &Buf >> _, go: Toggle): void =
   if is_on(go) then take_path(doc, w, rel) else touchb(rel)
 
-fun wiki_here(doc: !Doc, rest: Tabs, vault: !Buf): Tabs = let
-  val () = seen_int(node_covering(doc, 0, 0, 0, 0, ~1))
-  var rel = buf_make(8)
-  var full = buf_make(8)
-  var shown = buf_make(8)
-  val w = find_wiki(doc, doc_caret(doc), 0)
-  val () = take_if(doc, w, rel, toggle_of(ige(w, 0)))
-  val () = resolve_path(vault, rel, full)
-  val () = with_md(full, shown)
-  val owned = bcopy(shown)
-  val restw = open_or(rest, owned, toggle_of(ige(w, 0)))
-  val () = buf_free(rel)
-  val () = buf_free(full)
-in
-  let
-    val () = buf_free(shown)
+fun doc_jump_if(d: !Doc, anchor: &Buf >> _, cur_sc: int, go: Toggle): int =
+  if is_on(go) then doc_jump_anchor(d, anchor, cur_sc)
+  else let
+    val () = touchb(anchor)
   in
-    restw
+    cur_sc
+  end
+
+extern fun tabs_jump_anchor_exh(ts: Tabs, idx: int, anchor: &Buf >> _): Tabs = "mac#anth_die_box"
+
+fun tabs_jump_anchor_m {recfuel:nat} .<recfuel, 1>. (
+  recfuel: int(recfuel), ts: Tabs, idx: int, anchor: &Buf >> _
+): Tabs =
+  if recfuel > 0 then (
+    case+ ts of
+    | ~TNil() => let
+        val () = touchb(anchor)
+      in
+        TNil()
+      end
+    | ~TCons(doc, path, title, sc, rest) =>
+        tabs_jump_anchor_cons(recfuel, doc, path, title, sc, rest, idx, anchor)
+  ) else let
+    val () = touchb(anchor)
+  in
+    tabs_jump_anchor_exh(ts, idx, anchor)
+  end
+and tabs_jump_anchor_cons {recfuel:nat} .<recfuel, 0>. (
+  recfuel: int(recfuel), doc: Doc, path: Buf, title: Buf, sc: int, rest: Tabs, idx: int, anchor: &Buf >> _
+): Tabs = let
+  val nsc = doc_jump_if(doc, anchor, sc, toggle_of(ieq(idx, 0)))
+in
+  if ieq(idx, 0) then let
+    val () = touchb(anchor)
+  in
+    TCons(doc, path, title, nsc, rest)
+  end else if recfuel > 0 then
+    TCons(doc, path, title, sc, tabs_jump_anchor_m(recfuel - 1, rest, isub(idx, 1), anchor))
+  else let
+    val () = touchb(anchor)
+  in
+    tabs_jump_anchor_exh(TCons(doc, path, title, sc, rest), idx, anchor)
   end
 end
 
-fun wiki_tab_here(doc: Doc, path: Buf, title: Buf, sc: int, rest: Tabs, vault: !Buf): Tabs = let
-  val rest2 = wiki_here(doc, rest, vault)
+fun tabs_jump_anchor(ts: Tabs, idx: int, anchor: &Buf >> _): Tabs =
+  tabs_jump_anchor_m(airlock_nat(MAX_REC_FUEL), ts, idx, anchor)
+
+fun jump_tab_anchor_if(ts: Tabs, anchor: &Buf >> _, go: Toggle): Tabs =
+  if is_on(go) then tabs_jump_anchor(ts, isub(tabs_len(ts), 1), anchor)
+  else let
+    val () = touchb(anchor)
+  in
+    ts
+  end
+
+fun wiki_target_prep(doc: !Doc, vault: !Buf, w: int, anchor: &Buf >> _, shown: &Buf >> _): int = let
+  var rel = buf_make(8)
+  var full = buf_make(8)
+  val has_w = toggle_of(ige(w, 0))
+  val () = take_if(doc, w, rel, has_w)
+  val () = take_anchor_if(doc, w, anchor, has_w)
+  val rlen = buf_len(rel)
+  val () = resolve_path(vault, rel, full)
+  val () = with_md(full, shown)
+  val () = buf_free(rel)
+  val () = buf_free(full)
 in
-  TCons(doc, path, title, sc, rest2)
+  rlen
 end
 
-extern fun wiki_open_exh(ts: Tabs, idx: int, vault: !Buf, i: int): Tabs = "mac#anth_die_box"
+fun is_external_prefix(b: !Buf): bool = let
+  val n = buf_len(b)
+in
+  if n >= 7 andalso ieq(buf_get(b, 0), 104) andalso ieq(buf_get(b, 1), 116)
+            andalso ieq(buf_get(b, 2), 116) andalso ieq(buf_get(b, 3), 112) then true
+  else if n >= 4 andalso ieq(buf_get(b, 0), 119) andalso ieq(buf_get(b, 1), 119)
+                 andalso ieq(buf_get(b, 2), 119) andalso ieq(buf_get(b, 3), 46) then true
+  else if n >= 7 andalso ieq(buf_get(b, 0), 109) andalso ieq(buf_get(b, 1), 97)
+                 andalso ieq(buf_get(b, 2), 105) andalso ieq(buf_get(b, 3), 108) then true
+  else if n >= 6 andalso ieq(buf_get(b, 0), 102) andalso ieq(buf_get(b, 1), 116)
+                 andalso ieq(buf_get(b, 2), 112) andalso ieq(buf_get(b, 3), 58) then true
+  else false
+end
 
-fun wiki_open_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, vault: !Buf, i: int): Tabs =
+extern fun find_link_exh(doc: !Doc, caret: int, k: int): int = "mac#anth_die_int"
+
+fun find_link_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), doc: !Doc, caret: int, k: int
+): int =
+  if recfuel > 0 then (
+    if ige(k, doc_nnodes(doc)) then ~1
+    else if ile(doc_node_start(doc, k), caret) andalso
+            ilt(caret, doc_node_end(doc, k)) andalso
+            is_kind(doc_node_kind(doc, k), KLink) then k
+    else find_link_m(recfuel - 1, doc, caret, iadd(k, 1))
+  ) else find_link_exh(doc, caret, k)
+
+fun find_link(doc: !Doc, caret: int, k: int): int =
+  find_link_m(airlock_nat(MAX_REC_FUEL), doc, caret, k)
+
+fun open_url_if(url: !Buf, go: bool): void =
+  if go then fs_open_url(cstr(url)) else ()
+
+fun handle_link_click(doc: !Doc, lnk: int, vault: !Buf, anchor: &Buf >> _, shown: &Buf >> _): int = let
+  var url = buf_make(16)
+  val () = take_path(doc, lnk, url)
+  val is_ext = is_external_prefix(url)
+  val () = open_url_if(url, is_ext)
+  val () = buf_free(url)
+in
+  if is_ext then ~2 else wiki_target_prep(doc, vault, lnk, anchor, shown)
+end
+
+fun tabs_wiki_prep_here(doc: !Doc, vault: !Buf, anchor: &Buf >> _, shown: &Buf >> _): int = let
+  val caret = doc_caret(doc)
+  val lnk = find_link(doc, caret, 0)
+in
+  if ige(lnk, 0) then handle_link_click(doc, lnk, vault, anchor, shown)
+  else let
+    val w = find_wiki(doc, caret, 0)
+  in
+    if ilt(w, 0) then ~1 else wiki_target_prep(doc, vault, w, anchor, shown)
+  end
+end
+
+extern fun tabs_wiki_prep_exh(ts: !Tabs, idx: int, vault: !Buf, anchor: &Buf >> _, shown: &Buf >> _): int = "mac#anth_die_int"
+
+fun tabs_wiki_prep_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), ts: !Tabs, idx: int, vault: !Buf, anchor: &Buf >> _, shown: &Buf >> _
+): int =
   if recfuel > 0 then (
     case+ ts of
-    | ~TNil() => TNil()
-    | ~TCons(doc, path, title, sc, rest) =>
-        if ieq(i, idx) then wiki_tab_here(doc, path, title, sc, rest, vault)
-        else TCons(doc, path, title, sc, wiki_open_m(recfuel - 1, rest, idx, vault, iadd(i, 1)))
-  ) else wiki_open_exh(ts, idx, vault, i)
+    | TNil() => ~1
+    | TCons(doc, path, title, sc, rest) =>
+        if ieq(idx, 0) then tabs_wiki_prep_here(doc, vault, anchor, shown)
+        else tabs_wiki_prep_m(recfuel - 1, rest, isub(idx, 1), vault, anchor, shown)
+  ) else tabs_wiki_prep_exh(ts, idx, vault, anchor, shown)
 
-fun wiki_open(ts: Tabs, idx: int, vault: !Buf, i: int): Tabs = wiki_open_m(airlock_nat(MAX_REC_FUEL), ts, idx, vault, i)
+fun tabs_wiki_prep(ts: !Tabs, idx: int, vault: !Buf, anchor: &Buf >> _, shown: &Buf >> _): int =
+  tabs_wiki_prep_m(airlock_nat(MAX_REC_FUEL), ts, idx, vault, anchor, shown)
+
+fun tabs_jump_anchor_if(ts: Tabs, idx: int, anchor: &Buf >> _, alen: int): Tabs =
+  if igt(alen, 0) then tabs_jump_anchor(ts, idx, anchor)
+  else let
+    val () = touchb(anchor)
+  in
+    ts
+  end
+
+fun wiki_open_existing(ts: Tabs, existing: int, anchor: &Buf >> _, alen: int, target_act: &int >> _): Tabs = let
+  val ts2 = tabs_jump_anchor_if(ts, existing, anchor, alen)
+  val () = target_act := existing
+in
+  ts2
+end
+
+fun wiki_open_new(ts: Tabs, anchor: &Buf >> _, shown: Buf, alen: int, target_act: &int >> _): Tabs = let
+  val ts2 = tabs_open(ts, shown)
+  val new_idx = isub(tabs_len(ts2), 1)
+  val ts3 = tabs_jump_anchor_if(ts2, new_idx, anchor, alen)
+  val () = target_act := new_idx
+in
+  ts3
+end
+
+fun wiki_open_file(ts: Tabs, anchor: &Buf >> _, shown: Buf, alen: int, target_act: &int >> _): Tabs = let
+  val existing = tabs_find_path(ts, shown)
+in
+  if ige(existing, 0) then let
+    val () = buf_free(shown)
+  in
+    wiki_open_existing(ts, existing, anchor, alen, target_act)
+  end else
+    wiki_open_new(ts, anchor, shown, alen, target_act)
+end
+
+fun app_wiki_dispatch(ts: Tabs, idx: int, rlen: int, alen: int, anchor: &Buf >> _, shown: Buf, target_act: &int >> _): Tabs =
+  if rlen < 0 then let
+    val () = buf_free(shown)
+    val () = target_act := ~1
+  in
+    ts
+  end else if ieq(rlen, 0) then let
+    val () = buf_free(shown)
+  in
+    wiki_open_existing(ts, idx, anchor, alen, target_act)
+  end else
+    wiki_open_file(ts, anchor, shown, alen, target_act)
+
+fun app_wiki_open(ts: Tabs, idx: int, vault: !Buf, target_act: &int >> _): Tabs = let
+  var anchor = buf_make(8)
+  var shown = buf_make(8)
+  val rlen = tabs_wiki_prep(ts, idx, vault, anchor, shown)
+  val alen = buf_len(anchor)
+  val ts_out = app_wiki_dispatch(ts, idx, rlen, alen, anchor, shown, target_act)
+  val () = buf_free(anchor)
+in
+  ts_out
+end
+
+fun wiki_open(ts: Tabs, idx: int, vault: !Buf, i: int): Tabs = let
+  var dummy: int = ~1
+in
+  app_wiki_open(ts, idx, vault, dummy)
+end
 
 fun close_active_tab(ts: Tabs, idx: int): Tabs = let
   val ts2 = tabs_drop(ts, idx)
@@ -1498,7 +1968,7 @@ fun toggle_view_mode(s: &App_record >> _): void = let
   val vm = if is_view_edit(s.viewmode) then ViewRead else ViewEdit
   val () = s.viewmode := vm
 in
-  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+  save_app_session(s)
 end
 
 fun escape_sidebar_state(s: &App_record >> _): void = let
@@ -1524,11 +1994,14 @@ fun handle_sidebar_shortcut_cmd(s: &App_record >> _, cmd: Cmd, ev: &event): void
 
 fun tab_select_close_or_new(s: &App_record >> _, cmd: Cmd, ts_inter: !Tabs): void = let
   val max_i = isub(tabs_len(ts_inter), 1)
-  val () = if is_cmd(cmd, CMD_NEW_TAB) then s.active := max_i
-           else s.active := imax(0, imin(max_i, s.active))
+  val () = if is_cmd(cmd, CMD_NEW_TAB) then (s.active := max_i; s.preview_tab := ~1)
+           else (
+             s.active := imax(0, imin(max_i, s.active));
+             if ige(s.preview_tab, tabs_len(ts_inter)) then s.preview_tab := ~1 else ()
+           )
   val () = s.righti := imax(0, imin(max_i, s.righti))
 in
-  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+  save_app_session(s)
 end
 
 fun tab_cycle_next(s: &App_record >> _, ts_inter: !Tabs): void = let
@@ -1539,7 +2012,7 @@ in
     val cur_i = if ige(next_i, ntabs) then 0 else next_i
     val () = s.active := cur_i
   in
-    save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+    save_app_session(s)
   end else ()
 end
 
@@ -1551,7 +2024,7 @@ in
     val cur_i = if ilt(prev_i, 0) then isub(ntabs, 1) else prev_i
     val () = s.active := cur_i
   in
-    save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+    save_app_session(s)
   end else ()
 end
 
@@ -1590,7 +2063,7 @@ end
 fun search_hit_focus(s: &App_record >> _): void = let
   val () = s.qfocus := Off
 in
-  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+  save_app_session(s)
 end
 
 fun run_doc_find(ts: Tabs, idx: int, q: !Buf, sh: Toggle): Tabs = let
@@ -1629,6 +2102,8 @@ fun key_tabs_step(s: &App_record >> _, p: !Plat, ev: &event, cmd: Cmd, hit_go: T
   val ph = s.tabs
   val () = s.tabs := ts2
   val () = tabs_free(ph)
+  val () = if is_modifying_cmd(cmd) orelse is_cmd(cmd, CMD_TEXT_INPUT) then
+    (if ieq(s.active, s.preview_tab) then s.preview_tab := ~1 else ()) else ()
 in
 end
 
@@ -1645,7 +2120,7 @@ fun key_editor_step(s: &App_record >> _, p: !Plat, f: !Font, ev: &event): void =
   val () = key_tabs_step(s, p, ev, cmd, toggle_of(hit_go), qr)
   val () = if is_cmd(cmd, CMD_SAVE) then let
       val () = s.treedirty := On
-      val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+      val () = save_app_session(s)
     in
     end else ()
   val () = seen_int(font_line_h(f))
@@ -1719,13 +2194,14 @@ fun handle_context_menu_action(s: &App_record >> _, inside: Toggle, item: int): 
 fun topbar_toggle_view(s: &App_record >> _): void = let
   val () = s.viewmode := (if is_view_edit(s.viewmode) then ViewRead else ViewEdit)
 in
-  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+  save_app_session(s)
 end
 
 fun topbar_toggle_files(s: &App_record >> _): void = let
   val () = s.side := (if is_side_files(s.side) then SideNone else SideFiles)
   val () = s.qfocus := Off
 in
+  save_app_session(s)
 end
 
 fun topbar_toggle_search(s: &App_record >> _): void = let
@@ -1733,12 +2209,14 @@ fun topbar_toggle_search(s: &App_record >> _): void = let
   val () = s.qfocus := toggle_of(is_side_search(s.side))
   val () = if is_side_search(s.side) then s.scope := 0 else ()
 in
+  save_app_session(s)
 end
 
 fun topbar_toggle_config(s: &App_record >> _): void = let
   val () = s.side := (if is_side_config(s.side) then SideNone else SideConfig)
   val () = s.qfocus := Off
 in
+  save_app_session(s)
 end
 
 fun handle_topbar_action(s: &App_record >> _, w: int, x: int): void = let
@@ -1760,7 +2238,7 @@ fun config_cycle_font_px(s: &App_record >> _): void = let
   val () = s.fontpx := nxtpx
   val () = s.btnw := 0
 in
-  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+  save_app_session(s)
 end
 
 fun config_select_font(s: &App_record >> _, f: !Font, sel_fi: int): void =
@@ -1773,7 +2251,7 @@ fun config_select_font(s: &App_record >> _, f: !Font, sel_fi: int): void =
     val () = font_set_px(f, s.fontpx)
     val () = s.font_idx := 1
     val () = s.btnw := 0
-    val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+    val () = save_app_session(s)
   in
     ()
   end else ()
@@ -1793,18 +2271,31 @@ in
   else ()
 end
 
-fun editor_wiki_focus(s: &App_record >> _): void = let
-  val () = s.active := 0
+fun editor_wiki_focus_act(s: &App_record >> _, cur_len: int, target_act: int): void = let
+  val () = sync_open_dirs_from_tree(s)
+  val () = sync_tab_pane(s.tab_pane, cur_len, s.split, s.righti)
+  val pane = if ilt(target_act, buf_len(s.tab_pane)) then buf_get(s.tab_pane, target_act) else 0
+  val () = if ieq(pane, 1) then (s.righti := target_act; s.focus := On)
+           else (s.active := target_act; s.focus := Off)
 in
-  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+end
+
+fun editor_wiki_focus(s: &App_record >> _, ts: !Tabs, old_len: int): void = let
+  val cur_len = tabs_len(ts)
+  val target_act = if igt(cur_len, old_len) then isub(cur_len, 1) else s.active
+  val () = editor_wiki_focus_act(s, cur_len, target_act)
+  val side_open = (if is_side_none(s.side) then 0 else 1)
+in
+  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.righti, side_open, s.sidew, s.tab_pane, s.open_dirs, ts)
 end
 
 fun editor_click_hit(f: !Font, r: !Rend, s: &App_record >> _, ts: Tabs, ev: &event, x: int, y: int, ox: int, half: int, idx2: int, editor: Toggle): Tabs = let
   val keep = iand(ev_mods(ev), mod_shift()) <> 0
   val () = font_set_px(f, s.fontpx)
   val ts4 = click_go(f, r, ts, idx2, x, y, ox, half, font_line_h(f), s.scratch, toggle_of(keep), s.hitk, s.hiti, editor)
-  val colx_hit = column_x(ox, half)
-  val on_arrow = is_on(editor) andalso ige(x, isub(colx_hit, 24)) andalso ilt(x, colx_hit) andalso ige(s.hiti, 0)
+  val colx_hit = editor_colx(f, r, ox, half)
+  val arr_min = gutter_num_end_x(f, r, colx_hit)
+  val on_arrow = is_on(editor) andalso ige(x, arr_min) andalso ilt(x, colx_hit) andalso ige(s.hiti, 0)
   val on_task = is_on(editor) andalso is_kind(s.hitk, KTask) andalso ige(x, colx_hit) andalso ilt(x, iadd(colx_hit, 36)) andalso ige(s.hiti, 0)
   val ts4_a = toggle_go(ts4, idx2, s.hiti, toggle_of(on_arrow))
   val ts4_b = toggle_task_go(ts4_a, idx2, s.hiti, toggle_of(on_task))
@@ -1812,53 +2303,73 @@ in
   ts4_b
 end
 
-fun handle_editor_click(s: &App_record >> _, f: !Font, r: !Rend, ts: Tabs, ev: &event,
-                        w: int, hit: DownHit, idx: int, imgdel: Toggle, clear: Toggle): Tabs = let
-  val editor_zone = case+ hit.zone of | DownEditor() => true | DownMenu() => false
-    | DownResize() => false | DownTopbar() => false | DownSidebar() => false
-  val pw0 = isub(w, hit.sidew)
-  val half = if is_on(s.split) then idiv(pw0, 2) else pw0
-  val editor = editor_zone andalso is_btn(hit.button, BtnLeft)
-  val foc = editor andalso is_on(s.split) andalso ige(hit.x, iadd(hit.sidew, half))
-  val () = if editor then s.focus := toggle_of(foc) else ()
-  val ox = if is_on(s.focus) then iadd(hit.sidew, half) else hit.sidew
-  val idx2 = pane_of(s.focus, s.active, s.righti)
-  val ts4 = editor_click_hit(f, r, s, ts, ev, hit.x, hit.y, ox, half, idx2, toggle_of(editor))
-  val gowiki = editor andalso ctrl_on(ev)
-  val ts5 = wiki_go(ts4, idx2, s.vault, toggle_of(gowiki))
+fun app_wiki_go(ts: Tabs, idx: int, vault: !Buf, gowiki: bool, target_act: &int >> _): Tabs =
+  if gowiki then app_wiki_open(ts, idx, vault, target_act)
+  else let
+    val () = target_act := ~1
+  in
+    ts
+  end
+
+fun editor_post_click(s: &App_record >> _, ts4: Tabs, idx: int, idx2: int, imgdel: Toggle, clear: Toggle, gowiki: bool): Tabs = let
+  var target_act: int = ~1
+  val ts5 = app_wiki_go(ts4, idx2, s.vault, gowiki, target_act)
   val ts6 = del_go(ts5, idx, s.hiti, toggle_of(is_on(imgdel)))
   val ts7 = clear_go(ts6, idx, toggle_of(is_on(clear)))
-  val () = if gowiki then editor_wiki_focus(s) else ()
-  val () = if editor then s.qfocus := Off else ()
+  val () = if gowiki andalso ige(target_act, 0) then editor_wiki_focus_act(s, tabs_len(ts7), target_act) else ()
 in
   ts7
 end
 
-fun down_pick_tab(s: &App_record >> _, x: int, ti: int): void = let
+fun is_zone_editor(z: DownZone): bool = case+ z of | DownEditor() => true | _ => false
+
+fun handle_editor_click(s: &App_record >> _, f: !Font, r: !Rend, ts: Tabs, ev: &event,
+                        w: int, hit: DownHit, idx: int, imgdel: Toggle, clear: Toggle): Tabs = let
+  val editor = is_zone_editor(hit.zone) andalso is_btn(hit.button, BtnLeft)
+  val pw0 = isub(w, hit.sidew)
+  val half = if is_on(s.split) then idiv(pw0, 2) else pw0
+  val foc = editor andalso is_on(s.split) andalso ige(hit.x, iadd(hit.sidew, half))
+  val () = if editor then (s.focus := toggle_of(foc); s.drag := DragEditor; s.downx := hit.x; s.downy := hit.y) else ()
+  val ox = if is_on(s.focus) then iadd(hit.sidew, half) else hit.sidew
+  val idx2 = pane_of(s.focus, s.active, s.righti)
+  val ts4 = editor_click_hit(f, r, s, ts, ev, hit.x, hit.y, ox, half, idx2, toggle_of(editor))
+  val gowiki = editor andalso ctrl_on(ev)
+  val res = editor_post_click(s, ts4, idx, idx2, imgdel, clear, gowiki)
+  val () = if editor then s.qfocus := Off else ()
+in
+  res
+end
+
+fun down_pick_tab(s: &App_record >> _, x: int, ti: int, pane: int): void = let
   val () = s.drag := DragNone
   val () = s.dragi := ti
   val () = s.downx := x
   val () = s.downy := s.downy
-  val () = s.active := ti
-  val () = s.focus := Off
+  val () = if ieq(pane, 1) then (s.righti := ti; s.focus := On)
+           else (s.active := ti; s.focus := Off)
 in
-  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+  save_app_session(s)
 end
 
 fun handle_down_tab_bar_selection(
   s: &App_record >> _, ts: !Tabs, f: !Font, r: !Rend,
-  hit: DownHit, tab_x0: int, bx: int,
+  hit: DownHit, tab_x0: int, bx: int, w: int,
   ti: &int >> _, close: &bool >> _
 ): void = let
-  val onbar = case+ hit.zone of | DownTopbar() => true | DownMenu() => false
-    | DownResize() => false | DownSidebar() => false | DownEditor() => false
+  val onbar = case+ hit.zone of | DownTopbar() => true | _ => false
+  val sidew = if not(is_side_none(s.side)) then s.sidew else 0
+  val mid = iadd(sidew, idiv(isub(w, sidew), 2))
+  val is_r = is_on(s.split) andalso ige(hit.x, mid)
+  val pane = (if is_r then 1 else 0)
+  val sx = (if is_r then iadd(mid, 4) else tab_x0)
+  val filter = (if is_on(s.split) then pane else ~1)
   val () = if onbar andalso ige(hit.x, tab_x0) andalso ilt(hit.x, bx) then
-    tab_hit_test(f, r, ts, tab_x0, hit.x, ti, close)
+    tab_hit_test_pane(f, r, ts, sx, hit.x, filter, s.tab_pane, ti, close)
   else ()
   val ntabs = tabs_len(ts)
   val pick = onbar andalso ige(ti, 0) andalso ilt(ti, ntabs) andalso not(close)
 in
-  if pick then down_pick_tab(s, hit.x, ti) else ()
+  if pick then down_pick_tab(s, hit.x, ti, pane) else ()
 end
 
 fun text_item_hit(s: &App_record, hit: DownHit, which: TextItem): bool =
@@ -1873,8 +2384,37 @@ fun image_item_hit(s: &App_record, hit: DownHit, which: ImageItem): bool =
   | DownResize() => false | DownTopbar() => false
   | DownSidebar() => false | DownEditor() => false
 
+fun copy_node_span_here(doc: !Doc, ni: int, dst: &Buf >> _): void =
+  if ige(ni, 0) then let
+    val st = doc_node_start(doc, ni)
+    val en = doc_node_end(doc, ni)
+    val () = buf_ensure(dst, iadd(isub(en, st), 2))
+    val cap = buf_cap(dst)
+    val n = doc_slice_buf(doc, st, en, dst, cap)
+  in
+    buf_set_len(dst, if n > 0 then n else 0)
+  end else ()
+
+fun copy_fallback_node_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, idx: int, ni: int, dst: &Buf >> _): void =
+  if recfuel > 0 then (
+    case+ ts of
+    | @TNil() => fold@(ts)
+    | @TCons(doc, path, title, sc, rest) => let
+        val () = if ieq(idx, 0) then copy_node_span_here(doc, ni, dst)
+                 else copy_fallback_node_m(recfuel - 1, rest, isub(idx, 1), ni, dst)
+        val () = seen_buf(path)
+        val () = seen_buf(title)
+        val () = seen_int(sc)
+      in
+        fold@(ts)
+      end
+  ) else ()
+
 fun down_menu_clip(s: &App_record >> _, p: !Plat, ts0: !Tabs, idx: int, cut: Toggle, copy: Toggle, imgcopy: Toggle, paste: Toggle, imgrev: Toggle): void = let
   val () = copy_if(ts0, idx, s.clip, toggle_of(is_on(cut) orelse is_on(copy)))
+  val () = if is_on(copy) andalso ieq(buf_len(s.clip), 0) andalso ige(s.hiti, 0) then
+    copy_fallback_node_m(airlock_nat(MAX_REC_FUEL), ts0, idx, s.hiti, s.clip)
+  else ()
   val () = clip_image(ts0, idx, s.hiti, s.vault, s.clip, imgcopy)
   val own = is_on(cut) orelse is_on(copy) orelse is_on(imgcopy)
   val () = if own then plat_own(p, false) else ()
@@ -1888,12 +2428,37 @@ fun down_menu_clip(s: &App_record >> _, p: !Plat, ts0: !Tabs, idx: int, cut: Tog
 in
 end
 
-fun down_menu_close(s: &App_record >> _, ts2: !Tabs): void = let
-  val () = s.active := 0
-  val () = if is_on(s.split) andalso ilt(tabs_len(ts2), 2) then s.split := Off else ()
-  val () = s.righti := 0
+
+fun tab_pane_del_at_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, i: int, n: int): void =
+  if recfuel > 0 then (
+    if i < isub(n, 1) then let
+      val () = buf_set(b, i, buf_get(b, i + 1))
+    in
+      tab_pane_del_at_m(recfuel - 1, b, i + 1, n)
+    end else ()
+  ) else ()
+
+fun tab_pane_del_at(b: !Buf, ti: int): void = let
+  val n = buf_len(b)
 in
-  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+  if ti >= 0 andalso ti < n then let
+    val () = tab_pane_del_at_m(airlock_nat(MAX_REC_FUEL), b, ti, n)
+    val () = buf_set_len(b, isub(n, 1))
+  in
+  end else ()
+end
+
+fun down_menu_close(s: &App_record >> _, ts2: !Tabs, ti: int): void = let
+  val () = tab_pane_del_at(s.tab_pane, ti)
+  val n = tabs_len(ts2)
+  val () = if ilt(s.active, 0) orelse ige(s.active, n) then s.active := 0 else ()
+  val () = if ilt(s.righti, 0) orelse ige(s.righti, n) then s.righti := 0 else ()
+  val () = validate_panes_len(s, n)
+  val () = if ieq(ti, s.preview_tab) then s.preview_tab := ~1
+           else if ilt(ti, s.preview_tab) then s.preview_tab := isub(s.preview_tab, 1)
+           else ()
+in
+  save_app_session(s)
 end
 
 fun handle_down_context_menu(
@@ -1911,7 +2476,7 @@ fun handle_down_context_menu(
   val () = down_menu_clip(s, p, ts0, idx, toggle_of(cut), toggle_of(copy), toggle_of(imgcopy), toggle_of(paste), toggle_of(imgrev))
   val ts1 = cmd_if(ts0, idx, CMD_CUT, toggle_of(cut))
   val ts2 = tab_keep_one(drop_if(ts1, ti, close), close)
-  val () = if is_on(close) then down_menu_close(s, ts2) else ()
+  val () = if is_on(close) then down_menu_close(s, ts2, ti) else ()
 in
   ts2
 end
@@ -1923,23 +2488,81 @@ fun down_select_tree_row(s: &App_record >> _, row: int, valid_row: Toggle): void
 in
 end
 
-fun down_activate_first_tab(s: &App_record >> _): void = let
-  val () = s.active := 0
+fun tree_open_existing(s: &App_record >> _, ts: Tabs, existing: int, is_double: bool): Tabs = let
+  val () = if is_double then (
+    if ieq(existing, s.preview_tab) then s.preview_tab := ~1 else ()
+  ) else ()
+  val () = if is_double then s.last_tree_row := ~1 else ()
+  val pane = if ilt(existing, buf_len(s.tab_pane)) then buf_get(s.tab_pane, existing) else 0
+  val () = if ieq(pane, 1) then (s.righti := existing; s.focus := On)
+           else (s.active := existing; s.focus := Off)
+  val () = sync_open_dirs_from_tree(s)
+  val () = sync_tab_pane(s.tab_pane, tabs_len(ts), s.split, s.righti)
+  val side_open = (if is_side_none(s.side) then 0 else 1)
+  val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.righti, side_open, s.sidew, s.tab_pane, s.open_dirs, ts)
 in
-  save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+  ts
+end
+
+fun tree_open_new_preview(s: &App_record >> _, ts: Tabs, path: Buf): Tabs = let
+  val n = tabs_len(ts)
+  val has_prev = ige(s.preview_tab, 0) andalso ilt(s.preview_tab, n)
+  val target = if has_prev then s.preview_tab else ~1
+  val res = tabs_open_at(ts, target, path)
+  val act = if has_prev then target else isub(tabs_len(res), 1)
+  val () = s.active := act
+  val () = s.preview_tab := act
+  val () = sync_open_dirs_from_tree(s)
+  val () = sync_tab_pane(s.tab_pane, tabs_len(res), s.split, s.righti)
+  val side_open = (if is_side_none(s.side) then 0 else 1)
+  val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.righti, side_open, s.sidew, s.tab_pane, s.open_dirs, res)
+in
+  res
+end
+
+fun tree_open_new_pinned(s: &App_record >> _, ts: Tabs, path: Buf): Tabs = let
+  val res = tabs_open(ts, path)
+  val act = isub(tabs_len(res), 1)
+  val () = s.active := act
+  val () = s.preview_tab := ~1
+  val () = s.last_tree_row := ~1
+  val () = sync_open_dirs_from_tree(s)
+  val () = sync_tab_pane(s.tab_pane, tabs_len(res), s.split, s.righti)
+  val side_open = (if is_side_none(s.side) then 0 else 1)
+  val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.righti, side_open, s.sidew, s.tab_pane, s.open_dirs, res)
+in
+  res
+end
+
+fun tree_open_file(s: &App_record >> _, ts: Tabs, row: int, is_double: bool): Tabs = let
+  var cur = buf_make(8)
+  val () = row_path(s.tree, s.tmeta, row, cur)
+  val existing = tabs_find_path(ts, cur)
+in
+  if ige(existing, 0) then let
+    val () = buf_free(cur)
+  in
+    tree_open_existing(s, ts, existing, is_double)
+  end else if is_double then
+    tree_open_new_pinned(s, ts, cur)
+  else
+    tree_open_new_preview(s, ts, cur)
 end
 
 fun handle_tree_click(s: &App_record >> _, ts: Tabs, x: int, y: int): Tabs = let
   val row = tree_source_at_y(s, y)
   val valid_row = ige(row, 0) andalso ilt(row, s.tn)
   val on_expander = valid_row andalso tree_expander_hit(s, row, x)
-  val openf = valid_row andalso not(on_expander)
-    andalso is_dir_mark(meta_dir(s.tmeta, row), DirNo)
+  val is_file = valid_row andalso not(on_expander) andalso is_dir_mark(meta_dir(s.tmeta, row), DirNo)
+  val now = mono_ns()
+  val dt = now - s.last_tree_time
+  val is_double = valid_row andalso ieq(row, s.last_tree_row) andalso (dt < 400000000L)
+  val () = s.last_tree_row := (if valid_row then row else ~1)
+  val () = s.last_tree_time := (if valid_row then now else 0L)
   val () = down_select_tree_row(s, row, toggle_of(valid_row))
   val () = if on_expander then tree_toggle_source(s, row) else ()
-  val result = open_row(ts, s.tree, s.tmeta, row, toggle_of(openf))
 in
-  if openf then (down_activate_first_tab(s); result) else result
+  if is_file then tree_open_file(s, ts, row, is_double) else ts
 end
 
 fun handle_search_click(s: &App_record >> _, ts: Tabs, x: int, y: int): Tabs =
@@ -1970,7 +2593,7 @@ fun handle_down_sidebar_click(
   | DownSidebar() =>
       (case+ s.side of
        | SideNone() => ts
-       | SideFiles() => handle_tree_click(s, ts, hit.x, hit.y)
+       | SideFiles() => (if is_btn(hit.button, BtnLeft) then handle_tree_click(s, ts, hit.x, hit.y) else ts)
        | SideSearch() => handle_search_click(s, ts, hit.x, hit.y)
        | SideConfig() => handle_config_click(s, f, ts, hit.x, hit.y))
   | DownMenu() => ts | DownResize() => ts
@@ -2014,7 +2637,7 @@ fun transform_down_tabs(
   var ti: int = ~1
   var close: bool = false
   val () = handle_down_tab_bar_selection(s, ts0, f, r, hit,
-    topbar_tab_start_x(s.btnw), topbar_mode_btn_x(w, s.modew), ti, close)
+    topbar_tab_start_x(s.btnw), topbar_mode_btn_x(w, s.modew), w, ti, close)
   var imgdel: Toggle = Off
   var clear: Toggle = Off
   val ts1 = handle_down_context_menu(s, p, ts0, idx, hit,
@@ -2040,6 +2663,7 @@ fun on_down_tabs(s: &App_record >> _, p: !Plat, f: !Font, r: !Rend, ev: &event, 
     | DownMenu() => s.menu := MenuNone
     | DownResize() => () | DownTopbar() => ()
     | DownSidebar() => () | DownEditor() => ()
+  val () = save_app_session(s)
 in
 end
 
@@ -2141,52 +2765,85 @@ fun motion_tab_drag(s: &App_record >> _, x: int): void =
     if igt(iabs(isub(x, s.downx)), 8) then s.drag := DragTab else ()
   else ()
 
-fun motion_drag(s: &App_record >> _, x: int, w: int): void =
+fun motion_editor_drag(s: &App_record >> _, f: !Font, r: !Rend, x: int, y: int, w: int): void = let
+  val sidew = if not(is_side_none(s.side)) then s.sidew else 0
+  val pw0 = isub(w, sidew)
+  val half = if is_on(s.split) then idiv(pw0, 2) else pw0
+  val ox = if is_on(s.focus) then iadd(sidew, half) else sidew
+  val idx = pane_of(s.focus, s.active, s.righti)
+  val lh = font_line_h(f)
+  var hitk: NodeKind = KNone
+  var hiti: int = ~1
+  val ts = tabs_click(f, r, s.tabs, idx, x, y, ox, half, 0, lh, s.scratch, On, hitk, hiti, 0)
+in
+  s.tabs := ts
+end
+
+fun motion_drag(s: &App_record >> _, f: !Font, r: !Rend, x: int, y: int, w: int): void =
   case+ s.drag of
   | DragNone() => motion_tab_drag(s, x)
   | DragTab() => ()
   | DragFile() => ()
   | DragSplit() => resize_side(s, x, w)
+  | DragEditor() => motion_editor_drag(s, f, r, x, y, w)
 
-fun on_motion(a: !App, ev: &event, w: int): void =
+fun on_motion(a: !App, f: !Font, r: !Rend, ev: &event, w: int): void =
   case+ a of
   | @APP(s) => let
       val x = ev_x(ev)
       val y = ev_y(ev)
       val () = s.hoverx := x
       val () = s.hovery := y
-      val () = motion_drag(s, x, w)
+      val () = motion_drag(s, f, r, x, y, w)
     in
       fold@(a)
     end
 
-fun on_up_split_tab(s: &App_record >> _, w: int, x: int): void = let
-  val sidew = if not(is_side_none(s.side)) then s.sidew else 0
-  val mid = iadd(sidew, idiv(isub(w, sidew), 2))
+fun on_up_drag_tab_right(s: &App_record >> _, ti: int): void = let
+  val n = tabs_len(s.tabs)
 in
-  if ige(x, mid) then (
-    s.split := On;
-    s.righti := s.dragi;
-    s.focus := On;
-    save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
-  ) else ()
+  if ige(ti, 0) andalso ilt(ti, n) then let
+    val () = s.split := On
+    val () = buf_set(s.tab_pane, ti, 1)
+    val () = s.righti := ti
+    val () = s.focus := On
+    val () = if ieq(s.active, ti) then let
+      val nxt = tab_pane_find_first(s.tab_pane, 0)
+      val () = if ige(nxt, 0) then s.active := nxt else ()
+    in end else ()
+    val () = validate_panes_len(s, n)
+  in
+    save_app_session(s)
+  end else ()
 end
 
-fun on_up_reorder_tab(s: &App_record >> _, f: !Font, r: !Rend, x: int): void = let
-  val tab_x0 = topbar_tab_start_x(s.btnw)
-  var target_ti: int = ~1
-  var dummy_close: bool = false
-  val () = tab_hit_test(f, r, s.tabs, tab_x0, x, target_ti, dummy_close)
-  val ntabs = tabs_len(s.tabs)
-  val ti = if ige(target_ti, 0) then target_ti else if ige(x, tab_x0) then isub(ntabs, 1) else 0
+fun on_up_drag_tab_left(s: &App_record >> _, ti: int): void = let
+  val n = tabs_len(s.tabs)
 in
-  if ige(ti, 0) andalso ilt(ti, ntabs) andalso ine(ti, s.dragi) then let
-    val+ ~PAIR(one, rest) = tabs_detach(s.tabs, s.dragi)
-    val () = s.tabs := tabs_insert(rest, ti, one)
+  if ige(ti, 0) andalso ilt(ti, n) then let
+    val () = buf_set(s.tab_pane, ti, 0)
     val () = s.active := ti
-    val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.tabs)
+    val () = s.focus := Off
+    val () = if ieq(s.righti, ti) then let
+      val nxt = tab_pane_find_first(s.tab_pane, 1)
+      val () = if ige(nxt, 0) then s.righti := nxt else ()
+    in end else ()
+    val () = if not(tab_pane_has(s.tab_pane, 1)) then s.split := Off else ()
+    val () = validate_panes_len(s, n)
   in
+    save_app_session(s)
   end else ()
+end
+
+fun on_up_drag_tab(s: &App_record >> _, w: int, x: int): void = let
+  val sidew = if not(is_side_none(s.side)) then s.sidew else 0
+  val mid = iadd(sidew, idiv(isub(w, sidew), 2))
+  val ti = s.dragi
+in
+  if ige(ti, 0) andalso ilt(ti, tabs_len(s.tabs)) then (
+    if ige(x, mid) then on_up_drag_tab_right(s, ti)
+    else on_up_drag_tab_left(s, ti)
+  ) else ()
 end
 
 fun report_move_failure(rn: int, src: !Buf): void =
@@ -2218,15 +2875,31 @@ in
   else ()
 end
 
+fun on_up_editor(s: &App_record >> _, x: int, y: int): void = let
+  val dx = iabs(isub(x, s.downx))
+  val dy = iabs(isub(y, s.downy))
+  val clicked_no_drag = ilt(dx, 5) andalso ilt(dy, 5)
+  val is_read = is_view_read(s.viewmode)
+in
+  if clicked_no_drag andalso is_read then let
+    val idx = pane_of(s.focus, s.active, s.righti)
+    var target_act: int = ~1
+    val ts2 = app_wiki_open(s.tabs, idx, s.vault, target_act)
+    val () = s.tabs := ts2
+    val cur_len = tabs_len(s.tabs)
+    val () = if ige(target_act, 0) then editor_wiki_focus_act(s, cur_len, target_act) else ()
+  in
+    save_app_session(s)
+  end else ()
+end
+
 fun on_up_drop(s: &App_record >> _, f: !Font, r: !Rend, w: int, x: int, y: int): void =
   case+ s.drag of
   | DragNone() => ()
-  | DragSplit() => ()
+  | DragSplit() => save_app_session(s)
   | DragFile() => if ige(s.sel, 0) then on_up_move_file(s, y) else ()
-  | DragTab() =>
-      if igt(y, UI_TOPBAR_HEIGHT) then on_up_split_tab(s, w, x)
-      else if ige(s.dragi, 0) then on_up_reorder_tab(s, f, r, x)
-      else ()
+  | DragTab() => on_up_drag_tab(s, w, x)
+  | DragEditor() => on_up_editor(s, x, y)
 
 fun on_up_clamp_active(s: &App_record >> _): void = let
   val n = tabs_len(s.tabs)
@@ -2333,7 +3006,7 @@ in
   if is_ev(k, EvKey) then on_key(a, p, f, ev)
   else if is_ev(k, EvDown) then on_down(a, p, f, r, ev, w, h)
   else if is_ev(k, EvUp) then on_up(a, f, r, ev, w)
-  else if is_ev(k, EvMotion) then on_motion(a, ev, w)
+  else if is_ev(k, EvMotion) then on_motion(a, f, r, ev, w)
   else if is_ev(k, EvWheel) then on_wheel(a, ev, w, h)
   else if is_ev(k, EvSelReq) orelse is_ev(k, EvSelNotify) then on_sel(a, p, ev)
   else ()
@@ -2383,6 +3056,167 @@ in
   search_ok
 end
 
+fun selftest_img_resize(r: !Rend): int = let
+  val doc = doc_open()
+  val s = "![[/tmp/anth-t.png|68x90]]\n"
+  val () = doc_insert(doc, c_str_ptr(s), c_strlen(s))
+  var cache = CNil()
+  var vault = buf_make(8)
+  val () = bstr(vault, "/tmp")
+  val _ = prep_doc(doc, cache, r, vault, 18, 720, ViewEdit)
+  val ii = find_img(doc, 0)
+  val ih = if ige(ii, 0) then doc_node_height(doc, ii) else 0
+  val ok = if ieq(ih, 90) then 1 else 0
+  val () = doc_free(doc)
+  val () = buf_free(vault)
+  val () = cache_free(cache)
+in
+  ok
+end
+
+fun selftest_external_link(): int = let
+  val doc = doc_open()
+  val s = "Check [MathJax](https://www.mathjax.org/) here\n"
+  val () = doc_insert(doc, c_str_ptr(s), c_strlen(s))
+  val lnk = find_link(doc, 10, 0)
+  var url = buf_make(16)
+  val () = take_if(doc, lnk, url, toggle_of(ige(lnk, 0)))
+  val ext = is_external_prefix(url)
+  val ok = if ige(lnk, 0) andalso ext then 1 else 0
+  val () = buf_free(url)
+  val () = doc_free(doc)
+in
+  ok
+end
+
+fun selftest_quote_prefix(): int = let
+  val doc = doc_open()
+  val s = "> [!NOTE] Not\n"
+  val () = doc_insert(doc, c_str_ptr(s), c_strlen(s))
+  val pfx = line_quote_prefix(doc, 0, 13)
+  val ok = if ieq(pfx, 2) then 1 else 0
+  val () = doc_free(doc)
+in
+  ok
+end
+
+fun selftest_gutter_arrow(r: !Rend): int = let
+  val f = font_open()
+  val () = font_set_px(f, 16)
+  val aw = font_arrow_w(f, r)
+  val colx = editor_colx(f, r, 0, 800)
+  val arr_x = arrow_pos_x(f, r, colx)
+  val num_end = gutter_num_end_x(f, r, colx)
+  val ok1 = if igt(aw, 0) andalso ilt(num_end, arr_x) then 1 else 0
+  val ok2 = if ilt(iadd(arr_x, aw), colx) andalso ige(isub(arr_x, num_end), 6) then 1 else 0
+  val ok = if ieq(ok1, 1) andalso ieq(ok2, 1) then 1 else 0
+  val () = font_free(f)
+in
+  ok
+end
+
+fun selftest_visual_wrap(r: !Rend): int = let
+  val doc = doc_open()
+  val s = "Intro [[folder/nested/sub/note.md|Very Long Alias Title Here]] outro\n"
+  val () = doc_insert(doc, c_str_ptr(s), c_strlen(s))
+  val f = font_open()
+  val () = font_set_px(f, 16)
+  var cache = CNil()
+  var vault = buf_make(8)
+  var scratch = buf_make(256)
+  val h = prep_doc(doc, cache, r, vault, 18, 800, ViewRead)
+  var py: int = 0; var pa: int = 0
+  val () = draw_nodes(f, r, doc, 0, 0, 800, 600, 0, 18, vault, cache, scratch, 0, py, pa, ViewRead)
+  val ok = if igt(h, 0) then 1 else 0
+  val () = cache_free(cache)
+  val () = buf_free(vault)
+  val () = buf_free(scratch)
+  val () = font_free(f)
+  val () = doc_free(doc)
+in
+  ok
+end
+
+fun selftest_error_render(f: !Font, r: !Rend, doc: !Doc): int = let
+  var cache = CNil()
+  var vault = buf_make(8)
+  var scratch = buf_make(256)
+  val h1 = prep_doc(doc, cache, r, vault, 18, 800, ViewEdit)
+  var py: int = 0; var pa: int = 0
+  val () = draw_nodes(f, r, doc, 0, 0, 800, 600, 0, 18, vault, cache, scratch, 0, py, pa, ViewEdit)
+  val h2 = prep_doc(doc, cache, r, vault, 18, 800, ViewRead)
+  val () = draw_nodes(f, r, doc, 0, 0, 800, 600, 0, 18, vault, cache, scratch, 0, py, pa, ViewRead)
+  val ok = if igt(h1, 0) andalso igt(h2, 0) then 1 else 0
+  val () = cache_free(cache)
+  val () = buf_free(vault)
+  val () = buf_free(scratch)
+in
+  ok
+end
+
+fun selftest_error_has_err(doc: !Doc): int = let
+  val n = doc_nnodes(doc)
+in
+  if igt(n, 1) andalso iand(ast_style(doc, 1), STYLE_ERROR) != 0 then 1 else 0
+end
+
+fun selftest_ast_error_tolerance(r: !Rend): int = let
+  val doc = doc_open()
+  val s = "```\ncode\n`inline [[wiki $$math [link](url\n"
+  val () = doc_insert(doc, c_str_ptr(s), c_strlen(s))
+  val f = font_open()
+  val () = font_set_px(f, 16)
+  val rend_ok = selftest_error_render(f, r, doc)
+  val err_ok = selftest_error_has_err(doc)
+  val () = font_free(f)
+  val () = doc_free(doc)
+in
+  if ieq(rend_ok, 1) andalso ieq(err_ok, 1) then 1 else 0
+end
+
+fun selftest_math_render(f: !Font, r: !Rend, doc: !Doc): int = let
+  var cache = CNil()
+  var vault = buf_make(8)
+  var scratch = buf_make(256)
+  val h1 = prep_doc(doc, cache, r, vault, 18, 800, ViewRead)
+  var py: int = 0; var pa: int = 0
+  val () = draw_nodes(f, r, doc, 0, 0, 800, 600, 0, 18, vault, cache, scratch, 0, py, pa, ViewRead)
+  val h2 = prep_doc(doc, cache, r, vault, 18, 800, ViewEdit)
+  val () = draw_nodes(f, r, doc, 0, 0, 800, 600, 0, 18, vault, cache, scratch, 0, py, pa, ViewEdit)
+  val ok = if igt(h1, 0) andalso igt(h2, 0) then 1 else 0
+  val () = cache_free(cache)
+  val () = buf_free(vault)
+  val () = buf_free(scratch)
+in
+  ok
+end
+
+fun selftest_math_visualizer(r: !Rend): int = let
+  val doc = doc_open()
+  val s = "Math test\n\n$$ s = \\sqrt{ { \\Sigma (x_i - \\bar x)^2 } \\over n } $$\n\n$E = mc^2$ and $\\sqrt{a^2 + b^2}$\n"
+  val () = doc_insert(doc, c_str_ptr(s), c_strlen(s))
+  val f = font_open()
+  val () = font_set_px(f, 16)
+  val rend_ok = selftest_math_render(f, r, doc)
+  val () = font_free(f)
+  val () = doc_free(doc)
+in
+  rend_ok
+end
+
+fun selftest_flow_checks(r: !Rend): int = let
+  val rz_ok = selftest_img_resize(r)
+  val ext_ok = selftest_external_link()
+  val pfx_ok = selftest_quote_prefix()
+  val ga_ok = selftest_gutter_arrow(r)
+  val vw_ok = selftest_visual_wrap(r)
+  val err_ok = selftest_ast_error_tolerance(r)
+  val math_ok = selftest_math_visualizer(r)
+in
+  if ieq(rz_ok, 1) andalso ieq(ext_ok, 1) andalso ieq(pfx_ok, 1) andalso ieq(ga_ok, 1)
+     andalso ieq(vw_ok, 1) andalso ieq(err_ok, 1) andalso ieq(math_ok, 1) then 1 else 0
+end
+
 fun selftest_flow(r: !Rend): @(int, int, Doc, Cache, Buf, Buf) = let
   val doc = doc_open()
   val () = doc_insert(doc, c_str_ptr("hello\n\n![](/tmp/anth-t.png)\n\nworld\n"), c_strlen("hello\n\n![](/tmp/anth-t.png)\n\nworld\n"))
@@ -2390,11 +3224,12 @@ fun selftest_flow(r: !Rend): @(int, int, Doc, Cache, Buf, Buf) = let
   var vault = buf_make(8)
   val () = bstr(vault, "/tmp")
   var scratch = buf_make(256)
-  val height = prep_doc(doc, cache, r, vault, 18, 720)
+  val height = prep_doc(doc, cache, r, vault, 18, 720, ViewEdit)
   val ii = find_img(doc, 0)
   val iy = if ige(ii, 0) then doc_node_y(doc, ii) else ~1
   val ih = if ige(ii, 0) then doc_node_height(doc, ii) else 0
-  val flow_ok = if ige(ii, 0) andalso igt(ih, 8) andalso ige(height, iadd(iy, ih)) then 1 else 0
+  val checks = selftest_flow_checks(r)
+  val flow_ok = if ige(ii, 0) andalso igt(ih, 8) andalso ige(height, iadd(iy, ih)) andalso ieq(checks, 1) then 1 else 0
 in
   @(flow_ok, ih, doc, cache, vault, scratch)
 end
@@ -2403,21 +3238,27 @@ fun selftest_tabs(d1: !Buf): int = let
   val docA = doc_open()
   val () = doc_insert(docA, c_str_ptr("[[b]]\n"), 6)
   val () = doc_set_caret_move(docA, 2)
-  var ta = buf_make(4)
-  var pa = buf_make(4)
+  var ta = buf_make(4); var pa = buf_make(4)
   val tsA = tabs_add(TNil(), docA, pa, ta)
   val docB = doc_open()
-  var tb = buf_make(4)
-  var pb = buf_make(4)
+  var tb = buf_make(4); var pb = buf_make(4)
   val tsB = tabs_add(tsA, docB, pb, tb)
   val n2 = tabs_len(tsB)
   val tsC = tabs_drop(tsB, 1)
   val n1 = tabs_len(tsC)
   val tsD = wiki_open(tsC, 0, d1, 0)
   val nw = tabs_len(tsD)
-  val () = tabs_free(tsD)
+  val tsE = wiki_open(tsD, 0, d1, 0)
+  val nw2 = tabs_len(tsE)
+  val dedup_ok = (if ieq(nw2, 2) then 1 else 0)
+  val () = tabs_free(tsE)
+  var tp = buf_make(8); val () = buf_push(tp, 0); val () = buf_push(tp, 1); val () = buf_push(tp, 1)
+  val f1 = tab_pane_find_first(tp, 1)
+  val p2 = buf_get(tp, 2)
+  val sp_ok = (if ieq(f1, 1) andalso ieq(p2, 1) then 1 else 0)
+  val () = buf_free(tp)
 in
-  (if ieq(n2, 2) andalso ieq(n1, 1) andalso ieq(nw, 2) then 1 else 0)
+  (if ieq(n2, 2) andalso ieq(n1, 1) andalso ieq(nw, 2) andalso ieq(dedup_ok, 1) andalso ieq(sp_ok, 1) then 1 else 0)
 end
 
 fun selftest_move_ops(sub: !Buf, src: !Buf, dstp: !Buf): int = let
@@ -2428,6 +3269,44 @@ fun selftest_move_ops(sub: !Buf, src: !Buf, dstp: !Buf): int = let
   val () = seen_int(fs_rmdir(cstr(sub)))
 in
   (if ieq(mv, 0) andalso ieq(moved, 1) andalso ieq(gone, 0) then 1 else 0)
+end
+
+fun selftest_session_check_tree(): int = let
+  var meta = buf_make(16)
+  var tree = buf_make(16)
+  var open_dirs = buf_make(16)
+  val () = buf_ensure(meta, 16)
+  val () = buf_set32(meta, 0, 0)
+  val () = buf_set32(meta, 1, 1)
+  val () = buf_set32(meta, 2, 0)
+  val () = buf_set32(meta, 3, 3)
+  val () = bstr(tree, "dir")
+  val c0 = check_row_open(tree, meta, open_dirs, 0)
+  val () = bstr(open_dirs, "dir\n")
+  val c1 = check_row_open(tree, meta, open_dirs, 0)
+  val () = buf_free(meta)
+  val () = buf_free(tree)
+  val () = buf_free(open_dirs)
+in
+  (if ieq(c0, 0) andalso ieq(c1, 1) then 1 else 0)
+end
+
+fun selftest_session_roundtrip(): int = let
+  var tp = buf_make(8); val () = buf_push(tp, 0); val () = buf_push(tp, 1)
+  var od = buf_make(16); val () = bstr(od, "folder\n")
+  var dummy = TNil()
+  val () = conf_save_session("/tmp/anth-s", "f.ttf", 18, 0, 1, 0, 1, 1, 260, tp, od, dummy)
+  var fp = buf_make(32); var fpx: int = 0; var vm: int = 0; var sp: int = 0
+  var act: int = 0; var righti: int = 0; var side_open: int = 0; var sidew: int = 0
+  var ltp = buf_make(8); var lod = buf_make(16)
+  val ts = conf_load_session("/tmp/anth-s", fp, fpx, vm, sp, act, righti, side_open, sidew, ltp, lod, dummy)
+  val () = tabs_free(ts)
+  val od_len = buf_len(lod)
+  val ok = (if ieq(sp, 1) andalso ieq(righti, 1) andalso ieq(side_open, 1) andalso ieq(sidew, 260) andalso igt(od_len, 0) then 1 else 0)
+  val () = buf_free(tp); val () = buf_free(od); val () = buf_free(fp)
+  val () = buf_free(ltp); val () = buf_free(lod)
+in
+  ok
 end
 
 fun selftest_files(): int = let
@@ -2441,13 +3320,13 @@ fun selftest_files(): int = let
   val () = seen_int(write_text(src, one))
   var dstp = buf_make(48)
   val () = bstr(dstp, "/tmp/anth-s/sub/move.md")
-  val files_ok = selftest_move_ops(sub, src, dstp)
-  val () = buf_free(sub)
-  val () = buf_free(src)
-  val () = buf_free(one)
-  val () = buf_free(dstp)
+  val move_ok = selftest_move_ops(sub, src, dstp)
+  val tree_ok = selftest_session_check_tree()
+  val sess_ok = selftest_session_roundtrip()
+  val () = buf_free(sub); val () = buf_free(src)
+  val () = buf_free(one); val () = buf_free(dstp)
 in
-  files_ok
+  (if ieq(move_ok, 1) andalso ieq(tree_ok, 1) andalso ieq(sess_ok, 1) then 1 else 0)
 end
 
 fun selftest_draw_doc(fnt: !Font, r: !Rend, doc: !Doc, vault: !Buf, cache: &Cache >> _, scratch: &Buf >> _): void = let

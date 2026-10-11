@@ -12,6 +12,8 @@
 #include <math.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
 #include <dirent.h>
 
@@ -210,6 +212,28 @@ static inline void anth_vfs_path(const char *p, char *dst, int dstmax) {
   base = base ? base + 1 : p;
 
   snprintf(dst, (size_t)dstmax, "%s/%08x_%s", vdir, h, base);
+}
+
+static inline void anth_open_url(const char *url) {
+  if (!url || !url[0]) return;
+  pid_t pid = fork();
+  if (pid == 0) {
+    if (fork() == 0) {
+      int devnull = open("/dev/null", O_RDWR);
+      if (devnull >= 0) {
+        dup2(devnull, STDIN_FILENO);
+        dup2(devnull, STDOUT_FILENO);
+        dup2(devnull, STDERR_FILENO);
+        close(devnull);
+      }
+      execlp("xdg-open", "xdg-open", url, (char *)NULL);
+      _exit(127);
+    }
+    _exit(0);
+  }
+  if (pid > 0) {
+    waitpid(pid, NULL, 0);
+  }
 }
 
 #endif

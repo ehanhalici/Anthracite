@@ -50,6 +50,27 @@ macdef KEY_SPLIT_LEN = 7
 macdef KEY_ACTIVE = "\"active\""
 macdef KEY_ACTIVE_LEN = 8
 
+macdef KEY_RIGHT_ACTIVE = "\"right_active\""
+macdef KEY_RIGHT_ACTIVE_LEN = 14
+
+macdef KEY_TAB_COUNT = "\"tab_count\""
+macdef KEY_TAB_COUNT_LEN = 11
+
+macdef KEY_PANE = "\"pane\""
+macdef KEY_PANE_LEN = 6
+
+macdef KEY_OPEN_DIRS = "\"open_dirs\""
+macdef KEY_OPEN_DIRS_LEN = 11
+
+macdef KEY_SIDEBAR_OPEN = "\"sidebar_open\""
+macdef KEY_SIDEBAR_OPEN_LEN = 14
+
+macdef KEY_SIDEBAR_WIDTH = "\"sidebar_width\""
+macdef KEY_SIDEBAR_WIDTH_LEN = 15
+
+macdef CHAR_LBRACE = 123
+macdef CHAR_RBRACE = 125
+
 macdef VAULT_META_STRIDE_BYTES = 16
 macdef VAULT_META_STRIDE_WORDS = 4
 macdef VAULT_META_FIELD_POFF = 0
@@ -534,9 +555,9 @@ in
   else vault_conf_dir_fill(vault, dst, base)
 end
 
-extern fun tabs_to_json_exh(ts: !Tabs, dst: &Buf >> Buf, i: int): void = "mac#anth_die_void"
+extern fun tabs_to_json_exh(ts: !Tabs, tab_pane: !Buf, dst: &Buf >> Buf, i: int): void = "mac#anth_die_void"
 
-fun tabs_to_json_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, dst: &Buf >> Buf, i: int): void =
+fun tabs_to_json_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, tab_pane: !Buf, dst: &Buf >> Buf, i: int): void =
   if recfuel > 0 then (
     case+ ts of
     | TNil() => ()
@@ -546,13 +567,17 @@ fun tabs_to_json_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, 
       val () = bcat_all(dst, path)
       val () = bstr(dst, "\", \"scroll\": ")
       val () = b_app_int(dst, sc)
+      val pn = if ilt(i, buf_len(tab_pane)) then buf_get(tab_pane, i) else 0
+      val () = bstr(dst, ", \"pane\": ")
+      val () = b_app_int(dst, pn)
       val () = bstr(dst, "}")
     in
-      tabs_to_json_m(recfuel - 1, rest, dst, iadd(i, 1))
+      tabs_to_json_m(recfuel - 1, rest, tab_pane, dst, iadd(i, 1))
     end
-  ) else tabs_to_json_exh(ts, dst, i)
+  ) else tabs_to_json_exh(ts, tab_pane, dst, i)
 
-fun tabs_to_json(ts: !Tabs, dst: &Buf >> Buf, i: int): void = tabs_to_json_m(airlock_nat(MAX_REC_FUEL), ts, dst, i)
+fun tabs_to_json(ts: !Tabs, tab_pane: !Buf, dst: &Buf >> Buf, i: int): void =
+  tabs_to_json_m(airlock_nat(MAX_REC_FUEL), ts, tab_pane, dst, i)
 
 fun session_path_into(vault: string, spath: &Buf >> Buf): void = let
   var vdir = buf_make(BUF_SZ_PATH)
@@ -563,7 +588,9 @@ fun session_path_into(vault: string, spath: &Buf >> Buf): void = let
 in
 end
 
-fun session_json_head(json: &Buf >> Buf, font_p: string, font_px: int, viewmode: int, split: int, active: int): void = let
+fun session_head_base(
+  json: &Buf >> Buf, font_p: string, font_px: int, viewmode: int, split: int
+): void = let
   val () = bstr(json, "{\n  \"font_path\": \"")
   val () = bstr(json, font_p)
   val () = bstr(json, "\",\n  \"font_px\": ")
@@ -572,29 +599,92 @@ fun session_json_head(json: &Buf >> Buf, font_p: string, font_px: int, viewmode:
   val () = b_app_int(json, viewmode)
   val () = bstr(json, ",\n  \"split\": ")
   val () = b_app_int(json, split)
+in
+end
+
+fun session_json_head(
+  json: &Buf >> Buf, font_p: string, font_px: int, viewmode: int,
+  split: int, active: int, righti: int, side_open: int, sidew: int, tab_cnt: int
+): void = let
+  val () = session_head_base(json, font_p, font_px, viewmode, split)
   val () = bstr(json, ",\n  \"active\": ")
   val () = b_app_int(json, active)
+  val () = bstr(json, ",\n  \"right_active\": ")
+  val () = b_app_int(json, righti)
+  val () = bstr(json, ",\n  \"sidebar_open\": ")
+  val () = b_app_int(json, side_open)
+  val () = bstr(json, ",\n  \"sidebar_width\": ")
+  val () = b_app_int(json, sidew)
+  val () = bstr(json, ",\n  \"tab_count\": ")
+  val () = b_app_int(json, tab_cnt)
   val () = bstr(json, ",\n  \"tabs\": [\n")
 in
 end
 
-implement conf_save_session(vault, font_p, font_px, viewmode, split, active, ts) = let
+fun open_dirs_item(dst: &Buf >> Buf, open_dirs: !Buf, cur: int, e: int, idx: int): void = let
+  val () = if igt(idx, 0) then bstr(dst, ",\n") else ()
+  val () = bstr(dst, "    \"")
+  val () = bcat(dst, open_dirs, cur, e)
+  val () = bstr(dst, "\"")
+in
+end
+
+fun open_dirs_to_json_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), open_dirs: !Buf, dst: &Buf >> Buf, cur: int, n: int, idx: int
+): void =
+  if recfuel > 0 then (
+    if ilt(cur, n) then let
+      val e = skip_to_char(open_dirs, cur, n, CHAR_LF)
+      val len = isub(e, cur)
+      val is_nonempty = igt(len, 0)
+      val () = if is_nonempty then open_dirs_item(dst, open_dirs, cur, e, idx) else ()
+      val nxt_idx = if is_nonempty then iadd(idx, 1) else idx
+    in
+      open_dirs_to_json_m(recfuel - 1, open_dirs, dst, iadd(e, 1), n, nxt_idx)
+    end else ()
+  ) else ()
+
+fun open_dirs_to_json(open_dirs: !Buf, dst: &Buf >> Buf): void = let
+  val n = buf_len(open_dirs)
+  val () = bstr(dst, ",\n  \"open_dirs\": [")
+  val () = if igt(n, 0) then (
+    bstr(dst, "\n");
+    open_dirs_to_json_m(airlock_nat(MAX_REC_FUEL), open_dirs, dst, 0, n, 0);
+    bstr(dst, "\n  ")
+  ) else ()
+  val () = bstr(dst, "]\n")
+in
+end
+
+implement conf_save_session(vault, font_p, font_px, viewmode, split, active, righti, side_open, sidew, tab_pane, open_dirs, ts) = let
   var spath = buf_make(BUF_SZ_PATH)
   val () = session_path_into(vault, spath)
   var json = buf_make(BUF_SZ_LARGE)
-  val () = session_json_head(json, font_p, font_px, viewmode, split, active)
-  val () = tabs_to_json(ts, json, 0)
-  val () = bstr(json, "\n  ]\n}\n")
+  val () = session_json_head(json, font_p, font_px, viewmode, split, active, righti, side_open, sidew, tabs_len(ts))
+  val () = tabs_to_json(ts, tab_pane, json, 0)
+  val () = bstr(json, "\n  ]")
+  val () = open_dirs_to_json(open_dirs, json)
+  val () = bstr(json, "}\n")
   val () = write_checked("session_save", cstr(spath), json)
   val () = buf_free(spath)
   val () = buf_free(json)
 in
 end
 
-fun read_tab_scroll(content: !Buf, p_pos: int): int = let
+fun read_tab_scroll(content: !Buf, p_pos: int, rbrace: int): int = let
   val sc_pos = find_substr(content, KEY_SCROLL, p_pos)
 in
-  if ige(sc_pos, 0) then extract_int_after(content, iadd(sc_pos, KEY_SCROLL_LEN), 0) else 0
+  if ige(sc_pos, 0) andalso ilt(sc_pos, rbrace) then
+    extract_int_after(content, iadd(sc_pos, KEY_SCROLL_LEN), 0)
+  else 0
+end
+
+fun read_tab_pane(content: !Buf, p_pos: int, rbrace: int): int = let
+  val pn_pos = find_substr(content, KEY_PANE, p_pos)
+in
+  if ige(pn_pos, 0) andalso ilt(pn_pos, rbrace) then
+    extract_int_after(content, iadd(pn_pos, KEY_PANE_LEN), 0)
+  else 0
 end
 
 fun open_tab_with(ts: Tabs, d: Doc, tmp_path: Buf, sc: int): Tabs = let
@@ -620,41 +710,109 @@ in
   end
 end
 
-fun parse_one_tab(content: !Buf, p_pos: int, ts: Tabs): Tabs = let
+fun parse_one_tab(content: !Buf, p_pos: int, ts: Tabs, tab_pane: &Buf >> Buf): Tabs = let
   var tmp_path = buf_make(BUF_SZ_PATH)
   val ok_p = extract_str_after(content, iadd(p_pos, KEY_PATH_LEN), tmp_path)
-  val sc = read_tab_scroll(content, p_pos)
+  val rbrace = skip_to_char(content, p_pos, buf_len(content), CHAR_RBRACE)
+  val sc = read_tab_scroll(content, p_pos, rbrace)
+  val pn = read_tab_pane(content, p_pos, rbrace)
   val p_str = cstr(tmp_path)
   val ex = fs_exists(p_str)
   val exists = ok_p andalso ieq(ex, 1)
 in
-  if exists then open_tab(ts, tmp_path, sc)
-  else let
+  if exists then let
+    val () = buf_push(tab_pane, pn)
+  in
+    open_tab(ts, tmp_path, sc)
+  end else let
     val () = buf_free(tmp_path)
   in
     ts
   end
 end
 
-extern fun parse_tabs_rec_exh(content: !Buf, cursor: int, ts: Tabs): Tabs = "mac#anth_die_box"
+extern fun parse_tabs_rec_exh(content: !Buf, cursor: int, ts: Tabs, tab_pane: &Buf >> Buf): Tabs = "mac#anth_die_box"
 
-fun parse_tabs_rec_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), content: !Buf, cursor: int, ts: Tabs): Tabs =
-  if recfuel > 0 then (
-  let
+fun parse_tabs_rec_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), content: !Buf, cursor: int, ts: Tabs, tab_pane: &Buf >> Buf
+): Tabs =
+  if recfuel > 0 then let
     val p_pos = find_substr(content, KEY_PATH, cursor)
   in
     if ilt(p_pos, 0) then ts
     else let
-      val ts_next = parse_one_tab(content, p_pos, ts)
+      val ts_next = parse_one_tab(content, p_pos, ts, tab_pane)
     in
-      parse_tabs_rec_m(recfuel - 1, content, iadd(p_pos, KEY_PATH_LEN), ts_next)
+      parse_tabs_rec_m(recfuel - 1, content, iadd(p_pos, KEY_PATH_LEN), ts_next, tab_pane)
     end
-  end
-  ) else parse_tabs_rec_exh(content, cursor, ts)
+  end else parse_tabs_rec_exh(content, cursor, ts, tab_pane)
 
-fun parse_tabs_rec(content: !Buf, cursor: int, ts: Tabs): Tabs = parse_tabs_rec_m(airlock_nat(MAX_REC_FUEL), content, cursor, ts)
+fun parse_tabs_rec(content: !Buf, cursor: int, ts: Tabs, tab_pane: &Buf >> Buf): Tabs =
+  parse_tabs_rec_m(airlock_nat(MAX_REC_FUEL), content, cursor, ts, tab_pane)
 
-fun extract_session_fields(content: !Buf, font_p: &Buf >> Buf, font_px: &int >> int, viewmode: &int >> int, split: &int >> int, active: &int >> int): void = let
+fun parse_open_dirs_step(content: !Buf, q1: int, q2: int, open_dirs: &Buf >> Buf, tmp: &Buf >> Buf): void = let
+  val () = bclear(tmp)
+  val () = bcat(tmp, content, iadd(q1, 1), q2)
+  val () = if igt(buf_len(tmp), 0) then (
+    bcat_all(open_dirs, tmp);
+    buf_push(open_dirs, CHAR_LF)
+  ) else ()
+in
+end
+
+fun parse_open_dirs_rec_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), content: !Buf, cursor: int, end_pos: int,
+  open_dirs: &Buf >> Buf, tmp: &Buf >> Buf
+): void =
+  if recfuel > 0 then (
+    if ilt(cursor, end_pos) then let
+      val q1 = skip_to_char(content, cursor, end_pos, CHAR_QUOTE)
+    in
+      if ige(q1, end_pos) then ()
+      else let
+        val q2 = skip_to_char(content, iadd(q1, 1), end_pos, CHAR_QUOTE)
+      in
+        if ige(q2, end_pos) then ()
+        else let
+          val () = parse_open_dirs_step(content, q1, q2, open_dirs, tmp)
+        in
+          parse_open_dirs_rec_m(recfuel - 1, content, iadd(q2, 1), end_pos, open_dirs, tmp)
+        end
+      end
+    end else ()
+  ) else ()
+
+fun parse_open_dirs(content: !Buf, open_dirs: &Buf >> Buf): void = let
+  val () = bclear(open_dirs)
+  val od_pos = find_substr(content, KEY_OPEN_DIRS, 0)
+  val n = buf_len(content)
+in
+  if ige(od_pos, 0) then let
+    val lb = skip_to_char(content, od_pos, n, CHAR_LBRACKET)
+    val rb = skip_to_char(content, lb, n, CHAR_RBRACKET)
+  in
+    if ilt(lb, rb) andalso ilt(rb, n) then let
+      var tmp = buf_make(BUF_SZ_PATH)
+      val () = parse_open_dirs_rec_m(airlock_nat(MAX_REC_FUEL), content, iadd(lb, 1), rb, open_dirs, tmp)
+      val () = buf_free(tmp)
+    in
+    end else ()
+  end else ()
+end
+
+fun extract_session_side(content: !Buf, side_open: &int >> int, sidew: &int >> int): void = let
+  val sb_pos = find_substr(content, KEY_SIDEBAR_OPEN, 0)
+  val () = if ige(sb_pos, 0) then side_open := extract_int_after(content, iadd(sb_pos, KEY_SIDEBAR_OPEN_LEN), 1) else ()
+  val sw_pos = find_substr(content, KEY_SIDEBAR_WIDTH, 0)
+  val () = if ige(sw_pos, 0) then sidew := extract_int_after(content, iadd(sw_pos, KEY_SIDEBAR_WIDTH_LEN), 240) else ()
+in
+end
+
+fun extract_session_fields(
+  content: !Buf, font_p: &Buf >> Buf, font_px: &int >> int,
+  viewmode: &int >> int, split: &int >> int, active: &int >> int,
+  righti: &int >> int, side_open: &int >> int, sidew: &int >> int
+): void = let
   val fp_pos = find_substr(content, KEY_FONT_PATH, 0)
   val () = if ige(fp_pos, 0) then (if extract_str_after(content, iadd(fp_pos, KEY_FONT_PATH_LEN), font_p) then () else ()) else ()
   val px_pos = find_substr(content, KEY_FONT_PX, 0)
@@ -665,10 +823,38 @@ fun extract_session_fields(content: !Buf, font_p: &Buf >> Buf, font_px: &int >> 
   val () = if ige(sp_pos, 0) then split := extract_int_after(content, iadd(sp_pos, KEY_SPLIT_LEN), SESSION_DEFAULT_SPLIT) else ()
   val ac_pos = find_substr(content, KEY_ACTIVE, 0)
   val () = if ige(ac_pos, 0) then active := extract_int_after(content, iadd(ac_pos, KEY_ACTIVE_LEN), SESSION_DEFAULT_ACTIVE) else ()
+  val ra_pos = find_substr(content, KEY_RIGHT_ACTIVE, 0)
+  val () = if ige(ra_pos, 0) then righti := extract_int_after(content, iadd(ra_pos, KEY_RIGHT_ACTIVE_LEN), 0) else ()
+  val () = extract_session_side(content, side_open, sidew)
 in
 end
 
-implement conf_load_session(vault, font_p, font_px, viewmode, split, active, ts) = let
+fun apply_loaded_session(
+  content: !Buf, font_p: &Buf >> Buf, font_px: &int >> int,
+  viewmode: &int >> int, split: &int >> int, active: &int >> int,
+  righti: &int >> int, side_open: &int >> int, sidew: &int >> int,
+  tab_pane: &Buf >> Buf, open_dirs: &Buf >> Buf, ts: Tabs
+): Tabs = let
+  val () = extract_session_fields(content, font_p, font_px, viewmode, split, active, righti, side_open, sidew)
+  val () = parse_open_dirs(content, open_dirs)
+  val () = bclear(tab_pane)
+in
+  parse_tabs_rec(content, 0, ts, tab_pane)
+end
+
+fun fallback_empty_session(
+  side_open: &int >> int, sidew: &int >> int,
+  tab_pane: &Buf >> Buf, open_dirs: &Buf >> Buf, ts: Tabs
+): Tabs = let
+  val () = side_open := 1
+  val () = sidew := 240
+  val () = bclear(tab_pane)
+  val () = bclear(open_dirs)
+in
+  ts
+end
+
+implement conf_load_session(vault, font_p, font_px, viewmode, split, active, righti, side_open, sidew, tab_pane, open_dirs, ts) = let
   var spath = buf_make(BUF_SZ_PATH)
   val () = session_path_into(vault, spath)
   var content = buf_make(BUF_SZ_LARGE)
@@ -676,14 +862,14 @@ implement conf_load_session(vault, font_p, font_px, viewmode, split, active, ts)
   val () = buf_free(spath)
 in
   if r_ok then let
-    val () = extract_session_fields(content, font_p, font_px, viewmode, split, active)
-    val res = parse_tabs_rec(content, 0, ts)
+    val res = apply_loaded_session(content, font_p, font_px, viewmode, split, active, righti, side_open, sidew, tab_pane, open_dirs, ts)
     val () = buf_free(content)
   in
     res
   end else let
     val () = buf_free(content)
   in
-    ts
+    fallback_empty_session(side_open, sidew, tab_pane, open_dirs, ts)
   end
 end
+

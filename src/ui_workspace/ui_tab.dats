@@ -54,7 +54,8 @@ fun tabs_len_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs): int
 implement tabs_len(ts) = tabs_len_m(airlock_nat(MAX_REC_FUEL), ts)
 
 fun save_ok(doc: !Doc, path: !Buf): bool =
-  if igt(buf_len(path), 0) then let
+  if is_image_path(path) then true
+  else if igt(buf_len(path), 0) then let
     val ok = doc_save_physical(doc, cstr(path))
   in
     if ieq(ok, 1) then true
@@ -108,6 +109,29 @@ implement tabs_append(ts, doc, path, title, sc) =
 implement tabs_add(ts, doc, path, title) =
   tabs_append_impl(ts, doc, path, title, 0)
 
+extern fun tabs_replace_exh(ts: Tabs, idx: int, doc: Doc, path: Buf, title: Buf): Tabs = "mac#anth_die_box"
+
+fun tabs_replace_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), ts: Tabs, idx: int, doc: Doc, path: Buf, title: Buf
+): Tabs =
+  if recfuel > 0 then (
+    case+ ts of
+    | ~TNil() => TCons(doc, path, title, 0, TNil())
+    | ~TCons(d, p, t, sc, rest) =>
+        if ieq(idx, 0) then let
+          val () = doc_free(d)
+          val () = buf_free(p)
+          val () = buf_free(t)
+          val () = seen_int(sc)
+        in
+          TCons(doc, path, title, 0, rest)
+        end else
+          TCons(d, p, t, sc, tabs_replace_m(recfuel - 1, rest, isub(idx, 1), doc, path, title))
+  ) else tabs_replace_exh(ts, idx, doc, path, title)
+
+implement tabs_replace(ts, idx, doc, path, title) =
+  tabs_replace_m(airlock_nat(MAX_REC_FUEL), ts, idx, doc, path, title)
+
 macdef PAGE_STEP_LINES = 15
 macdef INDENT_TEXT = "  "
 macdef BOLD_MARK = "**"
@@ -127,9 +151,34 @@ fun delete_selection(d: !Doc): void =
 fun wrap_selection(d: !Doc, open_mark: string, close_mark: string): void =
   doc_wrap(d, open_mark, c_strlen(open_mark), close_mark, c_strlen(close_mark))
 
+fun is_ar_byte(b: int): bool =
+  b >= 216 andalso b <= 219
+
+fun doc_caret_is_ar(d: !Doc): bool = let
+  val c = doc_caret(d)
+  val len = doc_len(d)
+in
+  if len <= 0 then false
+  else let
+    val b0 = if c < len then doc_byte(d, c) else 0
+    val b1 = if c > 0 then doc_byte(d, isub(c, 1)) else 0
+    val b2 = if c > 1 then doc_byte(d, isub(c, 2)) else 0
+  in
+    is_ar_byte(b0) orelse is_ar_byte(b1) orelse is_ar_byte(b2)
+  end
+end
+
+fun caret_move_h(d: !Doc, is_left: bool): void =
+  if doc_caret_is_ar(d) then (if is_left then doc_right_move(d) else doc_left_move(d))
+  else (if is_left then doc_left_move(d) else doc_right_move(d))
+
+fun caret_select_h(d: !Doc, is_left: bool): void =
+  if doc_caret_is_ar(d) then (if is_left then doc_right_select(d) else doc_left_select(d))
+  else (if is_left then doc_left_select(d) else doc_right_select(d))
+
 fun run_caret_motion_cmd(d: !Doc, cmd: Cmd): void =
-  if is_cmd(cmd, CMD_CARET_LEFT) then doc_left_move(d)
-  else if is_cmd(cmd, CMD_CARET_RIGHT) then doc_right_move(d)
+  if is_cmd(cmd, CMD_CARET_LEFT) then caret_move_h(d, true)
+  else if is_cmd(cmd, CMD_CARET_RIGHT) then caret_move_h(d, false)
   else if is_cmd(cmd, CMD_CARET_UP) then doc_up_move(d)
   else if is_cmd(cmd, CMD_CARET_DOWN) then doc_down_move(d)
   else if is_cmd(cmd, CMD_CARET_LINE_START) then doc_home_move(d)
@@ -145,8 +194,8 @@ fun run_caret_motion_cmd(d: !Doc, cmd: Cmd): void =
 fun run_select_motion_cmd(d: !Doc, cmd: Cmd): void =
   if is_cmd(cmd, CMD_SELECT_ALL) then select_all(d)
   else if is_cmd(cmd, CMD_COLLAPSE_SELECTION) then doc_set_caret_move(d, doc_caret(d))
-  else if is_cmd(cmd, CMD_SELECT_LEFT) then doc_left_select(d)
-  else if is_cmd(cmd, CMD_SELECT_RIGHT) then doc_right_select(d)
+  else if is_cmd(cmd, CMD_SELECT_LEFT) then caret_select_h(d, true)
+  else if is_cmd(cmd, CMD_SELECT_RIGHT) then caret_select_h(d, false)
   else if is_cmd(cmd, CMD_SELECT_UP) then doc_up_select(d)
   else if is_cmd(cmd, CMD_SELECT_DOWN) then doc_down_select(d)
   else if is_cmd(cmd, CMD_SELECT_LINE_START) then doc_home_select(d)
@@ -362,18 +411,79 @@ in
   tabs_add(ts, doc, path, title)
 end
 
-implement tabs_open(ts, path) = let
-  val doc = doc_open()
-  val ok = doc_load_checked(doc, cstr(path))
+fun open_image(ts: Tabs, path: Buf): Tabs = let
+  val p = cstr(path)
+  val ok = fs_exists(p)
 in
-  if ok then open_loaded(ts, doc, path)
-  else let
-    val () = doc_free(doc)
+  if ieq(ok, 1) then let
+    val doc = doc_open()
+  in
+    open_loaded(ts, doc, path)
+  end else let
     val () = buf_free(path)
   in
     ts
   end
 end
+
+implement tabs_open(ts, path) =
+  if is_image_path(path) then open_image(ts, path)
+  else let
+    val doc = doc_open()
+    val ok = doc_load_checked(doc, cstr(path))
+  in
+    if ok then open_loaded(ts, doc, path)
+    else let
+      val () = doc_free(doc)
+      val () = buf_free(path)
+    in
+      ts
+    end
+  end
+
+fun replace_loaded(ts: Tabs, idx: int, doc: Doc, path: Buf): Tabs = let
+  var title = buf_make(8)
+  val () = base_name(path, title)
+in
+  tabs_replace(ts, idx, doc, path, title)
+end
+
+fun replace_image(ts: Tabs, idx: int, path: Buf): Tabs = let
+  val p = cstr(path)
+  val ok = fs_exists(p)
+in
+  if ieq(ok, 1) then let
+    val doc = doc_open()
+  in
+    replace_loaded(ts, idx, doc, path)
+  end else let
+    val () = buf_free(path)
+  in
+    ts
+  end
+end
+
+fun tabs_replace_path(ts: Tabs, idx: int, path: Buf): Tabs =
+  if is_image_path(path) then replace_image(ts, idx, path)
+  else let
+    val doc = doc_open()
+    val ok = doc_load_checked(doc, cstr(path))
+  in
+    if ok then replace_loaded(ts, idx, doc, path)
+    else let
+      val () = doc_free(doc)
+      val () = buf_free(path)
+    in
+      ts
+    end
+  end
+
+implement tabs_open_at(ts, idx, path) =
+  if ige(idx, 0) andalso ilt(idx, tabs_len(ts)) then
+    tabs_replace_path(ts, idx, path)
+  else
+    tabs_open(ts, path)
+
 
 extern fun tabs_detach_exh(ts: Tabs, i: int): Pair = "mac#anth_die_box"
 

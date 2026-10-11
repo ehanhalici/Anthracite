@@ -233,7 +233,7 @@ fun parse_fenced_code(
   val found = find_close_fence_m(airlock_nat(MAX_REC_FUEL), d, ln_end, doc_len(d), ch, flen, c_st, c_en)
   val code_end = (if found then c_en else doc_len(d))
   val f_t = (if ieq(ch, 126) then FL_TILDE else 0)
-  val f_c = (if found then FL_CLOSED else 0)
+  val f_c = (if found then FL_CLOSED else FL_ERROR)
   val c_node = add_child_node(d, stk, KCode, ls, code_end, flen, iadd(f_t, f_c))
 in
   if ige(c_node, 0) then (

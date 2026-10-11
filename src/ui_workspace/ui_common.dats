@@ -112,6 +112,30 @@ in
   if ilt(n, m) then false else ends_at(b, s, n, m, 0)
 end
 
+fun to_lower_ch(c: int): int =
+  if c >= 65 andalso c <= 90 then iadd(c, 32) else c
+
+fun ends_ci_loop {rem:nat} .<rem>. (b: !Buf, s: string, n: int, m: int, rem: int(rem), i: int): bool =
+  if rem > 0 then
+    (if ine(to_lower_ch(buf_get(b, iadd(isub(n, m), i))), to_lower_ch(c_str_byte(s, i))) then false
+     else ends_ci_loop(b, s, n, m, rem - 1, iadd(i, 1)))
+  else true
+
+fun ends_ci_at(b: !Buf, s: string, n: int, m: int, i: int): bool =
+  if ige(i, m) then true
+  else ends_ci_loop(b, s, n, m, airlock_span(i, m), i)
+
+fun ends_ci(b: !Buf, s: string): bool = let
+  val n = buf_len(b)
+  val m = c_strlen(s)
+in
+  if ilt(n, m) then false else ends_ci_at(b, s, n, m, 0)
+end
+
+implement is_image_path(b) =
+  ends_ci(b, ".png") orelse ends_ci(b, ".jpg") orelse ends_ci(b, ".jpeg")
+  orelse ends_ci(b, ".bmp") orelse ends_ci(b, ".webp")
+
 implement draw_s(f, r, x, y, s, c) =
   seen_int(font_draw(f, r, x, y, c_str_ptr(s), c_strlen(s), c))
 
@@ -349,24 +373,35 @@ implement is_drag_none(x) = case+ x of
   | DragTab() => false
   | DragFile() => false
   | DragSplit() => false
+  | DragEditor() => false
 
 implement is_drag_tab(x) = case+ x of
   | DragTab() => true
   | DragNone() => false
   | DragFile() => false
   | DragSplit() => false
+  | DragEditor() => false
 
 implement is_drag_file(x) = case+ x of
   | DragFile() => true
   | DragNone() => false
   | DragTab() => false
   | DragSplit() => false
+  | DragEditor() => false
 
 implement is_drag_split(x) = case+ x of
   | DragSplit() => true
   | DragNone() => false
   | DragTab() => false
   | DragFile() => false
+  | DragEditor() => false
+
+implement is_drag_editor(x) = case+ x of
+  | DragEditor() => true
+  | DragNone() => false
+  | DragTab() => false
+  | DragFile() => false
+  | DragSplit() => false
 
 implement view_mode_code(v) = case+ v of
   | ViewEdit() => 0

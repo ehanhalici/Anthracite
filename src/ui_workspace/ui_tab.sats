@@ -12,6 +12,7 @@ fun tabs_free(ts: Tabs): void
 fun tabs_len(ts: !Tabs): int
 fun tabs_drop(ts: Tabs, i: int): Tabs
 fun tabs_add(ts: Tabs, doc: Doc, path: Buf, title: Buf): Tabs
+fun tabs_replace(ts: Tabs, idx: int, doc: Doc, path: Buf, title: Buf): Tabs
 fun tabs_append(ts: Tabs, doc: Doc, path: Buf, title: Buf, sc: int): Tabs
 fun tabs_cmd(ts: Tabs, idx: int, cmd: Cmd): Tabs
 fun tabs_ins(ts: Tabs, idx: int, p: ptr, n: int): Tabs
@@ -19,6 +20,7 @@ fun tabs_ins_buf(ts: Tabs, idx: int, b: !Buf, n: int): Tabs
 fun tabs_scroll(ts: Tabs, idx: int, dv: int, lim: int): Tabs
 fun tabs_copy(ts: !Tabs, idx: int, dst: &Buf >> _): void
 fun tabs_open(ts: Tabs, path: Buf): Tabs
+fun tabs_open_at(ts: Tabs, idx: int, path: Buf): Tabs
 fun tabs_detach(ts: Tabs, i: int): Pair
 fun tabs_link(one: Tabs, ts: Tabs): Tabs
 fun tabs_insert(ts: Tabs, i: int, one: Tabs): Tabs

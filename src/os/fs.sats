@@ -15,6 +15,7 @@ fun fs_rename(a: string, b: string): int = "mac#rename"
 fun fs_unlink(path: string): int = "mac#unlink"
 fun fs_rmdir(path: string): int = "mac#rmdir"
 fun fs_vfs_path(path: string, dst: ptr, dstmax: int): void = "mac#anth_vfs_path"
+fun fs_open_url(url: string): void = "mac#anth_open_url"
 
 fun dir_open(path: string): ptr = "mac#opendir"
 fun dir_close(d: ptr): void = "mac#anth_dirclose"

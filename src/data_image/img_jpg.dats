@@ -781,6 +781,7 @@ fun jpg_finish(dst: Buf, fit: Toggle, w: int, h: int, err: JpgErr, wout: &int >>
   val ho = if is_on(fit) andalso is_err(err, ErrNone) then h else 0
   val () = wout := wo
   val () = hout := ho
+  val () = if igt(wo, 0) andalso igt(ho, 0) then buf_set_len(dst, imul(imul(wo, ho), 4)) else ()
 in
   if ieq(wo, 0) then let
     val () = buf_free(dst)

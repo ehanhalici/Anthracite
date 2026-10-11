@@ -474,8 +474,26 @@ fun ui_cell_value(f: !Font, r: !Rend, x: int, w: int, ty: int, value_text: strin
   in
   end else ()
 
+extern fun draw_cell_guides_exh(r: !Rend, x: int, y: int, h: int, d: int, depth: int): void = "mac#anth_die_void"
+
+fun draw_cell_guides_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), r: !Rend, x: int, y: int, h: int, d: int, depth: int
+): void =
+  if recfuel > 0 then (
+    if ilt(d, depth) then let
+      val gx = iadd(x, iadd(imul(d, 14), 7))
+      val () = rend_rect(r, gx, y, 1, h, col_line())
+    in
+      draw_cell_guides_m(recfuel - 1, r, x, y, h, iadd(d, 1), depth)
+    end else ()
+  ) else draw_cell_guides_exh(r, x, y, h, d, depth)
+
+fun draw_cell_guides(r: !Rend, x: int, y: int, h: int, depth: int): void =
+  if igt(depth, 0) then draw_cell_guides_m(airlock_nat(MAX_REC_FUEL), r, x, y, h, 0, depth) else ()
+
 implement ui_cell(f, r, x, y, w, h, depth, is_expandable, is_expanded, icon, label, value_text, is_selected, is_hover) = let
   val () = ui_cell_bg(r, x, y, w, h, is_selected, is_hover)
+  val () = draw_cell_guides(r, x, y, h, depth)
   val x_indent = iadd(x, imul(depth, 14))
   val ty = iadd(y, idiv(isub(h, font_line_h(f)), 2))
   var x_cur: int = x_indent
