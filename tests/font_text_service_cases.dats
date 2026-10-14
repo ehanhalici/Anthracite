@@ -63,14 +63,14 @@ fun base_direction(f: !Font,s: string,expected: int): int = let val b=bytes(s)
 in errors end
 fun directions(f: !Font): int = base_direction(f,"Türkçe بَّ",0)+base_direction(f,"بَّ Türkçe",1)
   +base_direction(f,"123",0)
-fun failed(f: !Font): int = let val error=font_text_enable(f,@{generated="/missing-native-data",source=c_argv(6)},81,82)
+fun failed(f: !Font): int = let val error=font_text_enable(f,@{generated="/missing-native-data",source=c_argv(6)})
 in iadd(missing(error),if font_text_active(f) then 1 else 0) end
 fun loaded(f: !Font,r: !Rend): int = let
   val primary=font_use_file(f,c_argv(3)) and fallback=font_use_fallback_file(f,c_argv(4)) val ()=font_set_px(f,16)
   val location: NativeAssetLocation= @{generated=c_argv(5),source=c_argv(6)}
-  val errors=failed(f) val ready=font_text_enable(f,location,81,82)
+  val errors=failed(f) val ready=font_text_enable(f,location)
 in if primary andalso fallback andalso enabled(ready) then errors+shared(f,r)+changed(f)+scaled(f,r)
-  +repeated(font_text_enable(f,location,81,82))+native_text_note_cases(f,r)+tabs(f,r)+directions(f)
+  +repeated(font_text_enable(f,location))+native_text_note_cases(f,r)+tabs(f,r)+directions(f)
   +native_text_cache_cases(f)+native_event_repaint_cases()+native_text_metrics_cases(f)+native_visual_layout_cases(f,r)
   +native_source_edit_cases(f) else errors+1 end
 implement native_text_service_cases(r) = let val before=mem_live() val f=font_open()

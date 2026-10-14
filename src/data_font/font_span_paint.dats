@@ -15,6 +15,7 @@ fun tab(r: !Rend,part: FontSpanPart,paint: TextPaint,x: double,y: double,c: uint
       rend_quad_pixels(r,u_zero(),ShadeSolid(),x+n_i2d(part.x)/64.0,y,n_i2d(part.width)/64.0,n_i2d(h),0.0,0.0,0.0,0.0,c) else ()
 fun part(f: !Font,r: !Rend,runs: !FontSpanRuns,i: int,p: FontSpanPart,paint: TextPaint,x: double,y: double,c: uint): FontRunStatus =
   case+ p.kind of | SpanLineEndPart() => FontRunReady()
+    | SpanSkipPart() => FontRunReady()
     | SpanTabPart() => let val ()=tab(r,p,paint,x,y,c) in FontRunReady() end
     | SpanTextPart() => slot(runs,i,f,r,paint,x+n_i2d(p.x)/64.0,y,c)
 fun walk{n:nat} .<n>. (left: int(n),f: !Font,r: !Rend,layout: !FontSpanLayout,paint: TextPaint,x: double,y: double,c: uint,i: int): FontRunStatus =

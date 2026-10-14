@@ -7,6 +7,7 @@ staload "data_font/sfnt.sats"
 staload "data_font/glyph_component.sats"
 
 fun f_get_px(f: !Font): int
+fun f_registry(f: !Font): int
 fun f_get_units(f: !Font): int
 fun f_get_asc(f: !Font): int
 fun f_get_desc(f: !Font): int

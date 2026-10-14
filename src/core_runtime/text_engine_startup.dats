@@ -20,7 +20,5 @@ implement workspace_font_start(f) =
     val ()=println!("event=text_engine engine=bitmap status=unavailable reason=primary_font")
   in false end else let
     val ()=workspace_arabic_font_start(f)
-    (* The workspace owns one live Font. These IDs are scoped to that owner;
-       automatic global registry allocation remains a separate migration. *)
-    val ()=activated(font_text_enable(f,workspace_text_location(),1,2))
+    val ()=activated(font_text_enable(f,workspace_text_location()))
   in font_text_active(f) end

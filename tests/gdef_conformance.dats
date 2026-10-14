@@ -17,11 +17,12 @@ fun run(mode: TestMode): int = let
   val metadata=gdef_test_metadata()
   val flags=gdef_test_flags()
   val marks=gdef_test_marks()
+  val attach=gdef_test_attach()
   val font_errors=fonts(mode)
   val balanced=ieq(mem_live(),baseline)
   val ()=println!("event=gdef_conformance metadata_errors=",metadata," flag_errors=",flags,
-    " mark_errors=",marks," font_errors=",font_errors," ownership_balanced=",balanced)
-in iadd(metadata+flags+marks+font_errors,if balanced then 0 else 1) end
+    " mark_errors=",marks," attach_errors=",attach," font_errors=",font_errors," ownership_balanced=",balanced)
+in iadd(metadata+flags+marks+attach+font_errors,if balanced then 0 else 1) end
 implement main0() = let
   val errors=if ieq(c_argc(),1) then run(CoreContracts())
     else if ieq(c_argc(),3) then run(FontContracts()) else 2

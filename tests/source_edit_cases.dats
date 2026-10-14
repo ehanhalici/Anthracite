@@ -31,15 +31,15 @@ fun cluster{fuel:nat} .<fuel>. (fuel: int(fuel),f: !Font,d: !Doc,b: !Buf,
     val ()=doc_set_caret_move(d,i) val ()=edit(f,d,SourceRight(),scratch) val right=caret(d,stop,stop)
   in errors+left+right+cluster(fuel-1,f,d,b,start,stop,iadd(i,1),scratch) end
 fun steps{fuel:nat} .<fuel>. (fuel: int(fuel),f: !Font,d: !Doc,b: !Buf,
-  positions: List0_vt(int),start: int,scratch: &Buf >> _): int =
-  if fuel = 0 then failed() else case+ positions of | ~list_vt_nil() => 0 | ~list_vt_cons(stop,tail) => let
+  positions: List0(int),start: int,scratch: &Buf >> _): int =
+  if fuel = 0 then failed() else case+ positions of | list_nil() => 0 | list_cons(stop,tail) => let
     val ()=doc_set_caret_move(d,start) val ()=edit(f,d,SourceRight(),scratch) val right=caret(d,stop,stop)
     val ()=edit(f,d,SourceLeft(),scratch) val left=caret(d,start,start)
     val ()=edit(f,d,SourceSelectRight(),scratch) val shifted=caret(d,stop,start)
     val ()=edit(f,d,SourceSelectLeft(),scratch) val reversed=caret(d,start,start)
     val inside=cluster(airlock_nat(MAX_REC_FUEL),f,d,b,start,stop,iadd(start,1),scratch)
   in right+left+shifted+reversed+inside+steps(fuel-1,f,d,b,tail,stop,scratch) end
-fun sample(f: !Font,s: string,positions: List0_vt(int)): int = let
+fun sample(f: !Font,s: string,positions: List0(int)): int = let
   val b=bytes(s) val d=doc_open() var scratch=buf_make(1) val ()=doc_insert_buf(d,b,buf_len(b))
   val errors=steps(airlock_nat(MAX_REC_FUEL),f,d,b,positions,0,scratch)
   val ()=doc_set_caret_move(d,0) val ()=edit(f,d,SourceLeft(),scratch) val first=caret(d,0,0)
@@ -138,7 +138,7 @@ in result end
 extern fun native_source_edit_cpu(generated: string,source: string): int = "ext#native_source_edit_cpu"
 implement native_source_edit_cpu(generated,source) = let
   val before=mem_live() val f=font_open()
-  val enabled=font_text_enable(f,@{generated=generated,source=source},1,2)
+  val enabled=font_text_enable(f,@{generated=generated,source=source})
   val errors: int=case+ enabled of
     | FontTextEnabled() => native_source_edit_cases(f)
     | FontTextAlreadyEnabled() => 1 | FontTextAssetsFailed(e) => 1

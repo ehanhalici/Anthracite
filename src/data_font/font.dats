@@ -21,6 +21,7 @@ staload "data_font/private/font_native_owner.sats"
 staload "data_font/font_text_types.sats"
 staload "data_font/font_text.sats"
 staload "data_font/private/font_text_owner.sats"
+staload "data_font/font_registry.sats"
 
 
 #define AW 1024
@@ -46,6 +47,7 @@ datavtype Font_ = FONT of @{
 , native_primary= Option_vt(NativeShapeCache), native_fallback= Option_vt(NativeShapeCache)
 , native_generation= int, native_fb_generation= int
 , text_session= Option_vt(FontTextSession)
+, registry= int
 }
 (* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
 assume Font = Font_
@@ -92,7 +94,7 @@ implement font_open() = FONT(@{
 , fb_nglyph= 0, fb_num_h= 0
 , fb_kern= ~1
 , native_primary= None_vt(), native_fallback= None_vt(), native_generation= 0, native_fb_generation= 0
-, text_session= None_vt()
+, text_session= None_vt(), registry= font_registry_next()
 })
 
 fun release_fallback(file: Option_vt(Buf)): void = case+ file of
@@ -119,6 +121,9 @@ end
 
 implement f_get_px(f) = case+ f of
   | @FONT(s) => let val value = s.px in fold@(f); value end
+
+implement f_registry(f) = case+ f of
+  | @FONT(s) => let val value = s.registry in fold@(f); value end
 
 implement f_get_units(f) = case+ f of
   | @FONT(s) => let val value = s.units in fold@(f); value end

@@ -10,6 +10,7 @@ fun part(runs: !FontSpanRuns,i: int,p: FontSpanPart,query: TextQuery,best: TextH
   | SpanTextPart() => text(runs,i,p.x,query,best)
   | SpanTabPart() => font_hit_edge(query,p.sourceEnd,iadd(p.x,p.width),font_hit_edge(query,p.sourceStart,p.x,best))
   | SpanLineEndPart() => best
+  | SpanSkipPart() => best
 fun walk{n:nat} .<n>. (left: int(n),layout: !FontSpanLayout,query: TextQuery,i: int,best: TextHit): TextHit =
   if left = 0 then best else let val+ FontSpanLayout(a,items,runs,parts,order,count,width,direction)=layout
     val row=buf_get32(order,i) val result=part(runs,row,font_span_part(layout,row),query,best)

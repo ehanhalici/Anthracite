@@ -3,8 +3,9 @@ staload "data_font/font.sats"
 staload "data_font/font_text_types.sats"
 staload "data_font/native_text_assets_types.sats"
 staload "core_render/render.sats"
-(* Initialization shell only. IDs obey FontNativeRun's live-face registry contract. *)
-fun font_text_enable(f: !Font,location: NativeAssetLocation,primary: int,fallback: int): FontTextEnable
+(* Initialization shell only. On success the session allocates its own unique
+   primary/fallback face IDs from the global registry (FontNativeRun contract). *)
+fun font_text_enable(f: !Font,location: NativeAssetLocation): FontTextEnable
 fun font_text_active(f: !Font): bool
 fun font_text_width(f: !Font,b: !Buf,length: int): FontTextResult
 (* Serialized paragraph base direction: value is 0 (LTR) or 1 (RTL). *)

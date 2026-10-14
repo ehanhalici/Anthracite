@@ -14,9 +14,20 @@ fun ready(s: FontRunStatus): bool = case+ s of
 fun face_error(s: FontRunStatus): bool = case+ s of
   | FontRunFace() => true | FontRunReady() => false | FontRunScale() => false
   | FontRunOverflow() => false | FontRunRaster() => false | FontRunGraph() => false
-fun rejected(f: !Font,assets: !NativeTextAssets,s: string): int = let val b=bytes(s)
+fun rejected_paragraph(f: !Font,assets: !NativeTextAssets,s: string): int = let val b=bytes(s)
   val errors=case+ font_span_make(f,assets,b,buf_len(b),options()) of
     | ~FontSpanRejected(e) => 0 | ~FontSpanAccepted(layout) => let val ()=font_span_dispose(layout) in 1 end
+  val ()=buf_free(b)
+in errors end
+fun funexamined(f: !Font,r: !Rend,layout: FontSpanLayout): int = let
+  val row=font_span_part(layout,0)
+  val ok=igt(font_span_width(layout),0) andalso ieq(row.sourceStart,0) andalso ieq(row.sourceEnd,4)
+    andalso ready(font_span_draw(f,r,layout,30.0,70.0,0xFFFFFFFFu))
+  val ()=font_span_dispose(layout)
+in if ok then 0 else 1 end
+fun notdef_presentation(f: !Font,r: !Rend,assets: !NativeTextAssets,s: string): int = let val b=bytes(s)
+  val errors=case+ font_span_make(f,assets,b,buf_len(b),options()) of
+    | ~FontSpanRejected(e) => 1 | ~FontSpanAccepted(layout) => funexamined(f,r,layout)
   val ()=buf_free(b)
 in errors end
 fun examined(f: !Font,r: !Rend,layout: FontSpanLayout): int = let
@@ -68,8 +79,8 @@ fun loaded(f: !Font,r: !Rend,assets: !NativeTextAssets): int = let
   val primary=font_use_file(f,c_argv(3)) and fallback=font_use_fallback_file(f,c_argv(4))
   val ()=font_set_px(f,16)
 in if primary andalso fallback then let
-  val long_errors=long_span(f,assets) and paragraph_errors=rejected(f,assets,"a\nb")
-  val coverage_errors=rejected(f,assets,"􏿿") and stale_errors=stale(f,r,assets)
+  val long_errors=long_span(f,assets) and paragraph_errors=rejected_paragraph(f,assets,"a\nb")
+  val coverage_errors=notdef_presentation(f,r,assets,"􏿿") and stale_errors=stale(f,r,assets)
   val ()=println!("event=native_span_checks long=",long_errors," paragraph=",paragraph_errors,
     " coverage=",coverage_errors," stale=",stale_errors)
 in long_errors+paragraph_errors+coverage_errors+stale_errors end else 1 end

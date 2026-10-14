@@ -22,7 +22,7 @@ implement native_font_suite(r) = if ine(c_argc(),7) then 0 else
   | ~NativeAssetsRejected(e) => 1 | ~NativeAssetsAccepted(assets) => let
     val errors=iadd(iadd(iadd(loaded(r,assets),native_span_cases(r,assets)),native_span_boundary_cases(r,assets)),
       iadd(iadd(iadd(native_text_service_cases(r),native_span_partition_cases(r,assets)),native_workspace_startup_case(r)),
-        native_doc_navigation_cases()))
+        iadd(iadd(native_span_missing_cases(r,assets),native_doc_navigation_cases()),native_font_registry_cases())))
     val ()=native_text_assets_dispose(assets)
     val ()=println!("event=native_font_owner errors=",errors)
   in errors end

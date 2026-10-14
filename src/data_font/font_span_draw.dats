@@ -2,7 +2,7 @@
 staload "os/fs.sats"
 fun part_draw(f: !Font,r: !Rend,runs: !FontSpanRuns,row: int,part: FontSpanPart,
   x: double,y: double,color: uint): FontRunStatus = case+ part.kind of
-  | SpanTabPart() => FontRunReady() | SpanLineEndPart() => FontRunReady() | SpanTextPart() => let
+  | SpanTabPart() => FontRunReady() | SpanLineEndPart() => FontRunReady() | SpanSkipPart() => FontRunReady() | SpanTextPart() => let
     val result=font_span_runs_draw(runs,row,f,r,x+n_i2d(part.x)/64.0,y,color)
   in result.status end
 fun walk{n:nat} .<n>. (left: int(n),f: !Font,r: !Rend,layout: !FontSpanLayout,

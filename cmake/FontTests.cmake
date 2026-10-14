@@ -12,7 +12,7 @@ foreach(MODULE font_glyph_id_fixture font_glyph_id_primary font_glyph_id_fallbac
     font_glyph_id_cache font_glyph_id_collision font_glyph_id_atlas font_gl_airlock
     font_run_render_fixture font_run_render_reference font_run_render_cases font_native_owner_setup font_native_owner_cases font_span_owner_cases
     font_span_boundary_cases font_text_service_cases font_span_partition_cases font_text_note_cases font_text_abi_airlock
-    doc_text_navigation_cases font_text_cache_cases event_repaint_cases font_text_metrics_cases visual_layout_cases source_edit_cases)
+    font_span_missing_cases font_registry_cases doc_text_navigation_cases font_text_cache_cases event_repaint_cases font_text_metrics_cases visual_layout_cases source_edit_cases)
   set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
   add_custom_command(OUTPUT "${OUTPUT}"
     COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"

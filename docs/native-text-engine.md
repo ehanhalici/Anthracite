@@ -1166,9 +1166,9 @@ Logs: `/tmp/anthracite-workspace-navigation-final-build.log`,
 `/tmp/anthracite-workspace-native.Fpljcb/`.
 
 **Known runtime restriction:** unsupported scripts or clusters uncovered by
-both configured faces still reach the strict compatibility failure and can
-terminate the editor. Nonfatal missing-glyph/unsupported-script presentation,
-font-aware canonical fallback and a broader face cascade remain required.
+both configured faces no longer terminate the editor (see the nonfatal
+presentation checkpoint above). Per-glyph post-shaping fallback, font-aware
+canonical fallback and a broader face cascade remain required.
 Default activation does not mean the whole migration is finished.
 
 ## Runtime performance checkpoint (2026-10-14)
@@ -1317,6 +1317,69 @@ dedicated paths. Child document lifetime/caching and paragraph incremental
 layout are still required. Cold fitting still measures growing prefixes, but
 completed row snapshots avoid repeating that work on an unchanged frame.
 
+## Nonfatal presentation checkpoint (2026-10-14)
+
+The strict compatibility failure no longer terminates the editor for
+missing-glyph or unsupported-script items. `FontSpanFailure` gained typed
+`SpanMissing` and `SpanUnsupported` variants, and `FontSpanPartKind` gained
+`SpanSkipPart`. A cluster uncovered by both faces now shapes with the primary
+face's real `.notdef` glyph zero through the existing full GSUB/GPOS pipeline
+(zero-ink, nonzero advance), so selection/caret geometry stays exact. An item
+whose OpenType script request is unsupported installs a zero-ink, zero-advance
+skip part that keeps its source range; paint, draw and hit testing all skip it.
+Both outcomes keep the span accepted; row painting, selection, pointer queries
+and vertical navigation continue with the remaining items. Analysis, item,
+context and capacity failures remain fatal typed rejections, and the legacy
+`font_text_result_pixels` die path still covers them.
+
+`font_span_check` preflight now treats skip slots as intentionally absent
+instead of reporting `FontRunGraph`. The shaping-failure log gained an error
+detail field. The previously broken `source_edit_cases` list-literal type
+mismatch (present on HEAD) was fixed by using the non-linear `List0` type.
+
+The new `native_span_missing_cases` conformance covers emoji `.notdef`
+rasterization with preserved source spans, a Hebrew word rejected by both faces
+producing zero width and no failure, mixed Turkish/unsupported-script text
+preserving surrounding ink, paragraph direction and preflight readiness after
+skip parts, and the workspace service path drawing mixed content without
+aborting. All 77 registered CTest cases pass. The isolated Xvfb suite reports
+zero errors across glyph-ID, run render, span, cache, repaint, metrics,
+visual-layout, source-edit, service, partition, workspace-startup, navigation
+and owner checks; all four application selftests pass with `live=1530113`
+(`start_ms=43`, `rss_kb=110064`). The real note check reports `items=10
+glyphs=4413 missing=0 failures=0`.
+
+Remaining: per-glyph post-shaping fallback, font-aware canonical decomposition,
+automatic face registry and the generic symbol-face policy are still open; skip
+parts intentionally drop ink instead of drawing another font's glyphs.
+
+## Profile/caret/registry checkpoint (2026-10-15)
+
+Hebrew joins Latin/Greek/Cyrillic in the common horizontal shaping profile, so
+covered Hebrew text now shapes with real glyphs instead of falling into the
+skip presentation. `GdefHeader`'s previously validated-but-unused `attach` and
+`carets` children now have checked readers: AttachList stores per-glyph
+AttachPoint descriptors behind a typed Coverage-to-index map (checked u16
+offsets, point counts and glyph domains; the empty table is an explicit
+accepted-nothing result), and LigCaretList parses LigGlyph caret value offsets
+into CaretValue descriptors supporting formats 1 (signed coordinate), 2
+(contour index) and 3 (coordinate plus a borrowed Device span). Out-of-domain
+glyphs and indices return typed empty results instead of guesses. The new
+`gdef_attach_cases` conformance exercises valid tables, absent children, every
+representative truncation, invalid formats/orders, glyph coverage misses and
+balanced Buf ownership. All GDEF conformance suites pass.
+
+`Font` now carries an automatic registry ID. `font_registry_next` allocates
+strictly increasing positive integers that never repeat (ABA-safe against
+disposed faces) from a C-side airlock, with a deterministic abort at int
+exhaustion; `font_registry_id` exposes it. Conformance checks uniqueness
+across concurrent faces and strict monotonicity after a face is freed.
+
+All 77 CTest cases pass, including gdef_conformance with zero attach/caret
+errors. The isolated Xvfb suite reports zero errors; the real note check
+reports `items=10 glyphs=4413 missing=0 failures=0`; the four selftests stay at
+`live=1530113` with `start_ms=43` and `rss_kb=110064`.
+
 ## Still required
 
 Normal workspace startup now uses native shaping and direct-ID drawing, with
@@ -1327,8 +1390,13 @@ resolved in full**, despite successful real-note startup/frame tests.
 
 Remaining plan work includes specialized-block pixel wrapping, normalization/BiDi/line rendering
 integration (including L3 glyph-cluster ordering and font-specific L4 handling),
-Font-aware canonical and post-shaping fallback, automatic global face-registry
-ownership and nonfatal missing-glyph/unsupported-script presentation. Rendering, wrapping,
+Font-aware canonical and post-shaping fallback, legacy-kern/mark fallback
+positioning, FeatureParams/FeatureVariations/ItemVariationStore evaluation and
+the generic symbol-face policy (missing-glyph and unsupported-script items now
+degrade nonfatally through skip parts and .notdef glyphs; the registry now
+auto-allocates unique IDs; `font_text_enable` now allocates its primary and
+fallback face IDs from that registry on success, so two live fonts never share
+native-cache identities). Rendering, wrapping,
 height, caret/selection and specialized child blocks must finish adopting shared layout
 snapshots. The Arabic fallback is bundled; a reproducible primary/generic
 symbol-face policy is still required.
