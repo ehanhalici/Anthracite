@@ -12,7 +12,7 @@ add_custom_command(OUTPUT "${NATIVE_ASSETS_TEST_C}"
     -o "${NATIVE_ASSETS_TEST_C}" -d "${CMAKE_SOURCE_DIR}/tests/native_text_assets_conformance.dats"
   DEPENDS tests/native_text_assets_conformance.dats ${ATS_INTERFACES})
 add_executable(native_text_assets_conformance EXCLUDE_FROM_ALL ${NATIVE_TEXT_ASSETS_C_SOURCES}
-  "${NATIVE_ASSETS_TEST_C}" ${SCRIPT_C_SOURCES} ${NORMALIZATION_C_SOURCES}
+  "${NATIVE_ASSETS_TEST_C}" ${SCRIPT_C_SOURCES} ${NORMALIZATION_C_SOURCES} ${UTF8_C_SOURCES}
   "${CMAKE_CURRENT_BINARY_DIR}/native_shape_data_dispose_dats.c"
   "${CMAKE_CURRENT_BINARY_DIR}/unicode_db_dats.c" "${CMAKE_CURRENT_BINARY_DIR}/unicode_property_dats.c"
   "${CMAKE_CURRENT_BINARY_DIR}/bidi_bracket_source_dats.c" "${CMAKE_CURRENT_BINARY_DIR}/bidi_bracket_lookup_dats.c"
