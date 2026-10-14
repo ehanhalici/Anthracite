@@ -1,7 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
 
+# Release (-O2, LTO) is the default: the Debug profile (-O0) is roughly ten times
+# slower on the first frame and uses the call stack without tail-call elimination.
+# Pass -DCMAKE_BUILD_TYPE=Debug explicitly for debugging.
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  set(CMAKE_BUILD_TYPE Debug CACHE STRING "Debug veya Release" FORCE)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Release veya Debug" FORCE)
 endif()
 
 find_program(ANTHRACITE_CLANG clang REQUIRED)
