@@ -22,13 +22,13 @@ fun fixture(): Buf = let
   val ()=buf_resize(b,131098) and ()=buf_set_len(b,131098)
   val ()=rows(65535,b,0)
 in b end
-fun queries {n:nat} .<n>. (n: int(n),b: !Buf,t: !GposPairs,i: int): int =
-  if n = 0 then 0 else let val r=gpos_pair_query(b,t,0,i)
+fun queries {n:nat} .<n>. (n: int(n),b: !Buf,t: !GposPairs,i: int,acc: int): int =
+  if n = 0 then acc else let val r=gpos_pair_query(b,t,0,i)
     val ok=r.matched andalso ieq(r.first.units.xAdvance,0) andalso ieq(r.second.units.xAdvance,0)
-  in iadd(if ok then 0 else 1,queries(n-1,b,t,iadd(i,1))) end
+  in queries(n-1,b,t,iadd(i,1),iadd(acc,if ok then 0 else 1)) end
 implement gpos_pair_test_stress() = let val b=fixture()
   val errors=case+ gpos_pair_parse(b,ot_fixture_span(b),65535) of
     | ~PairRejected(e) => 1 | ~PairAccepted(t) => let
-      val errors=queries(65535,b,t,0) val ()=gpos_pair_dispose(t) in errors end
+      val errors=queries(65535,b,t,0,0) val ()=gpos_pair_dispose(t) in errors end
   val ()=buf_free(b)
 in errors end

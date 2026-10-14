@@ -8,10 +8,10 @@ fun table(b: !Buf,info: SfntInfo,m: !GlyphMetadata): OtLayoutTable(1,0) =
   case+ sfnt_table(b,info.tables,TableGsub()) of | NoSfntTable() => shape_font_table_failed()
   | HasSfntTable(span) => (case+ ot_layout_parse(b,span,OtSubstitution(),glyph_metadata_capabilities(m)) of
     | ~LayoutRejected(e) => shape_font_table_failed() | ~LayoutAccepted(t) => t)
-fun rows{n:nat} .<n>. (left: int(n),r: !GlyphRun(1),o: !Buf,node: int,index: int): int =
-  if left = 0 then (if ieq(node,~1) then 0 else 1) else let val row=glyph_run_query(r,node)
+fun rows{n:nat} .<n>. (left: int(n),r: !GlyphRun(1),o: !Buf,node: int,index: int,acc: int): int =
+  if left = 0 then iadd(acc,if ieq(node,~1) then 0 else 1) else let val row=glyph_run_query(r,node)
     val ok=ieq(row.core.glyph,ot_fixture_read16(o,imul(index,2)))
-  in iadd(if ok then 0 else 1,rows(left-1,r,o,row.links.next,iadd(index,1))) end
+  in rows(left-1,r,o,row.links.next,iadd(index,1),iadd(acc,if ok then 0 else 1)) end
 fun example(face: !SfntFace,db: !UnicodeDb,joining: !PropertyMap(3),m: !GlyphMetadata,g: !OtSubstitutionGraph,
   s: !OtShapeSchedule(1),text: string,words: string): int = let
   val bytes=nominal_test_bytes(text) val decoded=nominal_test_decode(bytes) val masks=nominal_test_mask()
@@ -22,7 +22,7 @@ fun example(face: !SfntFace,db: !UnicodeDb,joining: !PropertyMap(3),m: !GlyphMet
   val ready=case+ status of | GlyphPassApplied() => true | GlyphPassDomain() => false
     | GlyphPassReference() => false | GlyphPassCapacity() => false
   val errors=if ready andalso ieq(meta.live,idiv(isub(buf_len(expected),8),2))
-    then rows(airlock_nat(meta.live),r,expected,meta.head,0) else 1
+    then rows(airlock_nat(meta.live),r,expected,meta.head,0,0) else 1
   val ()=glyph_run_dispose(r) and ()=buf_free(expected) and ()=arabic_mask_dispose(masks)
   val ()=scalar_dispose(decoded) and ()=buf_free(bytes)
 in errors end

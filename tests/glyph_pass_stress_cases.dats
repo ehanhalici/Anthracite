@@ -12,19 +12,19 @@ staload "data_font/gsub_single_types.sats"
 staload "data_font/gsub_single.sats"
 staload "opentype_fixture.sats"
 staload "glyph_pass_contracts.sats"
-fun inspect{n:nat} .<n>. (n: int(n),run: !GlyphRun(1),i: int): int =
-  if n = 0 then 0 else let
+fun inspect{n:nat} .<n>. (n: int(n),run: !GlyphRun(1),i: int,acc: int): int =
+  if n = 0 then acc else let
     val v=glyph_run_query(run,i)
     val ok=ieq(v.core.glyph,iadd(11,imod(i,16))) andalso ieq(v.core.sourceStart,imul(i,2))
       andalso ieq(v.core.sourceEnd,imul(iadd(i,1),2)) andalso ieq(v.core.cluster,i)
-  in iadd(if ok then 0 else 1,inspect(n-1,run,iadd(i,1))) end
+  in inspect(n-1,run,iadd(i,1),iadd(acc,if ok then 0 else 1)) end
 implement pass_test_stress() = let
   val b=ot_fixture_words("0001 0006 0001 0002 0001 000A 0019 0000")
   val errors: int=case+ gsub_single_parse(b,ot_fixture_span(b),128) of
   | ~SingleRejected(e) => 1 | ~SingleAccepted(t) => let
     var e: int=0
     val run=pass_test_take(glyph_pass_single(b,t,pass_test_run(32768),@{kind=GlyphAll(),mask=0u}),32768,32768,e)
-    val extra=inspect(32768,run,0)
+    val extra=inspect(32768,run,0,0)
     val ()=glyph_run_dispose(run) and ()=gsub_single_dispose(t)
   in e+extra end
   val ()=buf_free(b)

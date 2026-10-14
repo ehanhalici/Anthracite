@@ -25,10 +25,12 @@ fun valid(code: int,f: OtValueFormat): int = let
     andalso ieq(f.xad,expected(code,64)) andalso ieq(f.yad,expected(code,128))
   val size=expected(iadd(code,256),256)
 in if ok andalso ieq(f.size,size) then 0 else 1 end
-fun masks {n:nat} .<n>. (n: int(n),code: int): int =
-  if n = 0 then 0 else let
+(* Errors are accumulated in tail position so the 65536-step scan runs in
+   constant stack space at every optimization level. *)
+fun masks {n:nat} .<n>. (n: int(n),code: int,acc: int): int =
+  if n = 0 then acc else let
     val errors: int=case+ ot_value_format(code) of
       | ~ValueFormatRejected() => if igt(code,255) then 0 else 1
       | ~ValueFormatAccepted(f) => if igt(code,255) then 1 else valid(code,f)
-  in iadd(errors,masks(n-1,iadd(code,1))) end
-implement gpos_test_formats() = masks(65536,0)
+  in masks(n-1,iadd(code,1),iadd(acc,errors)) end
+implement gpos_test_formats() = masks(65536,0,0)

@@ -12,20 +12,20 @@ staload "data_font/gsub_single_types.sats"
 staload "data_font/gsub_single.sats"
 staload "opentype_fixture.sats"
 staload "glyph_pass_contracts.sats"
-fun inspect{n:nat} .<n>. (n: int(n),run: !GlyphRun(1),i: int,selection: GlyphSelection,delta: int): int =
-  if n = 0 then 0 else let
+fun inspect{n:nat} .<n>. (n: int(n),run: !GlyphRun(1),i: int,selection: GlyphSelection,delta: int,acc: int): int =
+  if n = 0 then acc else let
     val v=glyph_run_query(run,i)
     val d: int=case+ selection.kind of
       | GlyphAll() => delta | GlyphMasked() => if ieq(imod(i,2),1) then delta else 0
     val ok=ieq(v.core.glyph,iadd(iadd(10,i),d)) andalso ieq(v.core.sourceStart,imul(i,2))
       andalso ieq(v.core.sourceEnd,imul(iadd(i,1),2)) andalso ieq(v.core.cluster,i)
-  in iadd(if ok then 0 else 1,inspect(n-1,run,iadd(i,1),selection,delta)) end
+  in inspect(n-1,run,iadd(i,1),selection,delta,iadd(acc,if ok then 0 else 1)) end
 fun apply(b: !Buf,t: !GsubSingle,selection: GlyphSelection,matches: int): int = let
   var errors: int=0
   val first=pass_test_take(glyph_pass_single(b,t,pass_test_run(6),selection),6,matches,errors)
-  val ()=errors := iadd(errors,inspect(6,first,0,selection,1))
+  val ()=errors := iadd(errors,inspect(6,first,0,selection,1,0))
   val second=pass_test_take(glyph_pass_single(b,t,first,selection),6,matches,errors)
-  val ()=errors := iadd(errors,inspect(6,second,0,selection,2))
+  val ()=errors := iadd(errors,inspect(6,second,0,selection,2,0))
   val ()=glyph_run_dispose(second)
   val empty=pass_test_take(glyph_pass_single(b,t,pass_test_run(0),selection),0,0,errors)
   val ()=glyph_run_dispose(empty)
@@ -33,7 +33,7 @@ in errors end
 fun disabled(b: !Buf,t: !GsubSingle): int = let
   var errors: int=0
   val run=pass_test_take(glyph_pass_single(b,t,pass_test_run(6),@{kind=GlyphMasked(),mask=0u}),6,0,errors)
-  val ()=errors := iadd(errors,inspect(6,run,0,@{kind=GlyphAll(),mask=0u},0))
+  val ()=errors := iadd(errors,inspect(6,run,0,@{kind=GlyphAll(),mask=0u},0,0))
   val ()=glyph_run_dispose(run)
 in errors end
 fun mismatch(b: !Buf): int = case+ gsub_single_parse(b,ot_fixture_span(b),129) of
@@ -41,7 +41,7 @@ fun mismatch(b: !Buf): int = case+ gsub_single_parse(b,ot_fixture_span(b),129) o
     val+ ~GlyphPassResult(run,status,n,m)=glyph_pass_single(b,t,pass_test_run(6),@{kind=GlyphAll(),mask=0u})
     val rejected: bool=case+ status of | GlyphPassApplied() => false | GlyphPassDomain() => true
       | GlyphPassReference() => false | GlyphPassCapacity() => false
-    val errors=inspect(6,run,0,@{kind=GlyphAll(),mask=0u},0)
+    val errors=inspect(6,run,0,@{kind=GlyphAll(),mask=0u},0,0)
     val ()=glyph_run_dispose(run) and ()=gsub_single_dispose(t)
   in iadd(errors,if rejected andalso ieq(n,0) andalso ieq(m,0) then 0 else 1) end
 fun identity(): int = let

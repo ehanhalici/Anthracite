@@ -21,18 +21,18 @@ staload "opentype_fixture.sats"
 staload "glyph_run_contracts.sats"
 staload "glyph_pass_contracts.sats"
 staload "glyph_sequence_contracts.sats"
-fun rows{n:nat} .<n>. (left: int(n),run: !GlyphRun(1),node: int,previous: int,i: int): int =
-  if left = 0 then (if ieq(node,~1) then 0 else 1) else let
+fun rows{n:nat} .<n>. (left: int(n),run: !GlyphRun(1),node: int,previous: int,i: int,acc: int): int =
+  if left = 0 then iadd(acc,if ieq(node,~1) then 0 else 1) else let
     val v=glyph_run_query(run,node)
     val expected=if ieq(imod(i,3),1) then 0 else 11
     val errors=iadd(seq_test_core(run,node,expected,idiv(i,3)),if ieq(v.links.previous,previous) then 0 else 1)
-  in iadd(errors,rows(left-1,run,v.links.next,node,iadd(i,1))) end
+  in rows(left-1,run,v.links.next,node,iadd(i,1),iadd(acc,errors)) end
 fun expanded(): int = let val b=seq_test_fixture()
   val t=seq_test_table(b,GsubMultiple()) and m=seq_test_metadata(b,3,128)
   var errors: int=0
   val run=pass_test_take(glyph_pass_multiple(b,t,m,seq_test_nominal(128,10,32768,errors),
     @{kind=GlyphAll(),mask=0u}),32768,32768,errors)
-  val ()=errors := errors+rows(98304,run,0,~1,0)
+  val ()=errors := errors+rows(98304,run,0,~1,0,0)
   val meta=glyph_run_meta(run)
   val ()=if ieq(meta.live,98304) andalso ieq(meta.used,98304) then () else errors := errors+1
   val ()=glyph_run_dispose(run) and ()=ot_sequence_lookup_dispose(t) and ()=glyph_metadata_dispose(m) and ()=buf_free(b)
