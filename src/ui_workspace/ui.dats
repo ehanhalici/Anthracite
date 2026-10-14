@@ -22,8 +22,11 @@ staload "ui_workspace/ui_tree.sats"
 staload "ui_workspace/ui_search.sats"
 staload "ui_workspace/ui_menu.sats"
 staload "ui_workspace/ui_tab.sats"
+staload "ui_workspace/visual_navigation.sats"
+staload "ui_workspace/source_navigation.sats"
 staload "ui_workspace/ui_render.sats"
 staload "ui_workspace/ui_widgets.sats"
+staload "ui_workspace/ui_text_engine.sats"
 staload "config/conf.sats"
 staload "ui_workspace/ui_cmd.sats"
 staload "search/ix_store.sats"
@@ -105,6 +108,27 @@ fun tab_pane_find_first_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !
 
 fun tab_pane_find_first(b: !Buf, pane: int): int =
   tab_pane_find_first_m(airlock_nat(MAX_REC_FUEL), b, pane, 0)
+
+fun tab_pane_fill_all_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), b: !Buf, n: int, v: int, i: int
+): void =
+  if recfuel > 0 then (
+    if i < n andalso i < buf_len(b) then let
+      val () = buf_set(b, i, v)
+    in
+      tab_pane_fill_all_m(recfuel - 1, b, n, v, i + 1)
+    end else ()
+  ) else ()
+
+fun tab_pane_fill_all(b: !Buf, n: int, v: int): void =
+  tab_pane_fill_all_m(airlock_nat(MAX_REC_FUEL), b, n, v, 0)
+
+fun tab_pane_init_split(b: &Buf >> _, n: int, right_i: int): void = let
+  val () = sync_tab_pane(b, n, On, right_i)
+  val () = tab_pane_fill_all(b, n, 0)
+  val () = if right_i >= 0 andalso right_i < buf_len(b) then buf_set(b, right_i, 1) else ()
+in
+end
 
 fun save_session_impl(
   vault: !Buf, font_p: !Buf, font_px: int, viewmode: ViewMode,
@@ -193,6 +217,8 @@ fun load_vault_tabs(
   val () = out_fpx := (if igt(fpx, 0) then fpx else 18)
   val () = out_vm := vmode
   val () = out_sp := (if is_on(toggle_of(ieq(sp, 1))) andalso tab_pane_has(out_tab_pane, 1) then 1 else 0)
+  val tp_len = buf_len(out_tab_pane)
+  val () = if ieq(out_sp, 0) then tab_pane_fill_all(out_tab_pane, tp_len, 0) else ()
   val () = out_side_open := side_open
   val () = out_sidew := imax(UI_SIDEBAR_MIN_WIDTH, sidew)
   val () = apply_tab_indices(n_tabs, act_idx, right_idx, out_act, out_righti)
@@ -766,7 +792,7 @@ end
 
 fun draw_config_font_size(f: !Font, r: !Rend, s: &App_record): void = let
   val () = draw_s(f, r, 12, 154, "Yazi Boyutu (tikla)", col_text())
-  val pxlab = if ieq(s.fontpx, 16) then "16 px" else if ieq(s.fontpx, 20) then "20 px" else "18 px"
+  val pxlab = if ieq(s.fontpx, 18) then "18 px" else if ieq(s.fontpx, 24) then "24 px" else "28 px"
   val () = ui_badge(f, r, 190, 152, pxlab, col_bar(), col_accent())
 in
 end
@@ -804,7 +830,7 @@ fun font_rows_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !
 fun draw_sidebar_config(f: !Font, r: !Rend, s: &App_record): void = let
   val () = draw_config_vault_section(f, r, s)
   val () = draw_config_font_size(f, r, s)
-  val () = draw_s(f, r, 12, 186, "Yazi Tipi (fonts/)", col_text())
+  val () = draw_s(f, r, 12, 186, ui_text_engine_title(f), col_text())
 in
   font_rows_m(airlock_nat(MAX_REC_FUEL), f, r, s, 0, s.fcnt)
 end
@@ -969,8 +995,9 @@ fun validate_panes_len(s: &App_record >> _, n: int): void = let
   val has_left = tab_pane_has(s.tab_pane, 0)
 in
   if is_on(s.split) then (
-    if not(has_right) orelse not(has_left) then (s.split := Off; s.focus := Off)
-    else (validate_pane_left(s, n); validate_pane_right(s, n))
+    if not(has_right) orelse not(has_left) then (
+      s.split := Off; s.focus := Off; tab_pane_fill_all(s.tab_pane, n, 0)
+    ) else (validate_pane_left(s, n); validate_pane_right(s, n))
   ) else ()
 end
 
@@ -1039,6 +1066,42 @@ in
   s.search_state := (if rem > 0 then 1 else 0)
 end
 
+fun draw_drop_target(f: !Font, r: !Rend, x: int, y: int, w: int, h: int, text: string): void = let
+  val () = rend_rect(r, x, y, w, h, col_side())
+  val () = ui_draw_border(r, iadd(x, 4), iadd(y, 4), isub(w, 8), isub(h, 8), 2, col_accent())
+  val bw = 160
+  val bh = 28
+  val cx = iadd(x, idiv(isub(w, bw), 2))
+  val cy = iadd(y, idiv(isub(h, bh), 2))
+  val () = ui_badge(f, r, cx, cy, text, col_bg(), col_accent())
+in
+end
+
+fun draw_tab_drag_split(f: !Font, r: !Rend, s: &App_record, ox: int, pw: int, h: int, dp: int): void = let
+  val half = idiv(pw, 2)
+  val mid = iadd(ox, half)
+  val eh = isub(h, UI_TOPBAR_HEIGHT)
+in
+  if ieq(dp, 0) andalso ige(s.hoverx, mid) then
+    draw_drop_target(f, r, mid, UI_TOPBAR_HEIGHT, isub(pw, half), eh, "Sag Bolmeye Tasi")
+  else if ieq(dp, 1) andalso ilt(s.hoverx, mid) then
+    draw_drop_target(f, r, ox, UI_TOPBAR_HEIGHT, half, eh, "Sol Bolmeye Tasi")
+  else ()
+end
+
+fun draw_tab_drag_overlay(f: !Font, r: !Rend, s: &App_record, ox: int, pw: int, w: int, h: int): void =
+  if is_drag_tab(s.drag) andalso ige(s.hovery, UI_TOPBAR_HEIGHT) then let
+    val half = idiv(pw, 2)
+    val mid = iadd(ox, half)
+    val eh = isub(h, UI_TOPBAR_HEIGHT)
+    val dp = if s.dragi >= 0 andalso s.dragi < buf_len(s.tab_pane) then buf_get(s.tab_pane, s.dragi) else 0
+  in
+    if not(is_on(s.split)) then (
+      if ige(s.hoverx, mid) then draw_drop_target(f, r, mid, UI_TOPBAR_HEIGHT, isub(pw, half), eh, "Bolunmus Sayfa Ac")
+      else ()
+    ) else draw_tab_drag_split(f, r, s, ox, pw, h, dp)
+  end else ()
+
 fun draw_panes(f: !Font, r: !Rend, a: !App, w: int, h: int): void =
   case+ a of
   | @APP(s) => let
@@ -1054,6 +1117,7 @@ fun draw_panes(f: !Font, r: !Rend, a: !App, w: int, h: int): void =
       val () = rend_rect(r, 0, 0, w, h, col_bg())
       val () = draw_topbar_chrome(f, r, s, w)
       val () = draw_editor_panes(f, r, s, ox, half, w, h, lh)
+      val () = draw_tab_drag_overlay(f, r, s, ox, pw, w, h)
       val () = draw_topbar_mode(f, r, s, w)
     in
       fold@(a)
@@ -2091,14 +2155,17 @@ fun resolve_search_enter(s: &App_record >> _, ts0: Tabs, qr: EditResult, hit_go:
   else
     hit_open_if(s, ts0, s.hn, toggle_of(is_on(hit_go)), EditSubmit)
 
-fun key_tabs_step(s: &App_record >> _, p: !Plat, ev: &event, cmd: Cmd, hit_go: Toggle, qr: EditResult): void = let
+fun key_tabs_step(s: &App_record >> _, p: !Plat,f: !Font,r: !Rend, ev: &event, cmd: Cmd, hit_go: Toggle, qr: EditResult): void = let
+  val ()=font_set_px(f,s.fontpx)
   val ts0 = s.tabs
   val () = s.tabs := TNil()
   val ts: Tabs = resolve_search_enter(s, ts0, qr, hit_go, ev)
   val idx = pane_of(s.focus, s.active, s.righti)
   var ts_inter: Tabs = apply_tab_cmd(ts, cmd, idx)
   val () = handle_tab_nav_cmd(s, cmd, ts_inter)
-  val ts2 = key_dispatch(ts_inter, idx, cmd, s.vault, s.clip, s.scratch, p, s.paste, ev)
+  val (ts_source,source_cmd)=tabs_source_edit(f,ts_inter,idx,cmd,s.scratch)
+  val (ts_ready,remaining)=tabs_visual_vertical(f,r,ts_source,idx,source_cmd,s.scratch)
+  val ts2 = key_dispatch(ts_ready, idx, remaining, s.vault, s.clip, s.scratch, p, s.paste, ev)
   val ph = s.tabs
   val () = s.tabs := ts2
   val () = tabs_free(ph)
@@ -2107,7 +2174,7 @@ fun key_tabs_step(s: &App_record >> _, p: !Plat, ev: &event, cmd: Cmd, hit_go: T
 in
 end
 
-fun key_editor_step(s: &App_record >> _, p: !Plat, f: !Font, ev: &event): void = let
+fun key_editor_step(s: &App_record >> _, p: !Plat, f: !Font,r: !Rend, ev: &event): void = let
   val act = is_prompt_none(s.prompt) andalso is_off(s.qfocus)
   val pr = if not(is_prompt_none(s.prompt)) then edit_line(s.promptb, ev, s.scratch) else EditNone
   val qr = if is_on(s.qfocus) andalso is_prompt_none(s.prompt) then edit_line(s.query, ev, s.scratch) else EditNone
@@ -2117,7 +2184,7 @@ fun key_editor_step(s: &App_record >> _, p: !Plat, f: !Font, ev: &event): void =
   val () = handle_prompt_submission(s, pr)
   val cmd = key_code(ev, toggle_of(act))
   val () = handle_sidebar_shortcut_cmd(s, cmd, ev)
-  val () = key_tabs_step(s, p, ev, cmd, toggle_of(hit_go), qr)
+  val () = key_tabs_step(s, p,f,r, ev, cmd, toggle_of(hit_go), qr)
   val () = if is_cmd(cmd, CMD_SAVE) then let
       val () = s.treedirty := On
       val () = save_app_session(s)
@@ -2127,7 +2194,7 @@ fun key_editor_step(s: &App_record >> _, p: !Plat, f: !Font, ev: &event): void =
 in
 end
 
-fun on_key(a: !App, p: !Plat, f: !Font, ev: &event): void =
+fun on_key(a: !App, p: !Plat, f: !Font,r: !Rend, ev: &event): void =
   case+ a of
   | @APP(s) =>
       if is_on(s.vault_select) then let
@@ -2135,7 +2202,7 @@ fun on_key(a: !App, p: !Plat, f: !Font, ev: &event): void =
       in
         fold@(a)
       end else let
-        val () = key_editor_step(s, p, f, ev)
+        val () = key_editor_step(s, p, f,r, ev)
       in
         fold@(a)
       end
@@ -2760,10 +2827,82 @@ in
   s.sidew := imax(UI_SIDEBAR_MIN_WIDTH, imin(max_width, x))
 end
 
-fun motion_tab_drag(s: &App_record >> _, x: int): void =
+fun tab_pane_shift_l_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, cur: int, target: int): void =
+  if recfuel > 0 then (
+    if cur < target then let
+      val () = buf_set(b, cur, buf_get(b, cur + 1))
+    in
+      tab_pane_shift_l_m(recfuel - 1, b, cur + 1, target)
+    end else ()
+  ) else ()
+
+fun tab_pane_shift_r_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, cur: int, target: int): void =
+  if recfuel > 0 then (
+    if cur > target then let
+      val () = buf_set(b, cur, buf_get(b, cur - 1))
+    in
+      tab_pane_shift_r_m(recfuel - 1, b, cur - 1, target)
+    end else ()
+  ) else ()
+
+fun tab_pane_move(b: !Buf, from_i: int, to_i: int): void = let
+  val n = buf_len(b)
+in
+  if from_i >= 0 andalso from_i < n andalso to_i >= 0 andalso to_i < n andalso ine(from_i, to_i) then let
+    val p = buf_get(b, from_i)
+    val () = if from_i < to_i then tab_pane_shift_l_m(airlock_nat(MAX_REC_FUEL), b, from_i, to_i)
+             else tab_pane_shift_r_m(airlock_nat(MAX_REC_FUEL), b, from_i, to_i)
+    val () = buf_set(b, to_i, p)
+  in
+  end else ()
+end
+
+fun reorder_index(idx: int, from_i: int, to_i: int): int =
+  if ieq(idx, from_i) then to_i
+  else if from_i < to_i then (
+    if idx > from_i andalso idx <= to_i then isub(idx, 1) else idx
+  ) else (
+    if idx >= to_i andalso idx < from_i then iadd(idx, 1) else idx
+  )
+
+fun app_reorder_tab(s: &App_record >> _, from_i: int, to_i: int): void = let
+  val ts = s.tabs
+  val () = s.tabs := TNil()
+  val ts2 = tabs_move(ts, from_i, to_i)
+  val ph = s.tabs
+  val () = s.tabs := ts2
+  val () = tabs_free(ph)
+  val () = tab_pane_move(s.tab_pane, from_i, to_i)
+  val () = s.active := reorder_index(s.active, from_i, to_i)
+  val () = s.righti := reorder_index(s.righti, from_i, to_i)
+  val () = s.dragi := to_i
+in
+  save_app_session(s)
+end
+
+fun pane_start_x(s: &App_record, w: int, pane: int): int = let
+  val sidew = if not(is_side_none(s.side)) then s.sidew else 0
+  val mid = iadd(sidew, idiv(isub(w, sidew), 2))
+in
+  if is_on(s.split) andalso ieq(pane, 1) then iadd(mid, 4)
+  else topbar_tab_start_x(s.btnw)
+end
+
+fun motion_tab_drag(s: &App_record >> _, x: int, y: int): void =
   if ige(s.downx, 0) andalso ige(s.dragi, 0) andalso ilt(s.downy, UI_TOPBAR_HEIGHT) then
-    if igt(iabs(isub(x, s.downx)), 8) then s.drag := DragTab else ()
+    if igt(iabs(isub(x, s.downx)), 8) orelse igt(iabs(isub(y, s.downy)), 8) then s.drag := DragTab else ()
   else ()
+
+fun motion_tab_reorder(s: &App_record >> _, f: !Font, r: !Rend, x: int, y: int, w: int): void =
+  if ilt(y, UI_TOPBAR_HEIGHT) andalso ige(s.dragi, 0) andalso ilt(s.dragi, tabs_len(s.tabs)) then let
+    val p = if s.dragi < buf_len(s.tab_pane) then buf_get(s.tab_pane, s.dragi) else 0
+    val flt = if is_on(s.split) then p else ~1
+    val sx = pane_start_x(s, w, p)
+    val tgt = tab_find_at_x(f, r, s.tabs, sx, x, flt, s.tab_pane)
+  in
+    if ige(tgt, 0) andalso ine(tgt, s.dragi) then app_reorder_tab(s, s.dragi, tgt)
+    else ()
+  end else ()
 
 fun motion_editor_drag(s: &App_record >> _, f: !Font, r: !Rend, x: int, y: int, w: int): void = let
   val sidew = if not(is_side_none(s.side)) then s.sidew else 0
@@ -2781,8 +2920,8 @@ end
 
 fun motion_drag(s: &App_record >> _, f: !Font, r: !Rend, x: int, y: int, w: int): void =
   case+ s.drag of
-  | DragNone() => motion_tab_drag(s, x)
-  | DragTab() => ()
+  | DragNone() => motion_tab_drag(s, x, y)
+  | DragTab() => motion_tab_reorder(s, f, r, x, y, w)
   | DragFile() => ()
   | DragSplit() => resize_side(s, x, w)
   | DragEditor() => motion_editor_drag(s, f, r, x, y, w)
@@ -2799,51 +2938,110 @@ fun on_motion(a: !App, f: !Font, r: !Rend, ev: &event, w: int): void =
       fold@(a)
     end
 
-fun on_up_drag_tab_right(s: &App_record >> _, ti: int): void = let
-  val n = tabs_len(s.tabs)
-in
-  if ige(ti, 0) andalso ilt(ti, n) then let
-    val () = s.split := On
-    val () = buf_set(s.tab_pane, ti, 1)
-    val () = s.righti := ti
-    val () = s.focus := On
-    val () = if ieq(s.active, ti) then let
-      val nxt = tab_pane_find_first(s.tab_pane, 0)
-      val () = if ige(nxt, 0) then s.active := nxt else ()
-    in end else ()
-    val () = validate_panes_len(s, n)
-  in
-    save_app_session(s)
-  end else ()
+fun motion_changes(s: &App_record,ev: &event): bool = let
+  val sidew=if is_side_none(s.side) then 0 else s.sidew
+  val old_editor=ige(s.hoverx,sidew) andalso ige(s.hovery,UI_TOPBAR_HEIGHT)
+  val new_editor=ige(ev_x(ev),sidew) andalso ige(ev_y(ev),UI_TOPBAR_HEIGHT)
+in case+ s.drag of
+  | DragNone() => is_on(s.vault_select) orelse ige(s.downx,0) orelse not(old_editor andalso new_editor)
+  | DragTab() => true | DragFile() => true | DragSplit() => true | DragEditor() => true
 end
 
-fun on_up_drag_tab_left(s: &App_record >> _, ti: int): void = let
-  val n = tabs_len(s.tabs)
+implement app_motion_changes(a,ev) = case+ a of
+  | @APP(s) => let val result=motion_changes(s,ev) prval ()=fold@(a) in result end
+
+fun on_up_split_single(s: &App_record >> _): void = let
+  val ts = s.tabs
+  val () = s.tabs := TNil()
+  val ts2 = tabs_clone_tab(ts, 0)
+  val ph = s.tabs
+  val () = s.tabs := ts2
+  val () = tabs_free(ph)
+  val () = buf_ensure(s.tab_pane, 2)
+  val () = buf_set_len(s.tab_pane, 2)
+  val () = buf_set(s.tab_pane, 0, 0)
+  val () = buf_set(s.tab_pane, 1, 1)
+  val () = s.active := 0
+  val () = s.righti := 1
+  val () = s.split := On
+  val () = s.focus := On
+  val () = validate_panes_len(s, 2)
 in
-  if ige(ti, 0) andalso ilt(ti, n) then let
-    val () = buf_set(s.tab_pane, ti, 0)
-    val () = s.active := ti
-    val () = s.focus := Off
-    val () = if ieq(s.righti, ti) then let
-      val nxt = tab_pane_find_first(s.tab_pane, 1)
-      val () = if ige(nxt, 0) then s.righti := nxt else ()
-    in end else ()
-    val () = if not(tab_pane_has(s.tab_pane, 1)) then s.split := Off else ()
-    val () = validate_panes_len(s, n)
-  in
-    save_app_session(s)
-  end else ()
+  save_app_session(s)
 end
 
-fun on_up_drag_tab(s: &App_record >> _, w: int, x: int): void = let
+fun on_up_split_multi(s: &App_record >> _, ti: int): void = let
+  val n = tabs_len(s.tabs)
+  val () = tab_pane_init_split(s.tab_pane, n, ti)
+  val () = s.split := On
+  val () = s.righti := ti
+  val () = s.focus := On
+  val () = if ieq(s.active, ti) then let
+    val nxt = tab_pane_find_first(s.tab_pane, 0)
+    val () = if ige(nxt, 0) then s.active := nxt else ()
+  in end else ()
+  val () = validate_panes_len(s, n)
+in
+  save_app_session(s)
+end
+
+fun on_up_move_to_right(s: &App_record >> _, ti: int): void = let
+  val n = tabs_len(s.tabs)
+  val () = buf_set(s.tab_pane, ti, 1)
+  val () = s.righti := ti
+  val () = s.focus := On
+  val () = if ieq(s.active, ti) then let
+    val nxt = tab_pane_find_first(s.tab_pane, 0)
+    val () = if ige(nxt, 0) then s.active := nxt else ()
+  in end else ()
+  val () = if not(tab_pane_has(s.tab_pane, 0)) then (
+    s.split := Off; s.focus := Off; s.active := s.righti
+  ) else ()
+  val () = validate_panes_len(s, n)
+in
+  save_app_session(s)
+end
+
+fun on_up_move_to_left(s: &App_record >> _, ti: int): void = let
+  val n = tabs_len(s.tabs)
+  val () = buf_set(s.tab_pane, ti, 0)
+  val () = s.active := ti
+  val () = s.focus := Off
+  val () = if ieq(s.righti, ti) then let
+    val nxt = tab_pane_find_first(s.tab_pane, 1)
+    val () = if ige(nxt, 0) then s.righti := nxt else ()
+  in end else ()
+  val () = if not(tab_pane_has(s.tab_pane, 1)) then (
+    s.split := Off; s.focus := Off
+  ) else ()
+  val () = validate_panes_len(s, n)
+in
+  save_app_session(s)
+end
+
+fun on_up_drag_tab(s: &App_record >> _, w: int, x: int, y: int): void = let
   val sidew = if not(is_side_none(s.side)) then s.sidew else 0
   val mid = iadd(sidew, idiv(isub(w, sidew), 2))
   val ti = s.dragi
+  val n = tabs_len(s.tabs)
+  val drop_x = if ige(x, mid) then x else s.hoverx
+  val drop_y = if ige(y, UI_TOPBAR_HEIGHT) then y else s.hovery
+  val to_r = ige(drop_x, mid) andalso ige(drop_y, UI_TOPBAR_HEIGHT)
+  val to_l = ilt(drop_x, mid) andalso ige(drop_y, UI_TOPBAR_HEIGHT)
 in
-  if ige(ti, 0) andalso ilt(ti, tabs_len(s.tabs)) then (
-    if ige(x, mid) then on_up_drag_tab_right(s, ti)
-    else on_up_drag_tab_left(s, ti)
-  ) else ()
+  if ige(ti, 0) andalso ilt(ti, n) then let
+    val dp = if ti < buf_len(s.tab_pane) then buf_get(s.tab_pane, ti) else 0
+  in
+    if not(is_on(s.split)) then (
+      if to_r then (
+        if ieq(n, 1) then on_up_split_single(s) else on_up_split_multi(s, ti)
+      ) else save_app_session(s)
+    ) else (
+      if ieq(dp, 0) andalso to_r then on_up_move_to_right(s, ti)
+      else if ieq(dp, 1) andalso to_l then on_up_move_to_left(s, ti)
+      else save_app_session(s)
+    )
+  end else ()
 end
 
 fun report_move_failure(rn: int, src: !Buf): void =
@@ -2898,7 +3096,7 @@ fun on_up_drop(s: &App_record >> _, f: !Font, r: !Rend, w: int, x: int, y: int):
   | DragNone() => ()
   | DragSplit() => save_app_session(s)
   | DragFile() => if ige(s.sel, 0) then on_up_move_file(s, y) else ()
-  | DragTab() => on_up_drag_tab(s, w, x)
+  | DragTab() => on_up_drag_tab(s, w, x, y)
   | DragEditor() => on_up_editor(s, x, y)
 
 fun on_up_clamp_active(s: &App_record >> _): void = let
@@ -3003,7 +3201,7 @@ implement app_event(a, p, f, r, ev, w, h) = let
   val () = prepare_chrome(a, f, r)
   val k = event_of(ev_kind(ev))
 in
-  if is_ev(k, EvKey) then on_key(a, p, f, ev)
+  if is_ev(k, EvKey) then on_key(a, p, f,r, ev)
   else if is_ev(k, EvDown) then on_down(a, p, f, r, ev, w, h)
   else if is_ev(k, EvUp) then on_up(a, f, r, ev, w)
   else if is_ev(k, EvMotion) then on_motion(a, f, r, ev, w)
@@ -3057,13 +3255,15 @@ in
 end
 
 fun selftest_img_resize(r: !Rend): int = let
+  val f=font_open()
   val doc = doc_open()
   val s = "![[/tmp/anth-t.png|68x90]]\n"
   val () = doc_insert(doc, c_str_ptr(s), c_strlen(s))
   var cache = CNil()
   var vault = buf_make(8)
   val () = bstr(vault, "/tmp")
-  val _ = prep_doc(doc, cache, r, vault, 18, 720, ViewEdit)
+  val _ = prep_doc(f,doc, cache, r, vault, 18, 720, ViewEdit)
+  val ()=font_free(f)
   val ii = find_img(doc, 0)
   val ih = if ige(ii, 0) then doc_node_height(doc, ii) else 0
   val ok = if ieq(ih, 90) then 1 else 0
@@ -3124,7 +3324,7 @@ fun selftest_visual_wrap(r: !Rend): int = let
   var cache = CNil()
   var vault = buf_make(8)
   var scratch = buf_make(256)
-  val h = prep_doc(doc, cache, r, vault, 18, 800, ViewRead)
+  val h = prep_doc(f,doc, cache, r, vault, 18, 800, ViewRead)
   var py: int = 0; var pa: int = 0
   val () = draw_nodes(f, r, doc, 0, 0, 800, 600, 0, 18, vault, cache, scratch, 0, py, pa, ViewRead)
   val ok = if igt(h, 0) then 1 else 0
@@ -3141,10 +3341,10 @@ fun selftest_error_render(f: !Font, r: !Rend, doc: !Doc): int = let
   var cache = CNil()
   var vault = buf_make(8)
   var scratch = buf_make(256)
-  val h1 = prep_doc(doc, cache, r, vault, 18, 800, ViewEdit)
+  val h1 = prep_doc(f,doc, cache, r, vault, 18, 800, ViewEdit)
   var py: int = 0; var pa: int = 0
   val () = draw_nodes(f, r, doc, 0, 0, 800, 600, 0, 18, vault, cache, scratch, 0, py, pa, ViewEdit)
-  val h2 = prep_doc(doc, cache, r, vault, 18, 800, ViewRead)
+  val h2 = prep_doc(f,doc, cache, r, vault, 18, 800, ViewRead)
   val () = draw_nodes(f, r, doc, 0, 0, 800, 600, 0, 18, vault, cache, scratch, 0, py, pa, ViewRead)
   val ok = if igt(h1, 0) andalso igt(h2, 0) then 1 else 0
   val () = cache_free(cache)
@@ -3178,10 +3378,10 @@ fun selftest_math_render(f: !Font, r: !Rend, doc: !Doc): int = let
   var cache = CNil()
   var vault = buf_make(8)
   var scratch = buf_make(256)
-  val h1 = prep_doc(doc, cache, r, vault, 18, 800, ViewRead)
+  val h1 = prep_doc(f,doc, cache, r, vault, 18, 800, ViewRead)
   var py: int = 0; var pa: int = 0
   val () = draw_nodes(f, r, doc, 0, 0, 800, 600, 0, 18, vault, cache, scratch, 0, py, pa, ViewRead)
-  val h2 = prep_doc(doc, cache, r, vault, 18, 800, ViewEdit)
+  val h2 = prep_doc(f,doc, cache, r, vault, 18, 800, ViewEdit)
   val () = draw_nodes(f, r, doc, 0, 0, 800, 600, 0, 18, vault, cache, scratch, 0, py, pa, ViewEdit)
   val ok = if igt(h1, 0) andalso igt(h2, 0) then 1 else 0
   val () = cache_free(cache)
@@ -3204,6 +3404,31 @@ in
   rend_ok
 end
 
+fun selftest_tab_drag_split_reorder(): int = let
+  val d1 = doc_open()
+  var p1 = buf_make(16); var t1 = buf_make(16)
+  val () = bstr(p1, "note1.md"); val () = bstr(t1, "note1")
+  val ts0 = tabs_append(TNil(), d1, p1, t1, 0)
+  val ts1 = tabs_clone_tab(ts0, 0)
+  val l1 = tabs_len(ts1)
+  val d2 = doc_open()
+  var p2 = buf_make(16); var t2 = buf_make(16)
+  val () = bstr(p2, "note2.md"); val () = bstr(t2, "note2")
+  val ts2 = tabs_append(ts1, d2, p2, t2, 0)
+  val l2 = tabs_len(ts2)
+  val ts3 = tabs_move(ts2, 0, 2)
+  val () = tabs_free(ts3)
+  var tp = buf_make(4)
+  val () = tab_pane_init_split(tp, 3, 1)
+  val g0 = buf_get(tp, 0)
+  val g1 = buf_get(tp, 1)
+  val g2 = buf_get(tp, 2)
+  val p_ok = ieq(g0, 0) andalso ieq(g1, 1) andalso ieq(g2, 0)
+  val () = buf_free(tp)
+in
+  if ieq(l1, 2) andalso ieq(l2, 3) andalso p_ok then 1 else 0
+end
+
 fun selftest_flow_checks(r: !Rend): int = let
   val rz_ok = selftest_img_resize(r)
   val ext_ok = selftest_external_link()
@@ -3212,19 +3437,22 @@ fun selftest_flow_checks(r: !Rend): int = let
   val vw_ok = selftest_visual_wrap(r)
   val err_ok = selftest_ast_error_tolerance(r)
   val math_ok = selftest_math_visualizer(r)
+  val drag_ok = selftest_tab_drag_split_reorder()
 in
   if ieq(rz_ok, 1) andalso ieq(ext_ok, 1) andalso ieq(pfx_ok, 1) andalso ieq(ga_ok, 1)
-     andalso ieq(vw_ok, 1) andalso ieq(err_ok, 1) andalso ieq(math_ok, 1) then 1 else 0
+     andalso ieq(vw_ok, 1) andalso ieq(err_ok, 1) andalso ieq(math_ok, 1) andalso ieq(drag_ok, 1) then 1 else 0
 end
 
 fun selftest_flow(r: !Rend): @(int, int, Doc, Cache, Buf, Buf) = let
+  val f=font_open()
   val doc = doc_open()
   val () = doc_insert(doc, c_str_ptr("hello\n\n![](/tmp/anth-t.png)\n\nworld\n"), c_strlen("hello\n\n![](/tmp/anth-t.png)\n\nworld\n"))
   var cache = CNil()
   var vault = buf_make(8)
   val () = bstr(vault, "/tmp")
   var scratch = buf_make(256)
-  val height = prep_doc(doc, cache, r, vault, 18, 720, ViewEdit)
+  val height = prep_doc(f,doc, cache, r, vault, 18, 720, ViewEdit)
+  val ()=font_free(f)
   val ii = find_img(doc, 0)
   val iy = if ige(ii, 0) then doc_node_y(doc, ii) else ~1
   val ih = if ige(ii, 0) then doc_node_height(doc, ii) else 0

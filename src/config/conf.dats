@@ -136,12 +136,18 @@ fun init_dirs_sub(base: &Buf >> Buf, home: string, hlen: int): bool =
     m1 andalso m2
   end
 
+fun init_config_override(base: &Buf >> Buf, path: string): bool = let
+  val ()=bstr(base,path)
+in ensure_dir(cstr(base)) end
+
 implement conf_init_dirs(base) = let
   val () = bclear(base)
+  val override = c_getenv("ANTHRACITE_CONFIG_DIR")
   val home = c_getenv("HOME")
   val hlen = c_strlen(home)
 in
-  init_dirs_sub(base, home, hlen)
+  if igt(c_strlen(override),0) then init_config_override(base,override)
+  else init_dirs_sub(base, home, hlen)
 end
 
 extern fun match_at_exh(b: !Buf, p: int, k: int, slen: int, n: int, s: string): bool = "mac#anth_die_int"
@@ -872,4 +878,3 @@ in
     fallback_empty_session(side_open, sidew, tab_pane, open_dirs, ts)
   end
 end
-

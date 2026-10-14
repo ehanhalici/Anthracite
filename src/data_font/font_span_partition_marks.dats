@@ -1,0 +1,22 @@
+#include "data_font/font_span_internal.hats"
+staload "data_font/private/font_span_partition.sats"
+staload "data_font/native_text_items_work.sats"
+extern fun partition_failed(): void = "mac#anth_die_void"
+datatype PartitionPrevious = PartitionStart | PartitionCandidate of FontSpanCandidate
+fun cut(previous: PartitionPrevious,next: FontSpanCandidate): int = case+ previous of
+  | PartitionStart() => 1 | PartitionCandidate(old) => if font_span_candidate_same(old,next) then 0 else 1
+fun clusters{fuel:nat} .<fuel>. (fuel: int(fuel),f: !Font,assets: !NativeTextAssets,a: !NativeTextAnalysis,
+  cuts: !Buf,start: int,limit: int,previous: PartitionPrevious): void =
+  if ige(start,limit) then () else if fuel = 0 then partition_failed() else let
+    val finish=font_span_cluster_finish(a,start,limit)
+    val item=native_text_item_read(a,start,finish) val face=font_span_candidate(f,assets,a,item)
+    val ()=buf_set(cuts,start,cut(previous,face))
+  in clusters(fuel-1,f,assets,a,cuts,finish,limit,PartitionCandidate(face)) end
+fun items{fuel:nat} .<fuel>. (fuel: int(fuel),f: !Font,assets: !NativeTextAssets,a: !NativeTextAnalysis,
+  cuts: !Buf,start: int,limit: int): void =
+  if ige(start,limit) then () else if fuel = 0 then partition_failed() else let
+    val finish=native_text_item_finish(a,start)
+    val ()=clusters(MAX_REC_FUEL,f,assets,a,cuts,start,finish,PartitionStart())
+  in items(fuel-1,f,assets,a,cuts,finish,limit) end
+implement font_span_partition_mark(f,assets,a,cuts) =
+  items(MAX_REC_FUEL,f,assets,a,cuts,0,native_text_analysis_count(a))

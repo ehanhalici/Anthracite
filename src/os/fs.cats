@@ -179,6 +179,18 @@ static inline int anth_fc_font(char *dst, int n) {
   return 0;
 }
 
+/* Font discovery is an OS boundary; parsing and owning the face are ATS2. */
+static inline int anth_fc_arabic_font(char *dst, int n) {
+  if (!dst || n < 2) return 0;
+  dst[0] = 0;
+  FILE *stream = popen("fc-match ':lang=ar' -f '%{file}' 2>/dev/null", "r");
+  if (!stream) return 0;
+  char *line = fgets(dst, n, stream);
+  int status = pclose(stream);
+  if (!line || status != 0) { dst[0] = 0; return 0; }
+  return dst[0] && access(dst, F_OK) == 0;
+}
+
 static inline double anth_i2d(int i) { return (double)i; }
 static inline int anth_d2i(double d) {
   if (d >= 2147483647.0) return 2147483647;

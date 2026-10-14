@@ -1,0 +1,12 @@
+#include "glyph_substitution_stage_test.hats"
+staload "data_font/ot_shape_types.sats"
+staload "data_font/ot_shape_schedule.sats"
+staload "data_font/ot_shape_recipe.sats"
+staload "data_font/glyph_substitution_schedule.sats"
+staload "data_font/glyph_run_work.sats"
+staload "data_font/glyph_run_storage.sats"
+staload "data_font/sfnt.sats"
+staload "data_text/unicode_db.sats"
+staload "data_text/unicode_property.sats"
+staload "ot_shape_contracts.sats"
+

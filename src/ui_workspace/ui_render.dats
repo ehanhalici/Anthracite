@@ -17,9 +17,19 @@ staload "data_image/image.sats"
 staload "ui_workspace/ui_common.sats"
 staload "ui_workspace/ui_tab.sats"
 staload "ui_workspace/ui_render.sats"
+staload "ui_workspace/embedded_doc.sats"
 staload "ui_workspace/ui_widgets.sats"
+staload "data_ast/doc_visual.sats"
+staload "ui_workspace/visual_layout.sats"
+staload "ui_workspace/visual_paint.sats"
+staload "ui_workspace/visual_query.sats"
+staload "data_font/font_text.sats"
+staload "data_font/font_document_metrics.sats"
+staload "ui_workspace/visual_decor.sats"
 
 macdef UI_GUTTER_WIDTH = 44
+macdef UI_WRAP_CELL_WIDTH = 9
+macdef MAX_EMBED_DEPTH = 8
 
 %{#
 #include "data_font/arabic.cats"
@@ -27,10 +37,32 @@ macdef UI_GUTTER_WIDTH = 44
 
 extern fun anth_ui_caret_adv(f: !Font, r: !Rend, line: ptr, line_len: int, off: int): int = "mac#anth_ui_caret_adv"
 extern fun anth_ui_click_off(f: !Font, r: !Rend, line: ptr, line_len: int, target_x: int): int = "mac#anth_ui_click_off"
+extern fun anth_ui_sel_span(f: !Font, r: !Rend, line: ptr, line_len: int, sa: int, sb: int, at_eol: int, out_sx: &int >> _, out_sw: &int >> _): void = "mac#anth_ui_sel_span"
+staload "ui_workspace/ui_text_engine.sats"
+extern fun anth_draw_wrap_arrow(f: !Font, r: !Rend, x: int, y: int, c: uint): void = "mac#anth_draw_wrap_arrow"
 extern fun anth_resolve_vault_path(vault: string, rel: string): string = "mac#anth_resolve_vault_path"
 extern fun anth_check_media_folder(vault: string, sub: string, rel: string): string = "mac#anth_check_media_folder"
 
 fun iand(a: int, n: int): int = anth_iand(a, n)
+
+fun row_base_pos(f: !Font, r: !Rend, d: !Doc, rst: int, ren: int, colx: int, scratch: &Buf >> _): int = let
+  val scap = buf_cap(scratch)
+  val rlen = if igt(ren, rst) then doc_slice_buf(d, rst, ren, scratch, scap) else 0
+  val is_rtl = if igt(rlen, 0) then ui_text_line_direction_code(f, scratch, rlen) else 0
+  val wc = doc_get_wrap(d)
+  val max_w = if wc > 0 then imul(wc, UI_WRAP_CELL_WIDTH) else 720
+  val tw = if igt(rlen, 0) then font_width_buf(f, r, scratch, rlen) else 0
+in
+  if igt(is_rtl, 0) then iadd(colx, imax(0, isub(max_w, tw))) else colx
+end
+
+fun line_base_pos(f: !Font, r: !Rend, d: !Doc, li: int, colx: int, scratch: &Buf >> _): int = let
+  val ls = doc_line_start(d, li)
+  val le0 = if ilt(iadd(li, 1), doc_nlines(d)) then doc_line_start(d, iadd(li, 1)) else doc_len(d)
+  val le = if igt(le0, ls) andalso ieq(doc_byte(d, isub(le0, 1)), 10) then isub(le0, 1) else le0
+in
+  row_base_pos(f, r, d, ls, le, colx, scratch)
+end
 
 extern fun cache_free_exh(c: Cache): void = "mac#anth_die_void"
 
@@ -380,9 +412,102 @@ in
   doc_set(d, i, NF_AUX, dh)
 end
 
-fun bind_embed_height(d: !Doc, i: int, shown: !Buf, lh: int): void = let
-  val lines = file_lines(shown, 12)
-  val dh = imax(9, imul(imin(lines, 12), lh))
+datatype EmbedScope = EmbedWhole | EmbedBlock
+
+fun embed_scope(d: !Doc, i: int): EmbedScope =
+  if ige(doc_find_child(d, i, KWikiBlock), 0) then EmbedBlock else EmbedWhole
+
+fun embed_child_width(parent_colw: int): int = imax(1, isub(parent_colw, UI_GUTTER_WIDTH))
+
+fun embed_text_width(f: !Font,r: !Rend,parent: int): int =
+  if font_text_active(f) then imax(1,isub(parent,editor_colx(f,r,0,iadd(parent,16))))
+  else embed_child_width(parent)
+
+fun embed_box_width(ox: int, pw: int, box_x: int): int =
+  imax(1, imin(column_w(pw), isub(iadd(ox, pw), box_x)))
+
+fun embed_anchor_offset(anchor: !Buf): int =
+  if igt(buf_len(anchor), 0) andalso ieq(buf_get(anchor, 0), 94) then 1 else 0
+
+extern fun block_id_match_exh(d: !Doc, anchor: !Buf, p: int, a: int): bool = "mac#anth_die_bool"
+
+fun block_id_match_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, anchor: !Buf, p: int, a: int): bool =
+  if recfuel > 0 then (
+    if ige(a, buf_len(anchor)) then true
+    else if ige(p, doc_len(d)) then false
+    else if ieq(doc_byte(d, p), buf_get(anchor, a)) then block_id_match_m(recfuel - 1, d, anchor, iadd(p, 1), iadd(a, 1))
+    else false
+  ) else block_id_match_exh(d, anchor, p, a)
+
+extern fun block_marker_find_exh(d: !Doc, anchor: !Buf, p: int): int = "mac#anth_die_int"
+
+fun block_marker_boundary(d: !Doc, anchor: !Buf, p: int): bool = let
+  val before = if igt(p, 0) then doc_byte(d, isub(p, 1)) else 10
+  val before_ok = ieq(before, 10) orelse ieq(before, 32) orelse ieq(before, 9)
+  val after = iadd(p, iadd(isub(buf_len(anchor), embed_anchor_offset(anchor)), 1))
+  val after_byte = if ilt(after, doc_len(d)) then doc_byte(d, after) else 10
+  val after_ok = ieq(after_byte, 10) orelse ieq(after_byte, 32) orelse ieq(after_byte, 9)
+in
+  before_ok andalso after_ok
+end
+
+fun block_marker_find_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, anchor: !Buf, p: int): int =
+  if recfuel > 0 then (
+    if ige(p, doc_len(d)) then ~1
+    else if ieq(doc_byte(d, p), 94) andalso block_marker_boundary(d, anchor, p) andalso block_id_match_m(airlock_nat(MAX_REC_FUEL), d, anchor, iadd(p, 1), embed_anchor_offset(anchor)) then p
+    else block_marker_find_m(recfuel - 1, d, anchor, iadd(p, 1))
+  ) else block_marker_find_exh(d, anchor, p)
+
+fun embed_block_line(d: !Doc, scope: EmbedScope, anchor: !Buf): int =
+  case+ scope of
+  | EmbedWhole() => ~1
+  | EmbedBlock() => let
+      val marker = block_marker_find_m(airlock_nat(MAX_REC_FUEL), d, anchor, 0)
+    in
+      if ige(marker, 0) then doc_line_of(d, marker) else ~1
+    end
+
+fun embedded_content_height(d: !Doc, scope: EmbedScope, anchor: !Buf, lh: int, full_height: int): int = let
+  val line = embed_block_line(d, scope, anchor)
+in
+  if ilt(line, 0) then full_height
+  else imax(lh, doc_line_step(d, line))
+end
+
+fun measure_embedded_height(f: !Font,child: Doc, c: &Cache >> _, r: !Rend, vault: !Buf, shown: !Buf, anchor: !Buf, scope: EmbedScope, level: int, lh: int, colw: int): int = let
+in
+  if igt(level, MAX_EMBED_DEPTH) then let
+    val () = doc_free(child)
+  in
+    iadd(lh, 8)
+  end
+  else if embedded_doc_load(child, buf_cstr(shown), level) then let
+    val height = prep_doc(f,child, c, r, vault, lh, embed_text_width(f,r,colw), ViewRead)
+    val content_height = embedded_content_height(child, scope, anchor, lh, height)
+    val () = doc_free(child)
+  in
+    iadd(imax(lh, content_height), 8)
+  end else let
+    val () = doc_free(child)
+  in
+    lh
+  end
+end
+
+fun embedded_height(f: !Font,d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault: !Buf, shown: !Buf, lh: int, colw: int): int = let
+  var anchor = buf_make(8)
+  val () = take_anchor(d, i, anchor)
+  val scope = embed_scope(d, i)
+  val level = iadd(doc_embed_level(d), 1)
+  val height = measure_embedded_height(f,doc_open(), c, r, vault, shown, anchor, scope, level, lh, colw)
+  val () = buf_free(anchor)
+in
+  height
+end
+
+fun bind_embed_height(f: !Font,d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault: !Buf, shown: !Buf, lh: int, colw: int): void = let
+  val width=isub(colw,imul(doc_node_depth(d,i),20))
+  val dh = embedded_height(f,d, i, c, r, vault, shown, lh, width)
   val old_h = doc_node_height(d, i)
   val () = if ine(old_h, dh) then doc_bump_ver(d) else ()
 in
@@ -430,13 +555,13 @@ in
   doc_set(d, i, NF_AUX, dh)
 end
 
-fun bind_one_kind(d: !Doc, i: int, k: NodeKind, c: &Cache >> _, r: !Rend, lh: int, colw: int, shown: !Buf): void =
+fun bind_one_kind(f: !Font,d: !Doc, i: int, k: NodeKind, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int, shown: !Buf): void =
   if is_kind(k, KImage) then bind_image_height(d, i, c, r, shown, colw)
-  else if is_kind(k, KEmbed) then bind_embed_height(d, i, shown, lh)
+  else if is_kind(k, KEmbed) then bind_embed_height(f,d, i, c, r, vault, shown, lh, colw)
   else if is_kind(k, KMathb) then bind_mathb_height(d, i, lh)
   else ()
 
-fun bind_one(d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int): void = let
+fun bind_one(f: !Font,d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int): void = let
   val k = doc_node_kind(d, i)
 in
   if is_kind(k, KImage) orelse is_kind(k, KEmbed) then let
@@ -444,38 +569,40 @@ in
     var full = buf_make(8)
     var shown = buf_make(8)
     val () = resolve_media_path(d, i, vault, rel, full, shown)
-    val () = bind_one_kind(d, i, k, c, r, lh, colw, shown)
+    val () = bind_one_kind(f,d, i, k, c, r, vault, lh, colw, shown)
     val () = buf_free(rel)
     val () = buf_free(full)
   in
     buf_free(shown)
   end else if is_kind(k, KMathb) then let
     var dummy = buf_make(1)
-    val () = bind_one_kind(d, i, k, c, r, lh, colw, dummy)
+    val () = bind_one_kind(f,d, i, k, c, r, vault, lh, colw, dummy)
   in
     buf_free(dummy)
   end else ()
 end
 
-extern fun bind_media_exh(d: !Doc, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int, i: int): void = "mac#anth_die_void"
+extern fun bind_media_exh(f: !Font,d: !Doc, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int, i: int): void = "mac#anth_die_void"
 
-fun bind_media_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int, i: int): void =
+fun bind_media_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font,d: !Doc, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int, i: int): void =
   if recfuel > 0 then (
     if ige(i, doc_nnodes(d)) then ()
     else let
-      val () = bind_one(d, i, c, r, vault, lh, colw)
+      val () = bind_one(f,d, i, c, r, vault, lh, colw)
     in
-      bind_media_m(recfuel - 1, d, c, r, vault, lh, colw, iadd(i, 1))
+      bind_media_m(recfuel - 1, f,d, c, r, vault, lh, colw, iadd(i, 1))
     end
-  ) else bind_media_exh(d, c, r, vault, lh, colw, i)
+  ) else bind_media_exh(f,d, c, r, vault, lh, colw, i)
 
-fun bind_media(d: !Doc, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int, i: int): void = bind_media_m(airlock_nat(MAX_REC_FUEL), d, c, r, vault, lh, colw, i)
+fun bind_media(f: !Font,d: !Doc, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int, i: int): void = bind_media_m(airlock_nat(MAX_REC_FUEL), f,d, c, r, vault, lh, colw, i)
 
-implement prep_doc(d, c, r, vault, lh, colw, viewmode) = let
-  val () = bind_media(d, c, r, vault, lh, colw, 0)
+implement prep_doc(f,d, c, r, vault, lh, colw, viewmode) = let
+  val () = bind_media(f,d, c, r, vault, lh, colw, 0)
+  val ()=visual_layout_prepare(f,r,d,colw,viewmode)
   val is_read = (if is_view_read(viewmode) then 1 else 0)
-in
-  doc_layout_mode(d, lh, is_read, colw)
+  val height=doc_layout_mode(d,lh,is_read,colw)
+  val ()=doc_visual_index(d)
+in height
 end
 
 fun kind_col(k: NodeKind): uint =
@@ -542,27 +669,50 @@ fun draw_bytes_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: 
   ) else draw_bytes_exh(f, r, d, i0, b, x, x0, oy, scroll, c, scratch)
 
 fun draw_bytes(f: !Font, r: !Rend, d: !Doc, a: int, b: int, x: int, oy: int, scroll: int, c: uint, scratch: &Buf >> _): void = let
+  val line0 = doc_line_of(d, a)
+  val x0 = line_base_pos(f, r, d, line0, x, scratch)
   val pre_w = draw_bytes_prefix_width(f, r, d, a, scratch)
 in
-  draw_bytes_m(airlock_nat(MAX_REC_FUEL), f, r, d, a, b, x, iadd(x, pre_w), oy, scroll, c, scratch)
+  draw_bytes_m(airlock_nat(MAX_REC_FUEL), f, r, d, a, b, x0, iadd(x0, pre_w), oy, scroll, c, scratch)
 end
 
-extern fun paint_file_exh(f: !Font, r: !Rend, b: !Buf, n: int, nlines: int, x: int, lh: int, c: uint, i0: int, line: int, x0: int, y0: int): void = "mac#anth_die_void"
+extern fun buf_find_nl_exh(b: !Buf, n: int, i: int): int = "mac#anth_die_int"
 
-fun paint_file_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, b: !Buf, n: int, nlines: int, x: int, lh: int, c: uint, i0: int, line: int, x0: int, y0: int): void =
+fun buf_find_nl_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), b: !Buf, n: int, i: int
+): int =
+  if recfuel > 0 then (
+    if ige(i, n) then n
+    else if ieq(buf_get(b, i), 10) then i
+    else buf_find_nl_m(recfuel - 1, b, n, iadd(i, 1))
+  ) else buf_find_nl_exh(b, n, i)
+
+extern fun paint_file_exh(f: !Font, r: !Rend, b: !Buf, n: int, nlines: int, x: int, lh: int, c: uint, i0: int, line: int, y0: int): void = "mac#anth_die_void"
+
+fun paint_file_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), f: !Font, r: !Rend, b: !Buf, n: int, nlines: int,
+  x: int, lh: int, c: uint, i0: int, line: int, y0: int
+): void =
   if recfuel > 0 then (
     if ige(i0, n) orelse ige(line, nlines) then ()
-    else if ieq(buf_get(b, i0), 10) then
-      paint_file_m(recfuel - 1, f, r, b, n, nlines, x, lh, c, iadd(i0, 1), iadd(line, 1), x, iadd(y0, lh))
     else let
-      val cap = buf_cap(b)
-      val adv = font_draw_at(f, r, x0, y0, b, i0, 1, c)
+      val eol = buf_find_nl_m(airlock_nat(MAX_REC_FUEL), b, n, i0)
+      val len = isub(eol, i0)
+      val () = if igt(len, 0) then let
+        val _ = font_draw_at(f, r, x, y0, b, i0, len, c)
+      in () end else ()
+      val next_i0 = if ilt(eol, n) andalso ieq(buf_get(b, eol), 10) then iadd(eol, 1) else eol
     in
-      paint_file_m(recfuel - 1, f, r, b, n, nlines, x, lh, c, iadd(i0, 1), line, iadd(x0, adv), y0)
+      paint_file_m(recfuel - 1, f, r, b, n, nlines, x, lh, c, next_i0, iadd(line, 1), iadd(y0, lh))
     end
-  ) else paint_file_exh(f, r, b, n, nlines, x, lh, c, i0, line, x0, y0)
+  ) else paint_file_exh(f, r, b, n, nlines, x, lh, c, i0, line, y0)
 
-fun paint_file(f: !Font, r: !Rend, b: !Buf, n: int, nlines: int, x: int, lh: int, c: uint, i0: int, line: int, x0: int, y0: int): void = paint_file_m(airlock_nat(MAX_REC_FUEL), f, r, b, n, nlines, x, lh, c, i0, line, x0, y0)
+fun paint_file(f: !Font, r: !Rend, b: !Buf, n: int, nlines: int, x: int, lh: int, c: uint, i0: int, line: int, x0: int, y0: int): void = let
+  val () = seen_int(line)
+  val () = seen_int(x0)
+in
+  paint_file_m(airlock_nat(MAX_REC_FUEL), f, r, b, n, nlines, x, lh, c, i0, 0, y0)
+end
 
 fun draw_file_lines(f: !Font, r: !Rend, path: !Buf, x: int, y: int, lh: int, nlines: int, c: uint): void = let
   val p = cstr(path)
@@ -582,75 +732,6 @@ in
   end
 end
 
-extern fun buf_sub_match_exh(b: !Buf, n: int, a: !Buf, al: int, bi: int, ai: int): bool = "mac#anth_die_bool"
-
-fun buf_sub_match_m {recfuel:nat} .<recfuel>. (
-  recfuel: int(recfuel), b: !Buf, n: int, a: !Buf, al: int, bi: int, ai: int
-): bool =
-  if recfuel > 0 then (
-    if ige(ai, al) then true
-    else if ige(bi, n) then false
-    else if ieq(buf_get(b, bi), buf_get(a, ai)) then
-      buf_sub_match_m(recfuel - 1, b, n, a, al, iadd(bi, 1), iadd(ai, 1))
-    else false
-  ) else buf_sub_match_exh(b, n, a, al, bi, ai)
-
-extern fun buf_find_sub_exh(b: !Buf, n: int, a: !Buf, al: int, i: int): int = "mac#anth_die_int"
-
-fun buf_find_sub_m {recfuel:nat} .<recfuel>. (
-  recfuel: int(recfuel), b: !Buf, n: int, a: !Buf, al: int, i: int
-): int =
-  if recfuel > 0 then (
-    if igt(iadd(i, al), n) then ~1
-    else if buf_sub_match_m(airlock_nat(MAX_REC_FUEL), b, n, a, al, i, 0) then i
-    else buf_find_sub_m(recfuel - 1, b, n, a, al, iadd(i, 1))
-  ) else buf_find_sub_exh(b, n, a, al, i)
-
-extern fun buf_rfind_nl_exh(b: !Buf, i: int): int = "mac#anth_die_int"
-
-fun buf_rfind_nl_m {recfuel:nat} .<recfuel>. (
-  recfuel: int(recfuel), b: !Buf, i: int
-): int =
-  if recfuel > 0 then (
-    if ile(i, 0) then 0
-    else if ieq(buf_get(b, isub(i, 1)), 10) then i
-    else buf_rfind_nl_m(recfuel - 1, b, isub(i, 1))
-  ) else buf_rfind_nl_exh(b, i)
-
-extern fun buf_find_nl_exh(b: !Buf, n: int, i: int): int = "mac#anth_die_int"
-
-fun buf_find_nl_m {recfuel:nat} .<recfuel>. (
-  recfuel: int(recfuel), b: !Buf, n: int, i: int
-): int =
-  if recfuel > 0 then (
-    if ige(i, n) then n
-    else if ieq(buf_get(b, i), 10) then i
-    else buf_find_nl_m(recfuel - 1, b, n, iadd(i, 1))
-  ) else buf_find_nl_exh(b, n, i)
-
-fun draw_embed_buf(f: !Font, r: !Rend, b: !Buf, n: int, anchor: !Buf, x: int, y: int, lh: int): void = let
-  val alen = buf_len(anchor)
-in
-  if igt(alen, 0) then let
-    val pos = buf_find_sub_m(airlock_nat(MAX_REC_FUEL), b, n, anchor, alen, 0)
-  in
-    if ige(pos, 0) then let
-      val ls = buf_rfind_nl_m(airlock_nat(MAX_REC_FUEL), b, pos)
-      val le = buf_find_nl_m(airlock_nat(MAX_REC_FUEL), b, n, pos)
-      val () = rend_rect(r, x, y, 3, lh, col_accent())
-    in
-      paint_file(f, r, b, le, 1, iadd(x, 10), lh, col_text(), ls, 0, iadd(x, 10), y)
-    end else let
-      val () = rend_rect(r, x, y, 3, lh, col_accent())
-    in
-      draw_s(f, r, iadd(x, 10), y, "[Referans bulunamadi]", col_muted())
-    end
-  end else let
-    val () = rend_rect(r, x, y, 3, imul(4, lh), col_accent())
-  in
-    paint_file(f, r, b, n, 4, iadd(x, 10), lh, col_muted(), 0, 0, iadd(x, 10), y)
-  end
-end
 
 
 extern fun line_y_bsearch_exh(d: !Doc, docy: int, lo: int, hi: int, best: int): int = "mac#anth_die_int"
@@ -682,38 +763,110 @@ end
 
 extern fun plain_rows_exh(f: !Font, r: !Rend, d: !Doc, st: int, en: int, colx: int, yy: int, safe_lh: int, wc: int, row: int, rows: int, scratch: &Buf >> _): void = "mac#anth_die_void"
 
+fun plain_row_step(f: !Font, r: !Rend, d: !Doc, st: int, en: int, colx: int, yy: int, safe_lh: int, wc: int, row: int, rows: int, scratch: &Buf >> _): void = let
+  val rst = (if wc > 0 then doc_advance_cps(d, st, en, imul(row, wc)) else st) : int
+  val ren = (if wc > 0 then doc_advance_cps(d, rst, en, wc) else en) : int
+  val base_x = row_base_pos(f, r, d, rst, ren, colx, scratch)
+  val scap = buf_cap(scratch)
+  val n = if igt(ren, rst) then doc_slice_buf(d, rst, ren, scratch, scap) else 0
+  val row_y = iadd(yy, imul(row, safe_lh))
+  val is_rtl = if igt(n, 0) then ui_text_line_direction_code(f, scratch, n) else 0
+  val tw = if igt(n, 0) then font_width_buf(f, r, scratch, n) else 0
+  val () = if igt(n, 0) then seen_int(font_draw_buf(f, r, base_x, row_y, scratch, n, col_text())) else ()
+  val ax = if igt(is_rtl, 0) then imax(colx, isub(base_x, 12)) else iadd(base_x, tw)
+in
+  if ilt(iadd(row, 1), rows) then anth_draw_wrap_arrow(f, r, ax, row_y, col_muted()) else ()
+end
+
 fun plain_rows_m {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, st: int, en: int,
   colx: int, yy: int, safe_lh: int, wc: int, row: int, rows: int, scratch: &Buf >> _
 ): void =
   if recfuel > 0 then (
     if ilt(row, rows) then let
-      val rst = iadd(st, imul(row, wc))
-      val ren = imin(en, iadd(rst, wc))
-      val scap = buf_cap(scratch)
-      val n = if igt(ren, rst) then doc_slice_buf(d, rst, ren, scratch, scap) else 0
-      val row_y = iadd(yy, imul(row, safe_lh))
-      val () = if igt(n, 0) then seen_int(font_draw_buf(f, r, colx, row_y, scratch, n, col_text())) else ()
+      val () = plain_row_step(f, r, d, st, en, colx, yy, safe_lh, wc, row, rows, scratch)
     in
       plain_rows_m(recfuel - 1, f, r, d, st, en, colx, yy, safe_lh, wc, iadd(row, 1), rows, scratch)
     end else ()
   ) else plain_rows_exh(f, r, d, st, en, colx, yy, safe_lh, wc, row, rows, scratch)
 
+extern fun visual_fit_prefix_exh(d: !Doc, i0: int, p: int, best: int, b: int, max_w: int, f: !Font, r: !Rend, scratch: &Buf >> _): int = "mac#anth_die_int"
+
+fun visual_fit_prefix_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), d: !Doc, i0: int, p: int, best: int, b: int,
+  max_w: int, f: !Font, r: !Rend, scratch: &Buf >> _
+): int =
+  if recfuel > 0 then (
+    if ige(p, b) then best else let
+      val scap = buf_cap(scratch)
+      val n = doc_slice_buf(d, i0, p, scratch, scap)
+      val width = if igt(n, 0) then font_width_buf(f, r, scratch, n) else 0
+    in
+      if igt(width, max_w) then (if ieq(best, i0) then p else best)
+      else visual_fit_prefix_m(recfuel - 1, d, i0, doc_advance_cps(d, p, b, 1), p, b, max_w, f, r, scratch)
+    end
+  ) else visual_fit_prefix_exh(d, i0, p, best, b, max_w, f, r, scratch)
+
+fun plain_px_end(f: !Font, r: !Rend, d: !Doc, st: int, en: int, max_w: int, scratch: &Buf >> _): int = let
+  val scap = buf_cap(scratch)
+  val n = doc_slice_buf(d, st, en, scratch, scap)
+  val width = if igt(n, 0) then font_width_buf(f, r, scratch, n) else 0
+in
+  if igt(width, max_w) then visual_fit_prefix_m(airlock_nat(MAX_REC_FUEL), d, st, st, st, en, max_w, f, r, scratch) else en
+end
+
+extern fun plain_px_count_exh(f: !Font, r: !Rend, d: !Doc, st: int, en: int, max_w: int, scratch: &Buf >> _): int = "mac#anth_die_int"
+
+fun plain_px_count_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, st: int, en: int, max_w: int, scratch: &Buf >> _
+): int =
+  if recfuel > 0 then
+    if ige(st, en) then 0 else let
+      val next = plain_px_end(f, r, d, st, en, max_w, scratch)
+    in
+      iadd(1, plain_px_count_m(recfuel - 1, f, r, d, next, en, max_w, scratch))
+    end
+  else plain_px_count_exh(f, r, d, st, en, max_w, scratch)
+
+extern fun plain_px_draw_exh(f: !Font, r: !Rend, d: !Doc, st: int, en: int, colx: int, yy: int, lh: int, max_w: int, row: int, scratch: &Buf >> _): void = "mac#anth_die_void"
+
+fun plain_px_draw_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, st: int, en: int,
+  colx: int, yy: int, lh: int, max_w: int, row: int, scratch: &Buf >> _
+): void =
+  if recfuel > 0 then
+    if ige(st, en) then () else let
+      val next = plain_px_end(f, r, d, st, en, max_w, scratch)
+      val base_x = row_base_pos(f, r, d, st, next, colx, scratch)
+      val scap = buf_cap(scratch)
+      val n = doc_slice_buf(d, st, next, scratch, scap)
+      val tw = if igt(n, 0) then font_width_buf(f, r, scratch, n) else 0
+      val row_y = iadd(yy, imul(row, lh))
+      val is_rtl = if igt(n, 0) then ui_text_line_direction_code(f, scratch, n) else 0
+      val ax = if igt(is_rtl, 0) then imax(colx, isub(base_x, 12)) else iadd(base_x, tw)
+      val () = if igt(n, 0) then seen_int(font_draw_buf(f, r, base_x, row_y, scratch, n, col_text())) else ()
+      val () = if ilt(next, en) then anth_draw_wrap_arrow(f, r, ax, row_y, col_muted()) else ()
+    in
+      plain_px_draw_m(recfuel - 1, f, r, d, next, en, colx, yy, lh, max_w, iadd(row, 1), scratch)
+    end
+  else plain_px_draw_exh(f, r, d, st, en, colx, yy, lh, max_w, row, scratch)
+
 fun draw_plain_line(f: !Font, r: !Rend, d: !Doc, li: int, nlines: int, colx: int, oy: int, safe_lh: int, scroll: int, scratch: &Buf >> _): void = let
   val st = doc_line_start(d, li)
   val en0 = if ilt(iadd(li, 1), nlines) then doc_line_start(d, iadd(li, 1)) else doc_len(d)
   val en = if igt(en0, st) andalso ieq(doc_byte(d, isub(en0, 1)), 10) then isub(en0, 1) else en0
-  val llen = isub(en, st)
+  val cols = doc_codepoints(d, st, en)
   val wc = doc_get_wrap(d)
   val yy = isub(iadd(oy, doc_line_y(d, li)), scroll)
-  val rows = (if wc > 0 andalso llen > wc then idiv(iadd(llen, isub(wc, 1)), wc) else 1) : int
+  val rows = (if wc > 0 andalso igt(cols, wc) then idiv(iadd(cols, isub(wc, 1)), wc) else 1) : int
 in
   if rows <= 1 then let
     val scap = buf_cap(scratch)
-    val max_draw = imin(llen, 500)
+    val max_draw = imin(isub(en, st), scap)
     val n = if igt(max_draw, 0) then doc_slice_buf(d, st, iadd(st, max_draw), scratch, scap) else 0
+    val base_x = row_base_pos(f, r, d, st, en, colx, scratch)
   in
-    if igt(n, 0) then seen_int(font_draw_buf(f, r, colx, yy, scratch, n, col_text())) else ()
+    if igt(n, 0) then seen_int(font_draw_buf(f, r, base_x, yy, scratch, n, col_text())) else ()
   end else
     plain_rows_m(airlock_nat(MAX_REC_FUEL), f, r, d, st, en, colx, yy, safe_lh, wc, 0, rows, scratch)
 end
@@ -810,13 +963,23 @@ fun scan_word_end_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, p
     else scan_word_end_m(recfuel - 1, d, iadd(p, 1), en)
   ) else en
 
-fun visual_chunk_end(f: !Font, r: !Rend, d: !Doc, i0: int, j: int, colx: int, pen_x: int, scratch: &Buf >> _): int = let
+fun visual_chunk_long(f: !Font, r: !Rend, d: !Doc, i0: int, w_end: int, max_w: int, scratch: &Buf >> _): int = let
+  val scap = buf_cap(scratch)
+  val n = doc_slice_buf(d, i0, w_end, scratch, scap)
+  val width = if igt(n, 0) then font_width_buf(f, r, scratch, n) else 0
+in
+  if igt(width, max_w) then
+    visual_fit_prefix_m(airlock_nat(MAX_REC_FUEL), d, i0, i0, i0, w_end, max_w, f, r, scratch)
+  else w_end
+end
+
+fun visual_chunk_end(f: !Font, r: !Rend, d: !Doc, i0: int, j: int, scratch: &Buf >> _): int = let
   val w_end = scan_word_end_m(airlock_nat(MAX_REC_FUEL), d, i0, j)
   val wc = doc_get_wrap(d)
-  val max_len = if wc > 0 then wc else 80
+  val safe_wc = if igt(wc, 0) then wc else 80
+  val max_w = imul(safe_wc, UI_WRAP_CELL_WIDTH)
 in
-  if igt(isub(w_end, i0), max_len) then iadd(i0, max_len)
-  else w_end
+  visual_chunk_long(f, r, d, i0, w_end, max_w, scratch)
 end
 
 fun visual_should_wrap(f: !Font, r: !Rend, d: !Doc, i0: int, kend: int, colx: int, pen_x: int, scratch: &Buf >> _): bool = let
@@ -824,8 +987,7 @@ fun visual_should_wrap(f: !Font, r: !Rend, d: !Doc, i0: int, kend: int, colx: in
   val n = doc_slice_buf(d, i0, kend, scratch, scap)
   val tw = if igt(n, 0) then font_width_buf(f, r, scratch, n) else 0
   val wc = doc_get_wrap(d)
-  val cw = font_arrow_w(f, r)
-  val max_w = if wc > 0 then imul(wc, cw) else 720
+  val max_w = if wc > 0 then imul(wc, UI_WRAP_CELL_WIDTH) else 720
   val max_x = iadd(colx, max_w)
 in
   igt(pen_x, colx) andalso igt(iadd(pen_x, tw), max_x)
@@ -835,7 +997,11 @@ fun view_run_adv(f: !Font, r: !Rend, d: !Doc, i0: int, j: int, colx: int, oy: in
   val scap = buf_cap(scratch)
   val cur_line = doc_line_of(d, i0)
   val pl_line = pen_unpack_line(pen_line)
-  val () = if ine(cur_line, pl_line) then (pen_line := pen_pack(cur_line, 0); pen_x := colx) else ()
+  val () = if ine(cur_line, pl_line) then let
+    val bx = line_base_pos(f, r, d, cur_line, colx, scratch)
+  in
+    pen_line := pen_pack(cur_line, 0); pen_x := bx
+  end else ()
   val row = pen_unpack_row(pen_line)
   val yy = isub(iadd(oy, iadd(doc_line_y(d, cur_line), imul(row, lh))), scroll)
   val n = doc_slice_buf(d, i0, j, scratch, scap)
@@ -848,11 +1014,40 @@ in
   ) else 0
 end
 
-fun view_newline_adv(d: !Doc, i0: int, colx: int, pen_x: &int >> _, pen_line: &int >> _): void = let
+fun view_newline_adv(f: !Font, r: !Rend, d: !Doc, i0: int, colx: int, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _): void = let
   val cur_line = doc_line_of(d, i0)
-  val () = pen_x := colx
-  val () = pen_line := pen_pack(iadd(cur_line, 1), 0)
+  val next_line = iadd(cur_line, 1)
+  val bx = (if ilt(next_line, doc_nlines(d)) then line_base_pos(f, r, d, next_line, colx, scratch) else colx)
+  val () = pen_x := bx
+  val () = pen_line := pen_pack(next_line, 0)
 in
+end
+
+fun view_slice_step(
+  f: !Font, r: !Rend, d: !Doc, i0: int, kend: int, j: int,
+  colx: int, oy: int, scroll: int, lh: int, ph: int, c: uint,
+  scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _
+): int = let
+  val wrap = visual_should_wrap(f, r, d, i0, kend, colx, pen_x, scratch)
+  val () = if wrap then let
+    val cur_line = doc_line_of(d, i0)
+    val bx = line_base_pos(f, r, d, cur_line, colx, scratch)
+  in
+    pen_x := bx; pen_line := pen_inc_row(pen_line)
+  end else ()
+  val adv = view_run_adv(f, r, d, i0, kend, colx, oy, scroll, lh, ph, c, scratch, pen_x, pen_line)
+  val () = pen_x := iadd(pen_x, adv)
+  val is_mid = ilt(kend, j) andalso ine(doc_byte(d, isub(kend, 1)), 32)
+in
+  if is_mid then let
+    val cur_line = doc_line_of(d, i0)
+    val row = pen_unpack_row(pen_line)
+    val yy = isub(iadd(oy, iadd(doc_line_y(d, cur_line), imul(row, lh))), scroll)
+    val () = anth_draw_wrap_arrow(f, r, pen_x, yy, col_muted())
+    val bx = line_base_pos(f, r, d, cur_line, colx, scratch)
+    val () = pen_x := bx
+    val () = pen_line := pen_inc_row(pen_line)
+  in adv end else adv
 end
 
 extern fun view_slice_exh(f: !Font, r: !Rend, d: !Doc, i0: int, b: int, colx: int, oy: int, scroll: int, lh: int, ph: int, c: uint, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _, total: int): int = "mac#anth_die_int"
@@ -865,16 +1060,13 @@ fun view_slice_m {recfuel:nat} .<recfuel>. (
   if recfuel > 0 then (
     if ilt(i0, b) then
       if ieq(doc_byte(d, i0), 10) then let
-        val () = view_newline_adv(d, i0, colx, pen_x, pen_line)
+        val () = view_newline_adv(f, r, d, i0, colx, scratch, pen_x, pen_line)
       in
         view_slice_m(recfuel - 1, f, r, d, iadd(i0, 1), b, colx, oy, scroll, lh, ph, c, scratch, pen_x, pen_line, total)
       end else let
         val j = text_run_end(d, i0, b)
-        val kend = visual_chunk_end(f, r, d, i0, j, colx, pen_x, scratch)
-        val wrap = visual_should_wrap(f, r, d, i0, kend, colx, pen_x, scratch)
-        val () = if wrap then (pen_x := colx; pen_line := pen_inc_row(pen_line)) else ()
-        val adv = view_run_adv(f, r, d, i0, kend, colx, oy, scroll, lh, ph, c, scratch, pen_x, pen_line)
-        val () = pen_x := iadd(pen_x, adv)
+        val kend = visual_chunk_end(f, r, d, i0, j, scratch)
+        val adv = view_slice_step(f, r, d, i0, kend, j, colx, oy, scroll, lh, ph, c, scratch, pen_x, pen_line)
       in
         view_slice_m(recfuel - 1, f, r, d, kend, b, colx, oy, scroll, lh, ph, c, scratch, pen_x, pen_line, iadd(total, adv))
       end
@@ -882,7 +1074,28 @@ fun view_slice_m {recfuel:nat} .<recfuel>. (
   ) else view_slice_exh(f, r, d, i0, b, colx, oy, scroll, lh, ph, c, scratch, pen_x, pen_line, total)
 
 fun draw_view_slice(f: !Font, r: !Rend, d: !Doc, a: int, b: int, colx: int, oy: int, scroll: int, lh: int, ph: int, c: uint, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _): int =
-  view_slice_m(airlock_nat(MAX_REC_FUEL), f, r, d, a, b, colx, oy, scroll, lh, ph, c, scratch, pen_x, pen_line, 0)
+ if doc_visual_active(d) then visual_draw_slice(f,r,d,a,b,colx,oy,scroll,lh,ph,c,scratch) else let
+  val scap = buf_cap(scratch)
+  val slen = if igt(b, a) then doc_slice_buf(d, a, b, scratch, scap) else 0
+  val single = ieq(doc_line_of(d, a), doc_line_of(d, imax(a, isub(b, 1))))
+  val is_rtl = if single andalso igt(slen, 0) then ui_text_line_direction_code(f, scratch, slen) else 0
+in
+  if igt(is_rtl, 0) then let
+    val cur_line = doc_line_of(d, a)
+    val wc = doc_get_wrap(d)
+    val max_w = imul(wc, UI_WRAP_CELL_WIDTH)
+    val text_width = font_width_buf(f, r, scratch, slen)
+    val rows = plain_px_count_m(airlock_nat(MAX_REC_FUEL), f, r, d, a, b, max_w, scratch)
+    val base_yy = isub(iadd(oy, doc_line_y(d, cur_line)), scroll)
+    val () = plain_px_draw_m(airlock_nat(MAX_REC_FUEL), f, r, d, a, b, colx, base_yy, lh, max_w, 0, scratch)
+    val last_bx = iadd(colx, max_w)
+    val () = pen_line := pen_pack(cur_line, rows)
+    val () = pen_x := last_bx
+  in
+    text_width
+  end else
+    view_slice_m(airlock_nat(MAX_REC_FUEL), f, r, d, a, b, colx, oy, scroll, lh, ph, c, scratch, pen_x, pen_line, 0)
+end
 
 fun heading_scale(k: NodeKind, snum: &int >> _, sden: &int >> _): void =
   if is_kind(k, KH1) then (snum := 7; sden := 4)
@@ -935,8 +1148,14 @@ fun draw_heading_text(f: !Font, r: !Rend, d: !Doc, a: int, b: int, k: NodeKind, 
   val scap = buf_cap(scratch)
   val n = if igt(en_h, st) then doc_slice_buf(d, st, en_h, scratch, scap) else 0
   val pad_y = iadd(yy, heading_top_pad(k))
+  val is_rtl = if igt(n, 0) then ui_text_line_direction_code(f, scratch, n) else 0
+  val wc = doc_get_wrap(d)
+  val max_w = if wc > 0 then imul(wc, UI_WRAP_CELL_WIDTH) else 720
+  val raw_w = if igt(n, 0) then font_width_buf(f, r, scratch, n) else 0
+  val tw = if igt(sden, 0) then idiv(imul(raw_w, snum), sden) else raw_w
+  val hx = if igt(is_rtl, 0) then iadd(colx, imax(0, isub(max_w, tw))) else colx
 in
-  seen_int(if igt(n, 0) then font_draw_scaled_buf(f, r, colx, pad_y, scratch, n, col_heading(), snum, sden) else 0)
+  seen_int(if igt(n, 0) then font_draw_scaled_buf(f, r, hx, pad_y, scratch, n, col_heading(), snum, sden) else 0)
 end
 
 fun draw_node_heading(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind,
@@ -1008,58 +1227,82 @@ fun draw_node_image(r: !Rend, d: !Doc, i: int, pw: int, colx: int, y: int, h: in
 in
 end
 
-fun draw_embed_file_or_doc(f: !Font, r: !Rend, d: !Doc, shown: !Buf, rel: !Buf, anchor: !Buf, colx: int, y: int, lh: int): void = let
-  val p_shown = cstr(shown)
-  val p_rel = cstr(rel)
-  val sz_shown = fs_size(p_shown)
-  val sz_rel = (if ile(sz_shown, 0) then fs_size(p_rel) else 0)
-  val p_chosen = (if igt(sz_shown, 0) then p_shown else (if igt(sz_rel, 0) then p_rel else p_shown))
-  val sz = (if igt(sz_shown, 0) then sz_shown else sz_rel)
+fun draw_missing_embed(f: !Font, r: !Rend, x: int, y: int): void = let
+  val () = rend_rect(r, x, y, 160, 24, col_side())
+  val () = ui_draw_border(r, x, y, 160, 24, 1, col_line())
 in
-  if igt(sz, 0) andalso ile(sz, 50000000) then let
-    val fd = fs_open_read(p_chosen)
-    var b = buf_make(iadd(sz, 1))
-    val n0 = read_or(b, fd, sz)
-    val () = if fd >= 0 then fs_close(fd) else ()
-    val n = if igt(n0, 0) then n0 else 0
-    val () = buf_set_len(b, n)
-    val () = draw_embed_buf(f, r, b, n, anchor, colx, y, lh)
-  in
-    buf_free(b)
-  end else if ieq(buf_len(rel), 0) andalso igt(buf_len(anchor), 0) then let
-    val dlen = doc_len(d)
-    var b = buf_make(iadd(dlen, 1))
-    val bcap = buf_cap(b)
-    val _ = doc_slice_buf(d, 0, dlen, b, bcap)
-    val () = buf_set_len(b, dlen)
-    val () = draw_embed_buf(f, r, b, dlen, anchor, colx, y, lh)
-  in
-    buf_free(b)
-  end else let
-    val () = rend_rect(r, colx, y, 160, 24, col_side())
-    val () = ui_draw_border(r, colx, y, 160, 24, 1, col_line())
-  in
-    draw_s(f, r, iadd(colx, 8), iadd(y, 4), "[Icerik bulunamadi]", col_muted())
-  end
+  draw_s(f, r, iadd(x, 8), iadd(y, 4), "[Icerik bulunamadi]", col_muted())
 end
 
-fun draw_node_embed(f: !Font, r: !Rend, d: !Doc, i: int, colx: int, y: int, lh: int,
-                    vault: !Buf, pen_x: &int >> _, pen_line: &int >> _): void = let
+fun draw_embedded_doc(f: !Font, r: !Rend, child: !Doc, anchor: !Buf, scope: EmbedScope, child_colw: int, x: int, y: int, w: int, h: int,
+                      viewport_x: int, viewport_y: int, viewport_w: int, viewport_h: int,
+                      lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _): void = let
+  val colx = editor_colx(f, r, x, child_colw)
+  val width=if font_text_active(f) then imax(1,isub(iadd(x,w),iadd(colx,16))) else child_colw
+  val height = prep_doc(f,child, c, r, vault, lh, width, ViewRead)
+  val line = embed_block_line(child, scope, anchor)
+  val line_scroll = if ige(line, 0) then doc_line_y(child, line) else 0
+  val content_height = if ige(line, 0) then imax(lh, doc_line_step(child, line)) else height
+  val content_y = iadd(y, 4)
+  val content_h = imax(lh, isub(h, 8))
+  var py: int = y
+  var pa: int = 0
+  val () = rend_rect(r, x, y, w, h, col_side())
+  val () = ui_draw_border(r, x, y, w, h, 1, col_line())
+  val () = rend_scissor(r, x, content_y, w, content_h)
+  val () = if igt(doc_nnodes(child), 0) then
+    draw_nodes(f, r, child, x, content_y, child_colw, imin(content_h, content_height), line_scroll, lh, vault, c, scratch, 0, py, pa, ViewRead)
+  else draw_plain_doc(f, r, child, colx, content_y, child_colw, imin(content_h, content_height), line_scroll, lh, scratch)
+  val () = rend_scissor(r, viewport_x, viewport_y, viewport_w, viewport_h)
+in
+  ()
+end
+
+fun draw_embedded_path(shown: !Buf, anchor: !Buf, scope: EmbedScope, level: int, child_colw: int, f: !Font, r: !Rend, x: int, y: int, w: int, h: int,
+                       vx: int, vy: int, vw: int, vh: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _): void =
+  if igt(level, MAX_EMBED_DEPTH) then draw_missing_embed(f, r, x, y)
+  else let
+    val child = doc_open()
+    val loaded = embedded_doc_load(child, buf_cstr(shown), level)
+  in
+    if loaded then let
+      val () = draw_embedded_doc(f, r, child, anchor, scope, child_colw, x, y, w, h, vx, vy, vw, vh, lh, vault, c, scratch)
+      val () = doc_free(child)
+    in
+      ()
+    end else let
+      val () = doc_free(child)
+    in
+      draw_missing_embed(f, r, x, y)
+    end
+  end
+
+fun draw_node_embed(f: !Font, r: !Rend, d: !Doc, i: int, ox: int, oy: int, pw: int, ph: int, scroll: int,
+                    colx: int, y: int, h: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _,
+                    pen_x: &int >> _, pen_line: &int >> _): void = let
   val () = pen_line := ~1
   val () = pen_x := colx
-  var rel = buf_make(8)
-  var anchor = buf_make(8)
-  var full = buf_make(8)
+  val dp = doc_node_depth(d, i)
+  val box_x = if igt(dp, 0) then iadd(colx, imul(dp, 20)) else colx
+  val box_y = isub(y, 4)
+  val box_h = imax(iadd(lh, 8), h)
   var shown = buf_make(8)
+  var rel = buf_make(8)
+  var full = buf_make(8)
+  var anchor = buf_make(8)
   val () = take_path(d, i, rel)
   val () = take_anchor(d, i, anchor)
   val () = resolve_path(vault, rel, full)
   val () = with_md(full, shown)
-  val () = draw_embed_file_or_doc(f, r, d, shown, rel, anchor, colx, y, lh)
+  val level = iadd(doc_embed_level(d), 1)
+  val scope = embed_scope(d, i)
+  val box_w = embed_box_width(ox, pw, box_x)
+  val child_colw = if font_text_active(f) then box_w else embed_child_width(column_w(pw))
+  val () = draw_embedded_path(shown, anchor, scope, level, child_colw, f, r, box_x, box_y, box_w, box_h, ox, oy, pw, ph, lh, vault, c, scratch)
   val () = buf_free(rel)
-  val () = buf_free(anchor)
   val () = buf_free(full)
   val () = buf_free(shown)
+  val () = buf_free(anchor)
 in
 end
 
@@ -1474,9 +1717,11 @@ fun draw_leaf_content(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind,
   val cur_row = (if ieq(line, pl_line) then pen_unpack_row(pen_line) else 0)
   val yy = isub(iadd(oy, iadd(doc_line_y(d, line), imul(cur_row, lh))), scroll)
   val x0 = (if ine(line, pl_line) then colx else pen_x) : int
+  val ()=if doc_visual_active(d) then visual_leaf_background(f,r,d,st,en,colx,oy,scroll,lh,ph,style,scratch) else ()
   val tw = draw_view_slice(f, r, d, st, en, colx, oy, scroll, lh, ph, col, scratch, pen_x, pen_line)
 in
-  draw_leaf_effects(r, x0, yy, tw, lh, style)
+  if doc_visual_active(d) then visual_leaf_rules(f,r,d,st,en,colx,oy,scroll,lh,ph,style,scratch)
+  else draw_leaf_effects(r, x0, yy, tw, lh, style)
 end
 
 fun draw_leaf_styled(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind,
@@ -1514,7 +1759,7 @@ fun draw_container_box(r: !Rend, d: !Doc, i: int, k: NodeKind, colx: int, y: int
     if iand(fl, FL_ERROR) != 0 then rend_rect(r, colx, y, 3, imax(h, lh), col_danger()) else ()
   end else ()
 
-fun draw_node_content(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, oy: int, pw: int, ph: int, scroll: int,
+fun draw_node_content(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, ox: int, oy: int, pw: int, ph: int, scroll: int,
                       lh: int, colx: int, y: int, h: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _,
                       py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode): void =
   if is_heading(k) then
@@ -1526,7 +1771,7 @@ fun draw_node_content(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, oy: int,
   else if is_kind(k, KImage) then
     draw_node_image(r, d, i, pw, colx, y, h, vault, c, pen_x, pen_line)
   else if is_kind(k, KEmbed) then
-    draw_node_embed(f, r, d, i, colx, y, lh, vault, pen_x, pen_line)
+    draw_node_embed(f, r, d, i, ox, oy, pw, ph, scroll, colx, y, h, lh, vault, c, scratch, pen_x, pen_line)
   else if is_kind(k, KMathb) andalso is_view_read(viewmode) then
     draw_node_mathb(f, r, d, i, colx, y, lh, pw, pen_x, pen_line)
   else if kind_is_leaf(k) then
@@ -1548,7 +1793,7 @@ in
   else let
     val () = draw_arrow(f, r, d, i, k, colx, y)
   in
-    draw_node_content(f, r, d, i, k, oy, pw, ph, scroll, lh, colx, y, h, vault, c, scratch, py, pa, pen_x, pen_line, viewmode)
+    draw_node_content(f, r, d, i, k, ox, oy, pw, ph, scroll, lh, colx, y, h, vault, c, scratch, py, pa, pen_x, pen_line, viewmode)
   end
 end
 
@@ -1602,23 +1847,28 @@ fun caret_calc_pos(d: !Doc, caret: int, row: &int >> _): @(int, int, int) = let
   val ls = doc_line_start(d, line)
   val le = if ilt(iadd(line, 1), doc_nlines(d)) then doc_line_start(d, iadd(line, 1)) else doc_len(d)
   val wc = doc_get_wrap(d)
-  val off = isub(caret, ls)
-  val rw = (if wc > 0 then idiv(off, wc) else 0) : int
+  val off_cps = doc_codepoints(d, ls, caret)
+  val rw = (if wc > 0 then idiv(off_cps, wc) else 0) : int
   val () = row := rw
-  val rst = (if wc > 0 then iadd(ls, imul(rw, wc)) else ls) : int
-  val ren = (if wc > 0 then imin(le, iadd(rst, wc)) else le) : int
+  val rst = (if wc > 0 then doc_advance_cps(d, ls, le, imul(rw, wc)) else ls) : int
+  val ren = (if wc > 0 then doc_advance_cps(d, rst, le, wc) else le) : int
   val p_rst = iadd(rst, row_quote_prefix(d, rst))
 in
   @(line, p_rst, imax(p_rst, ren))
 end
 
-fun caret_xy(f: !Font, r: !Rend, d: !Doc, colx: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _, x: &int >> _, y: &int >> _): void = let
+fun caret_xy(f: !Font, r: !Rend, d: !Doc, colx: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _, x: &int >> _, y: &int >> _): void =
+ if doc_visual_active(d) then let val point=visual_caret_point(f,d,colx,oy,scroll,lh,scratch)
+   val ()=x := point.x in y := point.y end else let
   val caret = doc_caret(d)
   var row: int = 0
   val @(line, p_rst, p_ren) = caret_calc_pos(d, caret, row)
-  val adv = caret_calc_adv(f, r, d, p_rst, p_ren, caret, scratch)
+  val base_x = row_base_pos(f, r, d, p_rst, p_ren, colx, scratch)
+  val scap = buf_cap(scratch)
+  val rlen = doc_slice_buf(d, p_rst, p_ren, scratch, scap)
+  val adv = anth_ui_caret_adv(f, r, buf_ptr(scratch), rlen, isub(caret, p_rst))
   val yy = isub(iadd(oy, iadd(doc_line_y(d, line), imul(row, lh))), scroll)
-  val () = x := iadd(colx, adv)
+  val () = x := iadd(base_x, adv)
   val () = seen_int(lh)
 in
   y := yy
@@ -1641,12 +1891,17 @@ fun draw_sel_row(f: !Font, r: !Rend, d: !Doc, rst: int, ren: int, a: int, b: int
   val sb = imin(p_ren, b)
 in
   if ilt(sa, sb) then let
+    val base_x = row_base_pos(f, r, d, p_rst, p_ren, colx, scratch)
     val scap = buf_cap(scratch)
     val rlen = doc_slice_buf(d, p_rst, p_ren, scratch, scap)
-    val wa = anth_ui_caret_adv(f, r, buf_ptr(scratch), rlen, isub(sa, p_rst))
-    val wb = anth_ui_caret_adv(f, r, buf_ptr(scratch), rlen, isub(sb, p_rst))
+    val at_eol = (if ige(b, p_ren) then 1 else 0) : int
+    var rel_sx: int = 0
+    var rel_sw: int = 0
+    val () = anth_ui_sel_span(f, r, buf_ptr(scratch), rlen, isub(sa, p_rst), isub(sb, p_rst), at_eol, rel_sx, rel_sw)
+    val sx = iadd(base_x, rel_sx)
+    val sw = rel_sw
   in
-    draw_sel_rect(r, wa, wb, colx, sy, lh)
+    rend_rect(r, sx, sy, sw, lh, col_sel())
   end else ()
 end
 
@@ -1657,8 +1912,8 @@ fun draw_sel_rows_m {recfuel:nat} .<recfuel>. (
   if recfuel > 0 then (
     if ige(row, rows) then ()
     else let
-      val rst = iadd(ls, imul(row, wc))
-      val ren = imin(le, iadd(rst, wc))
+      val rst = (if wc > 0 then doc_advance_cps(d, ls, le, imul(row, wc)) else ls) : int
+      val ren = (if wc > 0 then doc_advance_cps(d, rst, le, wc) else le) : int
       val sy = iadd(base_sy, imul(row, lh))
       val () = draw_sel_row(f, r, d, rst, ren, a, b, colx, sy, lh, scratch)
     in
@@ -1674,8 +1929,8 @@ in
     val line = doc_line_of(d, ls)
     val sy = isub(iadd(oy, doc_line_y(d, line)), scroll)
     val wc = doc_get_wrap(d)
-    val llen = isub(le, ls)
-    val rows = (if wc > 0 andalso llen > wc then idiv(iadd(llen, isub(wc, 1)), wc) else 1) : int
+    val cols = doc_codepoints(d, ls, le)
+    val rows = (if wc > 0 andalso igt(cols, wc) then idiv(iadd(cols, isub(wc, 1)), wc) else 1) : int
   in
     if rows <= 1 then draw_sel_row(f, r, d, ls, le, a, b, colx, sy, lh, scratch)
     else draw_sel_rows_m(airlock_nat(MAX_REC_FUEL), f, r, d, ls, le, a, b, colx, sy, lh, wc, 0, rows, scratch)
@@ -1699,7 +1954,8 @@ fun sel_lines_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !
 fun draw_sel_lines(f: !Font, r: !Rend, d: !Doc, l0: int, l1: int, smin: int, smax: int, colx: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _): void =
   sel_lines_m(airlock_nat(MAX_REC_FUEL), f, r, d, l0, l1, smin, smax, colx, oy, scroll, lh, scratch)
 
-fun draw_selection(f: !Font, r: !Rend, d: !Doc, colx: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _): void = let
+fun draw_selection(f: !Font, r: !Rend, d: !Doc, colx: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _): void =
+ if doc_visual_active(d) then visual_draw_selection(f,r,d,colx,oy,scroll,lh,scratch) else let
   val caret = doc_caret(d)
   val anchor = doc_anchor(d)
 in
@@ -1730,8 +1986,9 @@ fun find_first_vis_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, 
       val mid = iadd(lo, idiv(isub(hi, lo), 2))
       val y = doc_node_y(d, mid)
       val h = doc_node_height(d, mid)
+      val bottom=case+ doc_visual_node_bottom(d,mid) of | None() => iadd(y,h) | Some(value) => value
     in
-      if ilt(iadd(y, h), target_y) then
+      if ilt(bottom, target_y) then
         find_first_vis_m(recfuel - 1, d, iadd(mid, 1), hi, target_y)
       else
         find_first_vis_m(recfuel - 1, d, lo, mid, target_y)
@@ -1785,7 +2042,9 @@ in
     val start_i = first_vis_node(d, scroll)
   in
     draw_nodes_impl(f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, start_i, py, pa, pen_x, pen_line, viewmode)
-  end else
+  end else if doc_visual_active(d) then
+    seen_int(visual_draw_slice(f,r,d,0,doc_len(d),colx,oy,scroll,lh,ph,col_text(),scratch))
+  else
     draw_plain_doc(f, r, d, colx, oy, pw, ph, scroll, lh, scratch)
 end
 
@@ -1833,11 +2092,14 @@ in
   draw_gutter_range_m(airlock_nat(MAX_REC_FUEL), f, r, d, start_li, end_li, colx, oy, scroll, ph, scratch)
 end
 
-implement draw_doc(f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, viewmode) = let
-  val height = prep_doc(d, c, r, vault, lh, column_w(pw), viewmode)
+implement draw_doc(f, r, d, ox, oy, pw, ph, scroll, lh0, vault, c, scratch, viewmode) = let
+  val lh=if font_text_active(f) then font_document_line_height(f,lh0) else lh0
+  val colx = editor_colx(f, r, ox, pw)
+  val width=imax(1,imin(column_w(pw),isub(iadd(ox,pw),iadd(colx,16))))
+  val colw=if font_text_active(f) then width else column_w(pw)
+  val height=prep_doc(f,d,c,r,vault,lh,colw,viewmode)
   var py: int = oy
   var pa: int = 0
-  val colx = editor_colx(f, r, ox, pw)
   var pen_x: int = colx
   var pen_line: int = ~1
   val () = rend_scissor(r, ox, oy, pw, ph)
@@ -1951,6 +2213,14 @@ implement tab_hit_test(f, r, ts, start_x, click_x, out_ti, out_close) = let
   val () = tab_hit_test_pane(f, r, ts, start_x, click_x, ~1, empty_b, out_ti, out_close)
   val () = buf_free(empty_b)
 in
+end
+
+implement tab_find_at_x(f, r, ts, start_x, hover_x, filter, tab_pane) = let
+  var ti: int = ~1
+  var close: bool = false
+  val () = tab_hit_test_pane(f, r, ts, start_x, hover_x, filter, tab_pane, ti, close)
+in
+  ti
 end
 
 fun seal_cs(c: &Cache >> _, scratch: &Buf >> _): void = let
@@ -2123,9 +2393,10 @@ fun click_place(f: !Font, r: !Rend, d: !Doc, x: int, rst: int, ren: int, colx: i
   val pfx = row_quote_prefix(d, rst)
   val p_rst = iadd(rst, pfx)
   val p_ren = imax(p_rst, ren)
+  val base_x = row_base_pos(f, r, d, p_rst, p_ren, colx, scratch)
   val scap = buf_cap(scratch)
   val llen = doc_slice_buf(d, p_rst, p_ren, scratch, scap)
-  val target_x = imax(0, isub(x, colx))
+  val target_x = isub(x, base_x)
   val off = anth_ui_click_off(f, r, buf_ptr(scratch), llen, target_x)
   val i0 = iadd(p_rst, off)
 in
@@ -2143,11 +2414,14 @@ fun click_doc(f: !Font, r: !Rend, d: !Doc, x: int, y: int, ox: int, pw: int, oy:
   val ly = doc_line_y(d, line)
   val wc = doc_get_wrap(d)
   val row = (if wc > 0 andalso igt(lh, 0) then idiv(imax(0, isub(docy, ly)), lh) else 0) : int
-  val rst = (if wc > 0 then iadd(ls, imul(row, wc)) else ls) : int
-  val ren = (if wc > 0 then imin(le, iadd(rst, wc)) else le) : int
+  val rst = (if wc > 0 then doc_advance_cps(d, ls, le, imul(row, wc)) else ls) : int
+  val ren = (if wc > 0 then doc_advance_cps(d, rst, le, wc) else le) : int
   val colx = editor_colx(f, r, ox, pw)
 in
   if ige(ni, 0) andalso (is_kind(hk, KImage) orelse is_kind(hk, KEmbed)) then doc_set_caret_move(d, doc_node_start(d, ni))
+  else if doc_visual_active(d) then let
+    val target=visual_click_source(f,d,x,y,colx,oy,scroll,lh,scratch)
+  in if is_on(keep) then doc_set_caret_extend(d,target) else doc_set_caret_move(d,target) end
   else click_place(f, r, d, x, rst, ren, colx, scratch, keep)
 end
 

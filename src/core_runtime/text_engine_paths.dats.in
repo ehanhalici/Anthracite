@@ -1,0 +1,13 @@
+#define ATS_DYNLOADFLAG 0
+#include "share/atspre_define.hats"
+#include "share/atspre_staload.hats"
+staload "os/fs.sats"
+staload "data_font/native_text_assets_types.sats"
+staload "core_runtime/text_engine_startup.sats"
+fun configured(key: string,fallback: string): string = let val value=c_getenv(key)
+in if c_strlen(value) > 0 then value else fallback end
+implement workspace_text_location() =
+  @{generated=configured("ANTHRACITE_TEXT_DATA","@CMAKE_CURRENT_BINARY_DIR@"),
+    source=configured("ANTHRACITE_UNICODE_SOURCE","@CMAKE_CURRENT_SOURCE_DIR@/vendor/unicode/18.0.0")}
+implement workspace_arabic_font_path() =
+  configured("ANTHRACITE_ARABIC_FONT","@CMAKE_CURRENT_SOURCE_DIR@/vendor/fonts/notonaskh-arabic/NotoNaskhArabic-Regular.ttf")
