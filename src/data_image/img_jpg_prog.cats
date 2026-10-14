@@ -614,9 +614,12 @@ extern "C" {
 #include <stdio.h>
 #endif
 
+/* Decoder invariants must hold in Release builds too: <assert.h> is compiled
+   out by -DNDEBUG, which would let corrupt input continue with broken decoder
+   state. A violated invariant aborts, as an enabled assert does in Debug. */
 #ifndef STBI_ASSERT
-#include <assert.h>
-#define STBI_ASSERT(x) assert(x)
+#include <stdlib.h>
+#define STBI_ASSERT(x) ((x) ? (void)0 : abort())
 #endif
 
 #ifdef __cplusplus
