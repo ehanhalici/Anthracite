@@ -15,6 +15,7 @@ fun layout_test_stress(): int
 fun layout_test_fallback(): int
 fun layout_test_extensions(): int
 fun layout_test_stages(): int
+fun layout_test_params(): int
 datatype LayoutTestFont = LayoutLatin | LayoutArabic
 fun layout_test_font(path: string,font: LayoutTestFont): int
 fun layout_font_script(font: LayoutTestFont): OtTag

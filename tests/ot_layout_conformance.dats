@@ -29,13 +29,14 @@ fun run(mode: TestMode): int = let
   val sets=layout_test_sets()
   val capacity=layout_test_capacity()
   val stress=layout_test_stress()
+  val params=layout_test_params()
   val font_errors=fonts(mode)
   val balanced=ieq(mem_live(),baseline)
   val ()=println!("event=ot_layout_conformance structure_errors=",structure,
     " selection_errors=",selection," fallback_errors=",fallback," flag_errors=",flags," set_errors=",sets,
-    " capacity_errors=",capacity," stress_errors=",stress,
+    " capacity_errors=",capacity," stress_errors=",stress," params_errors=",params,
     " font_errors=",font_errors," ownership_balanced=",balanced)
-in iadd(structure+selection+fallback+flags+sets+capacity+stress+font_errors,if balanced then 0 else 1) end
+in iadd(structure+selection+fallback+flags+sets+capacity+stress+params+font_errors,if balanced then 0 else 1) end
 implement main0() = let
   val errors=if ieq(c_argc(),1) then run(SyntheticContracts())
     else if ieq(c_argc(),3) then run(FontContracts()) else 2

@@ -1,5 +1,5 @@
 file(GLOB OT_LAYOUT_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/ot_layout_*.dats"
-  "${CMAKE_SOURCE_DIR}/src/data_font/ot_shape_*.dats")
+  "${CMAKE_SOURCE_DIR}/src/data_font/ot_shape_*.dats" "${CMAKE_SOURCE_DIR}/src/data_font/ot_feature_*.dats")
 set(OT_LAYOUT_C_SOURCES "")
 foreach(SOURCE ${OT_LAYOUT_SOURCES})
   get_filename_component(MODULE "${SOURCE}" NAME_WE)
@@ -10,6 +10,7 @@ foreach(MODULE ot_layout_fixture ot_layout_structure_cases ot_layout_selection_c
     ot_layout_extension_cases ot_layout_stage_cases
     ot_layout_fallback_cases
     ot_layout_flag_cases ot_layout_set_cases ot_layout_capacity_cases ot_layout_stress_cases
+    ot_layout_params_cases
     ot_layout_font_oracle ot_layout_font_cases ot_layout_conformance)
   set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
   add_custom_command(OUTPUT "${OUTPUT}"

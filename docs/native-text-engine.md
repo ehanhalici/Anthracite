@@ -130,8 +130,12 @@ Specialized blocks and full paragraph/ligature geometry migration remain open.
   Named and default language features are never combined implicitly.
 - Lookup kinds are indexed by GSUB versus GPOS. Lookup flags check their
   required GDEF capabilities, mark-filter indices and optional header fields.
-  Nonzero FeatureVariations offsets explicitly return `OtUnsupported`;
-  FeatureParams contents and lookup subtable payloads are not interpreted yet.
+  Nonzero FeatureVariations offsets explicitly return `OtUnsupported`.
+  FeatureParams are interpreted and validated during feature topology
+  validation: `size` (five uint16 values), `ss01`-`ss20` (minor version, UI
+  label) and `cv01`-`cv99` (format 0, 14-byte header plus uint24 scalars).
+  Malformed registered tables are rejected; other tags are opaque, never
+  rejected. Lookup subtable payloads are validated by their own readers.
   Extension lookup headers are an exception: GSUB 7/GPOS 9 validate their
   checked Offset32 target and enforce one target action across all subtables
   in the outer lookup, as required by the
@@ -1391,7 +1395,7 @@ resolved in full**, despite successful real-note startup/frame tests.
 Remaining plan work includes specialized-block pixel wrapping, normalization/BiDi/line rendering
 integration (including L3 glyph-cluster ordering and font-specific L4 handling),
 Font-aware canonical and post-shaping fallback, legacy-kern/mark fallback
-positioning, FeatureParams/FeatureVariations/ItemVariationStore evaluation and
+positioning, FeatureVariations/ItemVariationStore evaluation and
 the generic symbol-face policy (missing-glyph and unsupported-script items now
 degrade nonfatally through skip parts and .notdef glyphs; the registry now
 auto-allocates unique IDs; `font_text_enable` now allocates its primary and
@@ -1403,8 +1407,9 @@ symbol-face policy is still required.
 The common OpenType readers, layout topology/planning and GDEF class/mark-filter
 capabilities now feed cached GSUB/GPOS execution in production rendering.
 Broader script profiles beyond horizontal common/Arabic, GDEF attachment
-points and ligature carets, FeatureParams interpretation,
-FeatureVariations and ItemVariationStore evaluation remain unimplemented.
+points and ligature carets, FeatureVariations and ItemVariationStore evaluation
+remain unimplemented. FeatureParams are validated (see the topology section);
+their UI strings are not yet presented.
 GSUB 1–8 and GPOS 1–9 have font-scoped cached execution and transactional
 script schedules. Joiner/default-ignorable matching policies, legacy-kern/mark
 fallback positioning, broader font/run fallback and production source-mapped

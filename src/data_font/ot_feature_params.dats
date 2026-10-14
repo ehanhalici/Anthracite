@@ -7,37 +7,73 @@ staload "airlock.sats"
 staload "data_font/opentype_types.sats"
 staload "data_font/opentype_reader.sats"
 staload "data_font/ot_layout_types.sats"
+staload "data_font/ot_feature_params_kind.sats"
 staload "data_font/ot_feature_params.sats"
 
-fun size(b: !Buf,s: OtSpan): OtFeatureParamsRead =
-  if ilt(s.length,8) then FeatureParamsRejected(ot_error(OtBounds(),s))
-  else FeatureParamsAccepted(ParamsSize(@{design=ot_u16(b,s,0),subfamily=ot_u16(b,s,2),
-    name=ot_u16(b,s,4),record=ot_u16(b,s,6)}))
+fun accept(p: OtFeatureParams): OtFeatureParamsRead = FeatureParamsAccepted(p)
+fun reject(reason: OtErrorReason, s: OtSpan): OtFeatureParamsRead = FeatureParamsRejected(ot_error(reason,s))
 
-fun stylistic(b: !Buf,s: OtSpan): OtFeatureParamsRead =
-  if ilt(s.length,4) then FeatureParamsRejected(ot_error(OtBounds(),s))
-  else if ine(ot_u16(b,s,0),1) then FeatureParamsRejected(ot_error(OtFormat(),s))
-  else FeatureParamsAccepted(ParamsStylistic(@{version=1,name=ot_u16(b,s,2)}))
+(* 'size': a nonzero subfamily identifier requires a name ID in 256..32767. *)
+fun size_name_valid(name: int): bool = ige(name,256) andalso ile(name,32767)
+fun size_read(b: !Buf, s: OtSpan): OtFeatureParamsRead = let
+  val design=ot_u16(b,s,0)
+  val subfamily=ot_u16(b,s,2)
+  val name=ot_u16(b,s,4)
+  val rangeStart=ot_u16(b,s,6)
+  val rangeEnd=ot_u16(b,s,8)
+in
+  if ieq(design,0) orelse (ine(subfamily,0) andalso not(size_name_valid(name))) then reject(OtFormat(),s)
+  else if igt(rangeStart,rangeEnd) then reject(OtOrder(),s)
+  else accept(ParamsSize(@{design=design,subfamily=subfamily,name=name,
+    rangeStart=rangeStart,rangeEnd=rangeEnd}))
+end
+fun size(b: !Buf, s: OtSpan): OtFeatureParamsRead =
+  if ilt(s.length,10) then reject(OtBounds(),s) else size_read(b,s)
 
-fun variant(b: !Buf,s: OtSpan): OtFeatureParamsRead = let
+(* ss01-ss20: the leading version is a minor version; later minor versions
+   only append data, so the two defined fields are read for any value. *)
+fun stylistic(b: !Buf, s: OtSpan): OtFeatureParamsRead =
+  if ilt(s.length,4) then reject(OtBounds(),s)
+  else accept(ParamsStylistic(@{version=ot_u16(b,s,0),name=ot_u16(b,s,2)}))
+
+(* uint24 scalar at relative offset: u16(off)*256 + low byte of u16(off+1),
+   both reads inside the span because the caller checked its length. *)
+fun scalar_at(b: !Buf, s: OtSpan, off: int): int =
+  iadd(imul(ot_u16(b,s,off),256),imod(ot_u16(b,s,iadd(off,1)),256))
+fun scalar_valid(cp: int): bool =
+  ile(cp,1114111) andalso not(ige(cp,55296) andalso ile(cp,57343))
+fun chars_valid {n:nat} .<n>. (n: int(n), b: !Buf, s: OtSpan, i: int): bool =
+  if n = 0 then true
+  else if not(scalar_valid(scalar_at(b,s,iadd(14,imul(i,3))))) then false
+  else chars_valid(n-1,b,s,iadd(i,1))
+
+(* cv01-cv99: format 0 header of 14 bytes, then charCount uint24 scalars.
+   Without named parameters the first-parameter name ID must be zero. *)
+fun variant_read(b: !Buf, s: OtSpan): OtFeatureParamsRead = let
   val format=ot_u16(b,s,0)
-in if ilt(s.length,10) then FeatureParamsRejected(ot_error(OtBounds(),s))
-  else if igt(format,1) then FeatureParamsRejected(ot_error(OtFormat(),s))
-  else FeatureParamsAccepted(ParamsVariant(@{format=format,label=ot_u16(b,s,2),
-    tooltip=ot_u16(b,s,4),sample=ot_u16(b,s,6),named=ot_u16(b,s,8),
-    first=if ieq(format,1) then 0 else ot_u16(b,s,10)})) end
+  val count=ot_u16(b,s,12)
+  val named=ot_u16(b,s,8)
+  val first=ot_u16(b,s,10)
+in
+  if ine(format,0) then reject(OtFormat(),s)
+  else if ilt(s.length,iadd(14,imul(3,count))) then reject(OtBounds(),s)
+  else if ieq(named,0) andalso ine(first,0) then reject(OtFormat(),s)
+  else if not(chars_valid(airlock_nat(count),b,s,0)) then reject(OtFormat(),s)
+  else accept(ParamsVariant(@{label=ot_u16(b,s,2),tooltip=ot_u16(b,s,4),
+    sample=ot_u16(b,s,6),named=named,first=first,charCount=count}))
+end
+fun variant(b: !Buf, s: OtSpan): OtFeatureParamsRead =
+  if ilt(s.length,14) then reject(OtBounds(),s) else variant_read(b,s)
 
-fun top(tag: OtTag): int = airlock_nat(idiv(tag.code,65536))
-fun size_tag(tag: OtTag): bool = ieq(tag.code,1936292453)
-fun variant_tag(tag: OtTag): bool = let val c=tag.code in ige(c,1668689969) andalso ile(c,1668692281) end
-fun stylistic_tag(tag: OtTag): bool = ieq(top(tag),29555)
+fun present(b: !Buf, tag: OtTag, s: OtSpan): OtFeatureParamsRead =
+  if not(ot_span_valid(b,s)) then reject(OtBounds(),s)
+  else case+ ot_params_kind_of(tag) of
+    | ParamsKindSize() => size(b,s)
+    | ParamsKindStylistic() => stylistic(b,s)
+    | ParamsKindVariant() => variant(b,s)
+    | ParamsKindOpaque() => accept(ParamsOpaque())
 
 implement ot_feature_params_parse(b,tag,params) = case+ params.kind of
-  | ChildMissing() => FeatureParamsAccepted(ParamsAbsent())
-  | ChildInvalid() => FeatureParamsRejected(ot_error(OtBounds(),params.span))
-  | ChildPresent() => let val s=params.span
-    in if not(ot_span_valid(b,s)) orelse ilt(s.length,2) then FeatureParamsRejected(ot_error(OtBounds(),s))
-      else if size_tag(tag) then size(b,s)
-      else if stylistic_tag(tag) then stylistic(b,s)
-      else if variant_tag(tag) then variant(b,s)
-      else FeatureParamsRejected(ot_error(OtFormat(),s)) end
+  | ChildMissing() => accept(ParamsAbsent())
+  | ChildInvalid() => reject(OtBounds(),params.span)
+  | ChildPresent() => present(b,tag,params.span)
