@@ -83,6 +83,8 @@ fun doc_clear_nodes(d: !Doc): void
 fun doc_open(): Doc
 fun doc_is_md(d: !Doc): Toggle
 fun doc_set_md(d: !Doc, is_md: Toggle): void
+fun doc_embed_level(d: !Doc): int
+fun doc_set_embed_level(d: !Doc, level: int): void
 fun doc_free(d: Doc): void
 fun doc_len(d: !Doc): int
 fun doc_touch(d: !Doc): void
@@ -94,6 +96,7 @@ fun doc_insert(d: !Doc, p: ptr, n: int): void
 fun doc_insert_buf(d: !Doc, src: !Buf, n: int): void
 fun doc_backspace(d: !Doc): void
 fun doc_delete(d: !Doc): void
+fun doc_delete_range(d: !Doc, start: int, finish: int): void
 fun doc_undo(d: !Doc): void
 fun doc_redo(d: !Doc): void
 fun doc_wrap(d: !Doc, pre: string, plen: int, suf: string, suflen: int): void
@@ -154,4 +157,6 @@ fun doc_wrap_cols(colw: int): int
 fun doc_get_wrap(d: !Doc): int
 fun column_w(avail: int): int
 fun column_x(pane: int, avail: int): int
+fun doc_codepoints(d: !Doc, st: int, en: int): int
+fun doc_advance_cps(d: !Doc, st: int, en: int, k: int): int
 fun doc_selftest(): int

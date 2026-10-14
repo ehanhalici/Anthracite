@@ -523,6 +523,64 @@ fun tabs_insert_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, i:
 
 implement tabs_insert(ts, i, one) = tabs_insert_m(airlock_nat(MAX_REC_FUEL), ts, i, one)
 
+implement tabs_move(ts, from_i, to_i) =
+  if ieq(from_i, to_i) then ts
+  else let
+    val n = tabs_len(ts)
+  in
+    if from_i >= 0 andalso from_i < n andalso to_i >= 0 andalso to_i < n then let
+      val+ ~PAIR(one, rest) = tabs_detach(ts, from_i)
+    in
+      tabs_insert(rest, to_i, one)
+    end else ts
+  end
+
+fun clone_doc(d: !Doc): Doc = let
+  val d2 = doc_open()
+  var text = buf_make(iadd(doc_len(d), 16))
+  val () = doc_text(d, text)
+  val () = doc_insert(d2, buf_ptr(text), buf_len(text))
+  val () = buf_free(text)
+  val () = doc_set_caret_move(d2, doc_caret(d))
+  val () = doc_set_md(d2, doc_is_md(d))
+in
+  d2
+end
+
+fun clone_buf(src: !Buf): Buf = let
+  val len = buf_len(src)
+  var dst = buf_make(iadd(len, 16))
+  val () = bcat(dst, src, 0, len)
+  val res = dst
+in
+  res
+end
+
+extern fun tabs_clone_tab_exh(ts: Tabs, idx: int): Tabs = "mac#anth_die_box"
+
+fun tabs_clone_tab_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), ts: Tabs, idx: int
+): Tabs =
+  if recfuel > 0 then (
+    case+ ts of
+    | ~TNil() => TNil()
+    | ~TCons(doc, path, title, sc, rest) =>
+        if ieq(idx, 0) then let
+          val d2 = clone_doc(doc)
+          val p2 = clone_buf(path)
+          val t2 = clone_buf(title)
+          val rest2 = tabs_append(rest, d2, p2, t2, sc)
+        in
+          TCons(doc, path, title, sc, rest2)
+        end else let
+          val rest2 = tabs_clone_tab_m(recfuel - 1, rest, isub(idx, 1))
+        in
+          TCons(doc, path, title, sc, rest2)
+        end
+  ) else tabs_clone_tab_exh(ts, idx)
+
+implement tabs_clone_tab(ts, idx) = tabs_clone_tab_m(airlock_nat(MAX_REC_FUEL), ts, idx)
+
 extern fun tabs_toggle_impl_exh(ts: Tabs, idx: int, ni: int): Tabs = "mac#anth_die_box"
 
 fun tabs_toggle_impl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, ni: int): Tabs =

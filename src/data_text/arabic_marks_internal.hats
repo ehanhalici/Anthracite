@@ -1,0 +1,15 @@
+#define ATS_DYNLOADFLAG 0
+#include "share/atspre_define.hats"
+#include "share/atspre_staload.hats"
+#include "common.hats"
+staload "mem.sats"
+staload "airlock.sats"
+staload "data_text/utf8.sats"
+staload "data_text/normalization_types.sats"
+staload "data_text/normalization_data.sats"
+staload "data_text/normalization_engine.sats"
+staload "data_text/unicode_property.sats"
+staload "data_text/arabic_marks_types.sats"
+staload "data_text/arabic_marks.sats"
+staload "data_text/arabic_marks_work.sats"
+

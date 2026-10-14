@@ -242,12 +242,12 @@ fun push_quad(r: !Rend, x0: float, y0: float, x1: float, y1: float, cr: float, c
 in
 end
 
-implement rend_quad(r, tex, mode, x, y, w, h, u0d, v0d, u1d, v1d, c) = let
+implement rend_quad_pixels(r, tex, mode, x, y, w, h, u0d, v0d, u1d, v1d, c) = let
   val () = bind_mode(r, mode, tex)
-  val x0 = i2f(x)
-  val y0 = i2f(y)
-  val x1 = i2f(x + w)
-  val y1 = i2f(y + h)
+  val x0 = anth_d2f(x)
+  val y0 = anth_d2f(y)
+  val x1 = anth_d2f(x + w)
+  val y1 = anth_d2f(y + h)
   val cr = gl_rf(c)
   val cg = gl_gf(c)
   val cb = gl_bf(c)
@@ -259,6 +259,9 @@ implement rend_quad(r, tex, mode, x, y, w, h, u0d, v0d, u1d, v1d, c) = let
   val () = push_quad(r, x0, y0, x1, y1, cr, cg, cb, ca, uu0, vv0, uu1, vv1)
 in
 end
+
+implement rend_quad(r,tex,mode,x,y,w,h,u0d,v0d,u1d,v1d,c) =
+  rend_quad_pixels(r,tex,mode,n_i2d(x),n_i2d(y),n_i2d(w),n_i2d(h),u0d,v0d,u1d,v1d,c)
 
 fun blur_texture_params(): void = let
   val () = glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)

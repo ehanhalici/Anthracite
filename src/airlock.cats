@@ -3,6 +3,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <limits.h>
 
 /* Runtime half of the airlock: the static claim (nat) is only trusted
    because this check runs first. A violation is a program bug, so fail fast. */
@@ -44,7 +45,7 @@ static inline int anth_airlock_word(int i, int cap)
 
 static inline int anth_airlock_span(int lo, int hi)
 {
-  if (lo > hi) {
+  if (lo > hi || (lo < 0 && hi > INT_MAX + lo)) {
     fprintf(stderr, "event=airlock_span status=failed lo=%d hi=%d\n", lo, hi);
     abort();
   }
@@ -56,6 +57,15 @@ static inline int anth_die_msg(void)
   fprintf(stderr, "event=recursion_fuel status=failed\n");
   abort();
   return 0;
+}
+
+static inline int anth_airlock_i32(long long value)
+{
+  if (value < INT_MIN || value > INT_MAX) {
+    fprintf(stderr, "event=airlock_i32 status=failed value=%lld\n", value);
+    abort();
+  }
+  return (int)value;
 }
 
 #define anth_die_void(...) (anth_die_msg())

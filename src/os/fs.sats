@@ -26,6 +26,7 @@ fun rss_kb(): int = "mac#anth_rss_kb"
 
 fun c_strlen(s: string): int = "mac#strlen"
 fun c_strcmp(a: string, b: string): int = "mac#strcmp"
+fun c_fc_arabic_font(dst: ptr, n: int): int = "mac#anth_fc_arabic_font"
 fun c_str_byte(s: string, i: int): int = "mac#anth_str_byte"
 fun c_str_ptr(s: string): ptr = "mac#anth_str_ptr"
 fun c_getenv(k: string): string = "mac#anth_getenv"

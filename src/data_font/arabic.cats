@@ -9,6 +9,8 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <time.h>
+#include <ctype.h>
+#include "text_layout.h"
 
 static inline int anth_is_arabic(int cp) {
     return ((cp >= 0x0600 && cp <= 0x06FF) ||
@@ -296,110 +298,17 @@ static inline int anth_arabic_process_utf8(const char *src, int src_len, char *d
     return out_pos;
 }
 
-static inline int anth_fc_arabic_font(char *dst, int n) {
-    if (!dst || n < 2) return 0;
-    const char *candidates[] = {
-        "/nix/store/v3n8r3sy38l5f1sj76azj1n4n0ndd6a7-dejavu-fonts-2.37/share/fonts/truetype/DejaVuSans.ttf",
-        "/nix/store/ba8rnmi3ha6p3j8xc85hdq1p9dq3mr6q-dejavu-fonts-minimal-2.37/share/fonts/truetype/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSerif.ttf",
-        0
-    };
-    for (int i = 0; candidates[i]; i++) {
-        FILE *f = fopen(candidates[i], "rb");
-        if (f) {
-            fclose(f);
-            snprintf(dst, (size_t)n, "%s", candidates[i]);
-            return 1;
-        }
-    }
-    /* Try fontconfig */
-    FILE *p = popen("fc-match :lang=ar file 2>/dev/null", "r");
-    if (p) {
-        char buf[512];
-        if (fgets(buf, sizeof(buf), p)) {
-            char *c = strstr(buf, "file=");
-            if (c) {
-                c += 5;
-                char *nl = strchr(c, '\n');
-                if (nl) *nl = 0;
-                char *sp = strchr(c, ' ');
-                if (sp) *sp = 0;
-                snprintf(dst, (size_t)n, "%s", c);
-                pclose(p);
-                return 1;
-            }
-        }
-        pclose(p);
-    }
-    dst[0] = 0;
-    return 0;
-}
-
-static uint8_t *anth_fb_data = NULL;
-static int anth_fb_size = 0;
-static int anth_fb_is_active = 0;
-
-static inline int anth_fb_active(void) {
-    return anth_fb_is_active;
-}
-
-static inline void anth_fb_set_active(int a) {
-    anth_fb_is_active = a;
-}
-
-static inline int anth_fb_load(const char *path) {
-    if (anth_fb_data) return 1;
-    if (!path || !path[0]) return 0;
-    FILE *f = fopen(path, "rb");
-    if (!f) return 0;
-    fseek(f, 0, SEEK_END);
-    long sz = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    if (sz <= 12 || sz > 20000000) {
-        fclose(f);
-        return 0;
-    }
-    anth_fb_data = (uint8_t *)malloc((size_t)sz);
-    if (!anth_fb_data) {
-        fclose(f);
-        return 0;
-    }
-    size_t nr = fread(anth_fb_data, 1, (size_t)sz, f);
-    fclose(f);
-    anth_fb_size = (int)nr;
-    return 1;
-}
-
-static inline int anth_fb_u8(int o) {
-    if (!anth_fb_data || o < 0 || o >= anth_fb_size) return 0;
-    return anth_fb_data[o];
-}
-
-static inline int anth_fb_u16(int o) {
-    return anth_fb_u8(o) * 256 + anth_fb_u8(o + 1);
-}
-
-static inline int anth_fb_i16(int o) {
-    int v = anth_fb_u16(o);
-    return (v >= 32768) ? v - 65536 : v;
-}
-
-static inline int anth_fb_u32(int o) {
-    int hi = anth_fb_u16(o);
-    int lo = anth_fb_u16(o + 2);
-    return (hi << 16) | (lo & 0xFFFF);
-}
-
 typedef int (*anth_width_fn)(void *f, void *r, const char *p, int n);
 
 static inline int anth_line_visual_adv(
     const char *line, int line_len, int off,
     void *f, void *r, anth_width_fn wfn
 ) {
-    if (!line || line_len <= 0 || off <= 0) return 0;
+    if (!line || line_len <= 0) return 0;
+    if (off < 0) off = 0;
     if (off > line_len) off = line_len;
     if (!anth_has_arabic(line, line_len)) {
+        if (off == 0) return 0;
         return wfn(f, r, line, off);
     }
 
@@ -453,7 +362,8 @@ static inline int anth_line_click_offset(
     const char *line, int line_len, int target_x,
     void *f, void *r, anth_width_fn wfn
 ) {
-    if (!line || line_len <= 0 || target_x <= 0) return 0;
+    if (!line || line_len <= 0) return 0;
+    if (target_x < 0) target_x = 0;
     if (!anth_has_arabic(line, line_len)) {
         int pos = 0;
         int best_pos = 0;
@@ -510,14 +420,60 @@ static inline int anth_is_arabic_at(const char *data, int len, int pos) {
     return 0;
 }
 
+static inline int anth_is_strong_rtl(int cp) {
+    return ((cp >= 0x0590 && cp <= 0x08FF) ||
+            (cp >= 0xFB1D && cp <= 0xFDFF) ||
+            (cp >= 0xFE70 && cp <= 0xFEFC));
+}
+
+static inline int anth_line_is_rtl(const char *line, int len) {
+    return anth_bidi_line_direction(line, len);
+}
+
+static inline void anth_draw_wrap_arrow(void *f, void *r, int x, int y, unsigned int col) {
+    extern void anth_ui_wrap_marker(void *r, int x, int y, unsigned int col);
+    (void)f;
+    anth_ui_wrap_marker(r, x, y, col);
+}
+
+static inline int anth_font_draw_buf(void *f, void *r, int x, int y, const char *p, int n, unsigned int c) {
+    if (!p || n <= 0) return 0;
+    extern int anth_font_draw(void *f, void *r, int x, int y, void *p, int n, unsigned int c);
+    extern int anth_font_text_active(void *f);
+    if (anth_font_text_active(f)) return anth_font_draw(f, r, x, y, (void *)p, n, c);
+    if (!anth_has_arabic_text(p, n)) {
+        return anth_font_draw(f, r, x, y, (void *)p, n, c);
+    }
+    char buf[2048];
+    int sn = anth_arabic_process_utf8(p, n, buf, sizeof(buf));
+    return anth_font_draw(f, r, x, y, buf, sn, c);
+}
+
+static inline int anth_font_width_buf(void *f, void *r, const char *p, int n) {
+    if (!p || n <= 0) return 0;
+    extern int anth_font_width(void *f, void *r, void *p, int n);
+    extern int anth_font_text_active(void *f);
+    if (anth_font_text_active(f)) return anth_font_width(f, r, (void *)p, n);
+    if (!anth_has_arabic_text(p, n)) {
+        return anth_font_width(f, r, (void *)p, n);
+    }
+    char buf[2048];
+    int sn = anth_arabic_process_utf8(p, n, buf, sizeof(buf));
+    return anth_font_width(f, r, buf, sn);
+}
+
 extern int anth_font_width(void *f, void *r, void *p, int n);
 
 static inline int anth_ui_caret_adv(void *f, void *r, const char *line, int line_len, int off) {
-    return anth_line_visual_adv(line, line_len, off, f, r, (anth_width_fn)anth_font_width);
+    return anth_layout_visual_adv(line, line_len, off, f, r, (anth_width_fn)anth_font_width_buf);
 }
 
 static inline int anth_ui_click_off(void *f, void *r, const char *line, int line_len, int target_x) {
-    return anth_line_click_offset(line, line_len, target_x, f, r, (anth_width_fn)anth_font_width);
+    return anth_layout_click_offset(line, line_len, target_x, f, r, (anth_width_fn)anth_font_width_buf);
+}
+
+static inline void anth_ui_sel_span(void *f, void *r, const char *line, int line_len, int sa, int sb, int at_eol, int *out_sx, int *out_sw) {
+    anth_layout_sel_span(line, line_len, sa, sb, at_eol, f, r, (anth_width_fn)anth_font_width_buf, out_sx, out_sw);
 }
 
 static int anth_flash_line = -1;
@@ -580,33 +536,393 @@ static inline int anth_vault_find_rec(const char *dir, const char *target, char 
     return 0;
 }
 
+static inline int anth_read_active_vault_fallback(char *out_vault, int max_len) {
+    if (!out_vault || max_len < 2) return 0;
+    out_vault[0] = '\0';
+    const char *home = getenv("HOME");
+    if (!home) return 0;
+    char path[1024];
+    snprintf(path, sizeof(path), "%s/.config/anthracite/vaults.json", home);
+    FILE *fp = fopen(path, "rb");
+    if (!fp) return 0;
+    char buf[4096];
+    size_t nr = fread(buf, 1, sizeof(buf) - 1, fp);
+    fclose(fp);
+    if (nr <= 0) return 0;
+    buf[nr] = '\0';
+    const char *key = "\"active_vault\":";
+    char *p = strstr(buf, key);
+    if (!p) {
+        key = "\"active\":";
+        p = strstr(buf, key);
+    }
+    if (!p) return 0;
+    p += strlen(key);
+    while (*p && (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n')) p++;
+    if (*p != '\"') return 0;
+    p++;
+    char *q = strchr(p, '\"');
+    if (!q) return 0;
+    int len = (int)(q - p);
+    if (len <= 0 || len >= max_len) return 0;
+    memcpy(out_vault, p, (size_t)len);
+    out_vault[len] = '\0';
+    return 1;
+}
+
+static inline int anth_vault_check_in_dir(const char *vault, const char *rel, char *out, int max_len) {
+    if (!vault || !vault[0] || !rel || !rel[0]) return 0;
+    const char *r = (rel[0] == '/') ? rel + 1 : rel;
+    char combined[1024];
+    snprintf(combined, sizeof(combined), "%s/%s", vault, r);
+    if (access(combined, F_OK) == 0) {
+        snprintf(out, (size_t)max_len, "%s", combined);
+        return 1;
+    }
+    char combined_md[1024];
+    snprintf(combined_md, sizeof(combined_md), "%s.md", combined);
+    if (access(combined_md, F_OK) == 0) {
+        snprintf(out, (size_t)max_len, "%s", combined_md);
+        return 1;
+    }
+    const char *base = strrchr(rel, '/');
+    const char *target = base ? base + 1 : rel;
+    if (target[0] && anth_vault_find_rec(vault, target, out, max_len, 0)) {
+        return 1;
+    }
+    return 0;
+}
+
 static inline int anth_vault_find_file(const char *vault, const char *rel, char *out, int max_len) {
     if (!rel || !rel[0] || !out || max_len < 2) return 0;
     if (access(rel, F_OK) == 0) {
         snprintf(out, (size_t)max_len, "%s", rel);
         return 1;
     }
-    if (vault && vault[0]) {
-        const char *r = (rel[0] == '/') ? rel + 1 : rel;
-        char combined[1024];
-        snprintf(combined, sizeof(combined), "%s/%s", vault, r);
-        if (access(combined, F_OK) == 0) {
-            snprintf(out, (size_t)max_len, "%s", combined);
-            return 1;
+    if (vault && vault[0] && anth_vault_check_in_dir(vault, rel, out, max_len)) {
+        return 1;
+    }
+    char act_v[1024];
+    if (anth_read_active_vault_fallback(act_v, sizeof(act_v))) {
+        if (!vault || strcmp(vault, act_v) != 0) {
+            if (anth_vault_check_in_dir(act_v, rel, out, max_len)) {
+                return 1;
+            }
         }
-        char combined_md[1024];
-        snprintf(combined_md, sizeof(combined_md), "%s.md", combined);
-        if (access(combined_md, F_OK) == 0) {
-            snprintf(out, (size_t)max_len, "%s", combined_md);
-            return 1;
-        }
-        const char *base = strrchr(rel, '/');
-        const char *target = base ? base + 1 : rel;
-        if (target[0] && anth_vault_find_rec(vault, target, out, max_len, 0)) {
-            return 1;
+    }
+    const char *home = getenv("HOME");
+    if (home) {
+        char def_v[1024];
+        snprintf(def_v, sizeof(def_v), "%s/notes/obsidian_notlar", home);
+        if (access(def_v, F_OK) == 0 && (!vault || strcmp(vault, def_v) != 0)) {
+            if (anth_vault_check_in_dir(def_v, rel, out, max_len)) {
+                return 1;
+            }
         }
     }
     return 0;
+}
+
+static inline int anth_buf_advance_cps(const char *p, int n, int start, int k) {
+    if (!p || start >= n || k <= 0) return start;
+    int cur = start;
+    int count = 0;
+    while (cur < n && count < k) {
+        anth_utf8_decode_safe(p, n, &cur);
+        count++;
+    }
+    return cur;
+}
+
+static inline int anth_buf_count_cps(const char *p, int n, int start, int end) {
+    if (!p || start >= end || start >= n) return 0;
+    int limit = (end < n) ? end : n;
+    int cur = start;
+    int count = 0;
+    while (cur < limit) {
+        anth_utf8_decode_safe(p, limit, &cur);
+        count++;
+    }
+    return count;
+}
+
+#define ANTH_COL_TEXT    0xE6E1D8FFu
+#define ANTH_COL_HEADING 0xF4F1EAFFu
+#define ANTH_COL_LINK    0x58A6FFFFu
+#define ANTH_COL_WHITE   0xFFFFFFFFu
+#define ANTH_COL_ACCENT  0xC4B8A5FFu
+#define ANTH_COL_MUTED   0x8E8A84FFu
+#define ANTH_COL_CODE    0xD7C4A3FFu
+#define ANTH_COL_TAG     0xD7A36AFFu
+#define ANTH_COL_TASK    0x9BB8A0FFu
+
+typedef struct {
+    const char *text;
+    int len;
+    unsigned int color;
+} anth_span_t;
+
+static inline int anth_parse_line_spans(const char *buf, int n, int ls, int le, anth_span_t *spans, int max_spans) {
+    if (!buf || ls >= le || max_spans < 1) return 0;
+    while (ls < le && (buf[ls] == ' ' || buf[ls] == '\t')) ls++;
+    int nspans = 0;
+    const char *p = buf + ls;
+    const char *end = buf + le;
+
+    unsigned int def_col = ANTH_COL_TEXT;
+    if (p < end && *p == '#') {
+        const char *h = p;
+        while (h < end && *h == '#') h++;
+        if (h < end && *h == ' ') {
+            p = h + 1;
+            def_col = ANTH_COL_HEADING;
+        }
+    }
+
+    if (p + 5 < end && (p[0] == '-' || p[0] == '*') && p[1] == ' ' && p[2] == '[' && (p[3] == ' ' || p[3] == 'x' || p[3] == 'X') && p[4] == ']' && p[5] == ' ') {
+        spans[nspans++] = (anth_span_t){ (p[3] == ' ' ? "[ ] " : "[x] "), 4, ANTH_COL_TASK };
+        p += 6;
+    } else if (p + 1 < end && (p[0] == '-' || p[0] == '*') && p[1] == ' ') {
+        static const char bullet[] = "\xe2\x80\xa2 ";
+        spans[nspans++] = (anth_span_t){ bullet, 3, ANTH_COL_MUTED };
+        p += 2;
+    }
+
+    while (p < end && nspans < max_spans) {
+        if (*p == '^' && (p == buf + ls || p[-1] == ' ' || p[-1] == '\t')) {
+            const char *q = p + 1;
+            while (q < end && (isalnum((unsigned char)*q) || *q == '_' || *q == '-')) q++;
+            if (q == end || *q == ' ' || *q == '\t' || *q == '\r' || *q == '\n') {
+                p = q;
+                continue;
+            }
+        }
+
+        if (p + 1 < end && p[0] == '[' && p[1] == '[') {
+            const char *close = NULL;
+            for (const char *c = p + 2; c + 1 < end; c++) {
+                if (c[0] == ']' && c[1] == ']') { close = c; break; }
+            }
+            if (close) {
+                const char *inner = p + 2;
+                int inner_len = (int)(close - inner);
+                const char *pipe = (const char *)memchr(inner, '|', (size_t)inner_len);
+                const char *show_txt = pipe ? pipe + 1 : inner;
+                int show_len = (int)(close - show_txt);
+                if (show_len > 0) {
+                    spans[nspans++] = (anth_span_t){ show_txt, show_len, ANTH_COL_LINK };
+                }
+                p = close + 2;
+                continue;
+            }
+        }
+
+        if (*p == '[') {
+            const char *close_b = (const char *)memchr(p + 1, ']', (size_t)(end - (p + 1)));
+            if (close_b && close_b + 1 < end && close_b[1] == '(') {
+                const char *close_p = (const char *)memchr(close_b + 2, ')', (size_t)(end - (close_b + 2)));
+                if (close_p) {
+                    const char *lbl = p + 1;
+                    int lbl_len = (int)(close_b - lbl);
+                    if (lbl_len >= 4 && lbl[0] == '*' && lbl[1] == '*' && lbl[lbl_len-2] == '*' && lbl[lbl_len-1] == '*') {
+                        spans[nspans++] = (anth_span_t){ lbl + 2, lbl_len - 4, ANTH_COL_LINK };
+                    } else if (lbl_len >= 2 && lbl[0] == '*' && lbl[lbl_len-1] == '*') {
+                        spans[nspans++] = (anth_span_t){ lbl + 1, lbl_len - 2, ANTH_COL_LINK };
+                    } else if (lbl_len > 0) {
+                        spans[nspans++] = (anth_span_t){ lbl, lbl_len, ANTH_COL_LINK };
+                    }
+                    p = close_p + 1;
+                    continue;
+                }
+            }
+        }
+
+        if (p + 1 < end && p[0] == '*' && p[1] == '*') {
+            const char *close_b = NULL;
+            for (const char *c = p + 2; c + 1 < end; c++) {
+                if (c[0] == '*' && c[1] == '*') { close_b = c; break; }
+            }
+            if (close_b) {
+                int b_len = (int)(close_b - (p + 2));
+                if (b_len > 0) {
+                    spans[nspans++] = (anth_span_t){ p + 2, b_len, ANTH_COL_WHITE };
+                }
+                p = close_b + 2;
+                continue;
+            }
+        }
+
+        if (*p == '*' && (p + 1 == end || p[1] != '*')) {
+            const char *close_i = (const char *)memchr(p + 1, '*', (size_t)(end - (p + 1)));
+            if (close_i) {
+                int i_len = (int)(close_i - (p + 1));
+                if (i_len > 0) {
+                    spans[nspans++] = (anth_span_t){ p + 1, i_len, ANTH_COL_ACCENT };
+                }
+                p = close_i + 1;
+                continue;
+            }
+        }
+
+        if (*p == '`') {
+            const char *close_c = (const char *)memchr(p + 1, '`', (size_t)(end - (p + 1)));
+            if (close_c) {
+                int c_len = (int)(close_c - (p + 1));
+                if (c_len > 0) {
+                    spans[nspans++] = (anth_span_t){ p + 1, c_len, ANTH_COL_CODE };
+                }
+                p = close_c + 1;
+                continue;
+            }
+        }
+
+        const char *t_start = p;
+        while (p < end) {
+            if (*p == '[' || *p == '*' || *p == '`' || *p == '^') break;
+            p++;
+        }
+        if (p > t_start) {
+            spans[nspans++] = (anth_span_t){ t_start, (int)(p - t_start), def_col };
+        }
+    }
+    return nspans;
+}
+
+static inline int anth_render_spans(void *f, void *r, const anth_span_t *spans, int nspans,
+                                    int left_x, int start_y, int lh, int wc,
+                                    unsigned int arrow_col, int draw) {
+    if (nspans <= 0) return 1;
+    int cur_col = 0;
+    int pen_x = left_x;
+    int cur_y = start_y;
+    int rows = 1;
+
+    for (int s = 0; s < nspans; s++) {
+        const char *txt = spans[s].text;
+        int tlen = spans[s].len;
+        if (tlen <= 0) continue;
+        unsigned int col = spans[s].color;
+
+        int byte_off = 0;
+        while (byte_off < tlen) {
+            int rem_cols = (wc > 0) ? (wc - cur_col) : 1000000;
+            if (rem_cols <= 0) {
+                if (draw) {
+                    anth_draw_wrap_arrow(f, r, pen_x, cur_y, arrow_col);
+                }
+                cur_y += lh;
+                pen_x = left_x;
+                cur_col = 0;
+                rows++;
+                rem_cols = (wc > 0) ? wc : 1000000;
+            }
+
+            int chunk_start = byte_off;
+            int chunk_end = anth_buf_advance_cps(txt, tlen, chunk_start, rem_cols);
+            int chunk_cps = anth_buf_count_cps(txt, tlen, chunk_start, chunk_end);
+            int chunk_bytes = chunk_end - chunk_start;
+
+            if (chunk_bytes > 0) {
+                if (draw) {
+                    anth_font_draw_buf(f, r, pen_x, cur_y, txt + chunk_start, chunk_bytes, col);
+                }
+                int tw = 0;
+                if (draw) {
+                    tw = anth_font_width_buf(f, r, txt + chunk_start, chunk_bytes);
+                } else {
+                    tw = chunk_cps * 9;
+                }
+                pen_x += tw;
+                cur_col += chunk_cps;
+                byte_off = chunk_end;
+            }
+
+            if (wc > 0 && cur_col >= wc && (byte_off < tlen || s + 1 < nspans)) {
+                if (draw) {
+                    anth_draw_wrap_arrow(f, r, pen_x, cur_y, arrow_col);
+                }
+                cur_y += lh;
+                pen_x = left_x;
+                cur_col = 0;
+                rows++;
+            }
+        }
+    }
+    return (rows > 0 ? rows : 1);
+}
+
+static inline int anth_draw_wrapped_slice(void *f, void *r, const char *buf, int n, int ls, int le,
+                                          int x, int y, int lh, int wc, unsigned int col, unsigned int arrow_col) {
+    if (!buf || ls >= n || le > n) return 0;
+    anth_span_t spans[128];
+    int nspans = anth_parse_line_spans(buf, n, ls, le, spans, 128);
+    if (nspans <= 0) return 1;
+    return anth_render_spans(f, r, spans, nspans, x, y, lh, wc, arrow_col, 1);
+}
+
+static inline int anth_draw_wrapped_lines(void *f, void *r, const char *buf, int n, int max_lines,
+                                          int x, int y, int lh, int wc, unsigned int col, unsigned int arrow_col) {
+    if (!buf || n <= 0) return 0;
+    int cur_i = 0;
+    int cur_y = y;
+    int total_rows = 0;
+    for (int l = 0; l < max_lines && cur_i < n; l++) {
+        int eol = cur_i;
+        while (eol < n && buf[eol] != '\n') eol++;
+        if (eol > cur_i) {
+            int rows = anth_draw_wrapped_slice(f, r, buf, n, cur_i, eol, x, cur_y, lh, wc, col, arrow_col);
+            int safe_r = (rows > 0) ? rows : 1;
+            cur_y += safe_r * lh;
+            total_rows += safe_r;
+        } else {
+            cur_y += lh;
+            total_rows += 1;
+        }
+        cur_i = (eol < n && buf[eol] == '\n') ? eol + 1 : eol;
+    }
+    return (total_rows > 0 ? total_rows : 1);
+}
+
+static inline int anth_embed_calc_height_buf(const char *buf, int n, const char *anchor, int wrap_cols, int lh) {
+    if (!buf || n <= 0 || lh <= 0) return (lh > 0 ? lh : 18);
+
+    int total_rows = 1;
+    if (anchor && anchor[0]) {
+        char *pos = strstr(buf, anchor);
+        if (pos) {
+            int p_idx = (int)(pos - buf);
+            int ls = p_idx;
+            while (ls > 0 && buf[ls - 1] != '\n') ls--;
+            int le = p_idx;
+            while (le > ls && (buf[le - 1] == ' ' || buf[le - 1] == '\t' || buf[le - 1] == '#' || buf[le - 1] == '^')) {
+                le--;
+            }
+            anth_span_t spans[128];
+            int nspans = anth_parse_line_spans(buf, n, ls, le, spans, 128);
+            total_rows = anth_render_spans(NULL, NULL, spans, nspans, 0, 0, lh, wrap_cols, 0, 0);
+        } else {
+            total_rows = 1;
+        }
+    } else {
+        int cur_i = 0;
+        int sum_r = 0;
+        for (int l = 0; l < 4 && cur_i < n; l++) {
+            int eol = cur_i;
+            while (eol < n && buf[eol] != '\n') eol++;
+            if (eol > cur_i) {
+                anth_span_t spans[128];
+                int nspans = anth_parse_line_spans(buf, n, cur_i, eol, spans, 128);
+                int r = anth_render_spans(NULL, NULL, spans, nspans, 0, 0, lh, wrap_cols, 0, 0);
+                sum_r += (r > 0 ? r : 1);
+            } else {
+                sum_r += 1;
+            }
+            cur_i = (eol < n && buf[eol] == '\n') ? eol + 1 : eol;
+        }
+        total_rows = (sum_r > 0) ? sum_r : 1;
+    }
+    if (total_rows < 1) total_rows = 1;
+    return total_rows * lh;
 }
 
 static inline const char *anth_resolve_vault_path(const char *vault, const char *rel) {

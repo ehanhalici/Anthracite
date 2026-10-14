@@ -6,6 +6,7 @@ abst@ype event = $extype"anth_event"
 
 macdef EV_CLOSE = $extval(int, "ANTH_EV_CLOSE")
 macdef EV_RESIZE = $extval(int, "ANTH_EV_RESIZE")
+macdef EV_EXPOSE = $extval(int, "ANTH_EV_EXPOSE")
 macdef EV_KEY = $extval(int, "ANTH_EV_KEY")
 macdef EV_DOWN = $extval(int, "ANTH_EV_DOWN")
 macdef EV_UP = $extval(int, "ANTH_EV_UP")
@@ -18,6 +19,7 @@ datatype Ev =
   | EvNone
   | EvClose
   | EvResize
+  | EvExpose
   | EvKey
   | EvDown
   | EvUp
@@ -36,6 +38,7 @@ macdef KEY_RIGHT = $extval(int, "ANTH_KEY_RIGHT")
 macdef KEY_UP = $extval(int, "ANTH_KEY_UP")
 macdef KEY_DOWN = $extval(int, "ANTH_KEY_DOWN")
 macdef KEY_BACKSPACE = $extval(int, "ANTH_KEY_BACKSPACE")
+
 macdef KEY_DELETE = $extval(int, "ANTH_KEY_DELETE")
 macdef KEY_HOME = $extval(int, "ANTH_KEY_HOME")
 macdef KEY_END = $extval(int, "ANTH_KEY_END")

@@ -1,0 +1,10 @@
+#include "data_font/native_shape_internal.hats"
+staload "os/fs.sats"
+staload "data_text/normalization_types.sats"
+staload "data_text/normalization_load.sats"
+staload "data_text/normalization_data.sats"
+staload "data_text/normalization_engine.sats"
+staload "opentype_fixture.sats"
+staload "glyph_nominal_contracts.sats"
+staload "native_shape_contracts.sats"
+

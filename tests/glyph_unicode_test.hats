@@ -1,0 +1,6 @@
+#include "glyph_substitution_engine_test.hats"
+staload "data_text/unicode_property.sats"
+staload "data_font/gdef_types.sats"
+staload "data_font/glyph_unicode.sats"
+staload "data_font/glyph_metadata.sats"
+staload "glyph_unicode_contracts.sats"

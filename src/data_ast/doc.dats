@@ -9,6 +9,10 @@ staload "flag.sats"
 staload "os/fs.sats"
 staload "os/diag.sats"
 staload "data_ast/doc.sats"
+staload "data_ast/layout.sats"
+staload "data_ast/layout_internal.sats"
+staload "data_ast/doc_visual.sats"
+staload "data_ast/visual_rows.sats"
 staload "data_ast/doc_parse.sats"
 staload "data_ast/ast.sats"
 staload "data_ast/ast_test.sats"
@@ -93,29 +97,29 @@ fun op_code(k: EditOp): int = case+ k of
 fun is_op(a: EditOp, b: EditOp): bool = ieq(op_code(a), op_code(b))
 
 datavtype Doc_ = DOC of @{
-  gap= Buf, lines= Buf, liney= Buf, nodes= Buf
+  gap= Buf, lines= Buf, nodes= Buf, lay= Buf, visual= Option_vt(VisualRows)
 , uhist= Hist, rhist= Hist
 , lo= int, hi= int, len= int
 , caret= int, anchor= int
 , nlines= int, nnodes= int, span= int
 , last_op= EditOp, typing_cnt= int, is_md= Toggle
 , ver= int, folds= Buf
-, lay_ver= int, lay_lh= int, lay_h= int, lay_read= int, wrap_cols= int
-, flash_line= int, flash_time= lint
+, flash_line= int, flash_time= lint, embed_level= int
 }
 (* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
 assume Doc = Doc_
+#include "data_ast/private/doc_visual_owner.hats"
+#include "data_ast/private/doc_visual_index_impl.hats"
 
 implement doc_open() = DOC(@{
-  gap= buf_make(256), lines= buf_make(64 * 4), liney= buf_make(64 * 8), nodes= buf_make(64 * NS * 4)
+  gap= buf_make(256), lines= buf_make(64 * 4), nodes= buf_make(64 * NS * 4), lay= layout_open(), visual= None_vt()
 , uhist= HNil(), rhist= HNil()
 , lo= 0, hi= 256, len= 0
 , caret= 0, anchor= 0
 , nlines= 1, nnodes= 0, span= 0
 , last_op= OpNone, typing_cnt= 0, is_md= On
 , ver= 0, folds= buf_make(64 * 4)
-, lay_ver= ~1, lay_lh= 0, lay_h= 0, lay_read= ~1, wrap_cols= 80
-, flash_line= ~1, flash_time= 0L
+, flash_line= ~1, flash_time= 0L, embed_level= 0
 })
 
 implement doc_set_flash(d, line, until) =
@@ -151,11 +155,28 @@ implement doc_set_md(d, v) =
       fold@(d)
     end
 
+implement doc_embed_level(d) =
+  case+ d of
+  | @DOC(s) => let
+      val level = s.embed_level
+    in
+      fold@(d); level
+    end
+
+implement doc_set_embed_level(d, level) =
+  case+ d of
+  | @DOC(s) => let
+      val () = s.embed_level := level
+    in
+      fold@(d)
+    end
+
 implement doc_free(d) = let
   val+~DOC(s) = d
+  val () = visual_release(s.visual)
   val () = buf_free(s.gap)
   val () = buf_free(s.lines)
-  val () = buf_free(s.liney)
+  val () = layout_dispose(s.lay)
   val () = buf_free(s.nodes)
   val () = buf_free(s.folds)
   val () = hist_free(s.uhist)
@@ -180,50 +201,6 @@ fun d_bump_ver(d: !Doc): void =
     end
 
 implement doc_bump_ver(d) = d_bump_ver(d)
-
-fun d_lay_ver(d: !Doc): int =
-  case+ d of
-  | @DOC(s) => let
-      val v = s.lay_ver
-    in
-      fold@(d); v
-    end
-
-fun d_lay_lh(d: !Doc): int =
-  case+ d of
-  | @DOC(s) => let
-      val v = s.lay_lh
-    in
-      fold@(d); v
-    end
-
-fun d_lay_h(d: !Doc): int =
-  case+ d of
-  | @DOC(s) => let
-      val v = s.lay_h
-    in
-      fold@(d); v
-    end
-
-fun d_set_lay(d: !Doc, v: int, lh: int, h: int, is_read: int, wc: int): void =
-  case+ d of
-  | @DOC(s) => let
-      val () = s.lay_ver := v
-      val () = s.lay_lh := lh
-      val () = s.lay_h := h
-      val () = s.lay_read := is_read
-      val () = s.wrap_cols := wc
-    in
-      fold@(d)
-    end
-
-fun d_lay_read(d: !Doc): int =
-  case+ d of
-  | @DOC(s) => let
-      val r = s.lay_read
-    in
-      fold@(d); r
-    end
 
 fun fold_count(d: !Doc): int =
   case+ d of
@@ -599,6 +576,40 @@ fun gap_room_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, n: int
 
 fun gap_room(d: !Doc, n: int): void = gap_room_m(airlock_nat(MAX_REC_FUEL), d, n)
 
+fun take_layout(d: !Doc): Buf =
+  case+ d of
+  | @DOC(s) => let
+      val laybuf = s.lay
+      val () = s.lay := buf_make(1)
+    in
+      fold@(d); laybuf
+    end
+
+fun put_layout(d: !Doc, laybuf: Buf): void =
+  case+ d of
+  | @DOC(s) => let
+      val old = s.lay
+      val () = s.lay := laybuf
+      val () = fold@(d)
+    in
+      buf_free(old)
+    end
+
+fun ensure_layout_capacity(d: !Doc, need: int): void = let
+  val old = take_layout(d)
+  val cap = buf_cap(old)
+in
+  if ige(cap, need) then put_layout(d, old)
+  else let
+    val want = imax(need, imul(cap, 2))
+    val fresh = buf_make(want)
+    val () = copy_fwd(old, 0, fresh, 0, cap)
+    val () = buf_free(old)
+  in
+    put_layout(d, fresh)
+  end
+end
+
 implement doc_line_start(d, i) =
   case+ d of
   | @DOC(s) => let
@@ -607,31 +618,22 @@ implement doc_line_start(d, i) =
       fold@(d); v
     end
 
-fun line_room(d: !Doc, i: int): void =
-  case+ d of
-  | @DOC(s) => let
-      val need = imul(iadd(i, 1), 8)
-      val () = if buf_cap(s.liney) < need then buf_resize(s.liney, imul(need, 2)) else ()
-    in
-      fold@(d)
-    end
-
 fun line_put(d: !Doc, i: int, y: int, step: int): void = let
-  val () = line_room(d, i)
+  val () = ensure_layout_capacity(d, layout_line_need(i))
+  val laybuf0 = take_layout(d)
+  var laybuf = laybuf0
+  val () = layout_line_put(laybuf, i, y, step, d_nlines(d))
 in
-  case+ d of
-  | @DOC(s) => let
-      val () = buf_set32(s.liney, imul(i, 2), y)
-      val () = buf_set32(s.liney, iadd(imul(i, 2), 1), step)
-    in
-      fold@(d)
-    end
+  put_layout(d, laybuf)
 end
+
+implement doc_layout_store_line(d, line, y, step) =
+  line_put(d, line, y, step)
 
 implement doc_line_y(d, i) =
   case+ d of
   | @DOC(s) => let
-      val v = if i >= 0 andalso i < s.nlines then buf_get32(s.liney, imul(i, 2)) else 0
+      val v = layout_line_y(s.lay, i, s.nlines)
     in
       fold@(d); v
     end
@@ -639,7 +641,7 @@ implement doc_line_y(d, i) =
 implement doc_line_step(d, i) =
   case+ d of
   | @DOC(s) => let
-      val v = if i >= 0 andalso i < s.nlines then buf_get32(s.liney, iadd(imul(i, 2), 1)) else 0
+      val v = layout_line_step(s.lay, i, s.nlines)
     in
       fold@(d); v
     end
@@ -884,9 +886,6 @@ fun nset(d: !Doc, i: int, f: int, v: int): void =
       fold@(d)
     end
 
-implement doc_get(d, i, f) = nget(d, i, f)
-implement doc_set(d, i, f, v) = nset(d, i, f, v)
-
 fun kind_of_v2_tail(n: int): NodeKind =
   if ieq(n, 44) then KCalloutHead
   else if ieq(n, 45) then KTableRow
@@ -1090,11 +1089,23 @@ implement doc_node_start(d, i) = nget(d, i, NF_START)
 implement doc_node_end(d, i) = nget(d, i, NF_END)
 implement doc_node_depth(d, i) = nget(d, i, NF_DEPTH)
 implement doc_node_collapsed(d, i) = toggle_of(ieq(nget(d, i, NF_COLLAPSED), 1))
-implement doc_node_height(d, i) = nget(d, i, NF_HEIGHT)
+implement doc_node_height(d, i) =
+  case+ d of
+  | @DOC(s) => let
+      val h = layout_node_height(s.lay, i, s.nlines)
+    in
+      fold@(d); h
+    end
 implement doc_node_parent(d, i) = nget(d, i, NF_PARENT)
 implement doc_node_hidden(d, i) = toggle_of(ieq(nget(d, i, NF_HIDDEN), 1))
 implement doc_node_aux(d, i) = nget(d, i, NF_AUX)
-implement doc_node_y(d, i) = nget(d, i, NF_Y)
+implement doc_node_y(d, i) =
+  case+ d of
+  | @DOC(s) => let
+      val y = layout_node_y(s.lay, i, s.nlines)
+    in
+      fold@(d); y
+    end
 
 implement doc_node_first_child(d, i) = nget(d, i, NF_FIRST_CHILD)
 implement doc_node_next_sib(d, i) = nget(d, i, NF_NEXT_SIB)
@@ -1104,12 +1115,41 @@ implement doc_node_subend(d, i) = nget(d, i, NF_SUBEND)
 implement doc_node_flags(d, i) = nget(d, i, NF_FLAGS)
 
 fun doc_node_set_collapsed(d: !Doc, i: int, v: Toggle): void = nset(d, i, NF_COLLAPSED, toggle_int(v))
-fun doc_node_set_height(d: !Doc, i: int, h: int): void = nset(d, i, NF_HEIGHT, h)
+fun doc_node_set_height(d: !Doc, i: int, h: int): void = let
+  val line_count = d_nlines(d)
+  val () = ensure_layout_capacity(d, layout_node_need(i, line_count))
+  val laybuf0 = take_layout(d)
+  var laybuf = laybuf0
+  val () = layout_node_put_height(laybuf, i, h, line_count)
+in
+  put_layout(d, laybuf)
+end
 fun doc_node_set_parent(d: !Doc, i: int, p: int): void = nset(d, i, NF_PARENT, p)
 fun doc_node_set_next_sib(d: !Doc, i: int, s: int): void = nset(d, i, NF_NEXT_SIB, s)
 fun doc_node_set_first_child(d: !Doc, i: int, c: int): void = nset(d, i, NF_FIRST_CHILD, c)
 fun doc_node_set_hidden(d: !Doc, i: int, v: Toggle): void = nset(d, i, NF_HIDDEN, toggle_int(v))
-fun doc_node_set_y(d: !Doc, i: int, y: int): void = nset(d, i, NF_Y, y)
+fun doc_node_set_y(d: !Doc, i: int, y: int): void = let
+  val line_count = d_nlines(d)
+  val () = ensure_layout_capacity(d, layout_node_need(i, line_count))
+  val laybuf0 = take_layout(d)
+  var laybuf = laybuf0
+  val () = layout_node_put_y(laybuf, i, y, line_count)
+in
+  put_layout(d, laybuf)
+end
+
+implement doc_layout_store_node_y(d, node, y) =
+  doc_node_set_y(d, node, y)
+
+implement doc_get(d, i, f) =
+  if ieq(f, NF_HEIGHT) then doc_node_height(d, i)
+  else if ieq(f, NF_Y) then doc_node_y(d, i)
+  else nget(d, i, f)
+
+implement doc_set(d, i, f, v) =
+  if ieq(f, NF_HEIGHT) then doc_node_set_height(d, i, v)
+  else if ieq(f, NF_Y) then doc_node_set_y(d, i, v)
+  else nset(d, i, f, v)
 
 fun node_room(d: !Doc): void =
   case+ d of
@@ -1208,6 +1248,40 @@ in
 end
 
 implement doc_ver(d) = d_ver(d)
+
+implement doc_layout_version(d) = d_ver(d)
+
+implement doc_layout_cache_match(d, version, key, mode) =
+  case+ d of
+  | @DOC(s) => let
+      val hit = layout_cache_matches(s.lay, version, key, mode)
+    in
+      fold@(d); hit
+    end
+
+implement doc_layout_cache_height(d) =
+  case+ d of
+  | @DOC(s) => let
+      val height = layout_cache_height(s.lay)
+    in
+      fold@(d); height
+    end
+
+implement doc_layout_cache_store(d, version, key, height, mode, wrap) =
+  case+ d of
+  | @DOC(s) => let
+      val () = layout_cache_store(s.lay, version, key, height, mode, wrap)
+    in
+      fold@(d)
+    end
+
+implement doc_layout_cached_wrap(d) =
+  case+ d of
+  | @DOC(s) => let
+      val wrap = layout_wrap(s.lay)
+    in
+      fold@(d); wrap
+    end
 
 implement doc_clear_nodes(d) =
   case+ d of
@@ -1349,6 +1423,13 @@ fun place_one_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, n: in
 
 fun place_one(d: !Doc, n: int, i: int, lh: int): void = place_one_m(airlock_nat(MAX_REC_FUEL), d, n, i, lh)
 
+implement doc_layout_ast_prepare(d, line_height) = let
+  val nodes = d_nnodes(d)
+  val () = clear_hide(d, nodes, 0)
+in
+  place_one(d, nodes, 0, line_height)
+end
+
 extern fun line_hidden_exh(d: !Doc, st: int, en: int, i: int, n: int, saw: Toggle): int = "mac#anth_die_int"
 
 fun line_hidden_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: int, en: int, i: int, n: int, saw: Toggle): int =
@@ -1366,6 +1447,9 @@ fun line_hidden_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st:
 
 fun line_hidden(d: !Doc, st: int, en: int, i: int, n: int, saw: Toggle): int = line_hidden_m(airlock_nat(MAX_REC_FUEL), d, st, en, i, n, saw)
 
+implement doc_layout_line_hidden(d, start, stop, node_count) =
+  line_hidden(d, start, stop, 0, node_count, Off)
+
 extern fun widget_h_exh(d: !Doc, st: int, en: int, i: int, n: int, acc: int): int = "mac#anth_die_int"
 
 fun widget_h_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: int, en: int, i: int, n: int, acc: int): int =
@@ -1382,6 +1466,9 @@ fun widget_h_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: in
   ) else widget_h_exh(d, st, en, i, n, acc)
 
 fun widget_h(d: !Doc, st: int, en: int, i: int, n: int, acc: int): int = widget_h_m(airlock_nat(MAX_REC_FUEL), d, st, en, i, n, acc)
+
+implement doc_layout_widget_height(d, start, stop, node_count) =
+  widget_h(d, start, stop, 0, node_count, 0)
 
 fun line_heading_extra(k: NodeKind, lh: int): int =
   if is_kind(k, KH1) then iadd(idiv(imul(lh, 3), 4), 24)
@@ -1410,130 +1497,8 @@ fun line_heading_pad_m {recfuel:nat} .<recfuel>. (
 fun line_heading_pad(d: !Doc, st: int, en: int, i: int, n: int, lh: int): int =
   line_heading_pad_m(airlock_nat(MAX_REC_FUEL), d, st, en, i, n, lh, 0)
 
-extern fun assign_lines_exh(d: !Doc, lh: int, line: int, y: int, is_read: int, wc: int): int = "mac#anth_die_int"
-
-fun line_calc_step(d: !Doc, line: int, n: int, lh: int, is_read: int, wc: int): int = let
-  val nlines = d_nlines(d)
-  val st = doc_line_start(d, line)
-  val en = if iadd(line, 1) < nlines then doc_line_start(d, iadd(line, 1)) else d_len(d)
-  val raw_len = isub(en, st)
-  val llen = (if igt(raw_len, 0) andalso ieq(doc_byte(d, isub(en, 1)), 10) then isub(raw_len, 1) else raw_len) : int
-  val rows = (if wc > 0 andalso llen > wc then idiv(iadd(llen, isub(wc, 1)), wc) else 1) : int
-  val hid = line_hidden(d, st, en, 0, n, Off)
-  val extra = if ieq(hid, 1) then 0 else widget_h(d, st, en, 0, n, 0)
-  val hpad = (if ieq(hid, 1) orelse ieq(is_read, 0) then 0 else line_heading_pad(d, st, en, 0, n, lh))
-in
-  if ieq(hid, 1) then 0 else iadd(iadd(imul(rows, lh), extra), hpad)
-end
-
-fun assign_lines_m {recfuel:nat} .<recfuel>. (
-  recfuel: int(recfuel), d: !Doc, lh: int, line: int, y: int, is_read: int, wc: int
-): int =
-  if recfuel > 0 then (
-    if ige(line, d_nlines(d)) then y
-    else let
-      val step = line_calc_step(d, line, d_nnodes(d), lh, is_read, wc)
-      val () = line_put(d, line, y, step)
-    in
-      assign_lines_m(recfuel - 1, d, lh, iadd(line, 1), iadd(y, step), is_read, wc)
-    end
-  ) else assign_lines_exh(d, lh, line, y, is_read, wc)
-
-fun assign_lines(d: !Doc, lh: int, line: int, y: int): int =
-  assign_lines_m(airlock_nat(MAX_REC_FUEL), d, lh, line, y, 0, 80)
-
-extern fun stamp_nodes_exh(d: !Doc, lh: int, i: int): void = "mac#anth_die_void"
-
-fun stamp_nodes_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, lh: int, i: int): void =
-  if recfuel > 0 then (
-    if ige(i, d_nnodes(d)) then ()
-    else let
-      val line = doc_line_of(d, doc_node_start(d, i))
-      val ly = doc_line_y(d, line)
-      val k = doc_node_kind(d, i)
-      val y = if is_kind(k, KImage) orelse is_kind(k, KEmbed) then iadd(ly, lh) else ly
-      val () = doc_node_set_y(d, i, y)
-    in
-      stamp_nodes_m(recfuel - 1, d, lh, iadd(i, 1))
-    end
-  ) else stamp_nodes_exh(d, lh, i)
-
-fun stamp_nodes(d: !Doc, lh: int, i: int): void = stamp_nodes_m(airlock_nat(MAX_REC_FUEL), d, lh, i)
-
-extern fun fill_liney_exh(d: !Doc, i: int, nlines: int, lh: int, y: int, wc: int): int = "mac#anth_die_int"
-
-fun plain_line_step(d: !Doc, i: int, lh: int, wc: int): int = let
-  val nlines = d_nlines(d)
-  val st = doc_line_start(d, i)
-  val en = if iadd(i, 1) < nlines then doc_line_start(d, iadd(i, 1)) else d_len(d)
-  val raw_len = isub(en, st)
-  val llen = (if igt(raw_len, 0) andalso ieq(doc_byte(d, isub(en, 1)), 10) then isub(raw_len, 1) else raw_len) : int
-  val rows = (if wc > 0 andalso llen > wc then idiv(iadd(llen, isub(wc, 1)), wc) else 1) : int
-in
-  imul(rows, lh)
-end
-
-fun fill_liney_m {recfuel:nat} .<recfuel>. (
-  recfuel: int(recfuel), d: !Doc, i: int, nlines: int, lh: int, y: int, wc: int
-): int =
-  if recfuel > 0 then (
-    if ilt(i, nlines) then let
-      val step = plain_line_step(d, i, lh, wc)
-      val () = line_put(d, i, y, step)
-    in
-      fill_liney_m(recfuel - 1, d, iadd(i, 1), nlines, lh, iadd(y, step), wc)
-    end else y
-  ) else fill_liney_exh(d, i, nlines, lh, y, wc)
-
-fun fill_plain_lines(d: !Doc, lh: int, nlines: int, wc: int): int =
-  fill_liney_m(airlock_nat(MAX_REC_FUEL), d, 0, nlines, lh, 0, wc)
-
-fun doc_layout_calc(d: !Doc, lh: int, n: int, is_read: int, colw: int): int = let
-  val wc = doc_wrap_cols(colw)
-in
-  if is_off(doc_is_md(d)) orelse ieq(n, 0) then
-    fill_plain_lines(d, lh, d_nlines(d), wc)
-  else let
-    val () = clear_hide(d, n, 0)
-    val () = place_one(d, n, 0, lh)
-    val t = assign_lines_m(airlock_nat(MAX_REC_FUEL), d, lh, 0, 0, is_read, wc)
-    val () = stamp_nodes(d, lh, 0)
-  in
-    t
-  end
-end
-
-implement doc_get_wrap(d) =
-  case+ d of
-  | @DOC(s) => let
-      val v = s.wrap_cols
-    in
-      fold@(d); (if igt(v, 0) then v else 80)
-    end
-
-implement doc_wrap_cols(colw) = let
-  val w = isub(colw, 80)
-in
-  if w <= 180 then 25
-  else imin(120, idiv(w, 9))
-end
-
-implement doc_layout_mode(d, lh0, is_read, colw) = let
-  val lh = if ilt(lh0, 8) then 8 else lh0
-  val cur_ver = doc_ver(d)
-  val wc = doc_wrap_cols(colw)
-  val key_lh = iadd(lh, imul(wc, 1000))
-in
-  if ieq(cur_ver, d_lay_ver(d)) andalso ieq(key_lh, d_lay_lh(d)) andalso ieq(is_read, d_lay_read(d)) then d_lay_h(d)
-  else let
-    val total = doc_layout_calc(d, lh, d_nnodes(d), is_read, colw)
-    val () = d_set_lay(d, cur_ver, key_lh, total, is_read, wc)
-  in
-    total
-  end
-end
-
-implement doc_layout(d, lh0) = doc_layout_mode(d, lh0, 0, 800)
+implement doc_layout_heading_padding(d, start, stop, node_count, line_height) =
+  line_heading_pad(d, start, stop, 0, node_count, line_height)
 
 fun reparse(d: !Doc, at: int, oldlen: int): void = let
   val curlen = d_len(d)
@@ -1790,6 +1755,12 @@ in
   end
 end
 
+implement doc_delete_range(d, start, finish) = let
+  val a=imax(0,imin(doc_len(d),start))
+  val b=imax(a,imin(doc_len(d),finish))
+in if igt(b,a) then let val ()=doc_record(d,OpBreak)
+  in remove_between(d,a,b) end else () end
+
 implement doc_backspace(d) = let
   val () = doc_record(d, OpBreak)
   var a: int = 0
@@ -1871,35 +1842,38 @@ implement doc_home_select(d) = doc_set_caret_extend(d, doc_home_target(d))
 implement doc_end_move(d) = doc_set_caret_move(d, doc_end_target(d))
 implement doc_end_select(d) = doc_set_caret_extend(d, doc_end_target(d))
 
-fun prev_line_target(d: !Doc, prev: int, ls: int, off: int, wc: int): int = let
+fun prev_line_target(d: !Doc, prev: int, ls: int, col_cps: int, wc: int): int = let
   val st = doc_line_start(d, prev)
   val stop = if igt(ls, st) andalso ieq(doc_byte(d, isub(ls, 1)), 10) then isub(ls, 1) else ls
-  val plen = isub(stop, st)
-  val col = (if wc > 0 then imod(off, wc) else off) : int
-  val prow = (if wc > 0 andalso plen > wc then idiv(isub(plen, 1), wc) else 0) : int
+  val plen_cps = doc_codepoints(d, st, stop)
+  val prow = (if wc > 0 andalso igt(plen_cps, wc) then idiv(isub(plen_cps, 1), wc) else 0) : int
+  val target_cps = imin(plen_cps, iadd(imul(prow, wc), col_cps))
 in
-  utf8_align(d, imin(iadd(st, iadd(imul(prow, wc), col)), stop))
+  doc_advance_cps(d, st, stop, target_cps)
 end
 
 fun doc_up_target(d: !Doc): int = let
   val c = d_caret(d)
   val line = doc_line_of(d, c)
   val ls = doc_line_start(d, line)
-  val off = isub(c, ls)
+  val cur_cps = doc_codepoints(d, ls, c)
   val wc = doc_get_wrap(d)
+  val col_cps = (if wc > 0 then imod(cur_cps, wc) else cur_cps) : int
 in
-  if wc > 0 andalso off >= wc then utf8_align(d, isub(c, wc))
+  if wc > 0 andalso ige(cur_cps, wc) then
+    doc_advance_cps(d, ls, c, isub(cur_cps, wc))
   else if line <= 0 then 0
-  else prev_line_target(d, isub(line, 1), ls, off, wc)
+  else prev_line_target(d, isub(line, 1), ls, col_cps, wc)
 end
 
-fun next_line_target(d: !Doc, n: int, next_line: int, off: int, wc: int): int = let
+fun next_line_target(d: !Doc, n: int, next_line: int, col_cps: int, wc: int): int = let
   val st = doc_line_start(d, next_line)
   val en = if iadd(next_line, 1) >= n then d_len(d) else doc_line_start(d, iadd(next_line, 1))
   val stop = if igt(en, st) andalso ieq(doc_byte(d, isub(en, 1)), 10) then isub(en, 1) else en
-  val col = (if wc > 0 then imod(off, wc) else off) : int
+  val nlen_cps = doc_codepoints(d, st, stop)
+  val target_cps = imin(nlen_cps, col_cps)
 in
-  utf8_align(d, imin(iadd(st, col), stop))
+  doc_advance_cps(d, st, stop, target_cps)
 end
 
 fun doc_down_target(d: !Doc): int = let
@@ -1909,13 +1883,16 @@ fun doc_down_target(d: !Doc): int = let
   val ls = doc_line_start(d, line)
   val en0 = if iadd(line, 1) < n then doc_line_start(d, iadd(line, 1)) else d_len(d)
   val stop0 = if igt(en0, ls) andalso ieq(doc_byte(d, isub(en0, 1)), 10) then isub(en0, 1) else en0
-  val llen = isub(stop0, ls)
-  val off = isub(c, ls)
+  val total_cps = doc_codepoints(d, ls, stop0)
+  val cur_cps = doc_codepoints(d, ls, c)
   val wc = doc_get_wrap(d)
+  val col_cps = (if wc > 0 then imod(cur_cps, wc) else cur_cps) : int
+  val down_cps = iadd(cur_cps, wc)
 in
-  if wc > 0 andalso iadd(off, wc) < llen then utf8_align(d, iadd(c, wc))
+  if wc > 0 andalso ilt(down_cps, total_cps) then
+    doc_advance_cps(d, ls, stop0, down_cps)
   else if iadd(line, 1) >= n then d_len(d)
-  else next_line_target(d, n, iadd(line, 1), off, wc)
+  else next_line_target(d, n, iadd(line, 1), col_cps, wc)
 end
 
 implement doc_up_move(d) = doc_set_caret_move(d, doc_up_target(d))

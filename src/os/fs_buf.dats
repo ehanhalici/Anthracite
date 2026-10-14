@@ -16,3 +16,4 @@ implement fs_vfs_buf(path, dst, dstmax) = fs_vfs_path(path, buf_ptr(dst), dstmax
 implement c_cwd_buf(dst, n) = c_cwd(buf_ptr(dst), n)
 
 implement c_fc_font_buf(dst, n) = c_fc_font(buf_ptr(dst), n)
+implement c_fc_arabic_font_buf(dst, n) = c_fc_arabic_font(buf_ptr(dst), n)

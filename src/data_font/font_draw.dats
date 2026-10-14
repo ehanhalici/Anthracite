@@ -9,6 +9,10 @@ staload "flag.sats"
 staload "os/fs.sats"
 staload "core_render/render.sats"
 staload "data_font/font.sats"
+staload "data_font/private/font_text_dispatch.sats"
+%{#
+#include "data_font/arabic.cats"
+%}
 
 
 
@@ -34,6 +38,15 @@ in
   (b0 - 224) * 4096 + (b1 - 128) * 64 + (b2 - 128)
 end
 
+fun utf8_4byte(p: ptr, n: int, i: &int, b0: int): int = let
+  val b1 = byte_at(p, n, i + 1)
+  val b2 = byte_at(p, n, i + 2)
+  val b3 = byte_at(p, n, i + 3)
+  val () = i := i + 4
+in
+  (b0 - 240) * 262144 + (b1 - 128) * 4096 + (b2 - 128) * 64 + (b3 - 128)
+end
+
 fun utf8_next(p: ptr, n: int, i: &int): int = let
   val b0 = byte_at(p, n, i)
 in
@@ -43,6 +56,7 @@ in
     b0
   end else if u_land(b0, 224) = 192 andalso i + 1 < n then utf8_2byte(p, n, i, b0)
   else if u_land(b0, 240) = 224 andalso i + 2 < n then utf8_3byte(p, n, i, b0)
+  else if u_land(b0, 248) = 240 andalso i + 3 < n then utf8_4byte(p, n, i, b0)
   else let
     val () = i := i + 1
   in
@@ -101,10 +115,10 @@ fun draw_scaled_loop_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Fon
 
 fun draw_scaled_loop(f: !Font, r: !Rend, x0: int, y0: int, p: ptr, n: int, c: uint, i: int, pen: int, prev: int, snum: int, sden: int): int = draw_scaled_loop_m(airlock_nat(MAX_REC_FUEL), f, r, x0, y0, p, n, c, i, pen, prev, snum, sden)
 
-implement font_draw(f, r, x, y, p, n, c) =
+implement font_legacy_draw(f, r, x, y, p, n, c) =
   if n <= 0 then 0 else draw_scaled_loop(f, r, x, y, p, n, c, 0, x, 0, 1, 1)
 
-implement font_draw_scaled(f, r, x, y, p, n, c, snum, sden) =
+implement font_legacy_draw_scaled(f, r, x, y, p, n, c, snum, sden) =
   if n <= 0 then 0 else draw_scaled_loop(f, r, x, y, p, n, c, 0, x, 0, (if snum > 0 then snum else 1), (if sden > 0 then sden else 1))
 
 extern fun width_scaled_loop_exh(f: !Font, r: !Rend, p: ptr, n: int, i: int, pen: int, prev: int, snum: int, sden: int): int = "mac#anth_die_int"
@@ -126,20 +140,26 @@ fun width_scaled_loop_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Fo
 
 fun width_scaled_loop(f: !Font, r: !Rend, p: ptr, n: int, i: int, pen: int, prev: int, snum: int, sden: int): int = width_scaled_loop_m(airlock_nat(MAX_REC_FUEL), f, r, p, n, i, pen, prev, snum, sden)
 
-implement font_width(f, r, p, n) =
+implement font_legacy_width(f, r, p, n) =
   if n <= 0 then 0 else width_scaled_loop(f, r, p, n, 0, 0, 0, 1, 1)
 
-implement font_draw_buf(f, r, x, y, b, n, c) =
-  font_draw(f, r, x, y, buf_ptr(b), n, c)
+extern fun anth_font_draw_buf_c(f: !Font, r: !Rend, x: int, y: int, p: ptr, n: int, c: uint): int = "mac#anth_font_draw_buf"
+extern fun anth_font_width_buf_c(f: !Font, r: !Rend, p: ptr, n: int): int = "mac#anth_font_width_buf"
 
-implement font_draw_at(f, r, x, y, b, i, n, c) =
-  font_draw(f, r, x, y, mem_ptr_at(buf_ptr(b), buf_cap(b), i), n, c)
+implement font_legacy_draw_buf(f, r, x, y, b, n, c) =
+  anth_font_draw_buf_c(f, r, x, y, buf_ptr(b), n, c)
 
-implement font_draw_scaled_buf(f, r, x, y, b, n, c, snum, sden) =
-  font_draw_scaled(f, r, x, y, buf_ptr(b), n, c, snum, sden)
+implement font_legacy_draw_at(f, r, x, y, b, i, n, c) =
+  anth_font_draw_buf_c(f, r, x, y, mem_ptr_at(buf_ptr(b), buf_cap(b), i), n, c)
 
-implement font_width_buf(f, r, b, n) =
-  font_width(f, r, buf_ptr(b), n)
+implement font_legacy_draw_scaled_buf(f,r,x,y,b,n,c,num,den) =
+  font_legacy_draw_scaled(f,r,x,y,buf_ptr(b),n,c,num,den)
+
+implement font_legacy_width_buf(f, r, b, n) =
+  anth_font_width_buf_c(f, r, buf_ptr(b), n)
 
 extern fun anth_font_width_exp(f: !Font, r: !Rend, p: ptr, n: int): int = "mac#anth_font_width"
 implement anth_font_width_exp(f, r, p, n) = font_width(f, r, p, n)
+
+extern fun anth_font_draw_exp(f: !Font, r: !Rend, x: int, y: int, p: ptr, n: int, c: uint): int = "mac#anth_font_draw"
+implement anth_font_draw_exp(f, r, x, y, p, n, c) = font_draw(f, r, x, y, p, n, c)

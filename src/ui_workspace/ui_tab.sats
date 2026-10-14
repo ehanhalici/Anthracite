@@ -24,6 +24,8 @@ fun tabs_open_at(ts: Tabs, idx: int, path: Buf): Tabs
 fun tabs_detach(ts: Tabs, i: int): Pair
 fun tabs_link(one: Tabs, ts: Tabs): Tabs
 fun tabs_insert(ts: Tabs, i: int, one: Tabs): Tabs
+fun tabs_move(ts: Tabs, from_i: int, to_i: int): Tabs
+fun tabs_clone_tab(ts: Tabs, idx: int): Tabs
 fun tabs_toggle(ts: Tabs, idx: int, ni: int): Tabs
 fun tabs_toggle_task(ts: Tabs, idx: int, ni: int): Tabs
 fun tabs_sync_vfs(ts: !Tabs, idx: int): void

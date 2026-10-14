@@ -11,6 +11,7 @@ absviewtype Font = ptr
 fun font_open(): Font
 fun font_free(f: Font): void
 fun font_use_file(f: !Font, path: string): bool
+fun font_use_fallback_file(f: !Font, path: string): bool
 fun font_load_default(f: !Font): bool
 fun font_has_ttf(f: !Font): Toggle
 fun font_set_px(f: !Font, px: int): void
