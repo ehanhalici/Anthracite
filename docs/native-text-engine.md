@@ -1425,3 +1425,47 @@ bitmap/atlas limits). Component grid fitting, phantom-point attachments,
 `USE_MY_METRICS` processing, TrueType instruction execution, variable fonts and
 CFF are not newly implemented by this stage. Component flags are parsed
 explicitly; parsing them does not imply these capabilities are implemented.
+
+## Build profile, verification and performance checkpoint (2026-10-15)
+
+Verification had been run against stale test executables: `cmake --build`
+does not rebuild `EXCLUDE_FROM_ALL` test targets, so earlier "77/77" results
+partly reflected binaries from older sources. All 39 test targets were rebuilt
+from the current tree. Three real defects surfaced and are fixed:
+
+- `native_text_assets_conformance` did not link the UTF-8 objects (clean build
+  failed at link time).
+- Eleven stress tests summed errors with `iadd(e, f(n-1, ...))`, which is not a
+  tail call. Under `-O0` a 32K-65K step scan exhausted the 8 MB stack. Each
+  recursion now carries an accumulator (same errors, constant stack).
+- The vendored progressive JPEG decoder used `assert`, which `-DNDEBUG`
+  removes; `STBI_ASSERT` now aborts in every build type.
+
+FeatureParams are validated per the OpenType 1.9.1 field layouts; see the
+topology section above. The full CTest suite (77/77) passes in both profiles,
+and the four application selftests report `live=1530113`.
+
+Performance. The default profile is now Release (`-O2`, ThinLTO). Measured under
+Xvfb with software GL on the 94 KB note:
+
+| Metric | Debug (before) | Release (default) |
+| --- | --- | --- |
+| First presented frame | 135-140 ms | 13-15 ms |
+| `start_ms` (selftest) | 41-55 ms | 49-55 ms (unchanged) |
+
+Startup is dominated by GL context and Mesa/llvmpipe initialization, which the
+application does not control. Resident memory (about 110 MB) is mostly the
+software GL stack: `libLLVM` 55 MB and `libgallium` 13 MB are file-backed pages;
+application anonymous memory is about 31 MB. The 5-12 MB idle target therefore
+cannot be measured meaningfully in this environment without a hardware driver.
+
+A `gprof` startup profile (25 runs summed) puts about 38% of CPU in search-index
+construction (`ix_fold_range_doc`, `ix_bloom_set_trigram`). That work is already
+time-sliced at 3 ms per event-loop step, so it does not extend startup latency.
+Inline parsing (`inl_parse_depth`) and block parsing account for most of the
+rest; both are per-character scans and are not restructured here.
+
+Remaining: structural cold-layout snapshots (see the earlier checkpoints),
+FeatureVariations, the symbol-face policy and the specialized-block wrapping
+work are unchanged by this checkpoint. `.idea/` and `scripts/` remain untracked
+local files.
