@@ -35,6 +35,7 @@ staload "search/ix_query.sats"
 staload "search/ix_build.sats"
 staload "search/ix_match.sats"
 staload "search/ix_test.sats"
+staload "ui_workspace/editor_fsm.sats"
 
 fun iand(a: int, n: int): int = anth_iand(a, n)
 
@@ -3632,7 +3633,7 @@ implement app_selftest(r) = let
   val search_ok = if ieq(selftest_search(d1), 1) andalso ieq(ix_selftest(), 1) then 1 else 0
   val @(flow_ok, ih, doc, cache, vault, scratch) = selftest_flow(r)
   val chrome_ok = selftest_tabs(d1)
-  val files_ok = selftest_files()
+  val files_ok = if ieq(selftest_files(), 1) andalso ieq(editor_fsm_selftest(), 1) then 1 else 0
   val () = selftest_draw(r, doc, cache, vault, scratch)
   val () = buf_free(d1)
 in
