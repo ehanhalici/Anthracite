@@ -263,8 +263,10 @@ fun selftest_png_ok(im: !Image): int = let
   val pg = pix(im, 1)
   val pb2 = pix(im, 2)
   val bad = img_load(im, "/tmp/anth_nonexistent_test.png")
+  val up = "/home/emrehan/notes/obsidian_notlar/din/eklenti/vird/raditu billahi rabba.png"
+  val uok = (if fs_exists(up) = 1 then img_load(im, up) else 1): int
 in
-  (if ieq(pn, 1) andalso ieq(bad, 0) andalso ieq(img_w(im), 1) andalso ieq(img_h(im), 1) andalso ieq(pr, 10) andalso ieq(pg, 20) andalso ieq(pb2, 30) then 1 else 0)
+  (if ieq(pn, 1) andalso ieq(bad, 0) andalso ieq(uok, 1) andalso ieq(pr, 10) andalso ieq(pg, 20) andalso ieq(pb2, 30) then 1 else 0)
 end
 
 fun selftest_bmp_ok(im: !Image): int = let

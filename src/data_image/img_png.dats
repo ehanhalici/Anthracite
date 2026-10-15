@@ -254,7 +254,7 @@ extern fun symloop_exh(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >
 
 fun symloop_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int =
   if recfuel > 0 then (
-    if igt(buf_len(dst), 4000000) orelse is_on(st.err) then 0
+    if igt(buf_len(dst), 16000000) orelse is_on(st.err) then 0
     else let
       val s = hdec(src, n, st, tab, LC, LS)
       val k = sym_kind(s)
@@ -355,7 +355,7 @@ extern fun fill_rep_exh(tab: !Buf, i: int, nlen: int, rep: int, v: int, k: int):
 
 fun fill_rep_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), tab: !Buf, i: int, nlen: int, rep: int, v: int, k: int): int =
   if recfuel > 0 then (
-    if ige(k, rep) then i
+    if ige(k, rep) then iadd(i, rep)
     else if ige(iadd(i, k), nlen) then ~1
     else let
       val () = buf_set32(tab, iadd(LN, iadd(i, k)), v)
@@ -518,7 +518,7 @@ fun blocks(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int = 
 fun inflate(src: !Buf, n: int, dst: &Buf >> _): int = let
   val cmf = buf_get(src, 0)
   val flg = buf_get(src, 1)
-  val tab = buf_make(3200)
+  val tab = buf_make(16384)
   var st: BitS = @{p= 2, nb= 0, acc= 0, err= Off}
   val () = if iand(flg, 32) <> 0 then st.p := iadd(st.p, 4) else ()
   val ok = if ine(iand(cmf, 15), 8) then 0 else blocks(src, n, st, tab, dst)
@@ -684,19 +684,8 @@ fun expand_or(raw: !Buf, dst: &Buf >> _, w: int, h: int, kind: int, go: Toggle):
     seal(dst)
   end
 
-extern fun png_copy_exh(src: !Buf, idat: &Buf >> _, data: int, ln: int, i: int): void = "mac#anth_die_void"
-
-fun png_copy_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, idat: &Buf >> _, data: int, ln: int, i: int): void =
-  if recfuel > 0 then (
-    if ige(i, ln) then ()
-    else let
-      val () = buf_push(idat, buf_get(src, iadd(data, i)))
-    in
-      png_copy_m(recfuel - 1, src, idat, data, ln, iadd(i, 1))
-    end
-  ) else png_copy_exh(src, idat, data, ln, i)
-
-fun png_copy(src: !Buf, idat: &Buf >> _, data: int, ln: int, i: int): void = png_copy_m(airlock_nat(MAX_REC_FUEL), src, idat, data, ln, i)
+fun png_copy(src: !Buf, idat: &Buf >> _, data: int, ln: int): void =
+  buf_append_at(idat, src, data, ln)
 
 fun png_ihdr(src: !Buf, data: int, w: &int >> _, h: &int >> _, kind: &int >> _, depth: &int >> _, inter: &int >> _): void = let
   val () = w := be32(src, data)
@@ -736,7 +725,7 @@ fun png_chunks_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, id
       val nxt = iadd(data, iadd(ln, 4))
       val tag = png_tag(src, p, ln, data, nxt)
       val () = if is_tag(tag, TagIhdr) then png_ihdr(src, data, w, h, kind, depth, inter) else ()
-      val () = if is_tag(tag, TagIdat) then png_copy(src, idat, data, ln, 0) else ()
+      val () = if is_tag(tag, TagIdat) then png_copy(src, idat, data, ln) else ()
     in
       if is_tag(tag, TagBad) then 0
       else if is_tag(tag, TagIend) then 1
