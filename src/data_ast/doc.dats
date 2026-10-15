@@ -1261,6 +1261,117 @@ implement doc_clear_nodes(d) =
       fold@(d)
     end
 
+fun find_next_block_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), d: !Doc, i: int, n: int, start_after: int
+): int =
+  if recfuel > 0 then (
+    if ige(i, n) then ~1
+    else if ilt(doc_node_start(d, i), start_after) then
+      find_next_block_m(recfuel - 1, d, iadd(i, 1), n, start_after)
+    else let
+      val k = doc_node_kind(d, i)
+    in
+      if is_inline(k) orelse is_kind(k, KUl) orelse is_kind(k, KOl) then
+        find_next_block_m(recfuel - 1, d, iadd(i, 1), n, start_after)
+      else i
+    end
+  ) else ~1
+
+fun find_next_block(d: !Doc, i: int, n: int, start_after: int): int =
+  find_next_block_m(airlock_nat(MAX_REC_FUEL), d, i, n, start_after)
+
+fun node_indent_cols_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), d: !Doc, p: int, len: int, c: int
+): int =
+  if recfuel > 0 then (
+    if ige(p, len) then c
+    else let
+      val b = doc_byte(d, p)
+    in
+      if ieq(b, 32) then node_indent_cols_m(recfuel - 1, d, iadd(p, 1), len, iadd(c, 1))
+      else if ieq(b, 9) then node_indent_cols_m(recfuel - 1, d, iadd(p, 1), len, iadd(c, 4))
+      else c
+    end
+  ) else c
+
+fun node_indent(d: !Doc, i: int): int = let
+  val st = doc_node_start(d, i)
+  val len = d_len(d)
+  val dp = doc_node_depth(d, i)
+  val cols = node_indent_cols_m(airlock_nat(MAX_REC_FUEL), d, st, len, 0)
+in
+  iadd(imul(dp, 4), cols)
+end
+
+fun compute_node_is_foldable(d: !Doc, i: int, n: int, k: NodeKind): bool =
+  if is_heading(k) then true
+  else if not(kind_is_block(k)) then false
+  else if is_kind(k, KUl) orelse is_kind(k, KOl) orelse is_kind(k, KTable)
+       orelse is_kind(k, KTableRow) orelse is_kind(k, KTableCell)
+       orelse is_kind(k, KTableDelim) orelse is_kind(k, KCalloutHead) then false
+  else let
+    val nxt = find_next_block(d, iadd(i, 1), n, doc_node_end(d, i))
+  in
+    if nxt < 0 then false
+    else igt(node_indent(d, nxt), node_indent(d, i))
+  end
+
+fun hide_indented_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), d: !Doc, i: int, n: int, base_ind: int
+): void =
+  if recfuel > 0 then (
+    if ige(i, n) then ()
+    else let
+      val k = doc_node_kind(d, i)
+    in
+      if kind_is_block(k) andalso ile(node_indent(d, i), base_ind) then ()
+      else let
+        val () = doc_node_set_hidden(d, i, On)
+        val () = doc_node_set_height(d, i, 0)
+      in
+        hide_indented_m(recfuel - 1, d, iadd(i, 1), n, base_ind)
+      end
+    end
+  ) else ()
+
+fun hide_indented(d: !Doc, i: int, n: int, base_ind: int): void =
+  hide_indented_m(airlock_nat(MAX_REC_FUEL), d, i, n, base_ind)
+
+fun set_foldable_flag(fl: int, foldable: bool): int =
+  if foldable then (
+    if ieq(iand(fl, FL_FOLDABLE), 0) then iadd(fl, FL_FOLDABLE) else fl
+  ) else (
+    if ine(iand(fl, FL_FOLDABLE), 0) then isub(fl, FL_FOLDABLE) else fl
+  )
+
+extern fun doc_compute_foldability_exh(d: !Doc, i: int, n: int): void = "mac#anth_die_void"
+
+fun doc_compute_foldability_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), d: !Doc, i: int, n: int
+): void =
+  if recfuel > 0 then (
+    if i >= n then ()
+    else let
+      val k = doc_node_kind(d, i)
+      val fl = doc_node_flags(d, i)
+      val foldable = compute_node_is_foldable(d, i, n, k)
+      val new_fl = set_foldable_flag(fl, foldable)
+      val () = nset(d, i, NF_FLAGS, new_fl)
+    in
+      doc_compute_foldability_m(recfuel - 1, d, iadd(i, 1), n)
+    end
+  ) else doc_compute_foldability_exh(d, i, n)
+
+implement doc_compute_foldability(d) =
+  doc_compute_foldability_m(airlock_nat(MAX_REC_FUEL), d, 0, d_nnodes(d))
+
+implement doc_is_foldable(d, i) = let
+  val n = d_nnodes(d)
+in
+  if i < 0 orelse i >= n then false
+  else iand(doc_node_flags(d, i), FL_FOLDABLE) != 0
+end
+
 extern fun fold_apply_exh(d: !Doc, i: int, n: int): void = "mac#anth_die_void"
 
 fun fold_apply_m {recfuel:nat} .<recfuel>. (
@@ -1269,8 +1380,7 @@ fun fold_apply_m {recfuel:nat} .<recfuel>. (
   if recfuel > 0 then (
     if i >= n then ()
     else let
-      val k = doc_node_kind(d, i)
-      val () = if is_heading(k) then let
+      val () = if doc_is_foldable(d, i) then let
         val st = doc_node_start(d, i)
         val col = if fold_has(d, st) then On else Off
       in
@@ -1283,6 +1393,7 @@ fun fold_apply_m {recfuel:nat} .<recfuel>. (
 
 fun fold_apply(d: !Doc): void =
   fold_apply_m(airlock_nat(MAX_REC_FUEL), d, 0, d_nnodes(d))
+
 
 extern fun hide_until_exh(d: !Doc, i: int, n: int, hk: NodeKind): void = "mac#anth_die_void"
 
@@ -1380,8 +1491,10 @@ fun place_one_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, n: in
       val h = node_height(d, i, lh)
       val () = doc_node_set_height(d, i, h)
       val () =
-        if is_heading(k) andalso is_on(doc_node_collapsed(d, i)) then hide_until(d, iadd(i, 1), n, k)
-        else if (is_kind(k, KLi) orelse is_kind(k, KTask)) andalso is_on(doc_node_collapsed(d, i)) then hide_list(d, iadd(i, 1), n, doc_node_depth(d, i))
+        if is_heading(k) andalso is_on(doc_node_collapsed(d, i)) then
+          hide_until(d, iadd(i, 1), n, k)
+        else if is_on(doc_node_collapsed(d, i)) andalso iand(doc_node_flags(d, i), FL_FOLDABLE) != 0 then
+          hide_indented(d, iadd(i, 1), n, node_indent(d, i))
         else ()
     in
       place_one_m(recfuel - 1, d, n, iadd(i, 1), lh)
@@ -1392,6 +1505,7 @@ fun place_one(d: !Doc, n: int, i: int, lh: int): void = place_one_m(airlock_nat(
 
 implement doc_layout_ast_prepare(d, line_height) = let
   val nodes = d_nnodes(d)
+  val () = doc_compute_foldability(d)
   val () = clear_hide(d, nodes, 0)
 in
   place_one(d, nodes, 0, line_height)
@@ -1510,6 +1624,7 @@ fun reparse(d: !Doc, at: int, oldlen: int): void = let
   val ins_bytes = (if igt(delta, 0) then delta else 0)
   val () = lines_apply_edit(d, at, del_bytes, ins_bytes)
   val () = ast_reparse_v2(d, at, del_bytes, ins_bytes)
+  val () = doc_compute_foldability(d)
 in
   fold_apply(d)
 end
@@ -1700,6 +1815,7 @@ end
 fun doc_insert_reparse(d: !Doc, at: int, n: int, old: int, delta: int): void = let
   val () = lines_apply_edit(d, at, 0, n)
   val () = ast_reparse_v2(d, at, 0, n)
+  val () = doc_compute_foldability(d)
   val () = seen_int(old); val () = seen_int(delta)
 in
   fold_apply(d)
@@ -2323,54 +2439,15 @@ fun doc_foldable_target_m {recfuel:nat} .<recfuel>. (
 ): int =
   if recfuel > 0 then (
     if i < 0 orelse i >= n then ~1
+    else if doc_is_foldable(d, i) then i
     else let
-      val k = doc_node_kind(d, i)
+      val p = doc_node_parent(d, i)
     in
-      if is_heading(k) orelse is_kind(k, KLi) orelse is_kind(k, KTask) then i
-      else let
-        val p = doc_node_parent(d, i)
-      in
-        if ige(p, 0) andalso ilt(p, n) then doc_foldable_target_m(recfuel - 1, d, p, n)
-        else i
-      end
-    end
-  ) else i
-
-fun find_next_block_m {recfuel:nat} .<recfuel>. (
-  recfuel: int(recfuel), d: !Doc, i: int, n: int, start_after: int
-): int =
-  if recfuel > 0 then (
-    if ige(i, n) then ~1
-    else if ilt(doc_node_start(d, i), start_after) then
-      find_next_block_m(recfuel - 1, d, iadd(i, 1), n, start_after)
-    else let
-      val k = doc_node_kind(d, i)
-    in
-      if is_inline(k) orelse is_kind(k, KUl) orelse is_kind(k, KOl) then
-        find_next_block_m(recfuel - 1, d, iadd(i, 1), n, start_after)
-      else i
+      if ige(p, 0) andalso ilt(p, n) then doc_foldable_target_m(recfuel - 1, d, p, n)
+      else ~1
     end
   ) else ~1
 
-fun find_next_block(d: !Doc, i: int, n: int, start_after: int): int =
-  find_next_block_m(airlock_nat(MAX_REC_FUEL), d, i, n, start_after)
-
-implement doc_is_foldable(d, i) = let
-  val n = d_nnodes(d)
-in
-  if i < 0 orelse i >= n then false
-  else let
-    val k = doc_node_kind(d, i)
-  in
-    if is_heading(k) then true
-    else let
-      val nxt = find_next_block(d, iadd(i, 1), n, doc_node_end(d, i))
-    in
-      if nxt < 0 then false
-      else igt(doc_node_depth(d, nxt), doc_node_depth(d, i))
-    end
-  end
-end
 
 implement doc_toggle(d, i0) = let
   val n = d_nnodes(d)

@@ -24,6 +24,7 @@ macdef FL_EXTERNAL = 2048
 macdef FL_TRUNCATED = 4096
 macdef FL_ERROR = 8192
 macdef FL_ALIGN_SHIFT = 13
+macdef FL_FOLDABLE = 16384
 
 macdef STYLE_BOLD = 1
 macdef STYLE_ITALIC = 2
