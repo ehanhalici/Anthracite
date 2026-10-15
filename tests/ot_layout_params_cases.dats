@@ -173,11 +173,17 @@ fun absent_and_invalid(): int = let
   val ()=buf_free(b)
 in iadd(e1,e2) end
 
+staload "data_font/ot_feature_variations_types.sats"
+staload "data_font/ot_feature_variations.sats"
+staload "data_font/ot_item_variation_types.sats"
+staload "data_font/ot_item_variation.sats"
+
 (* Topology: a FeatureList with one feature record, whose FeatureParams
    offset (4) follows the feature table header. *)
 fun info_of(b: !Buf): OtLayoutInfo = let val s=ot_fixture_span(b) in
   @{span=s,scripts= @{span=s,header=0,count=0},features= @{span=s,header=2,count=1},
-    lookups= @{offset=0,length=0},lookupCount=0} end
+    lookups= @{offset=0,length=0},lookupCount=0,
+    variations= @{kind=ChildMissing(),span= @{offset=0,length=0}}} end
 fun topo_accepted(words: string): int = let
   val b=ot_fixture_words(words)
   val e=case+ ot_features_validate(b,info_of(b)) of | ~Some_vt(_) => 1 | ~None_vt() => 0
@@ -196,11 +202,59 @@ fun topology(): int =
   +topo_rejected("0001 7369 7A65 0008 0004 0000 0258 0003 0010 0005 0028",OtFormat())
   +topo_accepted("0001 6B65 726E 0008 0004 0000 1234 5678 9ABC DEF0 1122")
 
+fun fvar_test_eval(b: !Buf, vinfo: OtFeatureVariationsInfo): int = let
+  val c_in = ot_fixture_words("2000")
+  val c_out = ot_fixture_words("6000")
+  val act_in = ot_feature_variations_active_subst(b, vinfo, c_in, 1)
+  val act_out = ot_feature_variations_active_subst(b, vinfo, c_out, 1)
+  val e1 = case+ act_in.kind of
+    | ChildPresent() => let
+        val alt = ot_feature_table_subst_find(b, act_in.span, 0)
+      in case+ alt.kind of
+        | ChildPresent() => if ieq(ot_u16(b, alt.span, 2), 1) andalso ieq(ot_u16(b, alt.span, 4), 5) then 0 else 1
+        | _ => 1 end
+    | _ => 1
+  val e2 = case+ act_out.kind of | ChildMissing() => 0 | _ => 1
+  val () = buf_free(c_in) and () = buf_free(c_out)
+in iadd(e1, e2) end
+
+fun fvar_cases(): int = let
+  val b = ot_fixture_words("0001 0000 0000 0001 0000 0010 0000 0020 0001 0000 0006 0001 0000 0000 4000 0000 0001 0000 0001 0000 0000 000C 0000 0001 0005")
+  val s = ot_fixture_span(b)
+  val err = case+ ot_feature_variations_parse(b, s) of
+    | ~FeatureVariationsRejected(_) => 1
+    | ~FeatureVariationsAccepted(vinfo) => fvar_test_eval(b, vinfo)
+  val () = buf_free(b)
+in err end
+
+fun ivar_test_eval(b: !Buf, store: OtItemVarStoreInfo): int = let
+  val c_peak = ot_fixture_words("4000")
+  val c_half = ot_fixture_words("2000")
+  val c_zero = ot_fixture_words("0000")
+  val d_peak0 = ot_item_var_store_delta(b, store, 0, 0, c_peak, 1)
+  val d_peak1 = ot_item_var_store_delta(b, store, 0, 1, c_peak, 1)
+  val d_half0 = ot_item_var_store_delta(b, store, 0, 0, c_half, 1)
+  val d_half1 = ot_item_var_store_delta(b, store, 0, 1, c_half, 1)
+  val d_zero = ot_item_var_store_delta(b, store, 0, 0, c_zero, 1)
+  val ok = ieq(d_peak0, 100) andalso ieq(d_peak1, ~100) andalso ieq(d_half0, 50) andalso ieq(d_half1, ~50) andalso ieq(d_zero, 0)
+  val () = buf_free(c_peak) and () = buf_free(c_half) and () = buf_free(c_zero)
+in if ok then 0 else 1 end
+
+fun ivar_cases(): int = let
+  val b = ot_fixture_words("0001 0000 000C 0001 0000 001A 0001 0001 0000 4000 4000 0000 0000 0002 0001 0001 0000 0064 FF9C")
+  val s = ot_fixture_span(b)
+  val err = case+ ot_item_var_store_parse(b, s) of
+    | ~ItemVarStoreRejected(_) => 1
+    | ~ItemVarStoreAccepted(store) => ivar_test_eval(b, store)
+  val () = buf_free(b)
+in err end
+
 implement layout_test_params() = let
   val size=size_valid()+size_no_subfamily()+size_rejections()
   val stylistic=stylistic_valid()+stylistic_minor()+stylistic_short()
   val variant=variant_valid()+variant_rejections()+truncations()
   val other=opaque_tags()+absent_and_invalid()+topology()
+  val variations=fvar_cases()+ivar_cases()
   val ()=println!("event=ot_layout_params size_errors=",size," stylistic_errors=",stylistic,
-    " variant_errors=",variant," other_errors=",other)
-in size+stylistic+variant+other end
+    " variant_errors=",variant," other_errors=",other," variations_errors=",variations)
+in size+stylistic+variant+other+variations end

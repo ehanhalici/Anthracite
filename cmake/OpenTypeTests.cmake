@@ -1,5 +1,5 @@
 file(GLOB OT_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/opentype_*.dats"
-  "${CMAKE_SOURCE_DIR}/src/data_font/gdef_*.dats")
+  "${CMAKE_SOURCE_DIR}/src/data_font/gdef_*.dats" "${CMAKE_SOURCE_DIR}/src/data_font/ot_item_*.dats")
 set(OT_C_SOURCES "")
 foreach(SOURCE ${OT_SOURCES})
   get_filename_component(MODULE "${SOURCE}" NAME_WE)

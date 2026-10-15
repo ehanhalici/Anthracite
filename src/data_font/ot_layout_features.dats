@@ -41,11 +41,16 @@ fun validate {n:nat} .<n>. (n: int(n),b: !Buf,info: OtLayoutInfo,index: int,rema
     | ~Some_vt(e) => Some_vt(e)
     | ~None_vt() => validate(n-1,b,info,iadd(index,1),remaining) end
 
+staload "data_font/ot_feature_variations_types.sats"
+staload "data_font/ot_feature_variations.sats"
+
 implement ot_features_work(b,info,remaining) =
   if not(ot_layout_charge(remaining,info.features.count)) then Some_vt(ot_error(OtCapacity(),info.features.span))
   else
   if not(ot_records_repeated(b,info.features)) then Some_vt(ot_error(OtOrder(),info.features.span))
-  else validate(airlock_nat(info.features.count),b,info,0,remaining)
+  else case+ validate(airlock_nat(info.features.count),b,info,0,remaining) of
+    | ~Some_vt(e) => Some_vt(e)
+    | ~None_vt() => ot_feature_variations_validate(b,info,remaining)
 
 implement ot_features_validate(b,info) = let var remaining: int=MAX_REC_FUEL in
   ot_features_work(b,info,remaining) end

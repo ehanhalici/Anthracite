@@ -1,5 +1,6 @@
 file(GLOB OT_LAYOUT_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/ot_layout_*.dats"
-  "${CMAKE_SOURCE_DIR}/src/data_font/ot_shape_*.dats" "${CMAKE_SOURCE_DIR}/src/data_font/ot_feature_*.dats")
+  "${CMAKE_SOURCE_DIR}/src/data_font/ot_shape_*.dats" "${CMAKE_SOURCE_DIR}/src/data_font/ot_feature_*.dats"
+  "${CMAKE_SOURCE_DIR}/src/data_font/ot_item_*.dats")
 set(OT_LAYOUT_C_SOURCES "")
 foreach(SOURCE ${OT_LAYOUT_SOURCES})
   get_filename_component(MODULE "${SOURCE}" NAME_WE)

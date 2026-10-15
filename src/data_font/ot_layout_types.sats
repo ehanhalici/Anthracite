@@ -9,7 +9,7 @@ datatype OtLookupKind(int) =
 (* Four printable ASCII bytes are serialization data, not string-valued modes. *)
 typedef OtTag = @{code=int}
 typedef OtRecordList = @{span=OtSpan,header=int,count=int}
-typedef OtLayoutInfo = @{span=OtSpan,scripts=OtRecordList,features=OtRecordList,lookups=OtSpan,lookupCount=int}
+typedef OtLayoutInfo = @{span=OtSpan,scripts=OtRecordList,features=OtRecordList,lookups=OtSpan,lookupCount=int,variations=OtChild}
 typedef OtLanguageInfo = @{span=OtSpan,count=int,required=OtIndex}
 typedef OtFeatureInfo = @{span=OtSpan,count=int,parameters=OtChild}
 typedef OtGdefCapabilities = @{classes=bool,attachments=bool,markSets=int}

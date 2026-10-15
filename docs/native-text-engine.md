@@ -1512,3 +1512,63 @@ collapse sections or toggle tasks cleanly).
 - `./build/anthracite --selftest` reports `fold=1 y0=492 y=54 col=1 tl=1` (collapsed section
   height drops from 492px to 54px; all enclosed lines and blank lines hidden; column and task toggles pass).
 - Full CTest suite passes 77/77 tests with 0 errors.
+
+## OpenType 1.9.1 FeatureVariations and ItemVariationStore (2026-10-15)
+
+OpenType 1.9.1 `FeatureVariations` (conditional feature table substitution) and
+`ItemVariationStore` (multi-dimensional variation deltas with region scalar blending)
+are fully implemented in native ATS2, completing the font variations infrastructure
+for GSUB/GPOS and GDEF.
+
+### Architecture & Design
+1. **Module Separation (`src/data_font/`)**:
+   - `ot_feature_variations_types.sats` & `ot_feature_variations.sats`:
+     Formal types and linear interfaces for Format 1 condition evaluation, condition
+     sets, `FeatureTableSubstitution` parsing, and alternate feature lookups.
+   - `ot_feature_variations_condition.dats`:
+     Format 1 Condition evaluation (`axisIndex`, `filterRangeMinValue`, `filterRangeMaxValue`)
+     in 16.16 fixed-point space against design variation coordinates, and condition set
+     short-circuit conjunction (`and`).
+   - `ot_feature_variations_subst.dats`:
+     Binary/linear scan through `FeatureTableSubstitutionRecord` entries to locate
+     alternate `FeatureTable` definitions.
+   - `ot_feature_variations_parse.dats`:
+     Header validation (`majorVersion=1`, `minorVersion=0`), condition table bounds checking,
+     and alternate feature record validation.
+   - `ot_feature_variations_query.dats`:
+     Query evaluation: finds the first satisfied condition set and applies
+     `ot_feature_at_with_variations` when active.
+   - `ot_item_variation_types.sats` & `ot_item_variation.sats`:
+     Region axis coordinates, variation region lists, item variation data subtables,
+     and store delta queries.
+   - `ot_item_variation_region.dats`:
+     Per-axis factor calculation with 64-bit precision (`llint`) to eliminate 32-bit fixed-point
+     multiplication overflow ($65536 \times 65536 \to 0$ in 32-bit signed integer).
+     Region scalar accumulation: $\prod_{\text{axis}} \text{factor}$.
+   - `ot_item_variation_data.dats`:
+     Word and byte delta parsing across region indices, 64-bit scalar multiplication and
+     summation: $\sum (\text{delta} \times \text{scalar})$, with proper fixed-point rounding
+     $(x + 32768) \gg 16$.
+   - `ot_item_variation_store.dats`:
+     Format 1 store header parsing, subtable offset validation, outer/inner delta set index
+     resolution, and GDEF variation store bridge.
+
+2. **Integration**:
+   - `ot_layout_types.sats`: Extended `OtLayoutInfo` with `variations: OtChild`.
+   - `ot_layout_header.dats`: Version 1.1 layout headers (`majorVersion=1, minorVersion=1`)
+     parse 32-bit `featureVariationsOffset` into `variations` child instead of rejecting
+     the layout table with `OtUnsupported`.
+   - `ot_layout_features.dats`: Feature validation path runs `ot_feature_variations_validate`
+     whenever `variations` child is present.
+
+### Conformance Verification
+- Added synthetic and boundary test fixtures in `tests/ot_layout_params_cases.dats`:
+  - `fvar_cases`: Validates condition set evaluation (matching coords vs out-of-range coords),
+    FeatureTableSubstitution alternate lookup, and out-of-bounds rejection.
+  - `ivar_cases`: Validates OpenType 1.9.1 region scalar calculation across triangular tent
+    regions (peak=0.5, start=0.0, end=1.0), word/byte delta parsing, delta set index
+    resolution (`outerIndex=0, innerIndex=0` returning exact computed delta), and zero delta handling.
+- Conformance test target `ot_layout_conformance` passes (`fvar_err=0 ivar_err=0`).
+- GDEF conformance and full CTest suite pass 77/77 tests (0 errors).
+- Selftest passes with exact `live=1530113` memory invariant preserved.
+
