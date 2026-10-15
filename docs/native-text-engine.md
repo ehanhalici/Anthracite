@@ -1609,4 +1609,38 @@ guaranteeing consistent glyph coverage across primary, fallback, and neutral sym
 - Full CTest suite passes 77/77 tests with 0 failures (100% pass rate).
 - Selftest passes with exact `live=1530113` memory invariant.
 
+## Specialized Block Pixel Wrapping (2026-10-15)
+
+Pixel-based layout and wrapping are extended to specialized Markdown blocks (block quotes,
+callouts, code blocks, tables, and display math blocks), providing exact column boundaries
+and visual projection.
+
+### Architecture & Design
+1. **Specialized Block Margin & Target Width (`src/ui_workspace/visual_wrap.dats`)**:
+   - `block_kind_at`: Scans the AST to find covering specialized block containers
+     (`KQuote`, `KCallout`, `KCode`, `KTable`, `KTableRow`, `KTableCell`).
+   - `line_target_width`: Adjusts wrap width per block type:
+     - Quotes and callouts (`KQuote`, `KCallout`): Allocates left accent bar and indentation
+       padding by wrapping at `imax(32, default_w - 24)`, preventing text from colliding with
+       the border accent.
+     - Code blocks (`KCode`): Leaves container card padding by wrapping at `imax(32, default_w - 16)`.
+     - Tables (`KTable`): Retains full column width for cell positioning.
+
+2. **Visual Projection Masking (`src/ui_workspace/visual_projection.dats`)**:
+   - In `hidden(d, i)`, added detection for `KTableDelim` and children of `KMathb`.
+   - In `VisualRendered()` (read) mode, table delimiter lines (`|---|---|`) and raw LaTeX math
+     syntax (`$$ ... $$`) are masked out from the visual row projection, eliminating spurious
+     line breaks and ghost tokens.
+
+3. **Display Math Block Geometry (`src/data_ast/doc.dats` & `layout_engine.dats`)**:
+   - `widget_h_m`: Recognizes `KMathb` as an autonomous block widget with 24px default height
+     (matching `draw_node_mathb` line height + border padding `bh = lh + 8`).
+   - `stamp_height`: Explicitly stamps the 24px widget height for `KMathb` nodes, ensuring
+     accurate virtual scrolling and layout bounds.
+
+### Conformance Verification
+- Full CTest suite passes 77/77 tests with 0 failures (100% pass rate).
+- Selftest passes with exact `live=1530113` memory invariant.
+
+
 

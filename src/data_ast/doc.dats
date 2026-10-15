@@ -1493,7 +1493,9 @@ fun widget_h_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: in
       val k = doc_node_kind(d, i)
       val ns = doc_node_start(d, i)
       val h = doc_node_height(d, i)
-      val use = if is_off(doc_node_hidden(d, i)) andalso ige(ns, st) andalso ilt(ns, en) andalso (is_kind(k, KImage) orelse is_kind(k, KEmbed)) andalso igt(h, acc) then h else acc
+      val is_widget = is_kind(k, KImage) orelse is_kind(k, KEmbed) orelse is_kind(k, KMathb)
+      val wh = if is_kind(k, KMathb) andalso ieq(h, 0) then 24 else h
+      val use = if is_off(doc_node_hidden(d, i)) andalso ige(ns, st) andalso ilt(ns, en) andalso is_widget andalso igt(wh, acc) then wh else acc
     in
       widget_h_m(recfuel - 1, d, st, en, iadd(i, 1), n, use)
     end
