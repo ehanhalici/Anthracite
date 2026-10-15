@@ -18,6 +18,7 @@ staload "ui_workspace/ui_common.sats"
 staload "ui_workspace/ui_tab.sats"
 staload "ui_workspace/ui_render.sats"
 staload "ui_workspace/embedded_doc.sats"
+staload "ui_workspace/embed_fsm.sats"
 staload "ui_workspace/ui_widgets.sats"
 staload "data_ast/doc_visual.sats"
 staload "ui_workspace/visual_layout.sats"
@@ -505,9 +506,24 @@ in
   height
 end
 
-fun bind_embed_height(f: !Font,d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault: !Buf, shown: !Buf, lh: int, colw: int): void = let
-  val width=isub(colw,imul(doc_node_depth(d,i),20))
-  val dh = embedded_height(f,d, i, c, r, vault, shown, lh, width)
+fun resolve_embed_height(f: !Font, d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault: !Buf, shown: !Buf, lh: int, width: int): int = let
+  val p_str = buf_cstr(shown)
+  var ch: int = 0
+  val st = embed_fsm_query(p_str, width, lh, ch)
+in
+  if ieq(st, EMBED_STATE_CACHED) then ch
+  else if ieq(st, EMBED_STATE_FAILED) then iadd(lh, 8)
+  else let
+    val h = embedded_height(f, d, i, c, r, vault, shown, lh, width)
+    val () = if igt(h, 0) then embed_fsm_store(p_str, width, lh, h) else embed_fsm_fail(p_str, width, lh)
+  in
+    h
+  end
+end
+
+fun bind_embed_height(f: !Font, d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault: !Buf, shown: !Buf, lh: int, colw: int): void = let
+  val width = isub(colw, imul(doc_node_depth(d, i), 20))
+  val dh = resolve_embed_height(f, d, i, c, r, vault, shown, lh, width)
   val old_h = doc_node_height(d, i)
   val () = if ine(old_h, dh) then doc_bump_ver(d) else ()
 in
