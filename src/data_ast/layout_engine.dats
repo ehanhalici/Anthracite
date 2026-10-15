@@ -55,7 +55,7 @@ fun assign_lines(d: !Doc, lh: int, line: int, y: int): int =
 extern fun stamp_nodes_exh(d: !Doc, lh: int, is_read: int, wc: int, i: int): void = "mac#anth_die_void"
 
 fun stamp_height(d: !Doc,i: int,k: NodeKind): void =
-  if not(doc_visual_active(d)) orelse is_kind(k,KImage) orelse is_kind(k,KEmbed) orelse is_kind(k,KMathb) then ()
+  if not(doc_visual_active(d)) orelse is_inline(k) orelse is_kind(k,KImage) orelse is_kind(k,KEmbed) orelse is_kind(k,KMathb) then ()
   else let
     val first=doc_line_of(d,doc_node_start(d,i))
     val finish=doc_line_of(d,imax(doc_node_start(d,i),isub(doc_node_end(d,i),1)))

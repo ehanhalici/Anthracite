@@ -1432,10 +1432,44 @@ end
 
 extern fun line_hidden_exh(d: !Doc, st: int, en: int, i: int, n: int, saw: Toggle): int = "mac#anth_die_int"
 
+fun heading_stop_offset_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), d: !Doc, i: int, n: int, hk: NodeKind
+): int =
+  if recfuel > 0 then (
+    if ige(i, n) then d_len(d)
+    else let
+      val k = doc_node_kind(d, i)
+    in
+      if heading_stops(k, hk) then doc_node_start(d, i)
+      else heading_stop_offset_m(recfuel - 1, d, iadd(i, 1), n, hk)
+    end
+  ) else d_len(d)
+
+fun heading_section_hidden_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), d: !Doc, st: int, i: int, n: int
+): int =
+  if recfuel > 0 then (
+    if ige(i, n) then 0
+    else let
+      val k = doc_node_kind(d, i)
+    in
+      if is_heading(k) andalso is_on(doc_node_collapsed(d, i)) then let
+        val h_end = doc_node_end(d, i)
+        val stop = heading_stop_offset_m(airlock_nat(MAX_REC_FUEL), d, iadd(i, 1), n, k)
+      in
+        if ige(st, h_end) andalso ilt(st, stop) then 1
+        else heading_section_hidden_m(recfuel - 1, d, st, iadd(i, 1), n)
+      end
+      else heading_section_hidden_m(recfuel - 1, d, st, iadd(i, 1), n)
+    end
+  ) else 0
+
 fun line_hidden_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: int, en: int, i: int, n: int, saw: Toggle): int =
   if recfuel > 0 then (
-    if ige(i, n) then toggle_int(saw)
-    else let
+    if ige(i, n) then (
+      if is_on(saw) then 1
+      else heading_section_hidden_m(airlock_nat(MAX_REC_FUEL), d, st, 0, n)
+    ) else let
       val ns = doc_node_start(d, i)
       val ne = doc_node_end(d, i)
       val hit = ilt(ns, en) andalso igt(ne, st)
@@ -2297,8 +2331,27 @@ in
   else true
 end
 
-implement doc_toggle(d, i) = let
+fun doc_foldable_target_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), d: !Doc, i: int, n: int
+): int =
+  if recfuel > 0 then (
+    if i < 0 orelse i >= n then ~1
+    else let
+      val k = doc_node_kind(d, i)
+    in
+      if is_heading(k) orelse is_kind(k, KLi) orelse is_kind(k, KTask) then i
+      else let
+        val p = doc_node_parent(d, i)
+      in
+        if ige(p, 0) andalso ilt(p, n) then doc_foldable_target_m(recfuel - 1, d, p, n)
+        else i
+      end
+    end
+  ) else i
+
+implement doc_toggle(d, i0) = let
   val n = d_nnodes(d)
+  val i = doc_foldable_target_m(airlock_nat(MAX_REC_FUEL), d, i0, n)
 in
   if i < 0 orelse i >= n then ()
   else let
@@ -2337,8 +2390,9 @@ in
   buf_free(nb)
 end
 
-implement doc_toggle_task(d, i) = let
+implement doc_toggle_task(d, i0) = let
   val n = d_nnodes(d)
+  val i = doc_foldable_target_m(airlock_nat(MAX_REC_FUEL), d, i0, n)
 in
   if i < 0 orelse i >= n then ()
   else if not(is_kind(doc_node_kind(d, i), KTask)) then ()

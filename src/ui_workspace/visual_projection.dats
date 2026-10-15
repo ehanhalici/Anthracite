@@ -12,7 +12,7 @@ staload "ui_workspace/visual_layout.sats"
 fun clear{n:nat} .<n>. (left: int(n),mask: !Buf,i: int): void =
   if left = 0 then () else let val ()=buf_set(mask,i,0) in clear(left-1,mask,iadd(i,1)) end
 fun hidden(d: !Doc,i: int): bool = let val k=doc_node_kind(d,i)
-in is_kind(k,KMark) orelse is_kind(k,KLinkDest) orelse is_kind(k,KLinkTitle)
+in is_on(doc_node_hidden(d,i)) orelse is_kind(k,KMark) orelse is_kind(k,KLinkDest) orelse is_kind(k,KLinkTitle)
   orelse ine(anth_iand(doc_node_flags(d,i),FL_READ_HIDDEN),0) end
 fun nodes{n:nat} .<n>. (left: int(n),d: !Doc,mask: !Buf,i: int): void =
   if left = 0 then () else let

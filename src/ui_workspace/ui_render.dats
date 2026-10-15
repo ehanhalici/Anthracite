@@ -852,23 +852,28 @@ fun plain_px_draw_m {recfuel:nat} .<recfuel>. (
   else plain_px_draw_exh(f, r, d, st, en, colx, yy, lh, max_w, row, scratch)
 
 fun draw_plain_line(f: !Font, r: !Rend, d: !Doc, li: int, nlines: int, colx: int, oy: int, safe_lh: int, scroll: int, scratch: &Buf >> _): void = let
-  val st = doc_line_start(d, li)
-  val en0 = if ilt(iadd(li, 1), nlines) then doc_line_start(d, iadd(li, 1)) else doc_len(d)
-  val en = if igt(en0, st) andalso ieq(doc_byte(d, isub(en0, 1)), 10) then isub(en0, 1) else en0
-  val cols = doc_codepoints(d, st, en)
-  val wc = doc_get_wrap(d)
-  val yy = isub(iadd(oy, doc_line_y(d, li)), scroll)
-  val rows = (if wc > 0 andalso igt(cols, wc) then idiv(iadd(cols, isub(wc, 1)), wc) else 1) : int
+  val step = doc_line_step(d, li)
 in
-  if rows <= 1 then let
-    val scap = buf_cap(scratch)
-    val max_draw = imin(isub(en, st), scap)
-    val n = if igt(max_draw, 0) then doc_slice_buf(d, st, iadd(st, max_draw), scratch, scap) else 0
-    val base_x = row_base_pos(f, r, d, st, en, colx, scratch)
+  if step <= 0 then ()
+  else let
+    val st = doc_line_start(d, li)
+    val en0 = if ilt(iadd(li, 1), nlines) then doc_line_start(d, iadd(li, 1)) else doc_len(d)
+    val en = if igt(en0, st) andalso ieq(doc_byte(d, isub(en0, 1)), 10) then isub(en0, 1) else en0
+    val cols = doc_codepoints(d, st, en)
+    val wc = doc_get_wrap(d)
+    val yy = isub(iadd(oy, doc_line_y(d, li)), scroll)
+    val rows = (if wc > 0 andalso igt(cols, wc) then idiv(iadd(cols, isub(wc, 1)), wc) else 1) : int
   in
-    if igt(n, 0) then seen_int(font_draw_buf(f, r, base_x, yy, scratch, n, col_text())) else ()
-  end else
-    plain_rows_m(airlock_nat(MAX_REC_FUEL), f, r, d, st, en, colx, yy, safe_lh, wc, 0, rows, scratch)
+    if rows <= 1 then let
+      val scap = buf_cap(scratch)
+      val max_draw = imin(isub(en, st), scap)
+      val n = if igt(max_draw, 0) then doc_slice_buf(d, st, iadd(st, max_draw), scratch, scap) else 0
+      val base_x = row_base_pos(f, r, d, st, en, colx, scratch)
+    in
+      if igt(n, 0) then seen_int(font_draw_buf(f, r, base_x, yy, scratch, n, col_text())) else ()
+    end else
+      plain_rows_m(airlock_nat(MAX_REC_FUEL), f, r, d, st, en, colx, yy, safe_lh, wc, 0, rows, scratch)
+  end
 end
 
 extern fun plain_lines_exh(f: !Font, r: !Rend, d: !Doc, li: int, li_end: int, nlines: int, colx: int, oy: int, safe_lh: int, scroll: int, scratch: &Buf >> _): void = "mac#anth_die_void"
@@ -2345,11 +2350,16 @@ fun node_covering_impl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !D
   if recfuel > 0 then (
     if ige(i, doc_nnodes(d)) then best
     else let
-      val sy = isub(iadd(oy, doc_node_y(d, i)), scroll)
-      val h = doc_node_height(d, i)
-      val best2 = if igt(h, 0) andalso ige(y, sy) andalso ilt(y, iadd(sy, h)) then i else best
+      val k = doc_node_kind(d, i)
     in
-      node_covering_impl_m(recfuel - 1, d, y, oy, scroll, iadd(i, 1), best2)
+      if is_inline(k) then node_covering_impl_m(recfuel - 1, d, y, oy, scroll, iadd(i, 1), best)
+      else let
+        val sy = isub(iadd(oy, doc_node_y(d, i)), scroll)
+        val h = doc_node_height(d, i)
+        val best2 = if igt(h, 0) andalso ige(y, sy) andalso ilt(y, iadd(sy, h)) then i else best
+      in
+        node_covering_impl_m(recfuel - 1, d, y, oy, scroll, iadd(i, 1), best2)
+      end
     end
   ) else node_covering_impl_exh(d, y, oy, scroll, i, best)
 

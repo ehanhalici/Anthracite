@@ -1467,5 +1467,48 @@ rest; both are per-character scans and are not restructured here.
 
 Remaining: structural cold-layout snapshots (see the earlier checkpoints),
 FeatureVariations, the symbol-face policy and the specialized-block wrapping
-work are unchanged by this checkpoint. `.idea/` and `scripts/` remain untracked
-local files.
+work are unchanged by this checkpoint.
+
+## Heading and task folding regression: detect, report and fix (2026-10-15)
+
+During the native text engine layout integration, folding headings and clicking task
+checkboxes had regressed (clicking the collapse chevron or task checkbox failed to
+collapse sections or toggle tasks cleanly).
+
+### Root cause diagnosis
+1. **Inline node height pollution**: In `src/data_ast/layout_engine.dats:stamp_height`,
+   block height was stamped on all AST nodes including `is_inline(k)` when `doc_visual_active`
+   was true. This assigned inline text spans (`KText`) positive block heights.
+2. **Hit-testing inversion**: In `src/ui_workspace/ui_render.dats:node_covering_impl_m`,
+   because inline children had positive heights and higher AST node indices, pointer hit
+   testing chose the child `KText` node instead of the container block (`KH1`, `KTask`, `KLi`).
+   Clicking the fold indicator therefore called `doc_toggle` on `KText` (setting `collapsed=1`
+   on `KText` while the heading block remained unfolded), and `doc_toggle_task` failed to
+   match `KTask`.
+3. **Foldable target resolution**: Child hits within a foldable container were not mapped back
+   to the logical foldable ancestor.
+4. **Blank line leakage in collapsed sections**: In `src/data_ast/doc.dats:line_hidden_m`,
+   inter-paragraph blank lines (`\n\n`) within a collapsed heading were not marked hidden
+   because no AST node explicitly covered the empty newline byte.
+5. **Render & visual projection guards**: `visual_projection.dats` did not check
+   `doc_node_hidden(d, i)` in `hidden`, and `draw_plain_line` did not guard against `step <= 0`.
+
+### Implementation & Fix
+1. **Layout engine**: `stamp_height` in `src/data_ast/layout_engine.dats` now checks
+   `orelse is_inline(k)` to ensure inline spans strictly maintain `height = 0`.
+2. **UI hit testing**: `node_covering_impl_m` in `src/ui_workspace/ui_render.dats` skips
+   `is_inline(k)`, ensuring block container nodes (`KH1`, `KTask`, `KLi`, etc.) are selected.
+3. **Foldable block resolution**: Added `doc_foldable_target_m` in `src/data_ast/doc.dats` so
+   clicks on child spans resolve directly to their foldable parent block.
+4. **Complete section folding**: Added `heading_stop_offset_m` and `heading_section_hidden_m`
+   in `src/data_ast/doc.dats` so all lines (including blank inter-paragraph lines) from the
+   heading end until the next heading of equal or higher rank (or EOF) are marked hidden.
+5. **Visual projection & rendering**: `visual_projection.dats:hidden` now checks
+   `is_on(doc_node_hidden(d, i))`, and `draw_plain_line` ignores lines when `step <= 0`.
+6. **Conformance & regression tests**: Added `folding_and_task` conformance verification in
+   `tests/visual_layout_cases.dats`.
+
+### Verification
+- `./build/anthracite --selftest` reports `fold=1 y0=492 y=54 col=1 tl=1` (collapsed section
+  height drops from 492px to 54px; all enclosed lines and blank lines hidden; column and task toggles pass).
+- Full CTest suite passes 77/77 tests with 0 errors.
