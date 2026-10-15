@@ -116,6 +116,7 @@ fun ev_key_char(ev: &event): int = "mac#anth_ev_key_char"
 fun x_key_is(ev: &event, id: int): int = "mac#anth_key_is"
 fun mod_ctrl(): int = "mac#anth_mod_ctrl"
 fun mod_shift(): int = "mac#anth_mod_shift"
+fun mod_alt(): int = "mac#anth_mod_alt"
 
 fun x_install_signals(): void = "mac#anth_install_signals"
 fun x_sig_exit(): int = "mac#anth_sig_received"

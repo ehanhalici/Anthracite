@@ -149,7 +149,11 @@ fun doc_push_node(d: !Doc, kind: NodeKind, st: int, en: int, depth: int, aux: in
 fun doc_is_foldable(d: !Doc, i: int): bool
 fun doc_compute_foldability(d: !Doc): void
 fun doc_toggle(d: !Doc, i: int): void
+fun doc_toggle_deep(d: !Doc, i: int): void
 fun doc_toggle_task(d: !Doc, i: int): void
+fun doc_node_fold_end(d: !Doc, i: int): int
+fun doc_node_fold_body_start(d: !Doc, i: int): int
+fun folds_apply_edit(d: !Doc, at: int, del_bytes: int, ins_bytes: int): void
 fun doc_span(d: !Doc): int
 fun doc_set_span(d: !Doc, v: int): void
 fun lines_apply_edit(d: !Doc, at: int, oldlen: int, newlen: int): void

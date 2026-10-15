@@ -1752,8 +1752,33 @@ System-wide architectural overhaul introducing explicit State Machine (FSM) trac
 - Memory invariant strictly preserved: `live=1530113` (`poll_ok=1 rss_ok=1`).
 - All ATS2 functions strictly comply with `skill.md` standards ($\le 15$ lines, single responsibility, exhaustive matching, linear proof safety).
 
+## Military-Grade Text & Code Folding Architecture (2026-10-15)
 
+Complete redesign and mathematical formalization of code/text folding in Anthracite, implementing explicit local fold states isolated from computed visibility, leaf filtering, deep toggle interactions, and edit shift persistence.
 
-
-
+### Mathematical Model & Design Principles
+1. **Hierarchical Boundary Determination**:
+   - **Headings ($H_n$)**: $\text{FoldEnd}(H_n) = \min \{ \text{start}(N) \mid N \in \text{AST}, \text{is\_heading}(N) \land \text{rank}(N) \le n \land \text{start}(N) > \text{start}(H_n) \} \cup \{ \text{EOF} \}$.
+   - **Indented Text & Lists**: Folds contiguous descendants satisfying $I_{\text{child}} > I_{\text{base}}$. Empty lines within loose lists are preserved without terminating the fold.
+   - **Strict Leaf Filtering**: Leaf list items, paragraphs, or flat text without any descendant satisfying $I_{\text{child}} > I_{\text{base}}$ are assigned $\text{FL\_FOLDABLE} = 0$, completely preventing chevron/arrow rendering in the line gutter.
+   - **Delimited Blocks**: Multi-line fenced code blocks (`````), quotes/callouts (`>`), and YAML frontmatter (`---`) fold with the header/opening line visible ($\text{BodyStart} = \text{start} + \text{first\_nl} + 1$) and body hidden.
+2. **State Isolation (Local State vs Computed Visibility)**:
+   - $\text{NF\_COLLAPSED} \in \{ \text{Off}, \text{On} \}$ stores explicit user toggle state.
+   - $\text{is\_visible}(Node) = \forall A \in \text{Ancestors}(Node), \neg A.is\_folded$.
+   - $\text{render\_body}(Node) = \text{is\_visible}(Node) \land \neg Node.is\_folded$.
+   - Unfolding a parent node never alters or resets the collapsed state of any child node (Zero state loss).
+3. **Dual Interaction Modes**:
+   - **Normal Click**: Local toggle. Inverts target node's fold flag without mutating any descendant.
+   - **Alt+Click (`doc_toggle_deep`)**: Symmetrical deep/recursive toggle. If target is open, collapses target and all descendants; if target is collapsed, expands target and all descendants.
+4. **Edit Stability (`folds_apply_edit`)**:
+   - Text insertions and deletions before a fold shift the persistent fold offset: $\text{off}' = \text{off} + (\text{ins} - \text{del})$.
+   - Deletions overlapping the fold remove it gracefully without corrupting sibling offsets.
+5. **Airlock Native Verification**:
+   - `selftest_folding_model` executes five comprehensive unit proofs on every startup:
+     - `fold_preserve=1`: Verifies child collapsed states survive parent collapse/expand cycles.
+     - `fold_leaf=1`: Verifies leaf list items and flat lines have `FL_FOLDABLE = 0`.
+     - `fold_delim=1`: Verifies fenced code blocks and delimited bodies fold cleanly.
+     - `fold_deep=1`: Verifies Alt+Click deep toggle expands/collapses hierarchies symmetrically.
+     - `fold_shift=1`: Verifies edits before a fold offset correctly shift fold records in memory.
+   - Memory invariant strictly preserved: `live=1530113` down to the exact byte. Full CTest passes 77/77 tests (100%).
 

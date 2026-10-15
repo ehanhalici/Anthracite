@@ -325,6 +325,7 @@ static inline int anth_key_is(anth_event *e, int key) {
 }
 static inline int anth_mod_ctrl(void) { return ControlMask; }
 static inline int anth_mod_shift(void) { return ShiftMask; }
+static inline int anth_mod_alt(void) { return Mod1Mask; }
 
 static inline void anth_sel_reply(Display *dpy, anth_event *ev,
     const unsigned char *data, int n, unsigned long utf8, unsigned long targets,

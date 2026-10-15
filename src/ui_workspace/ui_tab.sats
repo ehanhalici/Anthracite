@@ -27,6 +27,7 @@ fun tabs_insert(ts: Tabs, i: int, one: Tabs): Tabs
 fun tabs_move(ts: Tabs, from_i: int, to_i: int): Tabs
 fun tabs_clone_tab(ts: Tabs, idx: int): Tabs
 fun tabs_toggle(ts: Tabs, idx: int, ni: int): Tabs
+fun tabs_toggle_deep(ts: Tabs, idx: int, ni: int): Tabs
 fun tabs_toggle_task(ts: Tabs, idx: int, ni: int): Tabs
 fun tabs_sync_vfs(ts: !Tabs, idx: int): void
 fun tabs_save_all_physical(ts: !Tabs): void

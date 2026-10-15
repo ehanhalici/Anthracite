@@ -598,6 +598,23 @@ fun tabs_toggle_impl(ts: Tabs, idx: int, ni: int): Tabs = tabs_toggle_impl_m(air
 
 implement tabs_toggle(ts, idx, ni) = tabs_toggle_impl(ts, idx, ni)
 
+extern fun tabs_toggle_deep_impl_exh(ts: Tabs, idx: int, ni: int): Tabs = "mac#anth_die_box"
+
+fun tabs_toggle_deep_impl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, ni: int): Tabs =
+  if recfuel > 0 then (
+    case+ ts of
+    | ~TNil() => TNil()
+    | ~TCons(doc, path, title, sc, rest) => let
+        val () = if ieq(idx, 0) andalso ige(ni, 0) then doc_toggle_deep(doc, ni) else ()
+      in
+        if ieq(idx, 0) then TCons(doc, path, title, sc, rest) else TCons(doc, path, title, sc, tabs_toggle_deep_impl_m(recfuel - 1, rest, isub(idx, 1), ni))
+      end
+  ) else tabs_toggle_deep_impl_exh(ts, idx, ni)
+
+fun tabs_toggle_deep_impl(ts: Tabs, idx: int, ni: int): Tabs = tabs_toggle_deep_impl_m(airlock_nat(MAX_REC_FUEL), ts, idx, ni)
+
+implement tabs_toggle_deep(ts, idx, ni) = tabs_toggle_deep_impl(ts, idx, ni)
+
 extern fun tabs_toggle_task_impl_exh(ts: Tabs, idx: int, ni: int): Tabs = "mac#anth_die_box"
 
 fun tabs_toggle_task_impl_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, ni: int): Tabs =

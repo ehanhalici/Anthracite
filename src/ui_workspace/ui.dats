@@ -1902,8 +1902,11 @@ fun clear_node(ts: Tabs, idx: int): Tabs = clear_node_m(airlock_nat(MAX_REC_FUEL
 fun clear_go(ts: Tabs, idx: int, go: Toggle): Tabs =
   if is_on(go) then clear_node(ts, idx) else ts
 
-fun toggle_go(ts: Tabs, idx: int, ni: int, go: Toggle): Tabs =
-  if is_on(go) then tabs_toggle(ts, idx, ni) else ts
+fun toggle_go(ts: Tabs, idx: int, ni: int, is_alt: bool, go: Toggle): Tabs =
+  if is_on(go) then (
+    if is_alt then tabs_toggle_deep(ts, idx, ni)
+    else tabs_toggle(ts, idx, ni)
+  ) else ts
 
 fun toggle_task_go(ts: Tabs, idx: int, ni: int, go: Toggle): Tabs =
   if is_on(go) then let
@@ -2377,13 +2380,14 @@ end
 
 fun editor_click_hit(f: !Font, r: !Rend, s: &App_record >> _, ts: Tabs, ev: &event, x: int, y: int, ox: int, half: int, idx2: int, editor: Toggle): Tabs = let
   val keep = iand(ev_mods(ev), mod_shift()) <> 0
+  val is_alt = iand(ev_mods(ev), mod_alt()) <> 0
   val () = font_set_px(f, s.fontpx)
   val ts4 = click_go(f, r, ts, idx2, x, y, ox, half, font_line_h(f), s.scratch, toggle_of(keep), s.hitk, s.hiti, editor)
   val colx_hit = editor_colx(f, r, ox, half)
   val arr_min = gutter_num_end_x(f, r, colx_hit)
   val on_arrow = is_on(editor) andalso ige(x, arr_min) andalso ilt(x, colx_hit) andalso ige(s.hiti, 0)
   val on_task = is_on(editor) andalso is_kind(s.hitk, KTask) andalso ige(x, colx_hit) andalso ilt(x, iadd(colx_hit, 36)) andalso ige(s.hiti, 0)
-  val ts4_a = toggle_go(ts4, idx2, s.hiti, toggle_of(on_arrow))
+  val ts4_a = toggle_go(ts4, idx2, s.hiti, is_alt, toggle_of(on_arrow))
   val ts4_b = toggle_task_go(ts4_a, idx2, s.hiti, toggle_of(on_task))
 in
   ts4_b
