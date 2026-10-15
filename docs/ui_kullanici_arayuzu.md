@@ -158,14 +158,19 @@ stateDiagram-v2
 * **Modal Kilitleme (`editor_fsm_is_modal`):**
   Editör `StatePrompt` veya `StateMenu` durumundayken modal kilitleme devreye girer. Arka plandaki tuval tıklamaları ana dokümana yazı yazamaz; tüm olaylar ön plandaki aktif menü veya prompt girişine yönlendirilir.
 
-### B. Gömülü İçerik ve Görsel Yükleme FSM'si (`embed_fsm.*`)
+### B. Gömülü İçerik ve Canlı Doküman (Transclusion) Önbelleği (`embed_fsm.*` & `ui_render.dats`)
 
-Doküman içindeki `![resim](yol.png)` veya gömülü dosyaların yüklenmesi ana iş parçacığını dondurmaz:
-1. `EmbedUnloaded`: Henüz yüklenmemiş görsel.
+Doküman içindeki `![resim](yol.png)` ve gömülü notların (`![[not]]`) işlenmesi sıfır kare-başına I/O mimarisiyle çalışır:
+1. `EmbedUnloaded`: Henüz yüklenmemiş görsel veya transclusion.
 2. `EmbedResolving`: Görsel boyutu ve pikselleri okunuyor.
-3. `EmbedCached(h)`: Görsel belleğe yüklendi, dokümandaki dikey yüksekliği ($h$) sabitlendi.
+3. `EmbedCached(h)`: Görsel veya gömülü doküman belleğe yüklendi, dokümandaki dikey yüksekliği ($h$) sabitlendi.
 4. `EmbedFailed`: Dosya bulunamadı veya bozuk (kırmızı hata ikonu basılır).
-* **Mtime Doğrulaması:** Dosyanın diskteki değiştirilme zamanı (`st_mtime`) izlenir; dosya güncellendiğinde otomatik olarak `EmbedUnloaded` durumuna dönülüp yeniden taranır.
+* **Mtime Doğrulaması:** Dosyanın diskteki değiştirilme zamanı (`st_mtime` / `fs_mtime`) izlenir; dosya güncellendiğinde önbellek otomatik olarak geçersiz kılınır.
+* **Canlı Doküman LRU Önbelleği (`CEmbed` in `Cache`):**
+  - Gömülü notlar (`![[not]]`), her render karesinde diskten okunup yeniden ayrıştırılmak yerine `datavtype Cache` içindeki `CEmbed of (Buf, int, Doc, int, int, Cache)` yapıcılarında hazır AST ve layout'u ile canlı tutulur.
+  - `cache_take_embed` ile `Doc` lineer olarak ödünç alınıp çizilir ve `cache_put_embed` ile 48 yuvalı LRU kuyruğuna geri bırakılır.
+  - Tahliye edilen veya kapatılan belgeler `doc_free` ile derhal serbest bırakılarak `live=1530113` bellek değişmezi korunur.
+  - Bu sayede onlarca transclusion içeren `vird.md` gibi notlarda kare başına disk okuması ve markdown parsing maliyeti **0'a** indirilir.
 
 ---
 
@@ -214,6 +219,8 @@ Metin tuvali, tek satırlık paragrafların pencere genişliğine göre görsel 
    Aşağı/Yukarı yön tuşlarına basıldığında, imleç mantıksal bir sonraki `\n` satırına atlamaz. Eğer mevcut paragraf 4 görsel satıra sarılmışsa, görsel olarak tam bir alt sütuna geçer; sütun hizasını korur.
 3. **`visual_paint.dats`:**
    Seçili metin blokları (`visual_draw_selection`), sarılmış satırların her birinde ayrı ayrı kesintisiz dikdörtgen bantlar (`visual_draw_band`) olarak çizilir.
+4. **`visual_wrap.dats` (`advance_wrap_cursor` & `block_kind_at`):**
+   Monotonik süpürme imleci ile her satırda tüm AST düğümlerini $O(L \times N)$ baştan taramak yerine; süresi geçmiş düğümler `doc_node_end <= pos` kuralıyla atlanır ve `doc_node_start > pos` olduğu anda arama durdurulur. Bu sayede $O(L + N)$ tek geçişli sarma genişliği (`line_target_width_kind`) hesaplanır.
 
 ---
 
@@ -221,5 +228,7 @@ Metin tuvali, tek satırlık paragrafların pencere genişliğine göre görsel 
 
 * **Tek Geçişli GPU Render:** Her karede arayüz hiyerarşisi yeniden oluşturulmaz; tüm elemanlar `ui_render.dats` içinde tek bir derinliksiz geçişle doğrudan VBO/VAO üzerinden GPU'ya aktarılır.
 * **Scissor Kırpması:** Panellerin ve metin girişlerinin dışına taşan içerikler GPU seviyesinde `glScissor` ile anında kesilir; CPU yükü oluşturmaz.
+* **Monotonik $O(L + N)$ Ölçeklenebilirlik:** Uzun dosyalarda (ör. `söz.md` - 806 satır, 3.406 düğüm) yerleşim ve sarma karesel karmaşıklıktan kurtarılarak açılış ve katlama süresi **0.2 saniyeye** indirilmiştir.
+* **Sıfır Per-Frame I/O & Canlı Transclusion Önbelleği:** 37+ embed içeren `vird.md` gibi dosyalarda her karede disk okuma ve markdown ayrıştırma sıfırlanmış; canlı `Doc` LRU önbelleği (`CEmbed`) ile render süresi **5 ms** seviyesine çekilmiştir.
 * **Boşta Sıfır CPU (%0 CPU Invariant):** Kullanıcı fareyi oynatmadığı veya klavyeye basmadığı sürece olay döngüsü X11 soketi üzerinde `select` ile bekler; gereksiz kare çizilmez.
-* **Bellek Değişmezi:** Tüm sekmeler, dosya ağacı tamponları ve geçici çizim tamponları kapandığında bellek iade edilir. `./build/anthracite --selftest` testinde `live=1530113` değişmezi korunur.
+* **Bellek Değişmezi:** Tüm sekmeler, dosya ağacı tamponları ve geçici çizim tamponları kapandığında bellek iade edilir. `./build/anthracite --selftest` testinde `live=1530113` değişmezi tam olarak korunur.

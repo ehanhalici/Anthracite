@@ -33,6 +33,8 @@ Aşağıdaki tabloda belirtilen "Tabu" yöntemlerin kod tabanında kullanımı m
 | **Durum Temsili** | Ham `string`, magic integer, serbest tamsayı bayrakları | `datatype`, `sortdef`, `Toggle` veya formel durum matrisi | "Stringly-typed" anti-pattern yasağı; durumlar derleme anında ayrıklaştırılır. |
 | **Algoritmik Kod** | Satır içi C blokları (`%{# ... %}`) veya algoritmada `$extfcall` | Saf ATS2 fonksiyonları (`fun`, `fn`) ve `.sats` üzerinden soyut arayüzler | Algoritmik kod derleyicinin tip denetimine ve ispat motoruna %100 tabi olmalıdır. |
 | **Hata Yönetimi** | Sessiz başarısızlık, sahte varsayılan değer dönme, `bool abort` | Açık sonlandırma yordamları (`anth_die_*`) veya tip güvenli `option_vt` | Hata durumları deterministik olmalı, tanımsız veri akışı derhal durdurulmalıdır. |
+| **Yerleşim / Sarma Taraması** | Satır başına tüm AST düğümlerini gezen $O(L \times N)$ iç içe tarama | Monotonik imleç (`advance_node_cursor`, `advance_wrap_cursor`) ile $O(L + N)$ tek geçiş | Uzun dokümanlarda (örn. `söz.md`) karesel CPU tıkanmasını engeller; lineer ölçeklenme sağlar. |
+| **Kare Başına I/O & Ayrıştırma** | Render döngüsünde her karede `doc_open`, `doc_load` veya disk I/O | Canlı `Doc` LRU önbelleği (`CEmbed` in `Cache`) ve `mtime` tazelik denetimi | 60/120 FPS akıcılığı garantiler; transclusion'larda (örn. `vird.md`) binlerce gereksiz disk/AST işlemini sıfırlar. |
 
 ---
 
@@ -254,7 +256,30 @@ C ABI, işletim sistemi ve dış dünyadan gelen dinamik değerler iç çekirde�
 
 ---
 
-## 6. Kod Dönüşüm Referansı (Bad vs. Good)
+## 6. Algoritmik Performans ve Önbellek Yaşam Döngüsü Değişmezleri
+
+### A. Monotonik İmleç Süpürmesi ($O(L + N)$ Monotonic Cursor Sweep Invariant)
+1. **Karesel Tarama Yasağı:** Belge satırları üzerinden döngü kurarken (ör. `line_calc_step` veya `visual_wrap_fill`), her satır için tüm AST düğümlerini 0'dan $N$'e kadar tarayan ($O(L \times N)$) iç içe döngüler mutlak olarak yasaktır.
+2. **Monotonik Sıralılık İlkesi:** Markdown AST düğümleri belge bayt ofsetlerine göre artan sırada (`doc_node_start(i) <= doc_node_start(i+1)`) saklanır.
+3. **İmleç İlerlemesi:**
+   - Satır ofseti `st` arttıkça, `cur` imleci `doc_node_start(cur) < st` olduğu sürece ileri sürülür (`advance_node_cursor`).
+   - Satırın bitiş ofseti `en` değerine ulaşıldığında (`doc_node_start >= en`) arama derhal kesilir.
+   - Görsel sarmada (`advance_wrap_cursor`), süresi bitmiş düğümler (`doc_node_end <= pos`) tek geçişte atlanır ve `st > pos` anında arama durdurulur.
+   - Bu sayede 3.000+ düğümlü dokümanlarda milyonlarca gereksiz döngü elenir ve karmaşıklık kesin olarak $O(L + N)$ seviyesinde kalır.
+
+### B. Canlı Belge ve Transclusion Önbellek Değişmezi (Zero Per-Frame I/O & Live Doc Caching)
+1. **Kare Başına Sıfır I/O:** `draw_doc`, `draw_nodes`, `draw_node_embed` veya `bind_media` döngüsü içinde, her karede (frame) doğrudan diskten dosya okuyan, `doc_open()`, `embedded_doc_load()` veya `doc_free()` çalıştıran kodlar KABUL EDİLEMEZ.
+2. **`datavtype Cache` Bütünlüğü:**
+   - Gömülü notlar (`![[not]]`), doğrusal `Cache` veri tipindeki `CEmbed of (Buf, int, Doc, int, int, Cache)` yapıcıları üzerinden bellekte tutulur.
+   - `cache_take_embed` ile `Doc` nesnesi doğrusal mülkiyeti korunarak önbellekten ödünç alınır (aliasing olmadan `draw_embedded_doc` içine aktarılır) ve `cache_put_embed` ile geri bırakılır.
+3. **Kapasite ve Tazelik Yönetimi:**
+   - Önbellek kapasitesi azami 48 girdi (`MAX_EMBED_CACHE_ENTRIES = 48`) ile sınırlıdır.
+   - Dosya diskte değiştiğinde (`fs_mtime` uyumsuzluğu), eski kopya serbest bırakılıp yenisi yüklenir.
+   - Kapasite aşıldığında veya çalışma alanı kapandığında (`cache_free_m`), tahliye edilen her `Doc` nesnesi üzerinde istisnasız `doc_free(doc)` çağrılarak `live=1530113` bellek değişmezi korunur.
+
+---
+
+## 7. Kod Dönüşüm Referansı (Bad vs. Good)
 
 ### ❌ KABUL EDİLEMEZ KOD (İspatsız, Ham İşaretçili, Metriksiz Özyineleme):
 ```ats
@@ -300,7 +325,7 @@ end
 
 ---
 
-## 7. Derleme Kapısı ve Doğrulama Protokolü
+## 8. Derleme Kapısı ve Doğrulama Protokolü
 
 Her geliştirici ve yapay zekâ ajanı, yaptığı her değişiklik sonrasında şu adımları sırasıyla çalıştırmak ve doğrulamak zorundadır:
 

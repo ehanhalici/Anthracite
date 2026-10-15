@@ -34,27 +34,34 @@ fun is_specialized_block(k: NodeKind): bool =
   is_kind(k, KQuote) orelse is_kind(k, KCallout) orelse is_kind(k, KCode)
   orelse is_kind(k, KTable) orelse is_kind(k, KTableRow) orelse is_kind(k, KTableCell)
 
-fun block_kind_at{n:nat} .<n>. (fuel: int(n), d: !Doc, pos: int, i: int, best_k: NodeKind): NodeKind =
+fun advance_wrap_cursor{n:nat} .<n>. (fuel: int(n), d: !Doc, cur: int, nn: int, pos: int): int =
+  if fuel = 0 then cur
+  else if cur >= nn then nn
+  else if doc_node_end(d, cur) <= pos then
+    advance_wrap_cursor(fuel - 1, d, iadd(cur, 1), nn, pos)
+  else cur
+
+fun block_kind_at{n:nat} .<n>. (fuel: int(n), d: !Doc, pos: int, i: int, nn: int, best_k: NodeKind): NodeKind =
   if fuel = 0 then best_k
-  else if ige(i, doc_nnodes(d)) then best_k
+  else if i >= nn then best_k
   else let
     val st = doc_node_start(d, i)
-    val en = doc_node_end(d, i)
-    val covers = ige(pos, st) andalso ilt(pos, en)
-    val k = doc_node_kind(d, i)
-    val new_k = if covers andalso is_specialized_block(k) then k else best_k
   in
-    block_kind_at(fuel - 1, d, pos, iadd(i, 1), new_k)
+    if st > pos then best_k
+    else let
+      val en = doc_node_end(d, i)
+      val covers = ilt(pos, en)
+      val k = doc_node_kind(d, i)
+      val new_k = if covers andalso is_specialized_block(k) then k else best_k
+    in
+      block_kind_at(fuel - 1, d, pos, iadd(i, 1), nn, new_k)
+    end
   end
 
-fun line_target_width(d: !Doc, line: int, default_w: int): int = let
-  val st = doc_line_start(d, line)
-  val k = block_kind_at(airlock_nat(MAX_REC_FUEL), d, st, 0, KNone)
-in
+fun line_target_width_kind(k: NodeKind, default_w: int): int =
   if is_kind(k, KQuote) orelse is_kind(k, KCallout) then imax(32, isub(default_w, 24))
   else if is_kind(k, KCode) then imax(32, isub(default_w, 16))
   else default_w
-end
 
 fun append_known(rows: &VisualRows >> VisualRows,a: int,b: int,line: int,ordinal: int,width: int): void =
   visual_rows_append(rows,@{start=a,finish=b,width=width,line=line,ordinal=ordinal})
@@ -74,21 +81,30 @@ fun line_rows{n:nat} .<n>. (fuel: int(n),f: !Font,r: !Rend,rows: &VisualRows >> 
     in line_rows(fuel-1,f,r,rows,flags,base,endpos,b,line,iadd(ordinal,1),target_w,scratch) end
   end
 
-fun one(f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,line: int,scratch: &Buf >> _): void = let
+fun one(f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,line: int,cur: &int >> _,scratch: &Buf >> _): void = let
   val st=doc_line_start(d,line)
   val raw=if ilt(iadd(line,1),doc_nlines(d)) then doc_line_start(d,iadd(line,1)) else doc_len(d)
   val en=if igt(raw,st) andalso ieq(doc_byte(d,isub(raw,1)),10) then isub(raw,1) else raw
   val a=visual_rows_offset(rows,st) val b=visual_rows_offset(rows,en)
   val+ VisualRows(text,map,lines,data,count,key)=rows val ()=buf_set32(lines,line,count)
-  val target_w=line_target_width(d,line,key.width)
+  val nn = doc_nnodes(d)
+  val () = cur := advance_wrap_cursor(airlock_nat(MAX_REC_FUEL), d, cur, nn, st)
+  val k = block_kind_at(airlock_nat(MAX_REC_FUEL), d, st, cur, nn, KNone)
+  val target_w = line_target_width_kind(k, key.width)
   val ()=buf_set_len(scratch,0) val ()=buf_append_at(scratch,text,a,isub(b,a))
   val flags=font_text_boundaries(f,scratch,isub(b,a))
   val ()=if ieq(a,b) then append_known(rows,a,b,line,0,0)
     else line_rows(airlock_nat(MAX_REC_FUEL),f,r,rows,flags,a,a,b,line,0,target_w,scratch)
 in buf_free(flags) end
-fun lines{n:nat} .<n>. (left: int(n),f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,i: int,scratch: &Buf >> _): void =
+
+fun lines{n:nat} .<n>. (left: int(n),f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,i: int,cur: &int >> _,scratch: &Buf >> _): void =
   if left = 0 then let val+ VisualRows(t,m,l,data,count,key)=rows in buf_set32(l,i,count) end
-  else let val ()=one(f,r,d,rows,i,scratch) in lines(left-1,f,r,d,rows,iadd(i,1),scratch) end
-implement visual_wrap_fill(f,r,d,rows) = let var scratch=buf_make(256)
-  val ()=lines(airlock_nat(doc_nlines(d)),f,r,d,rows,0,scratch)
-in buf_free(scratch) end
+  else let val ()=one(f,r,d,rows,i,cur,scratch) in lines(left-1,f,r,d,rows,iadd(i,1),cur,scratch) end
+
+implement visual_wrap_fill(f,r,d,rows) = let
+  var scratch = buf_make(256)
+  var cur: int = 0
+  val () = lines(airlock_nat(doc_nlines(d)), f, r, d, rows, 0, cur, scratch)
+in
+  buf_free(scratch)
+end

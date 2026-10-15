@@ -21,36 +21,83 @@ fun line_source_rows(d: !Doc, line: int, wc: int): int = let
   val actual=doc_visual_line_rows(d,line)
 in if igt(actual,0) then actual else if wc > 0 andalso igt(cols,wc) then idiv(iadd(cols,isub(wc,1)),wc) else 1 end
 
-fun line_calc_step(d: !Doc, line: int, n: int, lh: int, is_read: int, wc: int): int = let
-  val st=doc_line_start(d,line)
-  val en=if ilt(iadd(line,1),doc_nlines(d)) then doc_line_start(d,iadd(line,1)) else doc_len(d)
-  val rows=line_source_rows(d,line,wc)
-  val hid = doc_layout_line_hidden(d, st, en, n)
-  val extra = if ieq(hid, 1) then 0 else doc_layout_widget_height(d, st, en, n)
-  val hpad = (if ieq(hid, 1) orelse ieq(is_read, 0) then 0 else doc_layout_heading_padding(d, st, en, n, lh))
+fun line_heading_extra(k: NodeKind, lh: int): int =
+  if is_kind(k, KH1) then iadd(idiv(imul(lh, 3), 4), 24)
+  else if is_kind(k, KH2) then iadd(idiv(lh, 2), 18)
+  else if is_kind(k, KH3) then iadd(idiv(lh, 4), 14)
+  else if is_kind(k, KH4) then 12
+  else if is_kind(k, KH5) then 8
+  else 0
+
+fun advance_node_cursor {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), d: !Doc, cur: int, nn: int, st: int
+): int =
+  if recfuel > 0 then (
+    if cur >= nn then nn
+    else if doc_node_start(d, cur) < st then
+      advance_node_cursor(recfuel - 1, d, iadd(cur, 1), nn, st)
+    else cur
+  ) else cur
+
+fun line_scan_extras {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), d: !Doc, i: int, nn: int, st: int, en: int, lh: int, is_read: int, acc_w: int, acc_h: int
+): @(int, int) =
+  if recfuel > 0 then (
+    if i >= nn then @(acc_w, acc_h)
+    else let
+      val ns = doc_node_start(d, i)
+    in
+      if ns >= en then @(acc_w, acc_h)
+      else let
+        val k = doc_node_kind(d, i)
+        val h = doc_node_height(d, i)
+        val is_widget = is_kind(k, KImage) orelse is_kind(k, KEmbed) orelse is_kind(k, KMathb)
+        val wh = if is_kind(k, KMathb) andalso ieq(h, 0) then 24 else h
+        val use_w = if is_off(doc_node_hidden(d, i)) andalso is_widget andalso igt(wh, acc_w) then wh else acc_w
+        val ex = if ieq(is_read, 1) then line_heading_extra(k, lh) else 0
+        val use_h = imax(acc_h, ex)
+      in
+        line_scan_extras(recfuel - 1, d, iadd(i, 1), nn, st, en, lh, is_read, use_w, use_h)
+      end
+    end
+  ) else @(acc_w, acc_h)
+
+fun line_calc_step(d: !Doc, line: int, nn: int, lh: int, is_read: int, wc: int, cur: &int >> _): int = let
+  val hid = doc_is_line_hidden(d, line)
 in
   if ieq(hid, 1) then 0
-  else if ieq(is_read, 1) andalso igt(extra, 0) then
-    iadd(extra, hpad)
-  else
-    iadd(iadd(imul(rows, lh), extra), hpad)
+  else let
+    val st = doc_line_start(d, line)
+    val en = if ilt(iadd(line, 1), doc_nlines(d)) then doc_line_start(d, iadd(line, 1)) else doc_len(d)
+    val rows = line_source_rows(d, line, wc)
+    val () = cur := advance_node_cursor(airlock_nat(MAX_REC_FUEL), d, cur, nn, st)
+    val @(extra, hpad) = line_scan_extras(airlock_nat(MAX_REC_FUEL), d, cur, nn, st, en, lh, is_read, 0, 0)
+  in
+    if ieq(is_read, 1) andalso igt(extra, 0) then
+      iadd(extra, hpad)
+    else
+      iadd(iadd(imul(rows, lh), extra), hpad)
+  end
 end
 
 fun assign_lines_m {recfuel:nat} .<recfuel>. (
-  recfuel: int(recfuel), d: !Doc, lh: int, line: int, y: int, is_read: int, wc: int
+  recfuel: int(recfuel), d: !Doc, lh: int, line: int, y: int, is_read: int, wc: int, cur: &int >> _
 ): int =
   if recfuel > 0 then (
     if ige(line, doc_nlines(d)) then y
     else let
-      val step = line_calc_step(d, line, doc_nnodes(d), lh, is_read, wc)
+      val step = line_calc_step(d, line, doc_nnodes(d), lh, is_read, wc, cur)
       val () = doc_layout_store_line(d, line, y, step)
     in
-      assign_lines_m(recfuel - 1, d, lh, iadd(line, 1), iadd(y, step), is_read, wc)
+      assign_lines_m(recfuel - 1, d, lh, iadd(line, 1), iadd(y, step), is_read, wc, cur)
     end
   ) else assign_lines_exh(d, lh, line, y, is_read, wc)
 
-fun assign_lines(d: !Doc, lh: int, line: int, y: int): int =
-  assign_lines_m(airlock_nat(MAX_REC_FUEL), d, lh, line, y, 0, 80)
+fun assign_lines(d: !Doc, lh: int, line: int, y: int): int = let
+  var cur: int = 0
+in
+  assign_lines_m(airlock_nat(MAX_REC_FUEL), d, lh, line, y, 0, 80, cur)
+end
 
 extern fun stamp_nodes_exh(d: !Doc, lh: int, is_read: int, wc: int, i: int): void = "mac#anth_die_void"
 
@@ -112,7 +159,8 @@ in
     fill_plain_lines(d, lh, doc_nlines(d), wc)
   else let
     val () = doc_layout_ast_prepare(d, lh)
-    val t = assign_lines_m(airlock_nat(MAX_REC_FUEL), d, lh, 0, 0, is_read, wc)
+    var cur: int = 0
+    val t = assign_lines_m(airlock_nat(MAX_REC_FUEL), d, lh, 0, 0, is_read, wc, cur)
     val () = stamp_nodes(d, lh, is_read, wc, 0)
   in
     t

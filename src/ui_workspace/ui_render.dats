@@ -79,6 +79,15 @@ fun cache_free_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: Cache): vo
       in
         cache_free_m(recfuel - 1, rest)
       end
+    | ~CEmbed(p, mt, doc, cw, lh, rest) => let
+        val () = buf_free(p)
+        val () = doc_free(doc)
+        val () = seen_int(mt)
+        val () = seen_int(cw)
+        val () = seen_int(lh)
+      in
+        cache_free_m(recfuel - 1, rest)
+      end
   ) else cache_free_exh(c)
 
 implement cache_free(c) = cache_free_m(airlock_nat(MAX_REC_FUEL), c)
@@ -109,12 +118,96 @@ fun cache_lookup_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: Cache, p
         in
           CCons(p, t, iw, ih, rest2)
         end
+    | ~CEmbed(p, mt, doc, cw, lh, rest) => let
+        val rest2 = cache_lookup_m(recfuel - 1, rest, path, tex, w, h, hit)
+      in
+        CEmbed(p, mt, doc, cw, lh, rest2)
+      end
   ) else cache_lookup_exh(c, path, tex, w, h, hit)
 
 fun cache_lookup(c: Cache, path: !Buf, tex: &uint >> _, w: &int >> _, h: &int >> _, hit: &Toggle >> _): Cache = cache_lookup_m(airlock_nat(MAX_REC_FUEL), c, path, tex, w, h, hit)
 
 fun cache_put(c: Cache, path: Buf, tex: uint, w: int, h: int): Cache =
   CCons(path, tex, w, h, c)
+
+#define MAX_EMBED_CACHE_ENTRIES 48
+
+fun cache_take_embed_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), c: Cache, path: !Buf, cur_mt: int
+): @(Option_vt(Doc), Cache) =
+  if recfuel > 0 then (
+    case+ c of
+    | ~CNil() => @(None_vt(), CNil())
+    | ~CCons(p, t, iw, ih, rest) => let
+        val @(opt, rest2) = cache_take_embed_m(recfuel - 1, rest, path, cur_mt)
+      in
+        @(opt, CCons(p, t, iw, ih, rest2))
+      end
+    | ~CEmbed(p, mt, doc, cw, lh, rest) =>
+        if beq(p, path, 0) then
+          if ieq(mt, cur_mt) then let
+            val () = (buf_free(p); seen_int(cw); seen_int(lh))
+          in
+            @(Some_vt(doc), rest)
+          end else let
+            val () = (buf_free(p); doc_free(doc); seen_int(cw); seen_int(lh))
+          in
+            cache_take_embed_m(recfuel - 1, rest, path, cur_mt)
+          end
+        else let
+          val @(opt, rest2) = cache_take_embed_m(recfuel - 1, rest, path, cur_mt)
+        in
+          @(opt, CEmbed(p, mt, doc, cw, lh, rest2))
+        end
+  ) else @(None_vt(), c)
+
+fun cache_take_embed(c: Cache, path: !Buf, cur_mt: int): @(Option_vt(Doc), Cache) =
+  cache_take_embed_m(airlock_nat(MAX_REC_FUEL), c, path, cur_mt)
+
+fun count_embeds_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: !Cache, acc: int): int =
+  if recfuel > 0 then (
+    case+ c of
+    | CNil() => acc
+    | CCons(_, _, _, _, rest) => count_embeds_m(recfuel - 1, rest, acc)
+    | CEmbed(_, _, _, _, _, rest) => count_embeds_m(recfuel - 1, rest, iadd(acc, 1))
+  ) else acc
+
+fun trim_embeds_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: Cache, keep: int, cur: &int >> _): Cache =
+  if recfuel > 0 then (
+    case+ c of
+    | ~CNil() => CNil()
+    | ~CCons(p, t, iw, ih, rest) => let
+        val rest2 = trim_embeds_m(recfuel - 1, rest, keep, cur)
+      in
+        CCons(p, t, iw, ih, rest2)
+      end
+    | ~CEmbed(p, mt, doc, cw, lh, rest) => let
+        val idx = cur
+        val () = cur := iadd(cur, 1)
+      in
+        if ilt(idx, keep) then let
+          val rest2 = trim_embeds_m(recfuel - 1, rest, keep, cur)
+        in
+          CEmbed(p, mt, doc, cw, lh, rest2)
+        end else let
+          val () = (buf_free(p); doc_free(doc); seen_int(mt); seen_int(cw); seen_int(lh))
+        in
+          trim_embeds_m(recfuel - 1, rest, keep, cur)
+        end
+      end
+  ) else c
+
+fun cache_put_embed(c: Cache, path: Buf, mt: int, doc: Doc, cw: int, lh: int): Cache = let
+  val n = count_embeds_m(airlock_nat(MAX_REC_FUEL), c, 0)
+in
+  if ige(n, MAX_EMBED_CACHE_ENTRIES) then let
+    var cur: int = 0
+    val c2 = trim_embeds_m(airlock_nat(MAX_REC_FUEL), c, isub(MAX_EMBED_CACHE_ENTRIES, 1), cur)
+  in
+    CEmbed(path, mt, doc, cw, lh, c2)
+  end else
+    CEmbed(path, mt, doc, cw, lh, c)
+end
 
 datatype PathScan = ScanSeek | ScanCopy | ScanDone
 
@@ -1300,22 +1393,48 @@ in
   ()
 end
 
+fun obtain_embed_doc(c: &Cache >> _, shown: !Buf, p_str: string, mt: int, level: int): @(Doc, bool) = let
+  val @(opt_child, c2) = cache_take_embed(c, shown, mt)
+  val () = c := c2
+in
+  case+ opt_child of
+  | ~Some_vt(d) => @(d, true)
+  | ~None_vt() => let
+      val d = doc_open()
+      val ok = embedded_doc_load(d, p_str, level)
+    in
+      @(d, ok)
+    end
+end
+
+fun save_embed_cache(c: &Cache >> _, shown: !Buf, mt: int, child: Doc, cw: int, lh: int): void = let
+  var p_copy = buf_make(buf_len(shown))
+  val () = bcat(p_copy, shown, 0, buf_len(shown))
+in
+  c := cache_put_embed(c, p_copy, mt, child, cw, lh)
+end
+
 fun draw_embedded_path(shown: !Buf, anchor: !Buf, scope: EmbedScope, level: int, child_colw: int, f: !Font, r: !Rend, x: int, y: int, w: int, h: int,
                        vx: int, vy: int, vw: int, vh: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _): void =
   if igt(level, MAX_EMBED_DEPTH) then draw_missing_embed(f, r, x, y)
   else let
-    val child = doc_open()
-    val loaded = embedded_doc_load(child, buf_cstr(shown), level)
+    val p_str = buf_cstr(shown)
+    val mt = fs_mtime(p_str)
   in
-    if loaded then let
-      val () = draw_embedded_doc(f, r, child, anchor, scope, child_colw, x, y, w, h, vx, vy, vw, vh, lh, vault, c, scratch)
-      val () = doc_free(child)
+    if ieq(mt, 0) then draw_missing_embed(f, r, x, y)
+    else let
+      val @(child, is_loaded) = obtain_embed_doc(c, shown, p_str, mt, level)
     in
-      ()
-    end else let
-      val () = doc_free(child)
-    in
-      draw_missing_embed(f, r, x, y)
+      if is_loaded then let
+        val () = draw_embedded_doc(f, r, child, anchor, scope, child_colw, x, y, w, h, vx, vy, vw, vh, lh, vault, c, scratch)
+        val () = save_embed_cache(c, shown, mt, child, child_colw, lh)
+      in
+        ()
+      end else let
+        val () = doc_free(child)
+      in
+        draw_missing_embed(f, r, x, y)
+      end
     end
   end
 

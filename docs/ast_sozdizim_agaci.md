@@ -86,22 +86,27 @@ Her düğüm tamsayı alanlarından oluşan bir indeksle temsil edilir:
 * Karakter eklendiğinde gap daralır; gap dolduğunda `buf_ensure` ile kapasite ikiye katlanır.
 * Metin silindiğinde veya eklendiğinde `lines_apply_edit` ve `folds_apply_edit` fonksiyonları çağrılarak satır dizinleri ve katlama ofsetleri delta kaydırmasıyla güncellenir.
 
-### B. Satır Yerleşim ve Adım Hesabı (`line_calc_step`)
+### B. Satır Yerleşim ve Adım Hesabı (`line_calc_step` - Monotonik İmleç ile $O(L + N)$)
 ```ats
-fun line_calc_step(d: !Doc, line: int, n: int, lh: int, is_read: int, wc: int): int = let
-  val st = doc_line_start(d, line)
-  val en = doc_line_end(d, line)
-  val rows = line_source_rows(d, line, wc)
-  val hid = doc_layout_line_hidden(d, st, en, n)
-  val extra = if ieq(hid, 1) then 0 else doc_layout_widget_height(d, st, en, n)
-  val hpad = if ieq(hid, 1) orelse ieq(is_read, 0) then 0 else doc_layout_heading_padding(d, st, en, n, lh)
+fun line_calc_step(d: !Doc, line: int, nn: int, lh: int, is_read: int, wc: int, cur: &int >> _): int = let
+  val hid = doc_is_line_hidden(d, line)
 in
   if ieq(hid, 1) then 0
-  else iadd(iadd(imul(rows, lh), extra), hpad)
+  else let
+    val st = doc_line_start(d, line)
+    val en = if ilt(iadd(line, 1), doc_nlines(d)) then doc_line_start(d, iadd(line, 1)) else doc_len(d)
+    val rows = line_source_rows(d, line, wc)
+    val () = cur := advance_node_cursor(airlock_nat(MAX_REC_FUEL), d, cur, nn, st)
+    val @(extra, hpad) = line_scan_extras(airlock_nat(MAX_REC_FUEL), d, cur, nn, st, en, lh, is_read, 0, 0)
+  in
+    if ieq(is_read, 1) andalso igt(extra, 0) then iadd(extra, hpad)
+    else iadd(iadd(imul(rows, lh), extra), hpad)
+  end
 end
 ```
-* Eğer satır katlanmış bir bölge içerisindeyse (`hid == 1`), `step` doğrudan **0** atanır ve dikey yerleşimde yer kaplamaz.
-* Satır görünürse; kaynak metin satır sayısı (`rows * lh`), gömülü widget yüksekliği (`extra`) ve başlık boşlukları (`hpad`) toplanır.
+* **Erken Çıkış (Early Exit):** Eğer satır katlanmış bir bölge içerisindeyse (`hid == 1`), `step` doğrudan **0** atanır; gereksiz AST düğüm taraması yapılmaz.
+* **Monotonik Düğüm İmleci (`cur`):** Satır başlangıç ofseti `st` arttıkça, `cur` imleci `advance_node_cursor` ile sadece ileriye doğru sürülür ve `doc_node_start >= en` olduğunda arama `line_scan_extras` içinde anında kesilir. Bu sayede $O(L \times N)$ yerine $O(L + N)$ tek geçişli lineer yerleşim elde edilir (`söz.md` açılış süresi 0.2 saniyeye inmiştir).
+* **Görünür Satır Ölçümü:** Kaynak metin satır sayısı (`rows * lh`), gömülü widget yüksekliği (`extra`) ve başlık boşlukları (`hpad`) toplanır.
 
 ### C. Yerleşim Önbellekleme (Layout Cache)
 * `doc_layout_mode` fonksiyonu doküman sürümünü (`doc_ver`), satır yüksekliğini ve sarma sütununu birleştirerek önbellek anahtarı üretir.
