@@ -803,7 +803,12 @@ fun visual_fit_prefix_m {recfuel:nat} .<recfuel>. (
       val width = if igt(n, 0) then font_width_buf(f, r, scratch, n) else 0
     in
       if igt(width, max_w) then (if ieq(best, i0) then p else best)
-      else visual_fit_prefix_m(recfuel - 1, d, i0, doc_advance_cps(d, p, b, 1), p, b, max_w, f, r, scratch)
+      else let
+        val rem = isub(max_w, width)
+        val step = (if igt(rem, 32) then imax(1, idiv(rem, 16)) else 1)
+      in
+        visual_fit_prefix_m(recfuel - 1, d, i0, doc_advance_cps(d, p, b, step), p, b, max_w, f, r, scratch)
+      end
     end
   ) else visual_fit_prefix_exh(d, i0, p, best, b, max_w, f, r, scratch)
 

@@ -56,14 +56,23 @@ in
   else default_w
 end
 
+fun append_known(rows: &VisualRows >> VisualRows,a: int,b: int,line: int,ordinal: int,width: int): void =
+  visual_rows_append(rows,@{start=a,finish=b,width=width,line=line,ordinal=ordinal})
+
 fun line_rows{n:nat} .<n>. (fuel: int(n),f: !Font,r: !Rend,rows: &VisualRows >> VisualRows,flags: !Buf,
   base: int,a: int,b: int,line: int,ordinal: int,target_w: int,scratch: &Buf >> _): void =
   if fuel = 0 then fill_exhausted(rows) else if ige(a,b) then () else let
     val+ VisualRows(text,map,lines,data,count,key)=rows
-    val next=iadd(base,boundary(airlock_nat(MAX_REC_FUEL),flags,iadd(isub(a,base),1),isub(b,base)))
-    val endpos=fit(airlock_nat(MAX_REC_FUEL),f,r,text,flags,base,a,b,next,a,a,target_w,scratch)
-    val ()=append(f,r,rows,a,endpos,line,ordinal,scratch)
-  in line_rows(fuel-1,f,r,rows,flags,base,endpos,b,line,iadd(ordinal,1),target_w,scratch) end
+    val full_w=measure(f,r,text,a,b,scratch)
+  in
+    if ile(full_w,target_w) then
+      append_known(rows,a,b,line,ordinal,full_w)
+    else let
+      val next=iadd(base,boundary(airlock_nat(MAX_REC_FUEL),flags,iadd(isub(a,base),1),isub(b,base)))
+      val endpos=fit(airlock_nat(MAX_REC_FUEL),f,r,text,flags,base,a,b,next,a,a,target_w,scratch)
+      val ()=append(f,r,rows,a,endpos,line,ordinal,scratch)
+    in line_rows(fuel-1,f,r,rows,flags,base,endpos,b,line,iadd(ordinal,1),target_w,scratch) end
+  end
 
 fun one(f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,line: int,scratch: &Buf >> _): void = let
   val st=doc_line_start(d,line)
@@ -74,7 +83,7 @@ fun one(f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,line: int,scra
   val target_w=line_target_width(d,line,key.width)
   val ()=buf_set_len(scratch,0) val ()=buf_append_at(scratch,text,a,isub(b,a))
   val flags=font_text_boundaries(f,scratch,isub(b,a))
-  val ()=if ieq(a,b) then append(f,r,rows,a,b,line,0,scratch)
+  val ()=if ieq(a,b) then append_known(rows,a,b,line,0,0)
     else line_rows(airlock_nat(MAX_REC_FUEL),f,r,rows,flags,a,a,b,line,0,target_w,scratch)
 in buf_free(flags) end
 fun lines{n:nat} .<n>. (left: int(n),f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,i: int,scratch: &Buf >> _): void =
