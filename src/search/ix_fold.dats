@@ -124,8 +124,28 @@ in
   end else (cp := b0; clen := 1)
 end
 
-implement fold_range_buf(src, st, en, dst, omap) =
+implement fold_range_buf(src, st, en, dst, omap) = let
+  val span = isub(en, st)
+  val () = if igt(span, 0) then let
+    val dneed = iadd(buf_len(dst), imul(span, 2))
+    val oneed = iadd(buf_len(omap), imul(span, 8))
+    val () = buf_ensure(dst, dneed)
+    val () = buf_ensure(omap, oneed)
+  in
+  end else ()
+in
   fold_loop_buf_m(airlock_nat(MAX_REC_FUEL), src, st, en, dst, omap)
+end
 
-implement fold_range_doc(d, st, en, dst, omap) =
+implement fold_range_doc(d, st, en, dst, omap) = let
+  val span = isub(en, st)
+  val () = if igt(span, 0) then let
+    val dneed = iadd(buf_len(dst), imul(span, 2))
+    val oneed = iadd(buf_len(omap), imul(span, 8))
+    val () = buf_ensure(dst, dneed)
+    val () = buf_ensure(omap, oneed)
+  in
+  end else ()
+in
   fold_loop_doc_m(airlock_nat(MAX_REC_FUEL), d, st, en, dst, omap)
+end

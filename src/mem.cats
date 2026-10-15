@@ -58,5 +58,18 @@ static inline char *anth_ptr_string(void *p) {
   return p ? (char *)p : (char *)"";
 }
 
+static inline void anth_buf_copy(void *dst, int dst_cap, int dst_off, const void *src, int src_cap, int src_off, int n) {
+  if (!dst || !src || n <= 0) return;
+  if (dst_off < 0 || dst_off + n > dst_cap) return;
+  if (src_off < 0 || src_off + n > src_cap) return;
+  memmove((unsigned char *)dst + dst_off, (const unsigned char *)src + src_off, (size_t)n);
+}
+
+static inline void anth_copy_to_ptr(const void *src, int src_cap, int src_off, void *dst, int dst_cap, int dst_off, int n) {
+  if (!src || !dst || n <= 0) return;
+  if (src_off < 0 || src_off + n > src_cap) return;
+  if (dst_off < 0 || dst_off + n > dst_cap) return;
+  memcpy((unsigned char *)dst + dst_off, (const unsigned char *)src + src_off, (size_t)n);
+}
 
 #endif

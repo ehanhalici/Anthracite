@@ -467,47 +467,14 @@ in
   gap_get(d, p)
 end
 
-extern fun copy_fwd_exh(src: !Buf, so: int, dst: !Buf, dst0: int, n: int, i: int): void = "mac#anth_die_void"
-
-fun copy_fwd_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, so: int, dst: !Buf, dst0: int, n: int, i: int): void =
-  if recfuel > 0 then (
-    if ilt(i, n) then let
-      val () = buf_set(dst, iadd(dst0, i), buf_get(src, iadd(so, i)))
-    in
-      copy_fwd_m(recfuel - 1, src, so, dst, dst0, n, iadd(i, 1))
-    end else ()
-  ) else copy_fwd_exh(src, so, dst, dst0, n, i)
-
 fun copy_fwd(src: !Buf, so: int, dst: !Buf, dst0: int, n: int): void =
-  copy_fwd_m(airlock_nat(MAX_REC_FUEL), src, so, dst, dst0, n, 0)
-
-extern fun copy_same_exh(b: !Buf, so: int, dst0: int, n: int, i: int): void = "mac#anth_die_void"
-
-fun copy_same_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, so: int, dst0: int, n: int, i: int): void =
-  if recfuel > 0 then (
-    if ilt(i, n) then let
-      val () = buf_set(b, iadd(dst0, i), buf_get(b, iadd(so, i)))
-    in
-      copy_same_m(recfuel - 1, b, so, dst0, n, iadd(i, 1))
-    end else ()
-  ) else copy_same_exh(b, so, dst0, n, i)
+  buf_copy_range(dst, dst0, src, so, n)
 
 fun copy_fwd_same(b: !Buf, so: int, dst0: int, n: int): void =
-  copy_same_m(airlock_nat(MAX_REC_FUEL), b, so, dst0, n, 0)
-
-extern fun copy_back_exh(b: !Buf, so: int, dst0: int, i: int): void = "mac#anth_die_void"
-
-fun copy_back_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, so: int, dst0: int, i: int): void =
-  if recfuel > 0 then (
-    if ige(i, 0) then let
-      val () = buf_set(b, iadd(dst0, i), buf_get(b, iadd(so, i)))
-    in
-      copy_back_m(recfuel - 1, b, so, dst0, isub(i, 1))
-    end else ()
-  ) else copy_back_exh(b, so, dst0, i)
+  buf_move_within(b, dst0, so, n)
 
 fun copy_back_same(b: !Buf, so: int, dst0: int, n: int): void =
-  copy_back_m(airlock_nat(MAX_REC_FUEL), b, so, dst0, isub(n, 1))
+  buf_move_within(b, dst0, so, n)
 
 fun gap_grow(d: !Doc, need: int): void = let
   val lo = d_lo(d)
@@ -1595,23 +1562,48 @@ in
   end
 end
 
-extern fun slice_exh(d: !Doc, a: int, dst: ptr, cap: int, i: int, n: int): void = "mac#anth_die_void"
-
-fun slice_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, a: int, dst: ptr, cap: int, i: int, n: int): void =
-  if recfuel > 0 then (
-    if ilt(i, n) then let
-      val () = mem_set_byte(dst, cap, i, doc_byte(d, iadd(a, i)))
+fun doc_gap_copy_to_ptr(d: !Doc, src_off: int, dst: ptr, dst_cap: int, dst_off: int, n: int): void =
+  case+ d of
+  | @DOC(s) => let
+      val () = buf_copy_to_ptr(s.gap, src_off, dst, dst_cap, dst_off, n)
     in
-      slice_m(recfuel - 1, d, a, dst, cap, iadd(i, 1), n)
+      fold@(d)
+    end
+
+fun doc_gap_copy_to_buf(d: !Doc, src_off: int, dst: !Buf, dst_off: int, n: int): void =
+  case+ d of
+  | @DOC(s) => let
+      val () = buf_copy_range(dst, dst_off, s.gap, src_off, n)
+    in
+      fold@(d)
+    end
+
+fun doc_slice_calc(d: !Doc, a: int, n: int, dst: ptr, cap: int): void = let
+  val lo = d_lo(d)
+  val hi = d_hi(d)
+in
+  if ilt(a, lo) then let
+    val l1 = imin(n, isub(lo, a))
+    val () = doc_gap_copy_to_ptr(d, a, dst, cap, 0, l1)
+    val () = if igt(n, l1) then let
+      val l2 = isub(n, l1)
+      val () = doc_gap_copy_to_ptr(d, hi, dst, cap, l1, l2)
+    in
     end else ()
-  ) else slice_exh(d, a, dst, cap, i, n)
+  in
+  end else let
+    val s2 = iadd(hi, isub(a, lo))
+    val () = doc_gap_copy_to_ptr(d, s2, dst, cap, 0, n)
+  in
+  end
+end
 
 implement doc_slice(d, a0, b0, dst, cap) = let
   val len = d_len(d)
   val a = if a0 < 0 then 0 else a0
   val b = if b0 > len then len else b0
   val n = if igt(isub(b, a), cap) then cap else isub(b, a)
-  val () = slice_m(airlock_nat(MAX_REC_FUEL), d, a, dst, cap, 0, n)
+  val () = if igt(n, 0) then doc_slice_calc(d, a, n, dst, cap) else ()
 in
   n
 end
@@ -1619,21 +1611,14 @@ end
 implement doc_slice_buf(d, a, b, dst, cap) =
   doc_slice(d, a, b, buf_ptr(dst), cap)
 
-extern fun text_copy_exh(d: !Doc, dst: !Buf, i: int, n: int): void = "mac#anth_die_void"
-
-fun text_copy_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, dst: !Buf, i: int, n: int): void =
-  if recfuel > 0 then (
-    if i < n then let
-      val () = buf_set(dst, i, doc_byte(d, i))
-    in
-      text_copy_m(recfuel - 1, d, dst, iadd(i, 1), n)
-    end else ()
-  ) else text_copy_exh(d, dst, i, n)
-
 implement doc_text(d, dst) = let
   val n = d_len(d)
   val () = buf_resize(dst, iadd(n, 1))
-  val () = text_copy_m(airlock_nat(MAX_REC_FUEL), d, dst, 0, n)
+  val lo = d_lo(d)
+  val hi = d_hi(d)
+  val () = if igt(lo, 0) then doc_gap_copy_to_buf(d, 0, dst, 0, lo) else ()
+  val tail = isub(n, lo)
+  val () = if igt(tail, 0) then doc_gap_copy_to_buf(d, hi, dst, lo, tail) else ()
   val () = buf_set(dst, n, 0)
 in
   buf_set_len(dst, n)

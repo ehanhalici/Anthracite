@@ -790,34 +790,52 @@ fun plain_rows_m {recfuel:nat} .<recfuel>. (
     end else ()
   ) else plain_rows_exh(f, r, d, st, en, colx, yy, safe_lh, wc, row, rows, scratch)
 
-extern fun visual_fit_prefix_exh(d: !Doc, i0: int, p: int, best: int, b: int, max_w: int, f: !Font, r: !Rend, scratch: &Buf >> _): int = "mac#anth_die_int"
+fun visual_measure_w(
+  d: !Doc, i0: int, p: int, f: !Font, r: !Rend, scratch: &Buf >> _
+): int = let
+  val scap = buf_cap(scratch)
+  val n = doc_slice_buf(d, i0, p, scratch, scap)
+in
+  if igt(n, 0) then font_width_buf(f, r, scratch, n) else 0
+end
+
+fun visual_fit_step(
+  d: !Doc, i0: int, lo: int, hi: int, max_w: int,
+  f: !Font, r: !Rend, scratch: &Buf >> _
+): int = let
+  val count = doc_codepoints(d, lo, hi)
+  val half = idiv(count, 2)
+in
+  if ile(half, 0) then
+    (if igt(visual_measure_w(d, i0, hi, f, r, scratch), max_w) then
+      (if ieq(lo, i0) then doc_advance_cps(d, i0, hi, 1) else lo)
+    else hi)
+  else let
+    val mid = doc_advance_cps(d, lo, hi, half)
+    val w = visual_measure_w(d, i0, mid, f, r, scratch)
+  in
+    if igt(w, max_w) then ~mid else mid
+  end
+end
 
 fun visual_fit_prefix_m {recfuel:nat} .<recfuel>. (
-  recfuel: int(recfuel), d: !Doc, i0: int, p: int, best: int, b: int,
+  recfuel: int(recfuel), d: !Doc, i0: int, lo: int, hi: int,
   max_w: int, f: !Font, r: !Rend, scratch: &Buf >> _
 ): int =
-  if recfuel > 0 then (
-    if ige(p, b) then best else let
-      val scap = buf_cap(scratch)
-      val n = doc_slice_buf(d, i0, p, scratch, scap)
-      val width = if igt(n, 0) then font_width_buf(f, r, scratch, n) else 0
-    in
-      if igt(width, max_w) then (if ieq(best, i0) then p else best)
-      else let
-        val rem = isub(max_w, width)
-        val step = (if igt(rem, 32) then imax(1, idiv(rem, 16)) else 1)
-      in
-        visual_fit_prefix_m(recfuel - 1, d, i0, doc_advance_cps(d, p, b, step), p, b, max_w, f, r, scratch)
-      end
-    end
-  ) else visual_fit_prefix_exh(d, i0, p, best, b, max_w, f, r, scratch)
+  if recfuel > 0 then let
+    val res = visual_fit_step(d, i0, lo, hi, max_w, f, r, scratch)
+  in
+    if ilt(res, 0) then
+      visual_fit_prefix_m(recfuel - 1, d, i0, lo, ~res, max_w, f, r, scratch)
+    else if ieq(res, lo) orelse ieq(res, hi) then res
+    else
+      visual_fit_prefix_m(recfuel - 1, d, i0, res, hi, max_w, f, r, scratch)
+  end else (if ieq(lo, i0) then doc_advance_cps(d, i0, hi, 1) else lo)
 
 fun plain_px_end(f: !Font, r: !Rend, d: !Doc, st: int, en: int, max_w: int, scratch: &Buf >> _): int = let
-  val scap = buf_cap(scratch)
-  val n = doc_slice_buf(d, st, en, scratch, scap)
-  val width = if igt(n, 0) then font_width_buf(f, r, scratch, n) else 0
+  val width = visual_measure_w(d, st, en, f, r, scratch)
 in
-  if igt(width, max_w) then visual_fit_prefix_m(airlock_nat(MAX_REC_FUEL), d, st, st, st, en, max_w, f, r, scratch) else en
+  if igt(width, max_w) then visual_fit_prefix_m(airlock_nat(MAX_REC_FUEL), d, st, st, en, max_w, f, r, scratch) else en
 end
 
 extern fun plain_px_count_exh(f: !Font, r: !Rend, d: !Doc, st: int, en: int, max_w: int, scratch: &Buf >> _): int = "mac#anth_die_int"
@@ -974,12 +992,10 @@ fun scan_word_end_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, p
   ) else en
 
 fun visual_chunk_long(f: !Font, r: !Rend, d: !Doc, i0: int, w_end: int, max_w: int, scratch: &Buf >> _): int = let
-  val scap = buf_cap(scratch)
-  val n = doc_slice_buf(d, i0, w_end, scratch, scap)
-  val width = if igt(n, 0) then font_width_buf(f, r, scratch, n) else 0
+  val width = visual_measure_w(d, i0, w_end, f, r, scratch)
 in
   if igt(width, max_w) then
-    visual_fit_prefix_m(airlock_nat(MAX_REC_FUEL), d, i0, i0, i0, w_end, max_w, f, r, scratch)
+    visual_fit_prefix_m(airlock_nat(MAX_REC_FUEL), d, i0, i0, w_end, max_w, f, r, scratch)
   else w_end
 end
 

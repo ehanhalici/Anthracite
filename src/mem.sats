@@ -31,6 +31,9 @@ fun buf_push(b: &Buf >> _, v: int): void
 fun buf_zero(b: !Buf): void
 fun buf_set_f32(b: !Buf, i: int, v: float): void
 fun buf_append_at(dst: &Buf >> _, src: !Buf, st: int, n: int): void
+fun buf_copy_range(dst: !Buf, dst_off: int, src: !Buf, src_off: int, n: int): void
+fun buf_move_within(b: !Buf, dst_off: int, src_off: int, n: int): void
+fun buf_copy_to_ptr(src: !Buf, src_off: int, dst: ptr, dst_cap: int, dst_off: int, n: int): void
 fun fs_read_buf(fd: int, b: !Buf, n: int): int
 fun fs_write_buf(path: string, b: !Buf, n: int): int
 fun dir_next_buf(d: ptr, name: !Buf, namemax: int, isdir: &int >> _): int

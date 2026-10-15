@@ -34,27 +34,24 @@ fun feed_bloom_trigrams_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ixb:
     end else ()
   ) else ()
 
-fun feed_bloom_leaf(d: !Doc, fid: int, ixb: !Buf, cs: int, ce: int): void =
+fun feed_bloom_leaf(d: !Doc, fid: int, ixb: !Buf, cs: int, ce: int, fbuf: &Buf >> _, omap: &Buf >> _): void =
   if ige(isub(ce, cs), 3) then let
-    var fbuf = buf_make(64)
-    var omap = buf_make(64)
+    val () = buf_set_len(fbuf, 0)
+    val () = buf_set_len(omap, 0)
     val () = fold_range_doc(d, cs, ce, fbuf, omap)
     val flen = buf_len(fbuf)
     val () = feed_bloom_trigrams_m(airlock_nat(MAX_REC_FUEL), ixb, fid, fbuf, 0, isub(flen, 3))
-    val () = buf_free(omap)
-    val () = buf_free(fbuf)
   in
   end else ()
 
-fun extract_heading(d: !Doc, fid: int, i: int, k: NodeKind, ixs: &Buf >> _, ixp: &Buf >> _): void = let
+fun extract_heading(d: !Doc, fid: int, i: int, k: NodeKind, ixs: &Buf >> _, ixp: &Buf >> _, omap: &Buf >> _): void = let
   val cs0 = doc_node_cstart(d, i)
   val ce0 = doc_node_cend(d, i)
   val cs = if igt(ce0, cs0) then cs0 else doc_node_start(d, i)
   val ce = if igt(ce0, cs0) then ce0 else doc_node_end(d, i)
   val toff = buf_len(ixp)
-  var omap = buf_make(16)
+  val () = buf_set_len(omap, 0)
   val () = fold_range_doc(d, cs, ce, ixp, omap)
-  val () = buf_free(omap)
   val tlen = isub(buf_len(ixp), toff)
   val line = doc_line_of(d, cs)
   val aux = doc_node_aux(d, i)
@@ -62,16 +59,15 @@ fun extract_heading(d: !Doc, fid: int, i: int, k: NodeKind, ixs: &Buf >> _, ixp:
 in
 end
 
-fun extract_child_sym(d: !Doc, fid: int, i: int, k: NodeKind, ck: NodeKind, aux: int, ixs: &Buf >> _, ixp: &Buf >> _): void = let
+fun extract_child_sym(d: !Doc, fid: int, i: int, k: NodeKind, ck: NodeKind, aux: int, ixs: &Buf >> _, ixp: &Buf >> _, omap: &Buf >> _): void = let
   val c = doc_find_child(d, i, ck)
 in
   if ige(c, 0) then let
     val cs = doc_node_start(d, c)
     val ce = doc_node_end(d, c)
     val toff = buf_len(ixp)
-    var omap = buf_make(16)
+    val () = buf_set_len(omap, 0)
     val () = fold_range_doc(d, cs, ce, ixp, omap)
-    val () = buf_free(omap)
     val tlen = isub(buf_len(ixp), toff)
     val line = doc_line_of(d, cs)
     val _ = ix_sym_add(ixs, fid, kind_code(k), doc_node_start(d, i), doc_node_end(d, i), line, toff, tlen, aux)
@@ -79,27 +75,26 @@ in
   end else ()
 end
 
-fun extract_sym_leaf(d: !Doc, fid: int, i: int, k: NodeKind, aux: int, ixs: &Buf >> _, ixp: &Buf >> _): void = let
+fun extract_sym_leaf(d: !Doc, fid: int, i: int, k: NodeKind, aux: int, ixs: &Buf >> _, ixp: &Buf >> _, omap: &Buf >> _): void = let
   val cs = doc_node_start(d, i)
   val ce = doc_node_end(d, i)
   val toff = buf_len(ixp)
-  var omap = buf_make(16)
+  val () = buf_set_len(omap, 0)
   val () = fold_range_doc(d, cs, ce, ixp, omap)
-  val () = buf_free(omap)
   val tlen = isub(buf_len(ixp), toff)
   val line = doc_line_of(d, cs)
   val _ = ix_sym_add(ixs, fid, kind_code(k), cs, ce, line, toff, tlen, aux)
 in
 end
 
-fun extract_one_sym(d: !Doc, fid: int, i: int, k: NodeKind, ixs: &Buf >> _, ixp: &Buf >> _): void =
-  if is_heading(k) then extract_heading(d, fid, i, k, ixs, ixp)
-  else if is_kind(k, KTag) then extract_sym_leaf(d, fid, i, k, 0, ixs, ixp)
-  else if is_kind(k, KWiki) then extract_child_sym(d, fid, i, k, KWikiTarget, 0, ixs, ixp)
-  else if is_kind(k, KLink) then extract_child_sym(d, fid, i, k, KLinkDest, 0, ixs, ixp)
-  else if is_kind(k, KTask) then extract_sym_leaf(d, fid, i, k, doc_node_aux(d, i), ixs, ixp)
-  else if is_kind(k, KCallout) then extract_child_sym(d, fid, i, k, KInfo, doc_node_aux(d, i), ixs, ixp)
-  else if is_kind(k, KCode) then extract_child_sym(d, fid, i, k, KInfo, 0, ixs, ixp)
+fun extract_one_sym(d: !Doc, fid: int, i: int, k: NodeKind, ixs: &Buf >> _, ixp: &Buf >> _, omap: &Buf >> _): void =
+  if is_heading(k) then extract_heading(d, fid, i, k, ixs, ixp, omap)
+  else if is_kind(k, KTag) then extract_sym_leaf(d, fid, i, k, 0, ixs, ixp, omap)
+  else if is_kind(k, KWiki) then extract_child_sym(d, fid, i, k, KWikiTarget, 0, ixs, ixp, omap)
+  else if is_kind(k, KLink) then extract_child_sym(d, fid, i, k, KLinkDest, 0, ixs, ixp, omap)
+  else if is_kind(k, KTask) then extract_sym_leaf(d, fid, i, k, doc_node_aux(d, i), ixs, ixp, omap)
+  else if is_kind(k, KCallout) then extract_child_sym(d, fid, i, k, KInfo, doc_node_aux(d, i), ixs, ixp, omap)
+  else if is_kind(k, KCode) then extract_child_sym(d, fid, i, k, KInfo, 0, ixs, ixp, omap)
   else ()
 
 fun is_searchable_leaf(k: NodeKind, flags: int): bool =
@@ -108,29 +103,36 @@ fun is_searchable_leaf(k: NodeKind, flags: int): bool =
   else if iand(flags, FL_READ_HIDDEN) != 0 then false
   else true
 
-fun extract_node(d: !Doc, fid: int, i: int, ixs: &Buf >> _, ixp: &Buf >> _, ixb: !Buf): void = let
+fun extract_node(d: !Doc, fid: int, i: int, ixs: &Buf >> _, ixp: &Buf >> _, ixb: !Buf, fbuf: &Buf >> _, omap: &Buf >> _): void = let
   val k = doc_node_kind(d, i)
   val flags = doc_node_flags(d, i)
-  val () = extract_one_sym(d, fid, i, k, ixs, ixp)
+  val () = extract_one_sym(d, fid, i, k, ixs, ixp, omap)
   val () = if is_searchable_leaf(k, flags) then
-    feed_bloom_leaf(d, fid, ixb, doc_node_start(d, i), doc_node_end(d, i))
+    feed_bloom_leaf(d, fid, ixb, doc_node_start(d, i), doc_node_end(d, i), fbuf, omap)
   else ()
 in
 end
 
-fun extract_loop_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, fid: int, i: int, n: int, ixs: &Buf >> _, ixp: &Buf >> _, ixb: !Buf): void =
+fun extract_loop_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), d: !Doc, fid: int, i: int, n: int,
+  ixs: &Buf >> _, ixp: &Buf >> _, ixb: !Buf, fbuf: &Buf >> _, omap: &Buf >> _
+): void =
   if recfuel > 0 then (
     if ilt(i, n) then let
-      val () = extract_node(d, fid, i, ixs, ixp, ixb)
+      val () = extract_node(d, fid, i, ixs, ixp, ixb, fbuf, omap)
     in
-      extract_loop_m(recfuel - 1, d, fid, iadd(i, 1), n, ixs, ixp, ixb)
+      extract_loop_m(recfuel - 1, d, fid, iadd(i, 1), n, ixs, ixp, ixb, fbuf, omap)
     end else ()
   ) else ()
 
 implement ix_extract_doc(d, fid, ixs, ixp, ixb) = let
   val n = doc_nnodes(d)
+  var fbuf = buf_make(256)
+  var omap = buf_make(256)
+  val () = extract_loop_m(airlock_nat(MAX_REC_FUEL), d, fid, 0, n, ixs, ixp, ixb, fbuf, omap)
+  val () = buf_free(omap)
+  val () = buf_free(fbuf)
 in
-  extract_loop_m(airlock_nat(MAX_REC_FUEL), d, fid, 0, n, ixs, ixp, ixb)
 end
 
 fun path_match_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ixp: !Buf, poff: int, plen: int, p: !Buf, i: int): bool =

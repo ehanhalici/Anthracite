@@ -255,6 +255,35 @@ implement buf_append_at(dst, src, st, n) =
     buf_append(dst, p, n)
   end else ()
 
+extern fun anth_buf_copy_c(dst: ptr, dst_cap: int, dst_off: int, src: ptr, src_cap: int, src_off: int, n: int): void = "mac#anth_buf_copy"
+extern fun anth_copy_to_ptr_c(src: ptr, src_cap: int, src_off: int, dst: ptr, dst_cap: int, dst_off: int, n: int): void = "mac#anth_copy_to_ptr"
+
+implement buf_copy_range(dst, dst_off, src, src_off, n) =
+  if n > 0 then let
+    val dcap = buf_cap(dst)
+    val scap = buf_cap(src)
+    val dp = buf_ptr(dst)
+    val sp = buf_ptr(src)
+    val () = anth_buf_copy_c(dp, dcap, dst_off, sp, scap, src_off, n)
+  in
+  end else ()
+
+implement buf_move_within(b, dst_off, src_off, n) =
+  if n > 0 then let
+    val cap = buf_cap(b)
+    val p = buf_ptr(b)
+    val () = anth_buf_copy_c(p, cap, dst_off, p, cap, src_off, n)
+  in
+  end else ()
+
+implement buf_copy_to_ptr(src, src_off, dst, dst_cap, dst_off, n) =
+  if n > 0 then let
+    val scap = buf_cap(src)
+    val sp = buf_ptr(src)
+    val () = anth_copy_to_ptr_c(sp, scap, src_off, dst, dst_cap, dst_off, n)
+  in
+  end else ()
+
 extern fun mem_live_c(): int = "mac#anth_mem_live"
 implement mem_live() = mem_live_c()
 

@@ -1673,6 +1673,30 @@ is eliminated through single-pass whole-line fitting and proportional stepping.
 - Full CTest suite passes 77/77 tests with 0 failures (100% pass rate).
 - Selftest passes with exact `live=1530113` memory invariant.
 
+## Performance Upgrade: Vectorized Slicing, Buffer Recycling and Bisection Fitting (2026-10-15)
+
+System-wide performance optimizations targeting memory allocator pressure, text buffer copying overhead, search indexing throughput, and line wrap bisection.
+
+### Architecture & Design
+1. **Vectorized Gap Buffer Slicing and Document Snapshots (`src/data_ast/doc.dats`, `src/mem.*`)**:
+   - `anth_buf_copy` and `anth_copy_to_ptr` introduce bounds-checked, SIMD-vectorized block memory operations (`memmove` / `memcpy`).
+   - ATS2 linear buffer primitives `buf_copy_range`, `buf_move_within`, and `buf_copy_to_ptr` eliminate byte-by-byte fuel-bounded recursion in gap buffer shifts (`gap_shift_back`, `gap_shift_fwd`, `gap_grow`).
+   - `doc_slice` and `doc_slice_buf`: Slicing any document range `[a, b)` across the gap buffer now executes at most two direct memory copies (one for `[a, min(b, lo))` and one for `[max(a, lo), b)`), eliminating recursive `doc_byte` and `mem_set_byte` loops across the entire rendering and layout pipeline.
+   - `doc_text`: Full document snapshots for parsing, saving, and undo/redo batches copy the two gap buffer spans directly in two block copies with zero element-by-element overhead.
+
+2. **Search Indexing Scratch Buffer Recycling (`src/search/ix_build.dats`, `src/search/ix_fold.dats`)**:
+   - In `ix_extract_doc`, per-leaf allocations of `fbuf` and `omap` are completely eliminated. Two persistent scratch buffers are allocated once per document extraction pass and reused across all AST nodes (`extract_heading`, `extract_child_sym`, `extract_sym_leaf`, `feed_bloom_leaf`) via `buf_set_len(b, 0)`.
+   - `fold_range_buf` and `fold_range_doc`: Target buffer capacities are pre-reserved upfront using `buf_ensure(dst, ...)` and `buf_ensure(omap, ...)` based on source slice length, avoiding repeated buffer reallocations during UTF-8 case-folding and offset mapping.
+
+3. **Logarithmic Bisection Prefix Fitting (`src/ui_workspace/ui_render.dats`)**:
+   - `visual_fit_prefix_m` and `visual_fit_step`: Line prefix measurement when wrapping long lines is structured as a bisection search in codepoint space. In at most $\lceil\log_2 N\rceil + 1$ font measurements ($\le 8$ measurements for 200-character lines), the engine determines the exact, pixel-perfect maximum prefix fitting within `max_w`.
+   - Reusable helper `visual_measure_w` unifies slice extraction and font measurement, keeping all functions strictly under 15 lines per `skill.md` standards.
+
+### Conformance Verification
+- Full CTest suite passes 77/77 tests with 0 failures (100% pass rate).
+- Selftest passes with exact `live=1530113` memory invariant (`poll_ok=1 rss_ok=1`).
+- All functions strictly adhere to `skill.md` single responsibility and size limits ($\le 15$ lines).
+
 
 
 
