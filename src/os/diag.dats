@@ -12,6 +12,9 @@ implement log_warn_at(file, line, tag, msg, det) =
 implement log_info_at(file, line, tag, msg, det) =
   diag_log_raw("INFO", file, line, tag, msg, det)
 
+implement log_debug_at(file, line, tag, msg, det) =
+  diag_log_raw("DEBUG", file, line, tag, msg, det)
+
 implement log_error(tag, msg, det) =
   diag_log_raw("ERROR", $extval(string, "__FILE__"), $extval(int, "__LINE__"), tag, msg, det)
 
@@ -20,6 +23,9 @@ implement log_warn(tag, msg, det) =
 
 implement log_info(tag, msg, det) =
   diag_log_raw("INFO", $extval(string, "__FILE__"), $extval(int, "__LINE__"), tag, msg, det)
+
+implement log_debug(tag, msg, det) =
+  diag_log_raw("DEBUG", $extval(string, "__FILE__"), $extval(int, "__LINE__"), tag, msg, det)
 
 implement report_failure_at(event, path, file, line) =
   diag_log_raw("ERROR", file, line, "OS", event, path)
