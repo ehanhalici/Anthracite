@@ -45,6 +45,10 @@ file(SHA256 "${CMAKE_SOURCE_DIR}/vendor/fonts/notonaskh-arabic/NotoNaskhArabic-R
 if(NOT ARABIC_FONT_SHA256 STREQUAL "2d5d78e9cc27d7193926c7e460314c9da7dbec1268494dbf117adc53c171ac06")
   message(FATAL_ERROR "Pinned Arabic font SHA-256 mismatch")
 endif()
+file(SHA256 "${CMAKE_SOURCE_DIR}/fonts/Source-Code-Pro-Regular/sourcecodepro/SourceCodePro-Regular.ttf" PRIMARY_FONT_SHA256)
+if(NOT PRIMARY_FONT_SHA256 STREQUAL "9930d84013bfd7682df9d0d740d6417c111bfd49f29123e9da0cadb082483753")
+  message(FATAL_ERROR "Pinned Primary font SHA-256 mismatch")
+endif()
 
 file(GLOB_RECURSE ATS_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*.dats")
 configure_file("src/core_runtime/text_engine_paths.dats.in"

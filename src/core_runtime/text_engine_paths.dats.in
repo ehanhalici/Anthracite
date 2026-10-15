@@ -11,3 +11,5 @@ implement workspace_text_location() =
     source=configured("ANTHRACITE_UNICODE_SOURCE","@CMAKE_CURRENT_SOURCE_DIR@/vendor/unicode/18.0.0")}
 implement workspace_arabic_font_path() =
   configured("ANTHRACITE_ARABIC_FONT","@CMAKE_CURRENT_SOURCE_DIR@/vendor/fonts/notonaskh-arabic/NotoNaskhArabic-Regular.ttf")
+implement workspace_primary_font_path() =
+  configured("ANTHRACITE_PRIMARY_FONT",configured("ANTHRACITE_FONT","@CMAKE_CURRENT_SOURCE_DIR@/fonts/Source-Code-Pro-Regular/sourcecodepro/SourceCodePro-Regular.ttf"))

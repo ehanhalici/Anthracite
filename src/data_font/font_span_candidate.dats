@@ -21,7 +21,10 @@ fun arabic(f: !Font,assets: !NativeTextAssets,a: !NativeTextAnalysis,item: Nativ
 fun common(f: !Font,assets: !NativeTextAssets,a: !NativeTextAnalysis,item: NativeTextItem): FontSpanCandidate =
   if font_native_item_covered(f,assets,a,item,GlyphPrimaryFace()) then SpanPrimaryCandidate()
   else if font_native_item_covered(f,assets,a,item,GlyphFallbackFace()) then SpanFallbackCandidate() else SpanMissingCandidate()
+fun is_rtl(level: int): bool = ine(imod(level, 2), 0)
+fun symbol_policy(f: !Font,assets: !NativeTextAssets,a: !NativeTextAnalysis,item: NativeTextItem): FontSpanCandidate =
+  if is_rtl(item.level) then arabic(f,assets,a,item) else common(f,assets,a,item)
 implement font_span_candidate(f,assets,a,item) = let val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes)=a
   val cp=scalar_value(text,item.start)
 in if ieq(cp,9) then SpanTabCandidate() else if hard_end(cp) then SpanLineEndCandidate()
-  else if ieq(item.script.code,1098015074) then arabic(f,assets,a,item) else common(f,assets,a,item) end
+  else if ieq(item.script.code,1098015074) then arabic(f,assets,a,item) else symbol_policy(f,assets,a,item) end

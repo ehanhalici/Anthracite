@@ -1572,3 +1572,41 @@ for GSUB/GPOS and GDEF.
 - GDEF conformance and full CTest suite pass 77/77 tests (0 errors).
 - Selftest passes with exact `live=1530113` memory invariant preserved.
 
+## Reproducible Primary Font and Generic Symbol-Face Policy (2026-10-15)
+
+A reproducible primary font configuration and bidirectional symbol-face policy are implemented,
+guaranteeing consistent glyph coverage across primary, fallback, and neutral symbol/punctuation runs.
+
+### Architecture & Design
+1. **Reproducible Primary Font Pipeline**:
+   - `CMakeLists.txt`: Added SHA-256 integrity validation for the bundled primary font
+     (`fonts/Source-Code-Pro-Regular/sourcecodepro/SourceCodePro-Regular.ttf` with hash
+     `9930d84013bfd7682df9d0d740d6417c111bfd49f29123e9da0cadb082483753`).
+   - `src/core_runtime/text_engine_paths.dats.in`: Added `workspace_primary_font_path()`
+     respecting `ANTHRACITE_PRIMARY_FONT` / `ANTHRACITE_FONT` overrides with fallback to the
+     pinned Source Code Pro font.
+   - `src/core_runtime/text_engine_startup.dats`: `workspace_font_start` loads `workspace_primary_font_path()`
+     with fallback to `font_load_default(f)`.
+   - `src/data_font/font_catalog.dats`: `load_default` uses a reproducible hierarchy
+     (environment variables, scanned local fonts, fontconfig, bundled Source Code Pro, system paths,
+     and finally Nix store).
+
+2. **Generic Symbol-Face Policy**:
+   - `src/data_font/font_span_candidate.dats`:
+     Added `is_rtl(level)` and `symbol_policy(f, assets, a, item)`. For neutral symbols, numbers,
+     and punctuation (`Zyyy` / `Zinh`):
+     - In RTL contexts (`is_rtl(item.level)` is true), candidate selection prefers `GlyphFallbackFace()`
+       (Arabic font) first to preserve native Arabic punctuation shapes, mirrored brackets, and
+       consistent baseline/advance metrics.
+     - In LTR contexts (`is_rtl(item.level)` is false), candidate selection prefers `GlyphPrimaryFace()`.
+     - Items lacking coverage in both faces cleanly degrade to `SpanMissingCandidate()`.
+   - `src/data_font/font_span_fill.dats`:
+     Added `notdef_face(level)` and `notdef_font(level, options)`. When an item requires `.notdef`
+     presentation, shaping uses the face and direction matching the run's embedding level rather
+     than unconditionally forcing Latin LTR primary shaping on RTL segments.
+
+### Conformance Verification
+- Full CTest suite passes 77/77 tests with 0 failures (100% pass rate).
+- Selftest passes with exact `live=1530113` memory invariant.
+
+

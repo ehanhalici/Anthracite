@@ -178,10 +178,14 @@ end
 
 implement load_default(f) = let
   val env = c_getenv("ANTHRACITE_FONT")
+  val env_prim = c_getenv("ANTHRACITE_PRIMARY_FONT")
 in
   if igt(c_strlen(env), 0) andalso font_use_file(f, env) then true
+  else if igt(c_strlen(env_prim), 0) andalso font_use_file(f, env_prim) then true
   else if load_scanned_default(f) then true
   else if load_fontconfig_default(f) then true
+  else if font_use_file(f, "fonts/Source-Code-Pro-Regular/sourcecodepro/SourceCodePro-Regular.ttf") then true
+  else if font_use_file(f, "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf") then true
   else font_use_file(f, "/nix/store/v3n8r3sy38l5f1sj76azj1n4n0ndd6a7-dejavu-fonts-2.37/share/fonts/truetype/DejaVuSansMono.ttf")
 end
 

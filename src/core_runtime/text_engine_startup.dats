@@ -15,10 +15,14 @@ fun activated(result: FontTextEnable): void = case+ result of
   | FontTextAssetsFailed(error) => let
     val ()=println!("event=text_engine engine=native status=failed reason=unicode_assets detail=",error.detail)
   in startup_failed() end
-implement workspace_font_start(f) =
-  if not(font_load_default(f)) then let
+implement workspace_font_start(f) = let
+  val path = workspace_primary_font_path()
+  val loaded = font_use_file(f, path) orelse font_load_default(f)
+in
+  if not(loaded) then let
     val ()=println!("event=text_engine engine=bitmap status=unavailable reason=primary_font")
   in false end else let
     val ()=workspace_arabic_font_start(f)
     val ()=activated(font_text_enable(f,workspace_text_location()))
   in font_text_active(f) end
+end

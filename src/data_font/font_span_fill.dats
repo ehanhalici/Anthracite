@@ -57,10 +57,15 @@ fun tab(layout: !FontSpanLayout,index: int,item: NativeTextItem,result: FontNati
 fun line_end(layout: !FontSpanLayout,index: int,item: NativeTextItem,result: FontNativeRead): Option_vt(FontSpanFailure) =
   case+ stored(layout,index,item,result) of | ~Some_vt(error) => Some_vt(error)
   | ~None_vt() => let val ()=font_span_line_end_place(layout,index) in None_vt() end
+fun notdef_face(level: int): FontGlyphFace =
+  if ine(imod(level, 2), 0) then GlyphFallbackFace() else GlyphPrimaryFace()
+fun notdef_font(level: int, options: FontSpanOptions): int =
+  if ine(imod(level, 2), 0) then options.fallback else options.primary
 fun notdef(f: !Font,assets: !NativeTextAssets,a: !NativeTextAnalysis,c: !NativeTextContexts,
   layout: !FontSpanLayout,options: FontSpanOptions,index: int,item: NativeTextItem): Option_vt(FontSpanFailure) = let
   val masks: OtShapeMasks= @{initial=1u,medial=2u,final=4u,isolated=8u,mirror=16u}
-  val read=font_shape_native_item(f,assets,a,c,item,GlyphPrimaryFace(),options.primary,ShapeDefaultLanguage(),masks,options.scale)
+  val face=notdef_face(item.level) val id=notdef_font(item.level,options)
+  val read=font_shape_native_item(f,assets,a,c,item,face,id,ShapeDefaultLanguage(),masks,options.scale)
 in notdef_stored(layout,index,item,read) end
 fun placed(f: !Font,assets: !NativeTextAssets,a: !NativeTextAnalysis,c: !NativeTextContexts,
   layout: !FontSpanLayout,options: FontSpanOptions,index: int,item: NativeTextItem,pen: llint): Option_vt(FontSpanFailure) =
