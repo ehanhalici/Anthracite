@@ -2451,11 +2451,15 @@ in
 end
 
 fun click_doc(f: !Font, r: !Rend, d: !Doc, x: int, y: int, ox: int, pw: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &NodeKind >> _, hiti: &int >> _): void = let
-  val ni = node_covering_impl(d, y, oy, scroll, 0, ~1)
-  val hk = (if ige(ni, 0) then doc_node_kind(d, ni) else KNone) : NodeKind
-  val () = (hitk := hk; hiti := ni)
   val docy = iadd(isub(y, oy), scroll)
   val line = imax(0, line_at_y_fast(d, docy, lh))
+  val colx = editor_colx(f, r, ox, pw)
+  val arr_min = gutter_num_end_x(f, r, colx)
+  val is_arrow_col = ige(x, arr_min) andalso ilt(x, colx)
+  val f_ni = (if is_arrow_col then doc_line_node_foldable(d, line) else ~1) : int
+  val ni = (if ige(f_ni, 0) then f_ni else node_covering_impl(d, y, oy, scroll, 0, ~1)) : int
+  val hk = (if ige(ni, 0) then doc_node_kind(d, ni) else KNone) : NodeKind
+  val () = (hitk := hk; hiti := ni)
   val ls = doc_line_start(d, line)
   val le = if ilt(iadd(line, 1), doc_nlines(d)) then doc_line_start(d, iadd(line, 1)) else doc_len(d)
   val ly = doc_line_y(d, line)
@@ -2463,7 +2467,6 @@ fun click_doc(f: !Font, r: !Rend, d: !Doc, x: int, y: int, ox: int, pw: int, oy:
   val row = (if wc > 0 andalso igt(lh, 0) then idiv(imax(0, isub(docy, ly)), lh) else 0) : int
   val rst = (if wc > 0 then doc_advance_cps(d, ls, le, imul(row, wc)) else ls) : int
   val ren = (if wc > 0 then doc_advance_cps(d, rst, le, wc) else le) : int
-  val colx = editor_colx(f, r, ox, pw)
 in
   if ige(ni, 0) andalso (is_kind(hk, KImage) orelse is_kind(hk, KEmbed)) then doc_set_caret_move(d, doc_node_start(d, ni))
   else if doc_visual_active(d) then let

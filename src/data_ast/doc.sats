@@ -147,12 +147,23 @@ fun doc_get(d: !Doc, i: int, f: int): int
 fun doc_set(d: !Doc, i: int, f: int, v: int): void
 fun doc_push_node(d: !Doc, kind: NodeKind, st: int, en: int, depth: int, aux: int): void
 fun doc_is_foldable(d: !Doc, i: int): bool
+fun doc_line_node_foldable(d: !Doc, line: int): int
 fun doc_compute_foldability(d: !Doc): void
 fun doc_toggle(d: !Doc, i: int): void
 fun doc_toggle_deep(d: !Doc, i: int): void
 fun doc_toggle_task(d: !Doc, i: int): void
 fun doc_node_fold_end(d: !Doc, i: int): int
 fun doc_node_fold_body_start(d: !Doc, i: int): int
+fun fold_has(d: !Doc, off: int): bool
+fun fold_add(d: !Doc, off: int): void
+fun fold_del(d: !Doc, off: int): void
+fun fold_count(d: !Doc): int
+fun doc_is_line_hidden(d: !Doc, line: int): int
+fun doc_line_region(d: !Doc, line: int): int
+fun doc_region_count(d: !Doc): int
+fun doc_region_owner(d: !Doc, idx: int): int
+fun doc_region_end(d: !Doc, idx: int): int
+fun doc_region_offset(d: !Doc, idx: int): int
 fun folds_apply_edit(d: !Doc, at: int, del_bytes: int, ins_bytes: int): void
 fun doc_span(d: !Doc): int
 fun doc_set_span(d: !Doc, v: int): void
@@ -166,3 +177,4 @@ fun column_x(pane: int, avail: int): int
 fun doc_codepoints(d: !Doc, st: int, en: int): int
 fun doc_advance_cps(d: !Doc, st: int, en: int, k: int): int
 fun doc_selftest(): int
+fun doc_fold_dump(path: string): void

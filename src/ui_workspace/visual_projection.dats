@@ -15,7 +15,9 @@ fun hidden(d: !Doc,i: int): bool = let
   val k=doc_node_kind(d,i)
   val p_idx=doc_node_parent(d,i)
   val p_k=if ige(p_idx,0) then doc_node_kind(d,p_idx) else KNone
-in is_on(doc_node_hidden(d,i)) orelse is_kind(k,KMark) orelse is_kind(k,KLinkDest) orelse is_kind(k,KLinkTitle)
+  val line=doc_line_of(d,doc_node_start(d,i))
+  val l_hid=doc_is_line_hidden(d,line)
+in ieq(l_hid,1) orelse is_on(doc_node_hidden(d,i)) orelse is_kind(k,KMark) orelse is_kind(k,KLinkDest) orelse is_kind(k,KLinkTitle)
   orelse is_kind(k,KTableDelim) orelse is_kind(p_k,KMathb)
   orelse ine(anth_iand(doc_node_flags(d,i),FL_READ_HIDDEN),0) end
 fun nodes{n:nat} .<n>. (left: int(n),d: !Doc,mask: !Buf,i: int): void =

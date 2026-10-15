@@ -15,31 +15,51 @@
 
 ## 2. Mimari Bileşenler ve Modül Hiyerarşisi
 
-Sistem bağımsız, birbiriyle katı tip sınırları üzerinden haberleşen şu modüllerden teşekkül eder:
+Sistem bağımsız, birbiriyle katı tip sınırları üzerinden haberleşen ve her biri ayrıntılı bir **Yetenek Kılavuzu (Skill Guide)** olarak belgelenmiş şu modüllerden teşekkül eder:
 
-1. **`core_platform`:** 
+1. **`core_platform` & `core_runtime` ([Platform ve Olay Döngüsü Yeteneği](file:///home/emrehan/kod/kod/anthracite/docs/platform_ve_olay_dongusu.md)):**
    * X11 olay kuyruğu yönetimi (`XNextEvent`, `ClientMessage`, atomik pencere protokolleri).
    * OpenGL bağlamı oluşturma (GLX/EGL), dikey eşzamanlama (V-Sync) ve takas (swap) döngüsü.
-   * Çift tamponlu (double-buffered), GPU tabanlı olay temelli döngü (event loop); boşta dururken (idle) %0 CPU tüketimi için `select`/`poll` ile bloke olan soket dinlemesi.
+   * Çift tamponlu (double-buffered), GPU tabanlı olay temelli döngü; boşta dururken (idle) %0 CPU tüketimi için `select`/`poll` ile bloke olan soket dinlemesi.
 
-2. **`core_render`:**
+2. **`core_render` ([OpenGL Çizim Motoru Yeteneği](file:///home/emrehan/kod/kod/anthracite/docs/cizim_motoru.md)):**
    * OpenGL vertex buffer yönetimi (VBO/VAO/EBO).
-   * Dinamik UI bileşenleri için tek-geçişli (single-pass) anlık/yarı-korumalı (semi-retained) arayüz çizimi.
-   * Yazı karakteri rasterizasyonu: Harf aralıkları (kerning) ve glif metriklerini saklayan önbelleklenmiş bir glif atlası (texture atlas).
-   * Resim çizim hattı: Bellekte saklanan piksel dizilerini OpenGL dokularına (texture) dönüştüren dinamik texture bağlama (binding) yöneticisi.
+   * Dinamik UI bileşenleri için tek-geçişli (single-pass) anlık/yarı-korumalı arayüz çizimi.
+   * Yazı karakteri rasterizasyonu: Glif metriklerini saklayan önbelleklenmiş glif atlası (texture atlas).
+   * Resim çizim hattı: Piksel dizilerini OpenGL dokularına dönüştüren doku bağlama yöneticisi.
 
-3. **`data_image` (Yerel stb_image türevi):**
-   * Harici C kütüphanesi olmadan; saf ATS2 ile yazılmış, doğrusal tip (`viewtype`) korumalı PNG/JPEG/BMP bayt dizisi ayrıştırıcısı.
-   * Giriş bayt akışının doğruluğunu tip seviyesinde güvenceye alan, taşma (buffer overflow) olasılığı olmayan saf fonksiyonel görüntü çözümleyici.
+3. **`data_ast` ([AST Sözdizim Ağacı](file:///home/emrehan/kod/kod/anthracite/docs/ast_sozdizim_agaci.md) ve [Katlama Özelliği](file:///home/emrehan/kod/kod/anthracite/docs/katlama_ozelligi.md)):**
+   * Artımlı (incremental) çalışan Markdown sözdizim ayrıştırıcısı (`ast_reparse_v2`).
+   * Düğüm ofset aralığını, derinliğini, katlanma durumunu ve yüksekliğini tutan tip-güvenli ağaç yapısı.
+   * FRT (Fold Region Table) yığın motoru ile askeri düzey hiyerarşik kod/metin katlama ve durum izolasyonu.
 
-4. **`data_ast` (Sözdizim Ağacı):**
-   * Tree-sitter mimarisinden esinlenilmiş, artımlı (incremental) çalışan Obsidian Markdown sözdizim ayrıştırıcısı.
-   * Her düğümün (node) metin ofset aralığını, derinliğini, katlanma durumunu ve görsel yüksekliğini tutan tip-güvenli ağaç yapısı.
+4. **`ui_workspace` ([Kullanıcı Arayüzü, RAD Debugger Mimarisi ve Çalışma Alanı](file:///home/emrehan/kod/kod/anthracite/docs/ui_kullanici_arayuzu.md)):**
+   * **RAD Debugger Bileşenleri (`ui_widgets.*`):** Hiyerarşik ağaç/tablo hücresi (`ui_cell`), debugger kesiti ve kesme noktası (`ui_code_slice`), gölgeli paneller (`ui_pane`), orantılı kaydırma çubukları (`ui_scroll_bar`), tek satırlı editör (`ui_line_edit`) ve modal yükleme kartı (`ui_loading_overlay`).
+   * **Çalışma Alanı & Split View:** Üst Bar, yeniden boyutlandırılabilir Sidebar (tutamaçlı), sekmeler, sürükle-bırak dinamik dikey split-view.
+   * **Durum Makineleri (FSM) & Komutlar:** `editor_fsm` modal kontrolü, `embed_fsm` asenkron görsel önbelleği, 55+ atomik komut ve yumuşak sarma (soft wrap) dikey görsel gezinmesi.
 
-5. **`ui_workspace`:**
-   * **Üst Bar (Top Bar):** Sistem simgeleri, sekme çubuğu, sekme sürükle-bırak kontrolcüsü ve split-view (bölünmüş ekran) yerleşim mantığı.
-   * **Sol Panel (Sidebar):** Dosya ağacı gezgini, arama paneli ve ayarlar çekmecesi.
-   * **Düzenleyici Alanı (Editor Area):** Ortalı içerik tuvali (canvas), metin akışı, katlama yöneticisi, imleç ve zengin metin render alanı.
+5. **`data_text` ([Yerel Metin ve Unicode 18 Motoru](file:///home/emrehan/kod/kod/anthracite/docs/metin_ve_unicode_motoru.md)):**
+   * Katı UTF-8 kod çözümü (Maximal Subpart Replacement), Unicode 18 özellik veritabanı.
+   * UAX #29 Grafem ve Kelime Sınırları, UAX #14 Satır Kesme, dört normalizasyon formu (NFC/NFD/NFKC/NFKD).
+   * UAX #9 Çift Yönlü Metin (Bidi) çözümü.
+
+6. **`data_font` ([OpenType ve Glif Motoru](file:///home/emrehan/kod/kod/anthracite/docs/yazi_tipi_glif_motoru.md)):**
+   * Saf ATS2 SFNT / TTF / OTF tablo okuyucuları, Harf Biçimlendirme Hattı (Shaping Pipeline).
+   * GSUB ligatür ikameleri, GPOS ikili harf aralığı (Pair Kerning) ve Arapça harf birleştirme FSM'si.
+
+7. **`data_image` ([Görsel İşleme Motoru](file:///home/emrehan/kod/kod/anthracite/docs/gorsel_isleme_motoru.md)):**
+   * Saf ATS2 ile yazılmış, doğrusal tip (`viewtype`) korumalı PNG, BMP ve JPEG çözücüler.
+   * zlib/DEFLATE açıcı, Paeth filtresi, IDCT ve bilinear yeniden boyutlandırma.
+
+8. **`mem` & `airlock` ([Bellek ve Güvenlik Mimarisi](file:///home/emrehan/kod/kod/anthracite/docs/bellek_ve_guvenlik_mimarisi.md)):**
+   * Doğrusal bellek tamponları (`Buf`), `view@` ve tek-sahiplik kanıtları.
+   * Airlock sınır kapıları, `MAX_REC_FUEL` yakıt sayaçları ve `live=1530113` bellek değişmezi.
+
+9. **`os` ([Sanal Dosya Sistemi VFS ve Tanılama](file:///home/emrehan/kod/kod/anthracite/docs/isletim_sistemi_ve_dosya_sistemi.md)):**
+   * RAM-FS bellek içi dosyalama (`/dev/shm/anthracite/`), atomik otomatik kaydetme, yapılandırılmış tanılama (`diag.*`).
+
+10. **`search` ([Arama ve İndeksleme](file:///home/emrehan/kod/kod/anthracite/docs/arama_ve_indeksleme.md)):**
+    * Çalışma alanı Ripgrep (`rg`) entegrasyonu, doküman içi hızlı eşleştirme (`ix_match`), katlama-duyarlı arama navigasyonu.
 
 ---
 
