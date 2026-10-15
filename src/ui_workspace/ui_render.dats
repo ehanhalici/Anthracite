@@ -962,7 +962,7 @@ in
 end
 
 fun draw_arrow(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, colx: int, y: int): void =
-  if is_heading(k) orelse is_kind(k, KLi) orelse is_kind(k, KTask) then let
+  if doc_is_foldable(d, i) then let
     val folded = doc_node_collapsed(d, i)
     val arr = if is_on(folded) then ">" else "v"
     val acol = if is_on(folded) then col_accent() else col_muted()

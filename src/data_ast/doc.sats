@@ -146,6 +146,7 @@ fun doc_nnodes(d: !Doc): int
 fun doc_get(d: !Doc, i: int, f: int): int
 fun doc_set(d: !Doc, i: int, f: int, v: int): void
 fun doc_push_node(d: !Doc, kind: NodeKind, st: int, en: int, depth: int, aux: int): void
+fun doc_is_foldable(d: !Doc, i: int): bool
 fun doc_toggle(d: !Doc, i: int): void
 fun doc_toggle_task(d: !Doc, i: int): void
 fun doc_span(d: !Doc): int

@@ -2336,11 +2336,48 @@ fun doc_foldable_target_m {recfuel:nat} .<recfuel>. (
     end
   ) else i
 
+fun find_next_block_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), d: !Doc, i: int, n: int, start_after: int
+): int =
+  if recfuel > 0 then (
+    if ige(i, n) then ~1
+    else if ilt(doc_node_start(d, i), start_after) then
+      find_next_block_m(recfuel - 1, d, iadd(i, 1), n, start_after)
+    else let
+      val k = doc_node_kind(d, i)
+    in
+      if is_inline(k) orelse is_kind(k, KUl) orelse is_kind(k, KOl) then
+        find_next_block_m(recfuel - 1, d, iadd(i, 1), n, start_after)
+      else i
+    end
+  ) else ~1
+
+fun find_next_block(d: !Doc, i: int, n: int, start_after: int): int =
+  find_next_block_m(airlock_nat(MAX_REC_FUEL), d, i, n, start_after)
+
+implement doc_is_foldable(d, i) = let
+  val n = d_nnodes(d)
+in
+  if i < 0 orelse i >= n then false
+  else let
+    val k = doc_node_kind(d, i)
+  in
+    if is_heading(k) then true
+    else let
+      val nxt = find_next_block(d, iadd(i, 1), n, doc_node_end(d, i))
+    in
+      if nxt < 0 then false
+      else igt(doc_node_depth(d, nxt), doc_node_depth(d, i))
+    end
+  end
+end
+
 implement doc_toggle(d, i0) = let
   val n = d_nnodes(d)
   val i = doc_foldable_target_m(airlock_nat(MAX_REC_FUEL), d, i0, n)
 in
   if i < 0 orelse i >= n then ()
+  else if not(doc_is_foldable(d, i)) then ()
   else let
     val c = doc_node_collapsed(d, i)
     val st = doc_node_start(d, i)
