@@ -1697,6 +1697,48 @@ System-wide performance optimizations targeting memory allocator pressure, text 
 - Selftest passes with exact `live=1530113` memory invariant (`poll_ok=1 rss_ok=1`).
 - All functions strictly adhere to `skill.md` single responsibility and size limits ($\le 15$ lines).
 
+## State Machine Architecture, Embed Cache, Obsidian Folding & Native Image Engine (2026-10-15)
+
+System-wide architectural overhaul introducing explicit State Machine (FSM) tracking for editor interaction and embed lifecycle, mtime-driven embed AST caching, Obsidian-compliant hierarchy folding, pure native ATS2 multi-IDAT PNG decoding, and a configurable diagnostic logging facility.
+
+### Architecture & Design
+1. **Generic Configurable Logging Infrastructure (`src/os/diag.*`)**:
+   - Implemented system-wide log levels (`DEBUG=0`, `INFO=1`, `WARN=2`, `ERROR=3`, `SILENT=4`).
+   - Integrated a 128-entry diagnostic ring buffer (`anth_log_ring`) capturing timestamp, file, line, subsystem tag, message, and details for live inspection and post-mortem analysis.
+   - Filtered console emission with ANSI color-coding (Dark Gray for DEBUG, Cyan for INFO, Yellow for WARN, Red for ERROR).
+   - ATS2 interface: `log_debug`, `log_info`, `log_warn`, `log_error`, `diag_set_level`, and `diag_get_level`.
+
+2. **Pure Native ATS2 PNG Multi-IDAT & Dynamic Huffman Fix (`src/data_image/img_png.dats`)**:
+   - Zero external C fallback (`stb_image` rejected per user specification).
+   - Fixed run-length fill advancement bug in `fill_rep_m`: when repeat count `rep` was satisfied, the index returned `i` instead of `iadd(i, rep)`, halting code-length table construction for images utilizing run-length symbols (16, 17, 18).
+   - Replaced recursive byte-by-byte chunk copying (`png_copy_m`) with single-pass vectorized `buf_append_at`, dramatically improving throughput across multi-IDAT streams (tested on 52-IDAT 8-bit RGB image `raditu billahi rabba.png`).
+   - Expanded Huffman table working buffer `tab` in `inflate` from 3,200 to 16,384 bytes, guaranteeing safe construction for complex dynamic Huffman trees.
+   - Expanded decompression destination buffer limit from 4 MB to 16 MB to safely support up to $1024 \times 1024$ RGBA unfiltering.
+
+3. **Obsidian-Compliant Hierarchy Folding Semantics (`src/data_ast/doc.*`, `src/ui_workspace/ui_render.dats`)**:
+   - Eliminated fold chevrons on leaf list items and text lines.
+   - `doc_is_foldable(d, i)`: Headings (`H1`..`H6`) are always foldable. Non-heading blocks (list items `KLi`, tasks `KTask`, paragraphs, code blocks) are foldable IF AND ONLY IF a subsequent block node has `depth > current_depth`.
+   - `find_next_block_m`: Scans forward skipping inlines and container markers to find the next structural block starting after the current node.
+   - `doc_toggle` and `draw_arrow`: Both enforce `doc_is_foldable`. Leaf nodes completely hide the chevron and ignore collapse commands, perfectly matching Obsidian semantics.
+
+4. **Embed Performance & Mtime-based AST Cache FSM (`src/ui_workspace/embed_fsm.*`, `src/ui_workspace/ui_render.dats`)**:
+   - Eliminated repeated per-frame disk I/O and document parsing for `![[...]]` embeds in `prep_doc` and `draw_nodes`.
+   - Introduced `EmbedState` FSM (`EmbedUnloaded`, `EmbedResolving`, `EmbedCached`, `EmbedFailed`).
+   - Fast filesystem `mtime` check via `anth_embed_fsm_query`: on frame 1, the embed is parsed and its dimensions cached. On subsequent frames, `fs_mtime` verifies freshness in $< 1\mu\text{s}$, returning the cached height immediately without opening or parsing files. If the embedded note is edited on disk, `mtime` change triggers automatic invalidation and reload.
+
+5. **Formal Editor Interaction State Machine (`src/ui_workspace/editor_fsm.*`, `src/ui_workspace/ui.dats`)**:
+   - Formalized editor modes into a pure ATS2 state machine: `StateIdle`, `StateTyping`, `StateSelecting`, `StatePrompt(kind)`, `StateMenu(kind)`, `StateSplitDrag(x)`.
+   - Deterministic transitions via `editor_fsm_step(st, action)`.
+   - Subsystem state observability via `editor_fsm_name(st)` and predicates `editor_fsm_is_editing` and `editor_fsm_is_modal`.
+   - Verified via `editor_fsm_selftest()` integrated into `app_selftest`.
+
+### Conformance Verification
+- Full CTest suite passes 77/77 tests with 0 failures (100% pass rate).
+- Native image selftest verifies loading of multi-IDAT 8-bit RGB PNG with zero leaks.
+- Memory invariant strictly preserved: `live=1530113` (`poll_ok=1 rss_ok=1`).
+- All ATS2 functions strictly comply with `skill.md` standards ($\le 15$ lines, single responsibility, exhaustive matching, linear proof safety).
+
+
 
 
 
