@@ -1715,28 +1715,43 @@ System-wide architectural overhaul introducing explicit State Machine (FSM) trac
    - Expanded Huffman table working buffer `tab` in `inflate` from 3,200 to 16,384 bytes, guaranteeing safe construction for complex dynamic Huffman trees.
    - Expanded decompression destination buffer limit from 4 MB to 16 MB to safely support up to $1024 \times 1024$ RGBA unfiltering.
 
-3. **Obsidian-Compliant Hierarchy Folding Semantics (`src/data_ast/doc.*`, `src/ui_workspace/ui_render.dats`)**:
-   - Eliminated fold chevrons on leaf list items and text lines.
-   - `doc_is_foldable(d, i)`: Headings (`H1`..`H6`) are always foldable. Non-heading blocks (list items `KLi`, tasks `KTask`, paragraphs, code blocks) are foldable IF AND ONLY IF a subsequent block node has `depth > current_depth`.
-   - `find_next_block_m`: Scans forward skipping inlines and container markers to find the next structural block starting after the current node.
-   - `doc_toggle` and `draw_arrow`: Both enforce `doc_is_foldable`. Leaf nodes completely hide the chevron and ignore collapse commands, perfectly matching Obsidian semantics.
+3. **AST-Managed Obsidian Folding Architecture (`src/data_ast/ast.sats`, `src/data_ast/doc.*`, `src/ui_workspace/ui_render.dats`)**:
+   - Integrated foldability directly into the AST node flags with `FL_FOLDABLE = 16384`.
+   - Replaced ad-hoc UI conditionals with AST-driven fold analysis (`doc_compute_foldability`):
+     - Headings (`H1`..`H6`) are strictly marked `FL_FOLDABLE`.
+     - Non-heading blocks (list items `KLi`, tasks `KTask`, paragraphs, code blocks) are marked `FL_FOLDABLE` if and only if subsequent block nodes have greater indentation (`node_indent(d, nxt) > node_indent(d, i)`).
+     - Flat lines and leaf lines without indented sub-blocks are never marked `FL_FOLDABLE`, and absolutely no fold chevron (`>`/`v`) is rendered next to their line numbers in the gutter.
+   - `place_one_m` hides indented sub-blocks using `hide_indented` up to the point where indentation returns to `<= base_indent`.
+   - Preserves fold states persistently in `fold_apply` across reparsing and document edits.
 
 4. **Embed Performance & Mtime-based AST Cache FSM (`src/ui_workspace/embed_fsm.*`, `src/ui_workspace/ui_render.dats`)**:
    - Eliminated repeated per-frame disk I/O and document parsing for `![[...]]` embeds in `prep_doc` and `draw_nodes`.
    - Introduced `EmbedState` FSM (`EmbedUnloaded`, `EmbedResolving`, `EmbedCached`, `EmbedFailed`).
    - Fast filesystem `mtime` check via `anth_embed_fsm_query`: on frame 1, the embed is parsed and its dimensions cached. On subsequent frames, `fs_mtime` verifies freshness in $< 1\mu\text{s}$, returning the cached height immediately without opening or parsing files. If the embedded note is edited on disk, `mtime` change triggers automatic invalidation and reload.
 
-5. **Formal Editor Interaction State Machine (`src/ui_workspace/editor_fsm.*`, `src/ui_workspace/ui.dats`)**:
-   - Formalized editor modes into a pure ATS2 state machine: `StateIdle`, `StateTyping`, `StateSelecting`, `StatePrompt(kind)`, `StateMenu(kind)`, `StateSplitDrag(x)`.
-   - Deterministic transitions via `editor_fsm_step(st, action)`.
+5. **Deep Editor Interaction State Machine Integration (`src/ui_workspace/editor_fsm.*`, `src/ui_workspace/ui.dats`)**:
+   - Integrated `fsm: EditorState` directly into `App_record` in `ui.dats`.
+   - Event loop dynamically transitions states via `app_fsm_step`:
+     - Text entry and editing keys advance to `StateTyping`.
+     - Modal prompt openings advance to `StatePrompt(kind)`, and cancel/submit transitions to `StateIdle`.
+     - Context menus advance to `StateMenu(kind)` and dismiss to `StateIdle`.
+     - Pane split resizing transitions through `StateSplitDrag(x)` to `StateIdle` on release.
+     - Escape transitions to `StateIdle`.
    - Subsystem state observability via `editor_fsm_name(st)` and predicates `editor_fsm_is_editing` and `editor_fsm_is_modal`.
    - Verified via `editor_fsm_selftest()` integrated into `app_selftest`.
+
+6. **System-wide Diagnostic Logging Rollout (`src/os/diag.*`, `src/data_ast/doc.dats`, `src/ui_workspace/ui.dats`)**:
+   - Configurable log levels (`DEBUG`, `INFO`, `WARN`, `ERROR`, `SILENT`) and in-memory circular ring buffer for crash diagnostics.
+   - Real-time logging integrated into file I/O and document lifecycle (`log_info` on successful load/save, `log_warn`/`log_error` on failures).
+   - Real-time logging of FSM transitions and vault switching in UI workspace.
+   - Integrated error reporting into image decoding pipelines.
 
 ### Conformance Verification
 - Full CTest suite passes 77/77 tests with 0 failures (100% pass rate).
 - Native image selftest verifies loading of multi-IDAT 8-bit RGB PNG with zero leaks.
 - Memory invariant strictly preserved: `live=1530113` (`poll_ok=1 rss_ok=1`).
 - All ATS2 functions strictly comply with `skill.md` standards ($\le 15$ lines, single responsibility, exhaustive matching, linear proof safety).
+
 
 
 
