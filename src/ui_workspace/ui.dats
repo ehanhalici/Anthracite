@@ -64,7 +64,8 @@ vtypedef App_record = @{
   vault_select= Toggle, vpaths= Buf, vnames= Buf, vmeta= Buf, vcnt= int,
   hoverx= int, hovery= int, sidew= int, btnw= int, modew= int, menuw= int,
   preview_tab= int, last_tree_row= int, last_tree_time= lint,
-  tab_pane= Buf, open_dirs= Buf, flash_line= int, flash_until_ns= lint
+  tab_pane= Buf, open_dirs= Buf, flash_line= int, flash_until_ns= lint,
+  fsm= EditorState
 }
 datavtype App_ = APP of App_record
 (* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
@@ -310,6 +311,7 @@ in
 end
 
 fun switch_to_vault(s: &App_record >> _, target: string): void = let
+  val () = log_info("APP", "switch_to_vault", target)
   val () = vault_switch_begin(s, target)
   val old_t = s.tabs
   val () = s.tabs := TNil()
@@ -428,8 +430,17 @@ fun app_record_make(
   fcnt= fcnt, font_path= fpath, vault_select= toggle_of(ieq(f_vsel, 1)), vpaths= vpaths, vnames= vnames,
   vmeta= vmeta, vcnt= vcnt, hoverx= ~1, hovery= ~1, sidew= (if igt(sidew, 0) then sidew else UI_SIDEBAR_WIDTH), btnw= 0, modew= 0,
   menuw= 0, preview_tab= ~1, last_tree_row= ~1, last_tree_time= 0L, tab_pane= tab_pane,
-  open_dirs= open_dirs, flash_line= ~1, flash_until_ns= 0L
+  open_dirs= open_dirs, flash_line= ~1, flash_until_ns= 0L,
+  fsm= StateIdle()
 }
+
+fun app_fsm_step(s: &App_record >> _, act: EditorAction): void = let
+  val next_st = editor_fsm_step(s.fsm, act)
+  val () = log_debug("FSM", "transition", editor_fsm_name(next_st))
+in
+  s.fsm := next_st
+end
+
 
 implement app_open(vault) = let
   val @(vb, f_vsel) = open_resolve_vault(vault)
@@ -1993,6 +2004,7 @@ end
 
 fun prompt_reset(s: &App_record >> _): void = let
   val () = s.prompt := PromptNone
+  val () = app_fsm_step(s, ActDismissPrompt())
 in
   bclear(s.promptb)
 end
@@ -2007,6 +2019,7 @@ fun handle_prompt_submission(s: &App_record >> _, pr: EditResult): void =
     val () = submit_open_new_file(s, dir, prompt_kind)
     val () = if is_prompt_newfile(prompt_kind) then s.active := 0 else ()
     val () = s.prompt := PromptNone
+    val () = app_fsm_step(s, ActDismissPrompt())
     val () = bclear(s.promptb)
     val () = s.treedirty := On
     val () = buf_free(dir)
@@ -2025,6 +2038,7 @@ end
 
 fun begin_prompt(s: &App_record >> _, kind: PromptKind): void = let
   val () = s.prompt := kind
+  val () = app_fsm_step(s, ActFocusPrompt(kind))
 in
   bclear(s.promptb)
 end
@@ -2040,6 +2054,7 @@ fun escape_sidebar_state(s: &App_record >> _): void = let
   val () = s.menu := MenuNone
   val () = s.qfocus := Off
   val () = s.prompt := PromptNone
+  val () = app_fsm_step(s, ActEscape())
 in
   bclear(s.promptb)
 end
@@ -2184,6 +2199,9 @@ fun key_editor_step(s: &App_record >> _, p: !Plat, f: !Font,r: !Rend, ev: &event
   val () = if hit_go then search_hit_focus(s) else ()
   val () = handle_prompt_submission(s, pr)
   val cmd = key_code(ev, toggle_of(act))
+  val () = if is_cmd(cmd, CMD_ESCAPE) then app_fsm_step(s, ActEscape())
+           else if is_modifying_cmd(cmd) orelse is_cmd(cmd, CMD_TEXT_INPUT) then app_fsm_step(s, ActTypeKey())
+           else ()
   val () = handle_sidebar_shortcut_cmd(s, cmd, ev)
   val () = key_tabs_step(s, p,f,r, ev, cmd, toggle_of(hit_go), qr)
   val () = if is_cmd(cmd, CMD_SAVE) then let
@@ -2671,6 +2689,7 @@ fun open_tree_context(s: &App_record >> _, hit: DownHit): void = let
   val row = tree_source_at_y(s, hit.y)
   val valid_row = ige(row, 0) andalso ilt(row, s.tn)
   val () = s.menu := MenuFileTree
+  val () = app_fsm_step(s, ActOpenMenu(MenuFileTree))
 in
   s.sel := (if valid_row then row else ~1)
 end
@@ -2683,8 +2702,10 @@ end
 
 fun open_general_context(s: &App_record >> _, hit: DownHit): void = let
   val () = place_context(s, hit)
+  val m = (if is_kind(s.hitk, KImage) then MenuImage else MenuText)
+  val () = s.menu := m
+  val () = app_fsm_step(s, ActOpenMenu(m))
 in
-  s.menu := (if is_kind(s.hitk, KImage) then MenuImage else MenuText)
 end
 
 fun handle_down_context_menu_open(s: &App_record >> _, hit: DownHit): void =
@@ -2728,7 +2749,7 @@ fun on_down_tabs(s: &App_record >> _, p: !Plat, f: !Font, r: !Rend, ev: &event, 
   val () = s.tabs := ts3
   val () = tabs_free(ph)
   val () = case+ hit.zone of
-    | DownMenu() => s.menu := MenuNone
+    | DownMenu() => (s.menu := MenuNone; app_fsm_step(s, ActDismissMenu()))
     | DownResize() => () | DownTopbar() => ()
     | DownSidebar() => () | DownEditor() => ()
   val () = save_app_session(s)
@@ -2745,6 +2766,7 @@ fun begin_side_split(s: &App_record >> _, x: int, y: int): void = let
   val () = s.drag := DragSplit
   val () = s.dragi := ~1
   val () = s.downx := x
+  val () = app_fsm_step(s, ActStartSplitDrag(x))
 in
   s.downy := y
 end
@@ -3117,6 +3139,7 @@ fun on_up(a: !App, f: !Font, r: !Rend, ev: &event, w: int): void =
       val () = s.dragi := ~1
       val () = s.downx := ~1
       val () = s.downy := ~1
+      val () = app_fsm_step(s, ActEndSplitDrag())
       val () = on_up_clamp_active(s)
     in
       fold@(a)

@@ -2230,6 +2230,8 @@ implement doc_save(d, path) = let
   val () = doc_text(d, b)
   val n = buf_len(b)
   val ok = fs_write_buf(path, b, n)
+  val () = if ieq(ok, 1) then log_info("DOC", "save_ok", path)
+           else log_error("DOC", "save_failed", path)
   val () = buf_free(b)
 in
   ok
@@ -2415,6 +2417,8 @@ implement doc_load(d, path) = let
   var vbuf = buf_make(512)
   val actual_path = resolve_load_path(path, vbuf)
   val res = load_doc_file(d, path, actual_path)
+  val () = if res then log_info("DOC", "load_ok", path)
+           else log_warn("DOC", "load_failed", path)
   val () = buf_free(vbuf)
 in
   res
