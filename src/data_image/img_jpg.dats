@@ -2,14 +2,9 @@
 #include "share/atspre_define.hats"
 #include "share/atspre_staload.hats"
 #include "common.hats"
-(* Initial allocation policy; capacities are measured in bytes. *)
-macdef JPG_FINISH_BUFFER_INITIAL_BYTES = 4
-macdef DECODE_JPG_META_INITIAL_BYTES = 256
-macdef DECODE_JPG_BUFFER_INITIAL_BYTES = 1024
-macdef DECODE_JPG_BUFFER_ALTERNATE_INITIAL_BYTES = 6400
-macdef DECODE_JPG_COEF_INITIAL_BYTES = 256
-macdef DECODE_JPG_SAMP_INITIAL_BYTES = 4096
 
+(* JPEG algorithms translated from stb_image v2.29 by Sean Barrett and
+   contributors. Original copyright and MIT/public-domain notices: vendor/stb. *)
 
 staload "mem.sats"
 staload "airlock.sats"
@@ -19,10 +14,16 @@ staload "core_render/render.sats"
 staload "data_image/img_common.sats"
 staload "data_image/img_jpg.sats"
 
-
-(* Private implementation groups share this owner and its linear representation. *)
-#include "data_image/private/img_jpg/pow2.hats"
-#include "data_image/private/img_jpg/jblk_ac.hats"
-#include "data_image/private/img_jpg/sof_one.hats"
-#include "data_image/private/img_jpg/paint_row.hats"
+#include "data_image/private/img_jpg/stb_jpg_constants.hats"
+#include "data_image/private/img_jpg/stb_jpg_tables.hats"
+#include "data_image/private/img_jpg/stb_jpg_idct.hats"
+#include "data_image/private/img_jpg/stb_jpg_huffman.hats"
+#include "data_image/private/img_jpg/stb_jpg_markers.hats"
+#include "data_image/private/img_jpg/stb_jpg_scan.hats"
+#include "data_image/private/img_jpg/stb_jpg_resample.hats"
+#include "data_image/private/img_jpg/jpeg_color.hats"
+#include "data_image/private/img_jpg/stb_jpg_decode.hats"
 #include "data_image/private/img_jpg/jpg_byte_1.hats"
+
+implement decode_jpg(src, wout, hout) =
+  stbi_jpeg_decode_entry(src, wout, hout)

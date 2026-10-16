@@ -4,7 +4,6 @@
 #include "common.hats"
 (* Initial allocation policy; capacities are measured in bytes. *)
 macdef IMG_OPEN_BUFFER_INITIAL_BYTES = 4
-macdef JPG_LOAD_FALLBACK_BUFFER_INITIAL_BYTES = 4
 macdef IMG_DECODE_TYPED_BUFFER_INITIAL_BYTES = 4
 macdef IMG_LOAD_IMPL_RAW_INITIAL_BYTES = 64
 
@@ -80,47 +79,10 @@ fun img_detect_type(src: !Buf): int =
   else if ieq(buf_get(src, 0), JPEG_MARKER_PREFIX) andalso ieq(buf_get(src, 1), JPEG_MARKER_START) then IMAGE_FORMAT_JPEG
   else IMAGE_FORMAT_UNKNOWN
 
-%{#
-#include "data_image/img_jpg_prog.cats"
-%}
-
-extern fun anth_decode_jpg_fallback(buf: ptr, len: int, w: &int >> _, h: &int >> _): ptr = "mac#anth_decode_jpg_fallback"
-extern fun anth_free_jpg_fallback(p: ptr): void = "mac#anth_free_jpg_fallback"
-extern fun anth_jpg_ptr_is_null(p: ptr): int = "mac#anth_jpg_ptr_is_null"
-
-fun jpg_load_fallback(src: !Buf, w: &int >> _, h: &int >> _): Buf = let
-  val raw = anth_decode_jpg_fallback(buf_ptr(src), buf_len(src), w, h)
-in
-  if anth_jpg_ptr_is_null(raw) != 0 orelse w <= 0 orelse h <= 0 then let
-    val () = w := 0
-    val () = h := 0
-  in
-    buf_make(JPG_LOAD_FALLBACK_BUFFER_INITIAL_BYTES)
-  end else let
-    val sz = imul(imul(w, h), IMAGE_RGBA_CHANNELS)
-    var dst = buf_make(sz)
-    val () = buf_append(dst, raw, sz)
-    val () = anth_free_jpg_fallback(raw)
-  in
-    dst
-  end
-end
-
-fun decode_jpg_with_fallback(src: !Buf, w: &int >> _, h: &int >> _): Buf = let
-  val px = decode_jpg(src, w, h)
-in
-  if w > 0 andalso h > 0 then px
-  else let
-    val () = buf_free(px)
-  in
-    jpg_load_fallback(src, w, h)
-  end
-end
-
 fun img_decode_typed(ty: int, src: !Buf, w: &int >> _, h: &int >> _): Buf =
   if ieq(ty, IMAGE_FORMAT_PNG) then decode_png(src, w, h)
   else if ieq(ty, IMAGE_FORMAT_BMP) then decode_bmp(src, w, h)
-  else if ieq(ty, IMAGE_FORMAT_JPEG) then decode_jpg_with_fallback(src, w, h)
+  else if ieq(ty, IMAGE_FORMAT_JPEG) then decode_jpg(src, w, h)
   else buf_make(IMG_DECODE_TYPED_BUFFER_INITIAL_BYTES)
 
 fun img_downscale_if_needed(im: !Image, w: int, h: int): void =

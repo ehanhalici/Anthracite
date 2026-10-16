@@ -36,13 +36,21 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-004 — JPEG yedek çözümleyicisi ATS ispat sınırı dışında
 
-- Durum: doğrulandı (kaynak incelemesi); mimari borç.
-- Konum: JPEG fallback ve gömülü `stb_image`.
-- Kanıt: ATS JPEG çözümü başarısızsa C çözümleyici çağrılıyor; ham çıktı
-  `Buf` içine kopyalanıyor. Bu C tahsisleri `mem_live` tarafından sayılmıyor.
-- Yeniden üretme: ATS çözücünün desteklemediği progressive JPEG yükle.
-- Beklenen: üçüncü taraf sınırı ve lisansı korunmalı; ATS2'ye taşıma ayrı iş.
-  `w*h*RGBA` boyut hesabında taşma ve başarısızlık yolları ayrıca incelenmeli.
+- Durum: çözüldü (2026-10-16; tamamen yerel ATS2 modüllerine taşındı, C yedeği kaldırıldı).
+- Konum: `src/data_image/private/img_jpg/` ve `tests/image/test_jpg_oracle.dats`.
+- Kanıt: JPEG baseline ve progressive çözümleyicisi C sarmalayıcısı olmadan saf ATS2'ye
+  taşındı. C `stb_image` yalnızca test orakılı olarak tutuldu. `image_oracle_contracts`
+  testinde baseline ve gerçek progressive fixture dosyaları C `stb_image`
+  ile piksel piksel karşılaştırılır. Genişletilmiş `jpeg_*` paketi restart,
+  sequential çoklu tarama, SOF1, örnekleme ve renk uzayı regresyonlarını kapsar.
+  Başarılı sonuçta tampon uzunluğu ve her testin tahsis öncesi/sonrası sayacı da
+  denetlenir; bu sonuçlar test kümesi dışındaki girdiler için ispat değildir.
+- Yeniden üretme: Önceden ATS çözücünün desteklemediği progressive JPEG C'ye düşüyordu;
+  artık doğrudan saf ATS motorunda çözülmektedir.
+- Çözüm: C `img_jpg_prog.cats` ve `image.dats` C include'ları silindi. Tüm çözülen
+  ve yeniden örneklenen tamponların sahipliği ATS içindedir. İncelemede bulunan
+  altı uyumluluk/sözleşme hatası düzeltildi; [test kapsamı](../tests/image/README.md)
+  ve [doğrulama kaydı](refactoring_durumu.md) günceldir.
 
 ## BUG-005 — Sabit canlı bellek değeri sızıntısızlık kanıtı değil
 
@@ -63,7 +71,8 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 - Durum: çözüldü; mimari rehberler ve README gerçek kaynak/API ile eşlendi.
 - Kanıt: eski kılavuzlarda `image_load`, `rend_push_scissor`, `vfs.dats`,
   `ix_ripgrep.dats` gibi mevcut olmayan arayüz/dosyalar var. Arama motoru
-  yerel indeksi kullanıyor; görüntü motorunda gömülü C JPEG yedeği var.
+  yerel indeksi kullanıyordu; görüntü motorunda o sırada gömülü C JPEG yedeği vardı
+  (sonradan BUG-004 ile kaldırıldı).
 - Beklenen: gerçek imzalar ve kaynak bağlantıları; tasarım hedeflerini uygulama
   durumundan ayıran açıklamalar.
 

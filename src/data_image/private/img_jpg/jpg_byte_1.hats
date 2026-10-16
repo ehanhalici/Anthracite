@@ -1,3 +1,24 @@
+fun jpg_byte_0(i: int): int =
+  if ieq(i, 0) then 255 else if ieq(i, 1) then 216 else if ieq(i, 2) then 255 else if ieq(i, 3) then 224 else
+  if ieq(i, 4) then 0 else if ieq(i, 5) then 16 else if ieq(i, 6) then 74 else if ieq(i, 7) then 70 else
+  if ieq(i, 8) then 73 else if ieq(i, 9) then 70 else if ieq(i, 10) then 0 else if ieq(i, 11) then 1 else
+  if ieq(i, 12) then 1 else if ieq(i, 13) then 0 else if ieq(i, 14) then 0 else if ieq(i, 15) then 1 else
+  if ieq(i, 16) then 0 else if ieq(i, 17) then 1 else if ieq(i, 18) then 0 else if ieq(i, 19) then 0 else
+  if ieq(i, 20) then 255 else if ieq(i, 21) then 219 else if ieq(i, 22) then 0 else if ieq(i, 23) then 67 else
+  if ieq(i, 24) then 0 else if ieq(i, 25) then 3 else if ieq(i, 26) then 2 else if ieq(i, 27) then 2 else
+  if ieq(i, 28) then 3 else if ieq(i, 29) then 2 else if ieq(i, 30) then 2 else if ieq(i, 31) then 3 else
+  if ieq(i, 32) then 3 else if ieq(i, 33) then 3 else if ieq(i, 34) then 3 else if ieq(i, 35) then 4 else
+  if ieq(i, 36) then 3 else if ieq(i, 37) then 3 else if ieq(i, 38) then 4 else if ieq(i, 39) then 5 else
+  if ieq(i, 40) then 8 else if ieq(i, 41) then 5 else if ieq(i, 42) then 5 else if ieq(i, 43) then 4 else
+  if ieq(i, 44) then 4 else if ieq(i, 45) then 5 else if ieq(i, 46) then 10 else if ieq(i, 47) then 7 else
+  if ieq(i, 48) then 7 else if ieq(i, 49) then 6 else if ieq(i, 50) then 8 else if ieq(i, 51) then 12 else
+  if ieq(i, 52) then 10 else if ieq(i, 53) then 12 else if ieq(i, 54) then 12 else if ieq(i, 55) then 11 else
+  if ieq(i, 56) then 10 else if ieq(i, 57) then 11 else if ieq(i, 58) then 11 else if ieq(i, 59) then 13 else
+  if ieq(i, 60) then 14 else if ieq(i, 61) then 18 else if ieq(i, 62) then 16 else if ieq(i, 63) then 13 else
+  if ieq(i, 64) then 14 else if ieq(i, 65) then 17 else if ieq(i, 66) then 14 else if ieq(i, 67) then 11 else
+  if ieq(i, 68) then 11 else if ieq(i, 69) then 16 else if ieq(i, 70) then 22 else if ieq(i, 71) then 16 else
+  0
+
 fun jpg_byte_1(i: int): int =
   if ieq(i, 72) then 17 else if ieq(i, 73) then 19 else if ieq(i, 74) then 20 else if ieq(i, 75) then 21 else
   if ieq(i, 76) then 21 else if ieq(i, 77) then 21 else if ieq(i, 78) then 12 else if ieq(i, 79) then 15 else

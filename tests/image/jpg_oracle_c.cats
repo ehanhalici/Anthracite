@@ -1,5 +1,5 @@
-#ifndef ANTH_IMG_JPG_PROG_CATS
-#define ANTH_IMG_JPG_PROG_CATS
+#ifndef ANTH_JPG_ORACLE_C_CATS
+#define ANTH_JPG_ORACLE_C_CATS
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,6 +10,7 @@
 #pragma clang diagnostic ignored "-Wsign-compare"
 #pragma clang diagnostic ignored "-Wmissing-field-initializers"
 
+#define STBI_NO_SIMD
 #define STBI_NO_STDIO
 #define STBI_ONLY_JPEG
 #define STB_IMAGE_STATIC
@@ -19,9 +20,7 @@
 
 #pragma clang diagnostic pop
 
-static inline void *anth_decode_jpg_fallback(
-    const void *buf, int len, int *out_w, int *out_h
-) {
+static inline void *oracle_c_decode(const void *buf, int len, int *out_w, int *out_h) {
     if (!buf || len <= 0) {
         *out_w = 0;
         *out_h = 0;
@@ -39,12 +38,24 @@ static inline void *anth_decode_jpg_fallback(
     return (void *)data;
 }
 
-static inline void anth_free_jpg_fallback(void *p) {
+static inline void oracle_c_free(void *p) {
     if (p) stbi_image_free(p);
 }
 
-static inline int anth_jpg_ptr_is_null(const void *p) {
-    return p == NULL ? 1 : 0;
+static inline int oracle_c_is_null(const void *p) {
+    return p == NULL;
 }
 
-#endif /* ANTH_IMG_JPG_PROG_CATS */
+static inline int oracle_c_byte_at(const void *p, int i) {
+    return ((const unsigned char *)p)[i];
+}
+
+static inline void oracle_c_print_result(const char *name, int ok) {
+    printf("%s=%d\n", name, ok);
+}
+
+static inline void oracle_c_print_fixture(const char *path, int errors) {
+    printf("event=jpeg_fixture path=%s errors=%d\n", path, errors);
+}
+
+#endif

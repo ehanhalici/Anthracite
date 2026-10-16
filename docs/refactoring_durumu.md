@@ -34,7 +34,7 @@ tekrarlanabilir testler ve uygulamayla eşleşen belgeler sağlamak.
 | Font / OpenType / glif / native motor | Uygulandı | İki profilin uyumluluk/tip testleri geçti | Güncel |
 | Belge / AST / düzenleme / katlama | Uygulandı | BUG-008 ve BUG-011 kırmızı; diğerleri geçti | Güncel |
 | UI / sekmeler / görsel yerleşim / embed | Uygulandı | FSM, kaynak düzenleme ve grafik geçti | Güncel |
-| Görsel çözme / ölçekleme | Uygulandı | İzole CPU ve grafik testleri geçti | Güncel |
+| Görsel çözme / ölçekleme | Uygulandı | Saf ATS2 JPEG motoru, izole CPU, orakıl ve grafik testleri geçti | Güncel |
 | Platform / render / çalışma zamanı | Uygulandı | Olay matrisi/grafik geçti | Güncel |
 | Yapılandırma / arama / işletim sistemi | Uygulandı | İzole oturum, kayıt ve grafik geçti | Güncel |
 | Genel doküman / ajan kuralları / son denetim | Uygulandı | Kaynak/bağlantı denetimi geçti | Güncel |
@@ -49,7 +49,9 @@ tekrarlanabilir testler ve uygulamayla eşleşen belgeler sağlamak.
 - 15 büyük sahip modül özel `.hats` gruplarına ayrıldı; yedi opak sahip korundu.
 - Yerleşim ve görsel satır kayıtları, Bloom boyutları, UTF8 sınırları,
   Hangul formülleri, vertex düzeni ve görsel/selftest politikaları adlandırıldı.
-- Gömülü stb JPEG gövdesi değiştirilmeden lisansıyla `vendor/stb` içine alındı.
+- JPEG motoru (`stb_image`) baseline ve progressive desteğiyle tamamen yerel
+  ATS2 modüllerine taşındı (BUG-004 çözüldü). `stb_image.h` yalnızca test paketi
+  orakılı olarak tutuldu; C yedeği kaldırıldı.
 - 15 mimari rehber, proje README'si ve ajan kuralları gerçek uygulamayla eşlendi.
 - Taşıma haritasındaki 1.494 hedef dosya kontrol edildi; eksik dosya yok.
 - 5.154 ATS fonksiyon gövdesinin satır taramasında sınırı aşan gövde bulunmadı.
@@ -58,6 +60,36 @@ tekrarlanabilir testler ve uygulamayla eşleşen belgeler sağlamak.
 - `vendor/stb/stb_image.h` gövdesi başlangıç kopyasıyla bayt bayt aynı doğrulandı.
 
 ## Yeniden çalıştırma
+
+### BUG-004 inceleme düzeltmeleri (2026-10-16)
+
+- C JPEG yedeği üretimden kaldırıldı; üretim kaynaklarında yeniden kullanımını
+  `source_integrity` engeller. stb C gövdesi yalnız test orakılıdır.
+- Restart aralığının son MCU'da dolması, RGB/CMYK/YCCK renk seçimi,
+  non-interleaved/sequential çoklu tarama, SOF1, genel dikey yeniden örnekleme
+  ve başarılı çıktı tamponunun uzunluğu düzeltildi.
+- SOF/SOS sınırları, örnekleme katsayıları, tablo seçicileri ve tarama
+  parametreleri için ret denetimleri eklendi.
+- 132 sentetik geçerli ve 14 bozuk JPEG fixture'ı eklendi; orijinal baseline ve
+  progressive karşılaştırması korunuyor. JPEG etiketli 147 CTest'in tamamı
+  Release ve Debug profillerinde geçti.
+- Her iki profilde `check-build` geçti. Tam paket 244 testten oluşuyor:
+  CPU testlerinde 241/243 ve ayrı Xvfb :1 grafik selftest'inde 1/1 başarılı.
+  Yalnız eski BUG-008 ve BUG-011 kırmızı; beklentiler veya etiketler değiştirilmedi.
+- Aynı 147 JPEG testi ayrı derlemede ASan/LSan ile geçti; üretim JPEG ve bellek
+  modülleri ayrıca UBSan ile denetlendi. C oracle bu derlemede yalnız ASan/LSan
+  kapsamındadır. Sayaçlar ve sanitizer sonuçları sınanan girdilerin kanıtıdır,
+  bütün JPEG uzayı için doğruluk veya sıfır UB ispatı değildir.
+- Dört JPEG tohumundan türetilen 600 deterministik entropy mutasyonunda
+  sanitizer bulgusu yoktu (245 kabul, 355 ret). Bozuk akışların tamamının
+  reddedildiği iddia edilmez; bu, sabit fixture paketine ek bir deneydir.
+- Fixture üreteci ayrı geçici dizinde tekrar çalıştırıldı; 146 ikili dosyanın
+  tamamı depodaki kopyalarıyla bayt bayt aynı üretildi.
+- Kaynak/bağlantı/sahiplik denetimi, ATS fonksiyon gövdesi boyut taraması ve
+  farklardaki boşluk denetimi geçti. [JPEG test rehberi](../tests/image/README.md)
+  veri kümesini ve yeniden üretim komutlarını açıklar.
+
+### Komutlar
 
 ```sh
 cmake --build build/refactor-release --target check-build --parallel

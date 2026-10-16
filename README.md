@@ -2,8 +2,9 @@
 
 Anthracite is a native Markdown editor written in ATS2/Postiats 0.4.2, using
 X11/GLX and OpenGL directly. It does not use a browser runtime or a GUI toolkit.
-System libraries and a bundled JPEG fallback remain part of its trusted boundary;
-ATS proofs cover the contracts actually represented in its types.
+System libraries and checked FFI remain part of its trusted boundary;
+ATS proofs cover the contracts actually represented in its types. JPEG decoding
+is implemented in ATS2; the bundled C stb implementation is a test oracle only.
 
 ## Build and verify
 

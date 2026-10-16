@@ -11,7 +11,8 @@ alt sistem rehberinden ve `.sats` sözleşmesinden okunur.
 - Mevcut opak sahipler `Buf`, `Doc`, `Font`, `Image`, `Rend`, `Plat`, `App`;
   özel temsil aynı sahip içinde kalır. Kaynağı bölmek yeni `assume` gerektirmez.
 - Dış tamsayılar `airlock_*` kapılarından geçer. Dinamik denetim, C ABI,
-  işletim sistemi, GPU ve [JPEG yedeği](../vendor/stb/README.md) güven sınırına dahildir.
+  işletim sistemi ve GPU güven sınırına dahildir. JPEG algoritması ATS2 içindedir;
+  [C stb](../vendor/stb/README.md) yalnız test orakılıdır, üretim yedeği değildir.
 - Sonlanma metriği azalan çağrıları doğrular; tek başına yığın taşmasını veya
   algoritmik doğruluğu kanıtlamaz. Mevcut sessiz yakıt tükenmeleri BUG-003'tedir.
 

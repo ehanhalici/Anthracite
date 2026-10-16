@@ -32,7 +32,7 @@ fixture kapsamı esas alınır; tam uyumluluk bağımsız corpus olmadan iddia e
 
 Lineer tipler temsil edilen kaynak izinlerini denetler; bütün programın sıfır
 çökme/sıfır UB kanıtı değildir. C ve harici kaynak sınırları ayrıca test edilir.
-Saf ATS2 algoritma hedefinin mevcut JPEG C yedeğiyle arasındaki fark BUG-004'tedir.
+JPEG çözümleyicisi tamamen yerel ATS2 motoruna taşınmış (BUG-004 çözüldü), C `stb_image` yalnızca test orakılı olarak tutulmaktadır.
 
 Geliştirme ilkeleri [skill.md](skill.md), sonraki işler [hata listesi](olasi_hatalar.md),
 ölçüm ve tamamlanma durumu [çalışma kaydı](refactoring_durumu.md) içindedir.
