@@ -34,4 +34,6 @@ eski belgelerdeki iki parametreli örnekler bütün log API'sini temsil etmez.
 oturumun font, bölme, panel, açık klasör durumlarını round-trip ile doğrular.
 Grafik selftest ayrıca belge/VFS ve dosya taşıma kontrollerini içerir.
 Yeni testler benzersiz geçici kök kullanmalıdır; eski sabit fixture yolları
-BUG-007'de listelenmiştir. Sistem tahsisleri `mem_live` kapsamı dışındadır.
+BUG-007 kapsamında giderilmiştir: grafik selftest `mkdtemp` ile özel bir
+`/tmp/anthracite-selftest-*` kökü açar; alt testler yolları bu kökten üretir.
+Fixture'lar inceleme için korunur. Sistem tahsisleri `mem_live` kapsamı dışındadır.

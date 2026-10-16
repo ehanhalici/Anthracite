@@ -115,11 +115,17 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-007 — Eski grafik selftest sabit geçici yollar kullanıyor
 
-- Durum: doğrulandı (kaynak incelemesi); test izolasyonu borcu.
+- Durum: çözüldü; fixture kökü her çalışmada `mkdtemp` ile özel oluşturulur.
 - Kanıt: eski selftest `/tmp/anth-s`, `/tmp/anth-t.png` gibi yolları paylaşıyor.
 - Beklenen: tüm fixture yollarının benzersiz bir test kökünden üretilmesi.
-  Yeni grafik test ayrı yapılandırma dizini ve seri çalıştırma kullanır;
-  eski selftest'in fixture yolları sonraki davranış değişikliğine bırakılmıştır.
+  Grafik test ayrıca ayrı yapılandırma dizini ve seri çalıştırma kullanır.
+- Çözüm: belge/VFS, görsel, arama, dosya taşıma ve UI/session selftest'lerine
+  kök açık parametre olarak taşınır. Görsel Markdown hedefleri bu köke göre
+  çözülür; paylaşılan `/tmp/anth-*` yolları okunmaz, silinmez veya yazılmaz.
+  Yeni grafik fixture dizinleri hata incelemesi için `/tmp/anthracite-selftest-*`
+  altında bırakılır; otomatik toplu silme yapılmaz.
+- Doğrulama: iki eşzamanlı canlı kök aynı isimli dosyayı paylaşmaz; yeni
+  headless sözleşme ve başarılı/hatalı grafik selftest yolları sınanır.
 
 ## BUG-008 — Callout'un son alıntı satırı katlama bölgesi dışında
 
@@ -191,3 +197,12 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
   izlenmiyordu; temiz checkout'ta ilgili testler çalışamazdı.
 - Çözüm: `tests/runtime` altındaki iki dosya eklendi. Her iki profilin önceki
   süreç testlerinde doğrulanan uygulama/alt selftest hata kontrolleri korunur.
+
+## BUG-014 — C tampon kopyalama sınırında toplam taşması
+
+- Durum: kaynak incelemesinde doğrulandı; sanitizer yeniden üretimi ve düzeltme bekliyor.
+- Konum: `src/mem.cats`, `anth_buf_copy` / `anth_copy_to_ptr`.
+- Kanıt: `offset + n > capacity` denetimi signed `int` toplamasını sınır
+  kontrolünden önce yapar. Büyük pozitif uzunluk/ofsette taşma olabilir.
+- Beklenen: negatif değerler dışlandıktan sonra `n <= capacity - offset`
+  kontrolü; küçük gerçek tamponlarda INT_MAX çevresindeki reddetme testleri.

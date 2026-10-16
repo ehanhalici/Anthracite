@@ -129,8 +129,8 @@ in
   if ieq(l1, 2) andalso ieq(l2, 3) andalso p_ok then 1 else 0
 end
 
-fun selftest_flow_checks(r: !Rend): int = let
-  val rz_ok = selftest_img_resize(r)
+fun selftest_flow_checks(r: !Rend, root: string): int = let
+  val rz_ok = selftest_img_resize(r, root)
   val ext_ok = selftest_external_link()
   val pfx_ok = selftest_quote_prefix()
   val ga_ok = selftest_gutter_arrow(r)
@@ -143,20 +143,20 @@ in
      andalso ieq(vw_ok, 1) andalso ieq(err_ok, 1) andalso ieq(math_ok, 1) andalso ieq(drag_ok, 1) then 1 else 0
 end
 
-fun selftest_flow(r: !Rend): @(int, int, Doc, Cache, Buf, Buf) = let
+fun selftest_flow(r: !Rend, root: string): @(int, int, Doc, Cache, Buf, Buf) = let
   val f=font_open()
   val doc = doc_open()
-  val () = doc_insert(doc, c_str_ptr("hello\n\n![](/tmp/anth-t.png)\n\nworld\n"), c_strlen("hello\n\n![](/tmp/anth-t.png)\n\nworld\n"))
+  val () = doc_insert(doc, c_str_ptr("hello\n\n![](anth-t.png)\n\nworld\n"), c_strlen("hello\n\n![](anth-t.png)\n\nworld\n"))
   var cache = CNil()
   var vault = buf_make(8)
-  val () = buffer_append_string(vault, "/tmp")
+  val () = buffer_append_string(vault, root)
   var scratch = buf_make(256)
   val height = prepare_document_layout(f,doc, cache, r, vault, 18, 720, ViewEdit)
   val ()=font_free(f)
   val ii = find_img(doc, 0)
   val iy = if ige(ii, 0) then doc_node_y(doc, ii) else ~1
   val ih = if ige(ii, 0) then doc_node_height(doc, ii) else 0
-  val checks = selftest_flow_checks(r)
+  val checks = selftest_flow_checks(r, root)
   val flow_ok = if ige(ii, 0) andalso igt(ih, 8) andalso ige(height, iadd(iy, ih)) andalso ieq(checks, 1) then 1 else 0
 in
   @(flow_ok, ih, doc, cache, vault, scratch)

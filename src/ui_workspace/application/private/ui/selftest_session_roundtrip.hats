@@ -1,12 +1,12 @@
-fun selftest_session_roundtrip(): int = let
+fun selftest_session_roundtrip(root: string): int = let
   var tp = buf_make(8); val () = buf_push(tp, 0); val () = buf_push(tp, 1)
   var od = buf_make(16); val () = buffer_append_string(od, "folder\n")
   var dummy = TNil()
-  val () = conf_save_session("/tmp/anth-s", "f.ttf", 18, 0, 1, 0, 1, 1, 260, tp, od, dummy)
+  val () = conf_save_session(root, "f.ttf", 18, 0, 1, 0, 1, 1, 260, tp, od, dummy)
   var fp = buf_make(32); var fpx: int = 0; var vm: int = 0; var sp: int = 0
   var act: int = 0; var righti: int = 0; var side_open: int = 0; var sidew: int = 0
   var ltp = buf_make(8); var lod = buf_make(16)
-  val ts = conf_load_session("/tmp/anth-s", fp, fpx, vm, sp, act, righti, side_open, sidew, ltp, lod, dummy)
+  val ts = conf_load_session(root, fp, fpx, vm, sp, act, righti, side_open, sidew, ltp, lod, dummy)
   val () = tabs_free(ts)
   val od_len = buf_len(lod)
   val ok = (if ieq(sp, 1) andalso ieq(righti, 1) andalso ieq(side_open, 1) andalso ieq(sidew, 260) andalso igt(od_len, 0) then 1 else 0)
@@ -16,20 +16,17 @@ in
   ok
 end
 
-fun selftest_files(): int = let
-  var sub = buf_make(40)
-  val () = buffer_append_string(sub, "/tmp/anth-s/sub")
+fun selftest_files(root: string): int = let
+  val sub = selftest_fixture_path(root, "sub")
   val () = seen_int(fs_mkdir(buffer_c_string(sub)))
-  var src = buf_make(48)
-  val () = buffer_append_string(src, "/tmp/anth-s/move.md")
+  val src = selftest_fixture_path(root, "move.md")
   var one = buf_make(4)
   val () = buffer_append_string(one, "x\n")
   val () = seen_int(write_text(src, one))
-  var dstp = buf_make(48)
-  val () = buffer_append_string(dstp, "/tmp/anth-s/sub/move.md")
+  val dstp = selftest_fixture_path(root, "sub/move.md")
   val move_ok = selftest_move_ops(sub, src, dstp)
   val tree_ok = selftest_session_check_tree()
-  val sess_ok = selftest_session_roundtrip()
+  val sess_ok = selftest_session_roundtrip(root)
   val () = buf_free(sub); val () = buf_free(src)
   val () = buf_free(one); val () = buf_free(dstp)
 in
@@ -104,14 +101,13 @@ in
   (if is_on(search_ok) andalso is_on(flow_ok) andalso is_on(chrome_ok) andalso is_on(files_ok) then 1 else 0)
 end
 
-implement app_selftest(r) = let
+implement app_selftest(r, root) = let
   var d1 = buf_make(32)
-  val () = buffer_append_string(d1, "/tmp/anth-s")
-  val () = seen_int(fs_mkdir(buffer_c_string(d1)))
-  val search_ok = if ieq(selftest_search(d1), 1) andalso ieq(ix_selftest(), 1) then 1 else 0
-  val @(flow_ok, ih, doc, cache, vault, scratch) = selftest_flow(r)
+  val () = buffer_append_string(d1, root)
+  val search_ok = if ieq(selftest_search(d1), 1) andalso ieq(ix_selftest(root), 1) then 1 else 0
+  val @(flow_ok, ih, doc, cache, vault, scratch) = selftest_flow(r, root)
   val chrome_ok = selftest_tabs(d1)
-  val files_ok = if ieq(selftest_files(), 1) andalso ieq(editor_fsm_selftest(), 1) then 1 else 0
+  val files_ok = if ieq(selftest_files(root), 1) andalso ieq(editor_fsm_selftest(), 1) then 1 else 0
   val () = selftest_draw(r, doc, cache, vault, scratch)
   val () = buf_free(d1)
 in

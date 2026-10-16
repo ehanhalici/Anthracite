@@ -14,6 +14,11 @@ target_link_libraries(selftest_memory_contracts PRIVATE anthracite_host native_t
   ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
 add_test(NAME selftest_memory_contracts COMMAND selftest_memory_contracts)
 
+anthracite_contract_test(selftest_fixture_contracts tests/runtime/selftest_fixture_contracts.dats
+  "${CMAKE_CURRENT_BINARY_DIR}/mem_dats.c" "${CMAKE_CURRENT_BINARY_DIR}/fs_buf_dats.c"
+  "${CMAKE_CURRENT_BINARY_DIR}/selftest_fixture_dats.c")
+add_test(NAME selftest_fixture_contracts COMMAND selftest_fixture_contracts)
+
 anthracite_contract_test(recursion_fuel_contracts tests/runtime/recursion_fuel_contracts.dats
   "${CMAKE_CURRENT_BINARY_DIR}/ix_fold_dats.c")
 target_link_libraries(recursion_fuel_contracts PRIVATE native_text_engine)

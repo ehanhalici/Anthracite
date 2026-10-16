@@ -5,6 +5,7 @@
 
 staload "mem.sats"
 staload "os/fs.sats"
+staload "os/selftest_fixture.sats"
 staload "core_platform/platform.sats"
 staload "core_render/render.sats"
 staload "core_render/gl.sats"
@@ -23,11 +24,11 @@ macdef SELFTEST_TITLE_X = 24
 macdef SELFTEST_TITLE_Y = 48
 macdef SELFTEST_TITLE = "Anthracite"
 
-fun run_core_selftests(r: !Rend): int = let
+fun run_core_fixture_tests(r: !Rend, root: string): int = let
   val font_result = font_selftest(r)
-  val doc_result = doc_selftest()
-  val image_result = img_selftest()
-  val app_result = app_selftest(r)
+  val doc_result = doc_selftest(root)
+  val image_result = img_selftest(root)
+  val app_result = app_selftest(r, root)
   val () = println! ("font_selftest=", font_result)
   val () = println! ("doc_selftest=", doc_result)
   val () = println! ("img_selftest=", image_result)
@@ -36,6 +37,13 @@ fun run_core_selftests(r: !Rend): int = let
 in
   ok
 end
+
+fun run_core_selftests(r: !Rend): int = let
+  var root: Buf = buf_make(1)
+  val opened = selftest_fixture_open(root)
+  val ok = if opened then run_core_fixture_tests(r, buf_cstr(root)) else 0
+  val () = buf_free(root)
+in ok end
 
 fun print_start(start: int): void = let
   val () = print("budget start_ms=")

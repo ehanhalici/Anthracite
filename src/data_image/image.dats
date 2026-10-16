@@ -12,6 +12,7 @@ staload "mem.sats"
 staload "airlock.sats"
 staload "flag.sats"
 staload "os/fs.sats"
+staload "os/selftest_fixture.sats"
 staload "os/diag.sats"
 staload "core_render/render.sats"
 staload "data_image/image.sats"
@@ -232,30 +233,30 @@ fun pix(im: !Image, i: int): int =
       fold@(im); v
     end
 
-fun selftest_write_png_bmp(): void = let
+fun selftest_write_png_bmp(png_path: string, bmp_path: string): void = let
   val pb = make_png()
-  val () = write_buf("/tmp/anth-t.png", pb)
+  val () = write_buf(png_path, pb)
   val () = buf_free(pb)
   val bb = make_bmp()
-  val () = write_buf("/tmp/anth-t.bmp", bb)
+  val () = write_buf(bmp_path, bb)
   val () = buf_free(bb)
 in
 end
 
-fun selftest_png_ok(im: !Image): int = let
-  val pn = img_load(im, "/tmp/anth-t.png")
+fun selftest_png_ok(im: !Image, path: string, missing_path: string): int = let
+  val pn = img_load(im, path)
   val pr = pix(im, 0)
   val pg = pix(im, 1)
   val pb2 = pix(im, 2)
-  val bad = img_load(im, "/tmp/anth_nonexistent_test.png")
+  val bad = img_load(im, missing_path)
   val up = "/home/emrehan/notes/obsidian_notlar/din/eklenti/vird/raditu billahi rabba.png"
   val texture_is_valid = (if fs_exists(up) = 1 then img_load(im, up) else 1): int
 in
   (if ieq(pn, 1) andalso ieq(bad, 0) andalso ieq(texture_is_valid, 1) andalso ieq(pr, 10) andalso ieq(pg, 20) andalso ieq(pb2, 30) then 1 else 0)
 end
 
-fun selftest_bmp_ok(im: !Image): int = let
-  val bn = img_load(im, "/tmp/anth-t.bmp")
+fun selftest_bmp_ok(im: !Image, path: string): int = let
+  val bn = img_load(im, path)
   val br = pix(im, 0)
   val bg = pix(im, 1)
   val bb2 = pix(im, 2)
@@ -263,11 +264,11 @@ in
   (if ieq(bn, 1) andalso ieq(image_width(im), 2) andalso ieq(image_height(im), 1) andalso ieq(br, 10) andalso ieq(bg, 20) andalso ieq(bb2, 30) then 1 else 0)
 end
 
-fun selftest_jpg_ok(im: !Image, pok: int, bok: int): int = let
+fun selftest_jpg_ok(im: !Image, path: string, pok: int, bok: int): int = let
   val jb = make_jpg()
-  val () = write_buf("/tmp/anth-t.jpg", jb)
+  val () = write_buf(path, jb)
   val () = buf_free(jb)
-  val jn = img_load(im, "/tmp/anth-t.jpg")
+  val jn = img_load(im, path)
   val jr = pix(im, 0)
   val jg = pix(im, 1)
   val jbl = pix(im, 2)
@@ -281,13 +282,21 @@ in
   if ieq(jok, 1) andalso ieq(resize_ok, 1) then 1 else 0
 end
 
-implement img_selftest() = let
-  val () = selftest_write_png_bmp()
+implement img_selftest(root) = let
+  val png_path = selftest_fixture_path(root, "anth-t.png")
+  val bmp_path = selftest_fixture_path(root, "anth-t.bmp")
+  val jpg_path = selftest_fixture_path(root, "anth-t.jpg")
+  val missing = selftest_fixture_path(root, "nonexistent.png")
+  val () = selftest_write_png_bmp(buf_cstr(png_path), buf_cstr(bmp_path))
   val im = img_open()
-  val pok = selftest_png_ok(im)
-  val bok = selftest_bmp_ok(im)
-  val jok = selftest_jpg_ok(im, pok, bok)
+  val pok = selftest_png_ok(im, buf_cstr(png_path), buf_cstr(missing))
+  val bok = selftest_bmp_ok(im, buf_cstr(bmp_path))
+  val jok = selftest_jpg_ok(im, buf_cstr(jpg_path), pok, bok)
   val () = img_free(im)
+  val () = buf_free(png_path)
+  val () = buf_free(bmp_path)
+  val () = buf_free(jpg_path)
+  val () = buf_free(missing)
 in
   (if ieq(pok, 1) andalso ieq(bok, 1) andalso ieq(jok, 1) then 1 else 0)
 end

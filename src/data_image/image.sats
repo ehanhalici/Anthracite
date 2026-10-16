@@ -11,4 +11,4 @@ fun image_width(im: !Image): int
 fun image_height(im: !Image): int
 fun img_upload(im: !Image, r: !Rend): uint
 fun img_resize(im: !Image, target_w: int, target_h: int): int
-fun img_selftest(): int
+fun img_selftest(fixture_root: string): int

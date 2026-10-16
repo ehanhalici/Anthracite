@@ -1,10 +1,10 @@
-implement doc_selftest() = let
+implement doc_selftest(root) = let
   val d = doc_open()
   val a_ok = selftest_markdown_part(d)
   val b_ok = selftest_layout_part(d)
   val c_ok = selftest_history_part()
   val () = selftest_big_part()
-  val v_ok = selftest_vfs_part()
+  val v_ok = selftest_vfs_part(root)
   val d_ok = selftest_delete_part()
   val f_ok = selftest_folding_model()
   val t_ok = ast_selftest()

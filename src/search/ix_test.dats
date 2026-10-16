@@ -25,6 +25,7 @@ macdef TEST_SEARCH_MATCH_VAULT_INITIAL_BYTES = 4
 staload "mem.sats"
 staload "flag.sats"
 staload "os/fs.sats"
+staload "os/selftest_fixture.sats"
 staload "data_ast/document/doc.sats"
 staload "ui_workspace/common/ui_common.sats"
 staload "ui_workspace/tabs/ui_tab.sats"
@@ -118,9 +119,8 @@ in
   doc_free(doc)
 end
 
-fun test_search_match(): bool = let
-  var path = buf_make(TEST_SEARCH_MATCH_PATH_INITIAL_BYTES)
-  val () = buffer_append_string(path, "/tmp/anth-s/test_match.md")
+fun test_search_match(root: string): bool = let
+  val path = selftest_fixture_path(root, "test_match.md")
   val text = "# Proje\nBu belgede #onemli etiket ve [[Notlar]] var.\nAyrica İSTANBUL sehri.\n"
   var ixf = buf_make(TEST_SEARCH_MATCH_IXF_INITIAL_BYTES); var ixs = buf_make(TEST_SEARCH_MATCH_IXS_INITIAL_BYTES); var ixp = buf_make(TEST_SEARCH_MATCH_IXP_INITIAL_BYTES); var ixb = buf_make(TEST_SEARCH_MATCH_IXB_INITIAL_BYTES)
   val () = setup_test_index(path, text, ixf, ixs, ixp, ixb)
@@ -137,6 +137,6 @@ in
   ok
 end
 
-implement ix_selftest() =
-  if test_turkish_fold() andalso test_query_parse() andalso test_bloom_trigram() andalso test_doc_find_and_reveal() andalso test_search_match() then 1
+implement ix_selftest(root) =
+  if test_turkish_fold() andalso test_query_parse() andalso test_bloom_trigram() andalso test_doc_find_and_reveal() andalso test_search_match(root) then 1
   else 0

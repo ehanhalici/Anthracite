@@ -128,12 +128,10 @@ fun find_img_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), doc: !D
 
 fun find_img(doc: !Doc, i: int): int = find_img_with_fuel(airlock_nat(MAX_REC_FUEL), doc, i)
 
-fun selftest_write_notes(): int = let
-  var f1 = buf_make(40)
-  var f2 = buf_make(40)
+fun selftest_write_notes(root: string): int = let
+  val f1 = selftest_fixture_path(root, "a.md")
+  val f2 = selftest_fixture_path(root, "b.md")
   var body = buf_make(32)
-  val () = buffer_append_string(f1, "/tmp/anth-s/a.md")
-  val () = buffer_append_string(f2, "/tmp/anth-s/b.md")
   val () = buffer_append_string(body, "anthracite bir\n")
   val w1 = write_text(f1, body)
   val () = buffer_clear(body)
@@ -149,7 +147,7 @@ end
 fun selftest_search(d1: !Buf): int = let
   var q = buf_make(16)
   val () = buffer_append_string(q, "anthracite")
-  val writes_ok = selftest_write_notes()
+  val writes_ok = selftest_write_notes(buffer_c_string(d1))
   var hits = buf_make(64)
   var hmeta = buf_make(64)
   var hn: int = 0
@@ -162,14 +160,14 @@ in
   search_ok
 end
 
-fun selftest_img_resize(r: !Rend): int = let
+fun selftest_img_resize(r: !Rend, root: string): int = let
   val f=font_open()
   val doc = doc_open()
-  val s = "![[/tmp/anth-t.png|68x90]]\n"
+  val s = "![[anth-t.png|68x90]]\n"
   val () = doc_insert(doc, c_str_ptr(s), c_strlen(s))
   var cache = CNil()
   var vault = buf_make(8)
-  val () = buffer_append_string(vault, "/tmp")
+  val () = buffer_append_string(vault, root)
   val _ = prepare_document_layout(f,doc, cache, r, vault, 18, 720, ViewEdit)
   val ()=font_free(f)
   val ii = find_img(doc, 0)

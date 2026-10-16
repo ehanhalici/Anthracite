@@ -156,11 +156,11 @@ in
   (if ieq(sphys_ok, 1) andalso ieq(on_disk_now, 1) andalso ieq(in_vfs_after, 0) then 1 else 0)
 end
 
-fun selftest_vfs_part(): int = let
+fun selftest_vfs_part(root: string): int = let
   val dvfs = doc_open()
   val () = put_str(dvfs, "vfs test content\n")
-  val test_disk_p = "/tmp/anth_test_vfs.txt"
-  val () = seen_int(if ieq(fs_exists(test_disk_p), 1) then fs_unlink(test_disk_p) else 0)
+  val disk_path = selftest_fixture_path(root, "vfs.txt")
+  val test_disk_p = buf_cstr(disk_path)
   val svfs_ok = doc_save_vfs(dvfs, test_disk_p)
   var vbuf = buf_make(512)
   val () = fs_vfs_buf(test_disk_p, vbuf, 511)
@@ -170,6 +170,7 @@ fun selftest_vfs_part(): int = let
   val () = seen_int(fs_unlink(test_disk_p))
   val () = buf_free(vbuf)
   val () = doc_free(dvfs)
+  val () = buf_free(disk_path)
   val vfs_ok = (if ieq(vfs_ok1, 1) andalso ieq(vfs_ok2, 1) then 1 else 0) : int
   val () = println! ("vfs_autosave=", vfs_ok, " in_ram=", vfs_ok1, " close_disk=", vfs_ok2)
 in

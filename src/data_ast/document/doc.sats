@@ -176,5 +176,5 @@ fun column_w(avail: int): int
 fun column_x(pane: int, avail: int): int
 fun doc_codepoints(d: !Doc, st: int, en: int): int
 fun doc_advance_cps(d: !Doc, st: int, en: int, k: int): int
-fun doc_selftest(): int
+fun doc_selftest(fixture_root: string): int
 fun doc_fold_dump(path: string): void

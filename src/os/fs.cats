@@ -73,6 +73,16 @@ static inline int anth_exists(const char *p) {
 }
 static inline int anth_mkdir(const char *p) { return mkdir(p, 0755); }
 
+/* mkdtemp creates an exclusive mode-0700 directory; no existing target is used. */
+static inline int anth_make_temp_dir(char *dst, int capacity_bytes) {
+  static const char fixture_template[] = "/tmp/anthracite-selftest-XXXXXX";
+  if (!dst || capacity_bytes < (int)sizeof(fixture_template)) return 0;
+  memcpy(dst, fixture_template, sizeof(fixture_template));
+  if (mkdtemp(dst)) return 1;
+  dst[0] = '\0';
+  return 0;
+}
+
 static inline void anth_dirclose(void *d) { if (d) closedir((DIR *)d); }
 static inline int anth_dirnext(void *d, char *name, int namemax, int *isdir) {
   if (!d) return 0;
