@@ -26,13 +26,14 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-002 — Menü modal durumu belgeyle uyuşmuyor
 
-- Durum: doğrulandı (kaynak incelemesi); davranış kararı bekliyor.
+- Durum: çözüldü; prompt ve menü durumları modal olarak sınıflandırılır.
 - Konum: `editor_fsm_is_modal`.
 - Kanıt: uygulama yalnız `StatePrompt` için true döndürüyor; eski kılavuz
   `StateMenu` için de true gösteriyordu.
 - Yeniden üretme: `editor_fsm_is_modal(StateMenu(MenuText()))` sonucunu incele.
-- Beklenen: menünün arka plan olaylarını engelleyip engellememesi ayrıca
-  kararlaştırılmalı; refactoring geçiş davranışını değiştirmemeli.
+- Çözüm: `StateMenu` artık modal döner. Mevcut `step_menu` zaten kapatma/Escape
+  dışındaki eylemleri yok sayıyordu; geçişler değiştirilmeden meta bilgi düzeltildi.
+- Doğrulama: 66 FSM geçişi ve dört menü/dört prompt varyantı sınanır.
 
 ## BUG-003 — Yakıt tükenmesi bazı taramalarda sessiz sonuç döndürüyor
 

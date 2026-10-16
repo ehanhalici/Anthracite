@@ -62,7 +62,7 @@ fun check_transition(state: int,action: int): int = let
   val expected=isub(c_str_byte(expected_row(state),action),CHAR_ZERO)
   val code=state_code(next)
   val flags=editor_fsm_is_editing(next) = (ieq(code,1) orelse ieq(code,2))
-    andalso editor_fsm_is_modal(next) = ieq(code,3)
+    andalso editor_fsm_is_modal(next) = (ieq(code,3) orelse ieq(code,4))
 in if ieq(code,expected) andalso payload_ok(next,action) andalso flags then 0 else 1 end
 
 fun transitions{n:nat} .<n>. (remaining: int(n),index: int): int =
@@ -70,10 +70,21 @@ fun transitions{n:nat} .<n>. (remaining: int(n),index: int): int =
     val errors=check_transition(idiv(index,ACTION_COUNT),imod(index,ACTION_COUNT))
   in iadd(errors,transitions(remaining-1,iadd(index,1))) end else 0
 
+fun check_modal_variants(): int = let
+  val menus = editor_fsm_is_modal(StateMenu(MenuNone()))
+    andalso editor_fsm_is_modal(StateMenu(MenuText()))
+    andalso editor_fsm_is_modal(StateMenu(MenuImage()))
+    andalso editor_fsm_is_modal(StateMenu(MenuFileTree()))
+  val prompts = editor_fsm_is_modal(StatePrompt(PromptNone()))
+    andalso editor_fsm_is_modal(StatePrompt(PromptNewFile()))
+    andalso editor_fsm_is_modal(StatePrompt(PromptNewFolder()))
+    andalso editor_fsm_is_modal(StatePrompt(PromptRename()))
+in if menus andalso prompts then 0 else 1 end
+
 implement main0() = let
   val before=mem_live()
   val cases=imul(STATE_COUNT,ACTION_COUNT)
-  val errors=transitions(airlock_nat(cases),0)
+  val errors=iadd(transitions(airlock_nat(cases),0),check_modal_variants())
   val leak=if ieq(before,mem_live()) then 0 else 1
   val total=iadd(errors,leak)
   val ()=println!("event=editor_fsm_contracts transitions=",cases," errors=",total)

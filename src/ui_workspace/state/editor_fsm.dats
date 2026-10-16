@@ -21,6 +21,7 @@ implement editor_fsm_is_editing(st) = case+ st of
 
 implement editor_fsm_is_modal(st) = case+ st of
   | StatePrompt(_) => true
+  | StateMenu(_) => true
   | _ => false
 
 fun step_idle(act: EditorAction): EditorState = case+ act of

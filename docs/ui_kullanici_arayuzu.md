@@ -24,7 +24,9 @@ esintisi tasarım bağlamıdır; bağımlılık veya birebir API uyumluluğu de�
 `EditorState` idle, typing, selecting, prompt, menu ve split-drag varyantlarına
 sahiptir. `editor_fsm_contracts` altı durum ve on bir eylemin 66 geçişini bağımsız
 tabloyla, yük verileri ve editing/modal bayraklarıyla karşılaştırır.
-Mevcut `editor_fsm_is_modal` yalnız prompt için true döndürür; menü farkı BUG-002'dir.
+`editor_fsm_is_modal` prompt ve menü durumlarında true döndürür. Menü FSM'si
+kapatma/Escape dışındaki arka plan eylemlerini zaten yok sayar; modal bilgisi
+bu geçiş politikasıyla uyumludur (BUG-002 çözüldü).
 
 `Cache`, görsel dokuları ve sahipliği kendisinde olan gömülü `Doc` nesnelerini
 tutar. Embed alındığında sahiplik cache'ten çıkar, çizim/ölçümden sonra geri
