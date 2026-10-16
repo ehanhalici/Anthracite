@@ -165,3 +165,12 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
   hedefine bağlandı; bütün tüketiciler bu hedefin tamamlanmasını bekler.
 - Doğrulama: aynı test arayüzü tekrar güncelletilip her iki profilde `check-build
   -j 16` çalıştırıldı; fixture her profilde bir kez üretildi ve bağlama tamamlandı.
+
+## BUG-013 — Selftest süreç doğrulayıcıları commit dışında kalmış
+
+- Durum: çözüldü; iki doğrulayıcı kaynak denetimine alındı.
+- Kanıt: `0046f1b` CMake kaydı `verify_no_display.cmake` ve
+  `verify_selftest_failure.cmake` dosyalarını çağırdığı halde bu dosyalar
+  izlenmiyordu; temiz checkout'ta ilgili testler çalışamazdı.
+- Çözüm: `tests/runtime` altındaki iki dosya eklendi. Her iki profilin önceki
+  süreç testlerinde doğrulanan uygulama/alt selftest hata kontrolleri korunur.
