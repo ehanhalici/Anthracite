@@ -37,4 +37,7 @@ ihlallerini kontrol eder.
 
 `mem_live()` yalnız sayaca kaydedilen tampon kapasitesini ölçer. C çalışma
 zamanı, X11 ve GPU kaynakları kapsam dışındadır. Başlangıç grafik selftest'inde
-gözlenen `1530113` bayt, bazı sahipler açıkken alınan referanstır (BUG-005).
+gözlenen `1530113` bayt, bazı sahipler açıkken alınan tarihsel referanstır.
+Grafik selftest ayrıca platform açıkken renderer öncesi ve renderer kapandıktan
+sonraki sayacı karşılaştırır; `memory_ok=1` izlenen tamponların bu sınırda
+başlangıç değerine döndüğünü gösterir, tüm sistem tahsisleri için ispat değildir.

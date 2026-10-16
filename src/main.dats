@@ -3,6 +3,7 @@
 #include "common.hats"
 
 staload "os/fs.sats"
+staload "mem.sats"
 staload "core_platform/platform.sats"
 staload "core_render/render.sats"
 staload "core_render/gl.sats"
@@ -14,6 +15,7 @@ macdef FIRST_ARGUMENT = 1
 macdef FOLD_PATH_ARGUMENT = 2
 
 fun run_display(p: Plat, started_at: lint): void = let
+  val before = mem_live()
   val r = rend_open()
   val selftest = c_argc() > FIRST_ARGUMENT andalso c_strcmp(c_argv(FIRST_ARGUMENT), "--selftest") = 0
   val ok = if selftest then runtime_selftest(p, r, started_at) else let
@@ -22,9 +24,10 @@ fun run_display(p: Plat, started_at: lint): void = let
     1
   end
   val () = rend_close(r)
+  val memory_ok = if selftest then runtime_selftest_memory_check(before) else 1
   val () = plat_close(p)
 in
-  if ieq(ok, 0) then exit(1) else ()
+  if ieq(ok, 0) orelse ieq(memory_ok, 0) then exit(1) else ()
 end
 
 fun start_application(): void = let

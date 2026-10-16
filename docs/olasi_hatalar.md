@@ -70,11 +70,17 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-005 — Sabit canlı bellek değeri sızıntısızlık kanıtı değil
 
-- Durum: doğrulandı (kaynak incelemesi); belge ve test altyapısı işi.
+- Durum: çözüldü; aynı sahiplik sınırında önce/sonra karşılaştırması eklenmiştir.
 - Kanıt: selftest `mem_live()` değerini bazı kalıcı kaynaklar hâlâ açıkken
   yazdırıyor; `1530113` eşitliğini test etmiyor. Sayaç GPU/X11/C tahsislerini kapsamaz.
 - Beklenen: aynı yaşam döngüsü noktalarında önce/sonra ölçümü; ortam ve
   açık kaynakları belirtilmiş performans ölçümleri.
+- Çözüm: platform açıkken, renderer açılmadan önceki sayaç ile renderer ve
+  selftest sahipleri kapandıktan sonraki sayaç karşılaştırılır. `memory_ok=0`
+  süreç kodunu başarısız yapar. Bu denetim yalnız izlenen Buf kapasitelerini kapsar.
+- Doğrulama: sıfır ve sıfır olmayan başlangıç değerlerinde canlı bir tampon
+  fark olarak algılanır, serbest bırakılınca eşitlik sağlanır. Grafik testleri
+  başarılı ve alt selftest hatalı yollarda `memory_ok=1` ister.
 
 ## DOC-001 — Katlama fixture'ları mevcut diye belgelenmiş
 

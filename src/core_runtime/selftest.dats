@@ -107,6 +107,23 @@ in
   anth_ms(before_wait, after_wait)
 end
 
+implement runtime_selftest_memory_check(before) = let
+  val after = mem_live()
+  val ok: int = if ieq(before, after) then 1 else 0
+  val () = print("event=selftest_memory before_bytes=")
+  val () = print_int(before)
+  val () = print(" after_bytes=")
+  val () = print_int(after)
+  val () = print(" delta_bytes=")
+  val () = print_int(isub(after, before))
+  val () = print(" memory_ok=")
+  val () = print_int(ok)
+  val () = print_newline()
+  val () = if ieq(ok, 0) then println!("event=selftest_memory status=failed") else ()
+in
+  ok
+end
+
 implement runtime_selftest(p, r, started_at) = let
   val f = font_open()
   val () = draw_self_frame(p, r, f)

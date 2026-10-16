@@ -9,7 +9,7 @@ if(NOT result EQUAL 0)
   message(FATAL_ERROR "Graphical selftest failed (${result}): ${output}\n${diagnostics}")
 endif()
 foreach(expected font_selftest=1 doc_selftest=1 img_selftest=1 app_selftest=1
-    clip=1 poll_ok=1 rss_ok=1)
+    clip=1 poll_ok=1 rss_ok=1 memory_ok=1)
   if(NOT output MATCHES "${expected}([ \n]|$)")
     message(FATAL_ERROR "Missing successful ${expected}: ${output}\n${diagnostics}")
   endif()

@@ -9,6 +9,11 @@ function(anthracite_contract_test name source)
   target_link_libraries(${name} PRIVATE m)
 endfunction()
 
+anthracite_contract_test(selftest_memory_contracts tests/runtime/selftest_memory_contracts.dats)
+target_link_libraries(selftest_memory_contracts PRIVATE anthracite_host native_text_engine
+  ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
+add_test(NAME selftest_memory_contracts COMMAND selftest_memory_contracts)
+
 anthracite_contract_test(recursion_fuel_contracts tests/runtime/recursion_fuel_contracts.dats
   "${CMAKE_CURRENT_BINARY_DIR}/ix_fold_dats.c")
 target_link_libraries(recursion_fuel_contracts PRIVATE native_text_engine)
