@@ -6,7 +6,8 @@ In stack-based boundary scanners:
   its `last` upward to the remaining parent using the maximum of both extents.
 - This guarantees that collapsing any ancestor item completely encompasses all nested subtrees, sibling sublists, and deeper descendants.
 
-The line/stack scan and visibility sweep are monotonic. The current insertion
-sort of regions can still take O(R²); do not describe the entire pipeline as
-linear until BUG-006 is resolved. `tests/folds` checks region boundaries and
-single-region visibility against an interval oracle.
+The line/stack scan and visibility sweep are monotonic. Region sorting uses
+stable four-pass radix sorting over signed 32-bit owners: O(R) time and O(R)
+scratch storage. Preserve complete records and equal-owner insertion order.
+`region_sort_contracts` checks stability and actual loop work, including reverse
+inputs. `tests/folds` checks boundaries and visibility against an interval oracle.

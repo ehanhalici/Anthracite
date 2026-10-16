@@ -1,5 +1,7 @@
+#include "data_ast/folding/private/fold_region/regions_radix_sort.hats"
+
 fun regions_sort_by_owner(regions: !Buf): void =
-  regions_sort_with_fuel(airlock_nat(MAX_REC_FUEL), regions, 1, fold_region_count(regions))
+  seen_int(regions_sort_work(regions))
 
 implement fold_region_build(d, regions) = let
   val () = buf_set_len(regions, 0)

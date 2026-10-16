@@ -100,13 +100,18 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-006 — Katlama bölgesi sıralamasında karesel üst sınır
 
-- Durum: doğrulandı (kaynak incelemesi); performans iyileştirmesi bekliyor.
+- Durum: çözüldü; kararlı dört geçişli radix sıralama kullanılır.
 - Konum: `regions_sort_with_fuel` / `regions_sort_inner_with_fuel`.
 - Kanıt: bölge tablosu eklemeli sıralamayla düzenleniyor. Ters sıralı R
   bölge için O(R²) takas gerekebilir; yalnız satır/yığın taramasının lineer
   olması bütün katlama hazırlığını lineer yapmaz.
 - Beklenen: kararlı lineer/radix sıralama veya sıralı üretim; boyutu artan
   ters sıralı bölgelerle işlem sayısını ölçen test.
+- Çözüm: 32 bit sahip anahtarı dört bayt geçişinde sıralanır; kayıtların tüm
+  alanları ve eşit anahtarların eski sırası korunur. Zaman O(R), ek bellek O(R).
+- Doğrulama: 6.561 sekiz elemanlı {-1,0,1} dizisi ve 65.536 bölgeye kadar
+  büyüyen ters sıralı girdiler; gerçek döngü adımları `4*(2*R+256)` olmalıdır.
+  Kayıt kimliği, alanlar, kararlılık, boş/tek kayıt ve tahsis dengesi denetlenir.
 
 ## BUG-007 — Eski grafik selftest sabit geçici yollar kullanıyor
 

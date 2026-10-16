@@ -47,7 +47,8 @@ Görsel izdüşümden önce katlama görünürlüğü eşzamanlı güncellenir. 
 AST eşleştirmelerinde monotonik imleç veya aralık araması kullanılır. Önbellek
 isabetinde belgeyi yeniden açmayın; tahliye ve kapanışta `Doc` sahipliğini bırakın.
 Karmaşıklık bütün çağrı zinciri için değerlendirilir: katlama bölgesi sıralaması
-mevcut durumda karesel olabilir (BUG-006).
+32 bit sahip anahtarında kararlı dört geçişli radix sıralamadır (O(R), ek O(R)
+bellek). Kararlılık ve döngü adımları `region_sort_contracts` ile korunur.
 
 ## Test kapısı ve belge eşlemesi
 

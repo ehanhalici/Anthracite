@@ -23,9 +23,10 @@ açmak alt bölgenin kullanıcı tercihlerini silmez.
 
 ## Karmaşıklık
 
-Satır/yığın taraması monotonik ilerler. Fakat bölge tablosunun mevcut eklemeli
-sıralaması en kötü durumda O(R²)'dir (BUG-006). Satır görünürlük süpürmesinin
-tek geçişli olması bütün hazırlığın lineer olduğu anlamına gelmez.
+Satır/yığın taraması monotonik ilerler. Bölge tablosu 32 bit sahip anahtarına göre
+kararlı dört geçişli radix sıralama ile O(R) zamanda, O(R) ek bellekte düzenlenir.
+Eşit sahiplerde eski sıra korunur. `region_sort_contracts` gerçek döngü adımlarını,
+tam kayıt taşımayı ve kararlılığı sınar; BUG-006 çözülmüştür.
 
 ## Testler
 

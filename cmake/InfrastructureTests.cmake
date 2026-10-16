@@ -54,6 +54,9 @@ set_tests_properties(graphics_selftest_failure PROPERTIES LABELS "graphics;negat
 add_test(NAME source_integrity COMMAND "${CMAKE_COMMAND}" -P "${CMAKE_SOURCE_DIR}/cmake/SourceIntegrity.cmake")
 
 anthracite_contract_test(fold_contracts tests/folds/fold_contracts.dats)
+anthracite_contract_test(region_sort_contracts tests/folds/region_sort_contracts.dats
+  "${CMAKE_CURRENT_BINARY_DIR}/mem_dats.c")
+add_test(NAME region_sort_contracts COMMAND region_sort_contracts)
 target_link_libraries(fold_contracts PRIVATE anthracite_host native_text_engine
   ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
 foreach(case paragraf_liste girintili_devam ic_ice_liste durum_koruma baslik_hiyerarsi
