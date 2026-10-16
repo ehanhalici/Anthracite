@@ -4,6 +4,10 @@ Başlangıç: 2026-10-16, `188239f` (`uzun metin optimizasyonu eklendi`).
 Amaç: davranışı koruyarak okunabilir sabitler/adlar, konuya göre modüller,
 tekrarlanabilir testler ve uygulamayla eşleşen belgeler sağlamak.
 
+Bu dosyanın başlangıç ve önceki inceleme bölümleri tarihsel ölçümlerdir;
+güncel hata durumları [hata listesinde](olasi_hatalar.md) tutulur. Daha sonraki
+onaylı hata düzeltme çalışması aşağıdaki ayrı bölümde kayıtlıdır.
+
 ## Başlangıç doğrulaması
 
 - Mevcut `build` çıktıları: 77/77 CTest geçti (planlama aşaması).
@@ -32,7 +36,7 @@ tekrarlanabilir testler ve uygulamayla eşleşen belgeler sağlamak.
 | Bellek / airlock / ortak yardımcılar | Uygulandı | Yeni sözleşmeler geçti | Güncel |
 | Metin / Unicode | Uygulandı | İki profilin uyumluluk/tip testleri geçti | Güncel |
 | Font / OpenType / glif / native motor | Uygulandı | İki profilin uyumluluk/tip testleri geçti | Güncel |
-| Belge / AST / düzenleme / katlama | Uygulandı | BUG-008 ve BUG-011 kırmızı; diğerleri geçti | Güncel |
+| Belge / AST / düzenleme / katlama | Uygulandı | BUG-008 ve BUG-011 düzeltildi; regresyon testleri geçti | Güncel |
 | UI / sekmeler / görsel yerleşim / embed | Uygulandı | FSM, kaynak düzenleme ve grafik geçti | Güncel |
 | Görsel çözme / ölçekleme | Uygulandı | Saf ATS2 JPEG motoru, izole CPU, orakıl ve grafik testleri geçti | Güncel |
 | Platform / render / çalışma zamanı | Uygulandı | Olay matrisi/grafik geçti | Güncel |
@@ -124,11 +128,39 @@ DISPLAY=:1 ctest --test-dir build/refactor-debug -L graphics --output-on-failure
 ```
 
 `:1` test sırasında kullanılan ayrı Xvfb ekranıdır; sonraki çalıştırmada kendi
-geçerli X11/GLX ekranınızı kullanın. `known_issue` etiketli testler tam pakette
-çalışır ve başarısızlık kodu üretir. `check` de bunları gizlemez; tam paket şu
-an yeşil değildir. Onaylanan kapsam gereği mevcut davranış hataları düzeltilmedi.
+geçerli X11/GLX ekranınızı kullanın. İlk refactoring paketinde `known_issue`
+etiketli testler beklentileri değiştirilmeden kırmızı tutuldu. Sonraki onaylı
+hata düzeltmesinde BUG-008 ve BUG-011 giderildi ve bu etiketler kaldırıldı.
 
 Bulunan mevcut davranış hataları [olası hatalar](olasi_hatalar.md) dosyasında
-tutulur. Bu çalışma yeni regresyonları düzeltir; mevcut hataları gizleyen
-test beklentileri eklemez. Refactoring ve belge döngüsü tamamlandı; hata
-düzeltme işleri sonraki çalışma için açık bırakıldı.
+tutulur. Test beklentileri mevcut hataları gizlemek için değiştirilmez.
+
+## Açık hata listesinin tamamlanması (2026-10-16)
+
+- BUG-002/003/005–011 çözüldü; her madde belge ve testleriyle ayrı commit aldı.
+- İncelemede bulunan BUG-013 (izlenmeyen test dosyaları), BUG-014 (C kopyalama
+  aralığı taşması), BUG-015 (kişisel Unifont yolu) ve BUG-016 (yakıt fixture'ında
+  optimizasyona bağlı bağlantı) kaydedilip ayrıca düzeltildi.
+- Menü/prompt modal matrisi, açık yakıt tükenmesi, aynı sahiplik sınırında
+  bellek dengesi, kararlı O(R) radix sıralama, özel fixture kökleri, çok satırlı
+  callout ve artımlı AST çocuk bağları regresyon testleriyle korunur.
+- Kelime ve kopyalama taşmaları düzeltmeden önce yeniden üretildi. İki kalıcı
+  UBSan testi Nix'in `-fwrapv` varsayımını `-fno-wrapv` ile kaldırır; temsili
+  sınırları test etmek taşmanın yalnız sarılma olarak kalmasını engeller.
+- Başlangıçtaki doğru callout golden'ı ve artımlı/tam AST beklentileri korunur.
+  Ek AST matrisi altı fixture'ın her bayt konumunda beş düzenleme senaryosunu
+  karşılaştırır; isteğe bağlı kök `NEXT_SIB` yerine kök gezinmesindeki `SUBEND`
+  ve tüm çocuk/kardeş bağları dikkate alınır.
+- Son `check-build -j12` her iki profilde başarılıdır. Grafik testleri Xvfb :1
+  üzerinde iki paket çakıştırılmadan çalıştırıldı: Release **260/260**, Debug
+  **260/260** CTest geçti. Hiçbir test devre dışı bırakılmadı veya ters beklentiye
+  çevrilmedi. Bu ağaçta açık `known_issue` etiketi kalmadı.
+- Kelime erişimi (ATS Buf ve C ABI) ve C kopyalama aralıkları ayrıca bağımsız
+  `-fno-wrapv -fsanitize=address,undefined -fno-sanitize-recover=all`
+  yürütücülerinde `ASAN_OPTIONS=detect_leaks=1` ile geçti. LeakSanitizer yerel
+  sandbox'ın ptrace kısıtı dışında çalıştırıldı. Bunlar sınanan girdilere ait
+  sonuçlardır; tüm girdi uzayında kusursuzluk veya genel sızıntısızlık ispatı değildir.
+- Kaynak/bağlantı/yedi opak sahip denetimi ve `git diff --check` geçti;
+  5.266 ATS fonksiyon gövdesi taramasında 20 satırı aşan gövde bulunmadı.
+- Fixture kökleri inceleme için tutulur; eski paylaşılan `/tmp/anth-*` dosyaları
+  veya kişisel not/font dosyaları silinmedi ve değiştirilmedi.

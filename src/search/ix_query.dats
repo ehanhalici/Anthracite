@@ -40,12 +40,7 @@ fun buf_push32(b: &Buf >> _, v: int): void = let
 in
 end
 
-fun skip_ws_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), q: !Buf, p: int, n: int): int =
-  if recursion_fuel_available(recfuel) then (
-    if ilt(p, n) andalso ile(buf_get(q, p), CHAR_SPACE) then
-      skip_ws_with_fuel(recfuel - 1, q, iadd(p, 1), n)
-    else p
-  ) else p
+#include "search/private/ix_query/skip_whitespace.hats"
 
 fun scan_quote_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), q: !Buf, p: int, n: int): int =
   if recursion_fuel_available(recfuel) then (

@@ -1,5 +1,13 @@
-(* Compile the real query scanner and visibility helper in this test owner. *)
-#include "search/ix_query.dats"
+(* Compile the same private scanner and visibility helper used in production;
+   including the whole query implementation would pull unused Doc dependencies. *)
+#define ATS_DYNLOADFLAG 0
+#include "share/atspre_define.hats"
+#include "share/atspre_staload.hats"
+#include "common.hats"
+staload "mem.sats"
+staload "airlock.sats"
+staload "os/fs.sats"
+#include "search/private/ix_query/skip_whitespace.hats"
 #include "data_ast/folding/private/fold_region/mark_hidden_lines.hats"
 
 fun ordinary_scans(): int = let

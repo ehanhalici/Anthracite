@@ -259,3 +259,17 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
   Kaynak denetimi kişisel `fopen` sabitini reddeder.
 - Doğrulama: ekran gerektirmeyen dört test, yalıtılmış dizinlerde eksik dosya,
   yapılandırılmış dosya ve iki göreli yerleşimi denetler.
+
+## BUG-016 — Yakıt fixture'ının bağlantısı Release optimizasyonuna bağımlı
+
+- Durum: çözüldü; Release ve Debug tam derleme/test paketleri geçti.
+- Konum: `recursion_fuel_contracts`, `cmake/InfrastructureTests.cmake`.
+- Kanıt: bu çalışmadaki BUG-003 fixture'ı bütün `ix_query.dats` dosyasını
+  dahil ediyordu. Kullanılmayan sorgu fonksiyonları `ix_fold` üzerinden `Doc`
+  bağımlılığı getiriyordu. Release LTO bunları eledi, Debug ise `doc_byte`
+  bağlantısında hata verdi. Üretim uygulamasının bağlantı hatası değildir.
+- Çözüm: gerçek boşluk tarayıcısı aynı sahip içinde özel `.hats` dosyasına
+  ayrıldı. Üretim ve fixture aynı yordamı içerir; fixture yalnız Buf'a bağlanır.
+  Sahte Doc uygulaması veya optimizasyonla hata gizleme eklenmedi.
+- Doğrulama: her iki profilde `check-build -j12` ve 260/260 CTest geçti;
+  normal tarama ile iki sıfır yakıt/abort testi Debug'da da başarıyla çalıştı.
