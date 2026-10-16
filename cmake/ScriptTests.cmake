@@ -2,12 +2,12 @@ set(SCRIPT_TEST_C_SOURCES "")
 foreach(MODULE script_units script_rejections script_source_oracle script_extensions_oracle script_ignorable_oracle script_conformance)
   set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
   add_custom_command(OUTPUT "${OUTPUT}"
-    COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tools"
-      -IATS "${CMAKE_SOURCE_DIR}/tests" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tools"
-      -IATS "${CMAKE_SOURCE_DIR}/tests" -o "${OUTPUT}" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    DEPENDS "tests/${MODULE}.dats" tests/script_contracts.sats tests/script_test.hats
-      tools/script_compile.sats tools/script_compile_internal.hats ${ATS_INTERFACES})
+    COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tools/script"
+      -IATS "${CMAKE_SOURCE_DIR}/tests" -d "${ANTHRACITE_TEST_${MODULE}}"
+    COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tools/script"
+      -IATS "${CMAKE_SOURCE_DIR}/tests" -o "${OUTPUT}" -d "${ANTHRACITE_TEST_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/text/script/script_contracts.sats tests/text/script/script_test.hats
+      tools/script/script_compile.sats tools/script/script_compile_internal.hats ${ATS_INTERFACES})
   list(APPEND SCRIPT_TEST_C_SOURCES "${OUTPUT}")
 endforeach()
 add_executable(script_conformance EXCLUDE_FROM_ALL ${SCRIPT_TEST_C_SOURCES} ${SCRIPT_C_SOURCES}

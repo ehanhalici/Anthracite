@@ -1,8 +1,8 @@
 #define ATS_DYNLOADFLAG 0
 
 staload "mem.sats"
-staload "data_ast/doc.sats"
-staload "ui_workspace/ui_tab.sats"
+staload "data_ast/document/doc.sats"
+staload "ui_workspace/tabs/ui_tab.sats"
 
 datatype SearchScope = ScopeVault | ScopeDoc
 

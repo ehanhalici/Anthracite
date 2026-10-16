@@ -1,0 +1,7 @@
+#include "data_font/glyph/substitution/glyph_substitution_engine_internal.hats"
+staload "data_font/opentype/tables/opentype_reader.sats"
+staload "data_font/opentype/layout/ot_layout_parse.sats"
+staload "data_font/opentype/layout/ot_layout_plan.sats"
+staload "data_font/opentype/substitution_graph/ot_substitution_graph.sats"
+staload "data_font/glyph/substitution/glyph_substitution_stage_types.sats"
+staload "data_font/glyph/substitution/glyph_substitution_stage.sats"

@@ -1,10 +1,10 @@
 set(TEXT_TEST_C "${CMAKE_CURRENT_BINARY_DIR}/text_conformance_dats.c")
 add_custom_command(OUTPUT ${TEXT_TEST_C}
   COMMAND patsopt -tc -IATS ${CMAKE_CURRENT_SOURCE_DIR}/src
-    -d ${CMAKE_CURRENT_SOURCE_DIR}/tests/text_conformance.dats
+    -d ${CMAKE_CURRENT_SOURCE_DIR}/tests/text/grapheme/text_conformance.dats
   COMMAND patsopt -IATS ${CMAKE_CURRENT_SOURCE_DIR}/src -o ${TEXT_TEST_C}
-    -d ${CMAKE_CURRENT_SOURCE_DIR}/tests/text_conformance.dats
-  DEPENDS tests/text_conformance.dats ${ATS_INTERFACES})
+    -d ${CMAKE_CURRENT_SOURCE_DIR}/tests/text/grapheme/text_conformance.dats
+  DEPENDS tests/text/grapheme/text_conformance.dats ${ATS_INTERFACES})
 add_executable(text_conformance EXCLUDE_FROM_ALL ${TEXT_TEST_C}
   "${CMAKE_CURRENT_BINARY_DIR}/mem_dats.c" "${CMAKE_CURRENT_BINARY_DIR}/fs_buf_dats.c"
   "${CMAKE_CURRENT_BINARY_DIR}/text_source_dats.c" ${UTF8_C_SOURCES}
@@ -16,11 +16,11 @@ add_test(NAME text_conformance COMMAND text_conformance
   "${CMAKE_CURRENT_BINARY_DIR}/unicode18.bin" "${UCD_SOURCE}/auxiliary/GraphemeBreakTest.txt")
 
 add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/word_conformance_dats.c"
-  COMMAND patsopt -tc -IATS ${CMAKE_CURRENT_SOURCE_DIR}/src -d tests/word_conformance.dats
+  COMMAND patsopt -tc -IATS ${CMAKE_CURRENT_SOURCE_DIR}/src -d tests/text/word_break/word_conformance.dats
   COMMAND patsopt -IATS ${CMAKE_CURRENT_SOURCE_DIR}/src
-    -o "${CMAKE_CURRENT_BINARY_DIR}/word_conformance_dats.c" -d tests/word_conformance.dats
+    -o "${CMAKE_CURRENT_BINARY_DIR}/word_conformance_dats.c" -d tests/text/word_break/word_conformance.dats
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  DEPENDS tests/word_conformance.dats ${ATS_INTERFACES})
+  DEPENDS tests/text/word_break/word_conformance.dats ${ATS_INTERFACES})
 add_executable(word_conformance EXCLUDE_FROM_ALL "${CMAKE_CURRENT_BINARY_DIR}/word_conformance_dats.c"
   "${CMAKE_CURRENT_BINARY_DIR}/mem_dats.c" "${CMAKE_CURRENT_BINARY_DIR}/fs_buf_dats.c"
   "${CMAKE_CURRENT_BINARY_DIR}/text_source_dats.c" ${UTF8_C_SOURCES}
@@ -35,11 +35,11 @@ add_test(NAME word_conformance COMMAND word_conformance
   "${UCD_SOURCE}/auxiliary/WordBreakTest.txt")
 
 add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/bidi_core_conformance_dats.c"
-  COMMAND patsopt -tc -IATS ${CMAKE_CURRENT_SOURCE_DIR}/src -d tests/bidi_core_conformance.dats
+  COMMAND patsopt -tc -IATS ${CMAKE_CURRENT_SOURCE_DIR}/src -d tests/text/bidi/bidi_core_conformance.dats
   COMMAND patsopt -IATS ${CMAKE_CURRENT_SOURCE_DIR}/src
-    -o "${CMAKE_CURRENT_BINARY_DIR}/bidi_core_conformance_dats.c" -d tests/bidi_core_conformance.dats
+    -o "${CMAKE_CURRENT_BINARY_DIR}/bidi_core_conformance_dats.c" -d tests/text/bidi/bidi_core_conformance.dats
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  DEPENDS tests/bidi_core_conformance.dats ${ATS_INTERFACES})
+  DEPENDS tests/text/bidi/bidi_core_conformance.dats ${ATS_INTERFACES})
 add_executable(bidi_core_conformance EXCLUDE_FROM_ALL "${CMAKE_CURRENT_BINARY_DIR}/bidi_core_conformance_dats.c"
   "${CMAKE_CURRENT_BINARY_DIR}/mem_dats.c" "${CMAKE_CURRENT_BINARY_DIR}/fs_buf_dats.c"
   "${CMAKE_CURRENT_BINARY_DIR}/text_source_dats.c" ${UTF8_C_SOURCES}

@@ -1,9 +1,9 @@
-file(GLOB GLYPH_PASS_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/glyph_pass_*.dats"
+file(GLOB_RECURSE GLYPH_PASS_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/glyph_pass_*.dats"
   "${CMAKE_SOURCE_DIR}/src/data_font/glyph_neighbor*.dats"
   "${CMAKE_SOURCE_DIR}/src/data_font/glyph_expansion_*.dats")
-file(GLOB GLYPH_CONTEXT_ARENA_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/glyph_context_arena_*.dats")
+file(GLOB_RECURSE GLYPH_CONTEXT_ARENA_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/glyph_context_arena_*.dats")
 list(APPEND GLYPH_PASS_SOURCES ${GLYPH_CONTEXT_ARENA_SOURCES})
-file(GLOB GLYPH_SUBSTITUTION_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/glyph_substitution_*.dats")
+file(GLOB_RECURSE GLYPH_SUBSTITUTION_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/glyph_substitution_*.dats")
 list(APPEND GLYPH_PASS_SOURCES ${GLYPH_SUBSTITUTION_SOURCES})
 set(GLYPH_PASS_C_SOURCES "")
 foreach(SOURCE ${GLYPH_PASS_SOURCES})
@@ -32,29 +32,29 @@ foreach(MODULE glyph_pass_fixture glyph_pass_basic_cases glyph_pass_sparse_cases
   set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
   add_custom_command(OUTPUT "${OUTPUT}"
     COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
+      -d "${ANTHRACITE_TEST_${MODULE}}"
     COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -o "${OUTPUT}" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    DEPENDS "tests/${MODULE}.dats" tests/glyph_pass_contracts.sats tests/glyph_run_contracts.sats
-      tests/glyph_lookup_contracts.sats tests/glyph_sequence_contracts.sats tests/glyph_nominal_contracts.sats
-      tests/opentype_fixture.sats tests/glyph_window_contracts.sats tests/glyph_window_test.hats
-      tests/glyph_reverse_contracts.sats tests/glyph_reverse_test.hats
-      tests/glyph_substitution_cache_contracts.sats tests/glyph_substitution_cache_test.hats
-      tests/glyph_context_arena_contracts.sats tests/glyph_context_arena_test.hats
-      tests/glyph_substitution_engine_contracts.sats tests/glyph_substitution_engine_test.hats
-      tests/glyph_substitution_stage_contracts.sats tests/glyph_substitution_stage_test.hats
-      tests/glyph_unicode_contracts.sats tests/glyph_unicode_test.hats
-      tests/ot_shape_contracts.sats tests/ot_shape_test.hats ${ATS_INTERFACES})
+      -o "${OUTPUT}" -d "${ANTHRACITE_TEST_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/font/glyph/pass/glyph_pass_contracts.sats tests/font/glyph/run/glyph_run_contracts.sats
+      tests/font/glyph/core/glyph_lookup_contracts.sats tests/font/glyph/core/glyph_sequence_contracts.sats tests/font/glyph/core/glyph_nominal_contracts.sats
+      tests/font/opentype/tables/opentype_fixture.sats tests/font/glyph/core/glyph_window_contracts.sats tests/font/glyph/core/glyph_window_test.hats
+      tests/font/glyph/core/glyph_reverse_contracts.sats tests/font/glyph/core/glyph_reverse_test.hats
+      tests/font/glyph/substitution/glyph_substitution_cache_contracts.sats tests/font/glyph/substitution/glyph_substitution_cache_test.hats
+      tests/font/glyph/context/glyph_context_arena_contracts.sats tests/font/glyph/context/glyph_context_arena_test.hats
+      tests/font/glyph/substitution/glyph_substitution_engine_contracts.sats tests/font/glyph/substitution/glyph_substitution_engine_test.hats
+      tests/font/glyph/substitution/glyph_substitution_stage_contracts.sats tests/font/glyph/substitution/glyph_substitution_stage_test.hats
+      tests/font/glyph/core/glyph_unicode_contracts.sats tests/font/glyph/core/glyph_unicode_test.hats
+      tests/font/opentype/shape/ot_shape_contracts.sats tests/font/opentype/shape/ot_shape_test.hats ${ATS_INTERFACES})
   list(APPEND GLYPH_PASS_TEST_C_SOURCES "${OUTPUT}")
 endforeach()
 foreach(MODULE glyph_nominal_fixture glyph_nominal_mixed glyph_nominal_malformed glyph_nominal_stress
     glyph_nominal_arabic_fixture glyph_nominal_arabic glyph_nominal_font_cases glyph_nominal_note)
   set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
   add_custom_command(OUTPUT "${OUTPUT}"
-    COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests" -o "${OUTPUT}" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    DEPENDS "tests/${MODULE}.dats" tests/glyph_nominal_contracts.sats tests/glyph_pass_contracts.sats
-      tests/opentype_fixture.sats ${ATS_INTERFACES})
+    COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests" -d "${ANTHRACITE_TEST_${MODULE}}"
+    COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests" -o "${OUTPUT}" -d "${ANTHRACITE_TEST_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/font/glyph/core/glyph_nominal_contracts.sats tests/font/glyph/pass/glyph_pass_contracts.sats
+      tests/font/opentype/tables/opentype_fixture.sats ${ATS_INTERFACES})
   list(APPEND GLYPH_PASS_TEST_C_SOURCES "${OUTPUT}")
 endforeach()
 add_executable(glyph_pass_conformance EXCLUDE_FROM_ALL ${GLYPH_PASS_C_SOURCES} ${GLYPH_RUN_C_SOURCES}

@@ -2,7 +2,7 @@
 #include "share/atspre_define.hats"
 #include "share/atspre_staload.hats"
 staload "airlock.sats"
-staload "data_font/font.sats"
+staload "data_font/resources/font.sats"
 staload "core_runtime/text_engine_startup.sats"
 extern fun font_failed(): void = "mac#anth_die_void"
 implement workspace_arabic_font_start(f) = let val path=workspace_arabic_font_path()

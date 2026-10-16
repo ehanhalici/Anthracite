@@ -192,7 +192,7 @@ implement plat_ok(p) =
       fold@(p); k
     end
 
-implement plat_wh(p, w, h) =
+implement platform_dimensions(p, w, h) =
   case+ p of
   | @PLAT(r) => let
       val () = w := r.w

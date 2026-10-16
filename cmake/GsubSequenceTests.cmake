@@ -1,4 +1,4 @@
-file(GLOB GSUB_SEQUENCE_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/gsub_sequence_*.dats")
+file(GLOB_RECURSE GSUB_SEQUENCE_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/gsub_sequence_*.dats")
 set(GSUB_SEQUENCE_C_SOURCES "")
 foreach(SOURCE ${GSUB_SEQUENCE_SOURCES})
   get_filename_component(MODULE "${SOURCE}" NAME_WE)
@@ -10,10 +10,10 @@ foreach(MODULE gsub_sequence_format_cases gsub_sequence_error_cases gsub_sequenc
   set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
   add_custom_command(OUTPUT "${OUTPUT}"
     COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
+      -d "${ANTHRACITE_TEST_${MODULE}}"
     COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -o "${OUTPUT}" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    DEPENDS "tests/${MODULE}.dats" tests/gsub_sequence_contracts.sats tests/opentype_fixture.sats ${ATS_INTERFACES})
+      -o "${OUTPUT}" -d "${ANTHRACITE_TEST_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/font/opentype/substitution/gsub_sequence_contracts.sats tests/font/opentype/tables/opentype_fixture.sats ${ATS_INTERFACES})
   list(APPEND GSUB_SEQUENCE_TEST_C_SOURCES "${OUTPUT}")
 endforeach()
 add_executable(gsub_sequence_conformance EXCLUDE_FROM_ALL ${GSUB_SEQUENCE_C_SOURCES}

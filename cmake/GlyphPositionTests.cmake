@@ -1,11 +1,11 @@
-file(GLOB GLYPH_POSITION_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/glyph_position_*.dats")
+file(GLOB_RECURSE GLYPH_POSITION_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/glyph_position_*.dats")
 set(GLYPH_POSITION_C_SOURCES "")
 foreach(SOURCE ${GLYPH_POSITION_SOURCES})
   get_filename_component(MODULE "${SOURCE}" NAME_WE)
   list(APPEND GLYPH_POSITION_C_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
 endforeach()
 set(GLYPH_POSITION_TEST_C_SOURCES "")
-file(GLOB NATIVE_SHAPE_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/native_shape_*.dats")
+file(GLOB_RECURSE NATIVE_SHAPE_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/native_shape_*.dats")
 foreach(SOURCE ${NATIVE_SHAPE_SOURCES})
   get_filename_component(MODULE "${SOURCE}" NAME_WE)
   list(APPEND GLYPH_POSITION_C_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
@@ -20,12 +20,12 @@ foreach(MODULE glyph_position_fixture glyph_position_scale_cases glyph_position_
     native_shape_data native_shape_examples native_shape_faces native_shape_suite native_shape_script_cases glyph_position_conformance)
   set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
   add_custom_command(OUTPUT "${OUTPUT}"
-    COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests" -o "${OUTPUT}" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    DEPENDS "tests/${MODULE}.dats" tests/glyph_position_contracts.sats tests/glyph_position_context_contracts.sats
-      tests/glyph_position_font_contracts.sats
-      tests/native_shape_contracts.sats tests/native_shape_test.hats
-      tests/glyph_position_context_test.hats ${ATS_INTERFACES})
+    COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests" -d "${ANTHRACITE_TEST_${MODULE}}"
+    COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests" -o "${OUTPUT}" -d "${ANTHRACITE_TEST_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/font/glyph/position/glyph_position_contracts.sats tests/font/glyph/position/glyph_position_context_contracts.sats
+      tests/font/glyph/position/glyph_position_font_contracts.sats
+      tests/font/native/shape/native_shape_contracts.sats tests/font/native/shape/native_shape_test.hats
+      tests/font/glyph/position/glyph_position_context_test.hats ${ATS_INTERFACES})
   list(APPEND GLYPH_POSITION_TEST_C_SOURCES "${OUTPUT}")
 endforeach()
 add_executable(glyph_position_conformance EXCLUDE_FROM_ALL ${GLYPH_POSITION_C_SOURCES} ${POSITION_LOOKUP_C_SOURCES}
@@ -79,4 +79,4 @@ if(EXISTS "${ANTHRACITE_OT_LATIN_TTF}" AND EXISTS "${ANTHRACITE_OT_ARABIC_TTF}")
 endif()
 add_test(NAME glyph_position_type_error COMMAND "${CMAKE_COMMAND}"
   "-DPATSOPT=${ANTHRACITE_OT_PATSOPT}" "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
-  -P "${CMAKE_SOURCE_DIR}/tests/expect_glyph_position_error.cmake")
+  -P "${CMAKE_SOURCE_DIR}/tests/contracts/expect_glyph_position_error.cmake")

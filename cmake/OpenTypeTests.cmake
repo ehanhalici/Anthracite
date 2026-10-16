@@ -1,4 +1,4 @@
-file(GLOB OT_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/opentype_*.dats"
+file(GLOB_RECURSE OT_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/opentype_*.dats"
   "${CMAKE_SOURCE_DIR}/src/data_font/gdef_*.dats" "${CMAKE_SOURCE_DIR}/src/data_font/ot_item_*.dats")
 set(OT_C_SOURCES "")
 foreach(SOURCE ${OT_SOURCES})
@@ -12,10 +12,10 @@ foreach(MODULE ${OT_TEST_MODULES})
   set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
   add_custom_command(OUTPUT "${OUTPUT}"
     COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
+      -d "${ANTHRACITE_TEST_${MODULE}}"
     COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -o "${OUTPUT}" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    DEPENDS "tests/${MODULE}.dats" tests/opentype_fixture.sats tests/opentype_contracts.sats ${ATS_INTERFACES})
+      -o "${OUTPUT}" -d "${ANTHRACITE_TEST_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/font/opentype/tables/opentype_fixture.sats tests/font/opentype/tables/opentype_contracts.sats ${ATS_INTERFACES})
   list(APPEND OT_TEST_C_SOURCES "${OUTPUT}")
 endforeach()
 add_executable(opentype_conformance EXCLUDE_FROM_ALL ${OT_C_SOURCES} ${OT_TEST_C_SOURCES}
@@ -28,14 +28,14 @@ add_test(NAME opentype_conformance COMMAND opentype_conformance)
 find_program(ANTHRACITE_OT_PATSOPT patsopt REQUIRED)
 add_test(NAME opentype_descriptor_type_error COMMAND "${CMAKE_COMMAND}"
   "-DPATSOPT=${ANTHRACITE_OT_PATSOPT}" "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
-  -P "${CMAKE_SOURCE_DIR}/tests/expect_opentype_descriptor_error.cmake")
+  -P "${CMAKE_SOURCE_DIR}/tests/contracts/expect_opentype_descriptor_error.cmake")
 foreach(MODULE gdef_metadata_cases gdef_flag_cases gdef_mark_cases gdef_font_cases gdef_attach_cases gdef_conformance)
   add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c"
     COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
+      -d "${ANTHRACITE_TEST_${MODULE}}"
     COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -o "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    DEPENDS "tests/${MODULE}.dats" tests/gdef_contracts.sats tests/opentype_fixture.sats ${ATS_INTERFACES})
+      -o "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c" -d "${ANTHRACITE_TEST_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/font/opentype/definition/gdef_contracts.sats tests/font/opentype/tables/opentype_fixture.sats ${ATS_INTERFACES})
 endforeach()
 add_executable(gdef_conformance EXCLUDE_FROM_ALL ${OT_C_SOURCES}
   "${CMAKE_CURRENT_BINARY_DIR}/font_fixture_dats.c" "${CMAKE_CURRENT_BINARY_DIR}/opentype_fixture_dats.c"

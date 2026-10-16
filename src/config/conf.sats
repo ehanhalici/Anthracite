@@ -1,5 +1,5 @@
 staload "mem.sats"
-staload "ui_workspace/ui_tab.sats"
+staload "ui_workspace/tabs/ui_tab.sats"
 
 fun conf_init_dirs(base: &Buf >> Buf): bool
 fun conf_get_active_vault(dst: &Buf >> Buf): bool
@@ -9,4 +9,3 @@ fun conf_list_vaults(paths: &Buf >> Buf, names: &Buf >> Buf, meta: &Buf >> Buf, 
 
 fun conf_save_session(vault: string, font_p: string, font_px: int, viewmode: int, split: int, active: int, righti: int, side_open: int, sidew: int, tab_pane: !Buf, open_dirs: !Buf, ts: !Tabs): void
 fun conf_load_session(vault: string, font_p: &Buf >> Buf, font_px: &int >> int, viewmode: &int >> int, split: &int >> int, active: &int >> int, righti: &int >> int, side_open: &int >> int, sidew: &int >> int, tab_pane: &Buf >> Buf, open_dirs: &Buf >> Buf, ts: Tabs): Tabs
-

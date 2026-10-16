@@ -1,4 +1,4 @@
-file(GLOB NATIVE_TEXT_ANALYSIS_SOURCES CONFIGURE_DEPENDS
+file(GLOB_RECURSE NATIVE_TEXT_ANALYSIS_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_SOURCE_DIR}/src/data_font/native_text_analysis_*.dats"
   "${CMAKE_SOURCE_DIR}/src/data_font/native_text_items_*.dats")
 set(NATIVE_TEXT_ANALYSIS_C_SOURCES "")
@@ -9,17 +9,17 @@ endforeach()
 set(NATIVE_ANALYSIS_TEST_C "${CMAKE_CURRENT_BINARY_DIR}/native_text_analysis_conformance_dats.c")
 add_custom_command(OUTPUT "${NATIVE_ANALYSIS_TEST_C}"
   COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-    -d "${CMAKE_SOURCE_DIR}/tests/native_text_analysis_conformance.dats"
+    -d "${CMAKE_SOURCE_DIR}/tests/font/native/text/native_text_analysis_conformance.dats"
   COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-    -o "${NATIVE_ANALYSIS_TEST_C}" -d "${CMAKE_SOURCE_DIR}/tests/native_text_analysis_conformance.dats"
-  DEPENDS tests/native_text_analysis_conformance.dats tests/native_text_item_cases.sats ${ATS_INTERFACES})
+    -o "${NATIVE_ANALYSIS_TEST_C}" -d "${CMAKE_SOURCE_DIR}/tests/font/native/text/native_text_analysis_conformance.dats"
+  DEPENDS tests/font/native/text/native_text_analysis_conformance.dats tests/font/native/text/native_text_item_cases.sats ${ATS_INTERFACES})
 set(NATIVE_ITEM_TEST_C "${CMAKE_CURRENT_BINARY_DIR}/native_text_item_cases_dats.c")
 add_custom_command(OUTPUT "${NATIVE_ITEM_TEST_C}"
   COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-    -d "${CMAKE_SOURCE_DIR}/tests/native_text_item_cases.dats"
+    -d "${CMAKE_SOURCE_DIR}/tests/font/native/text/native_text_item_cases.dats"
   COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-    -o "${NATIVE_ITEM_TEST_C}" -d "${CMAKE_SOURCE_DIR}/tests/native_text_item_cases.dats"
-  DEPENDS tests/native_text_item_cases.dats tests/native_text_item_cases.sats ${ATS_INTERFACES})
+    -o "${NATIVE_ITEM_TEST_C}" -d "${CMAKE_SOURCE_DIR}/tests/font/native/text/native_text_item_cases.dats"
+  DEPENDS tests/font/native/text/native_text_item_cases.dats tests/font/native/text/native_text_item_cases.sats ${ATS_INTERFACES})
 add_executable(native_text_analysis_conformance EXCLUDE_FROM_ALL ${NATIVE_TEXT_ANALYSIS_C_SOURCES}
   ${NATIVE_TEXT_ASSETS_C_SOURCES} "${NATIVE_ANALYSIS_TEST_C}" "${NATIVE_ITEM_TEST_C}"
   ${SCRIPT_C_SOURCES} ${SCRIPT_ITEMS_C_SOURCES} ${NORMALIZATION_C_SOURCES} ${BIDI_C_SOURCES}

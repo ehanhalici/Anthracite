@@ -1,4 +1,4 @@
-file(GLOB GSUB_SINGLE_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/gsub_single*.dats")
+file(GLOB_RECURSE GSUB_SINGLE_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/gsub_single*.dats")
 set(GSUB_SINGLE_C_SOURCES "")
 foreach(SOURCE ${GSUB_SINGLE_SOURCES})
   get_filename_component(MODULE "${SOURCE}" NAME_WE)
@@ -10,10 +10,10 @@ foreach(MODULE gsub_single_fixture gsub_single_format_cases gsub_single_mutation
   set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
   add_custom_command(OUTPUT "${OUTPUT}"
     COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
+      -d "${ANTHRACITE_TEST_${MODULE}}"
     COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -o "${OUTPUT}" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    DEPENDS "tests/${MODULE}.dats" tests/gsub_single_contracts.sats tests/opentype_fixture.sats ${ATS_INTERFACES})
+      -o "${OUTPUT}" -d "${ANTHRACITE_TEST_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/font/opentype/substitution/gsub_single_contracts.sats tests/font/opentype/tables/opentype_fixture.sats ${ATS_INTERFACES})
   list(APPEND GSUB_SINGLE_TEST_C_SOURCES "${OUTPUT}")
 endforeach()
 add_executable(gsub_single_conformance EXCLUDE_FROM_ALL ${GSUB_SINGLE_C_SOURCES}
@@ -27,7 +27,7 @@ target_link_libraries(gsub_single_conformance m)
 add_test(NAME gsub_single_conformance COMMAND gsub_single_conformance)
 add_test(NAME gsub_single_type_error COMMAND "${CMAKE_COMMAND}"
   "-DPATSOPT=${ANTHRACITE_OT_PATSOPT}" "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
-  -P "${CMAKE_SOURCE_DIR}/tests/expect_gsub_single_type_error.cmake")
+  -P "${CMAKE_SOURCE_DIR}/tests/contracts/expect_gsub_single_type_error.cmake")
 if(EXISTS "${ANTHRACITE_OT_LATIN_TTF}" AND EXISTS "${ANTHRACITE_OT_ARABIC_TTF}")
   add_test(NAME gsub_single_font_conformance COMMAND gsub_single_conformance
     "${ANTHRACITE_OT_LATIN_TTF}" "${ANTHRACITE_OT_ARABIC_TTF}")

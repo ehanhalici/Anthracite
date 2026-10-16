@@ -1,4 +1,4 @@
-file(GLOB GPOS_CURSIVE_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/gpos_cursive_*.dats")
+file(GLOB_RECURSE GPOS_CURSIVE_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/gpos_cursive_*.dats")
 set(GPOS_CURSIVE_C_SOURCES "")
 foreach(SOURCE ${GPOS_CURSIVE_SOURCES})
   get_filename_component(MODULE "${SOURCE}" NAME_WE)
@@ -9,10 +9,10 @@ foreach(MODULE gpos_cursive_match_cases gpos_cursive_error_cases gpos_cursive_st
   set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
   add_custom_command(OUTPUT "${OUTPUT}"
     COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
+      -d "${ANTHRACITE_TEST_${MODULE}}"
     COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -o "${OUTPUT}" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    DEPENDS "tests/${MODULE}.dats" tests/gpos_cursive_contracts.sats tests/opentype_fixture.sats ${ATS_INTERFACES})
+      -o "${OUTPUT}" -d "${ANTHRACITE_TEST_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/font/opentype/position/gpos_cursive_contracts.sats tests/font/opentype/tables/opentype_fixture.sats ${ATS_INTERFACES})
   list(APPEND GPOS_CURSIVE_TEST_C_SOURCES "${OUTPUT}")
 endforeach()
 add_executable(gpos_cursive_conformance EXCLUDE_FROM_ALL ${GPOS_CURSIVE_C_SOURCES} ${GPOS_VALUE_C_SOURCES}
@@ -25,4 +25,4 @@ target_link_libraries(gpos_cursive_conformance m)
 add_test(NAME gpos_cursive_conformance COMMAND gpos_cursive_conformance)
 add_test(NAME gpos_anchor_cache_type_error COMMAND "${CMAKE_COMMAND}"
   "-DPATSOPT=${ANTHRACITE_OT_PATSOPT}" "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
-  -P "${CMAKE_SOURCE_DIR}/tests/expect_gpos_anchor_cache_error.cmake")
+  -P "${CMAKE_SOURCE_DIR}/tests/contracts/expect_gpos_anchor_cache_error.cmake")

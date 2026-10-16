@@ -1,4 +1,4 @@
-file(GLOB NATIVE_TEXT_ASSETS_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/native_text_assets_*.dats")
+file(GLOB_RECURSE NATIVE_TEXT_ASSETS_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/native_text_assets_*.dats")
 set(NATIVE_TEXT_ASSETS_C_SOURCES "")
 foreach(SOURCE ${NATIVE_TEXT_ASSETS_SOURCES})
   get_filename_component(MODULE "${SOURCE}" NAME_WE)
@@ -7,10 +7,10 @@ endforeach()
 set(NATIVE_ASSETS_TEST_C "${CMAKE_CURRENT_BINARY_DIR}/native_text_assets_conformance_dats.c")
 add_custom_command(OUTPUT "${NATIVE_ASSETS_TEST_C}"
   COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-    -d "${CMAKE_SOURCE_DIR}/tests/native_text_assets_conformance.dats"
+    -d "${CMAKE_SOURCE_DIR}/tests/font/native/text/native_text_assets_conformance.dats"
   COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-    -o "${NATIVE_ASSETS_TEST_C}" -d "${CMAKE_SOURCE_DIR}/tests/native_text_assets_conformance.dats"
-  DEPENDS tests/native_text_assets_conformance.dats ${ATS_INTERFACES})
+    -o "${NATIVE_ASSETS_TEST_C}" -d "${CMAKE_SOURCE_DIR}/tests/font/native/text/native_text_assets_conformance.dats"
+  DEPENDS tests/font/native/text/native_text_assets_conformance.dats ${ATS_INTERFACES})
 add_executable(native_text_assets_conformance EXCLUDE_FROM_ALL ${NATIVE_TEXT_ASSETS_C_SOURCES}
   "${NATIVE_ASSETS_TEST_C}" ${SCRIPT_C_SOURCES} ${NORMALIZATION_C_SOURCES} ${UTF8_C_SOURCES}
   "${CMAKE_CURRENT_BINARY_DIR}/native_shape_data_dispose_dats.c"

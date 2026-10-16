@@ -7,10 +7,10 @@ foreach(ATS_FILE IN LISTS ATS_SOURCES)
   endif()
 endforeach()
 add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/normalization_compile_dats.c"
-  COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -d "${CMAKE_SOURCE_DIR}/tools/normalization_compile.dats"
+  COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -d "${CMAKE_SOURCE_DIR}/tools/unicode/normalization_compile.dats"
   COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src"
-    -o "${CMAKE_CURRENT_BINARY_DIR}/normalization_compile_dats.c" -d "${CMAKE_SOURCE_DIR}/tools/normalization_compile.dats"
-  DEPENDS tools/normalization_compile.dats ${ATS_INTERFACES})
+    -o "${CMAKE_CURRENT_BINARY_DIR}/normalization_compile_dats.c" -d "${CMAKE_SOURCE_DIR}/tools/unicode/normalization_compile.dats"
+  DEPENDS tools/unicode/normalization_compile.dats ${ATS_INTERFACES})
 add_executable(normalization_compile EXCLUDE_FROM_ALL ${NORMALIZATION_C_SOURCES}
   "${CMAKE_CURRENT_BINARY_DIR}/normalization_compile_dats.c"
   "${CMAKE_CURRENT_BINARY_DIR}/mem_dats.c" "${CMAKE_CURRENT_BINARY_DIR}/fs_buf_dats.c"

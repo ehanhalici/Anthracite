@@ -9,10 +9,10 @@ endforeach()
 foreach(MODULE bidi_fixture_parse bidi_fixture_check bidi_character_conformance bidi_class_fixture bidi_class_check bidi_class_conformance bidi_document_conformance unicode_contracts)
   add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c"
     COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
+      -d "${ANTHRACITE_TEST_${MODULE}}"
     COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -o "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    DEPENDS "tests/${MODULE}.dats" tests/bidi_fixture.sats tests/bidi_class_fixture.sats ${ATS_INTERFACES})
+      -o "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c" -d "${ANTHRACITE_TEST_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/text/bidi/bidi_fixture.sats tests/text/bidi/bidi_class_fixture.sats ${ATS_INTERFACES})
 endforeach()
 add_executable(bidi_character_conformance EXCLUDE_FROM_ALL ${BIDI_C_SOURCES}
   "${CMAKE_CURRENT_BINARY_DIR}/mem_dats.c" "${CMAKE_CURRENT_BINARY_DIR}/fs_buf_dats.c"
@@ -66,4 +66,4 @@ add_test(NAME unicode_contracts COMMAND unicode_contracts "${UCD_SOURCE}/BidiMir
 find_program(ANTHRACITE_PATSOPT patsopt REQUIRED)
 add_test(NAME unicode_domain_type_error COMMAND "${CMAKE_COMMAND}"
   "-DPATSOPT=${ANTHRACITE_PATSOPT}" "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
-  -P "${CMAKE_SOURCE_DIR}/tests/expect_domain_type_error.cmake")
+  -P "${CMAKE_SOURCE_DIR}/tests/contracts/expect_domain_type_error.cmake")

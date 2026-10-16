@@ -1,4 +1,4 @@
-file(GLOB POSITION_LOOKUP_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/ot_position_lookup_*.dats"
+file(GLOB_RECURSE POSITION_LOOKUP_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/ot_position_lookup_*.dats"
   "${CMAKE_SOURCE_DIR}/src/data_font/ot_position_graph_*.dats")
 set(POSITION_LOOKUP_C_SOURCES "")
 foreach(SOURCE ${POSITION_LOOKUP_SOURCES})

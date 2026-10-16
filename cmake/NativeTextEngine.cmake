@@ -1,9 +1,9 @@
 # Reusable production CPU engine. No test fixtures, test entry points,
 # Font ownership, GUI event loops, GPU state or legacy Arabic C renderer.
-file(GLOB NATIVE_TEXT_PIPELINE_SOURCES CONFIGURE_DEPENDS
+file(GLOB_RECURSE NATIVE_TEXT_PIPELINE_SOURCES CONFIGURE_DEPENDS
   "${CMAKE_SOURCE_DIR}/src/data_font/native_text_context_*.dats"
   "${CMAKE_SOURCE_DIR}/src/data_font/native_text_shape_*.dats"
-  "${CMAKE_SOURCE_DIR}/src/data_font/native_text_coverage.dats")
+  "${CMAKE_SOURCE_DIR}/src/data_font/native/text/native_text_coverage.dats")
 set(NATIVE_TEXT_PIPELINE_C_SOURCES "")
 foreach(SOURCE ${NATIVE_TEXT_PIPELINE_SOURCES})
   get_filename_component(MODULE "${SOURCE}" NAME_WE)
@@ -35,3 +35,18 @@ get_target_property(NATIVE_TEXT_HOST_SOURCES anthracite SOURCES)
 list(REMOVE_ITEM NATIVE_TEXT_HOST_SOURCES ${NATIVE_TEXT_KERNEL_C_SOURCES})
 set_property(TARGET anthracite PROPERTY SOURCES "${NATIVE_TEXT_HOST_SOURCES}")
 target_link_libraries(anthracite native_text_engine)
+
+# Host objects are shared by the application and integration tests as well.
+# Keep the entry point out so each test can provide its own main0.
+list(REMOVE_ITEM NATIVE_TEXT_HOST_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/main_dats.c")
+add_library(anthracite_host OBJECT ${NATIVE_TEXT_HOST_SOURCES})
+target_compile_definitions(anthracite_host PRIVATE ATS_MEMALLOC_LIBC
+  "ANTHRACITE_UNIFONT=\"${CMAKE_SOURCE_DIR}/src/data_font/unifont.bin\"")
+add_dependencies(anthracite_host ats_generated unicode_data unicode_properties normalization_data script_data)
+set_property(TARGET anthracite PROPERTY SOURCES "${CMAKE_CURRENT_BINARY_DIR}/main_dats.c")
+target_link_libraries(anthracite anthracite_host)
+
+get_target_property(FONT_INTEGRATION_SOURCES font_render_conformance SOURCES)
+list(REMOVE_ITEM FONT_INTEGRATION_SOURCES ${GENERATED_C_SOURCES})
+set_property(TARGET font_render_conformance PROPERTY SOURCES "${FONT_INTEGRATION_SOURCES}")
+target_link_libraries(font_render_conformance anthracite_host native_text_engine)

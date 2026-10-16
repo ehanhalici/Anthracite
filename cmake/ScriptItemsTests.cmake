@@ -1,4 +1,4 @@
-file(GLOB SCRIPT_ITEMS_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_text/script_items_*.dats")
+file(GLOB_RECURSE SCRIPT_ITEMS_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_text/script_items_*.dats")
 set(SCRIPT_ITEMS_C_SOURCES "")
 foreach(SOURCE ${SCRIPT_ITEMS_SOURCES})
   get_filename_component(MODULE "${SOURCE}" NAME_WE)
@@ -8,12 +8,12 @@ set(SCRIPT_ITEMS_TEST_C_SOURCES "")
 foreach(MODULE script_items_cases script_items_stress script_items_rejections script_items_conformance)
   set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
   add_custom_command(OUTPUT "${OUTPUT}"
-    COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tools"
-      -IATS "${CMAKE_SOURCE_DIR}/tests" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tools"
-      -IATS "${CMAKE_SOURCE_DIR}/tests" -o "${OUTPUT}" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    DEPENDS "tests/${MODULE}.dats" tests/script_items_contracts.sats tests/script_items_test.hats tests/script_test.hats
-      tests/script_contracts.sats tools/script_compile.sats tools/script_compile_internal.hats ${ATS_INTERFACES})
+    COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tools/script"
+      -IATS "${CMAKE_SOURCE_DIR}/tests" -d "${ANTHRACITE_TEST_${MODULE}}"
+    COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tools/script"
+      -IATS "${CMAKE_SOURCE_DIR}/tests" -o "${OUTPUT}" -d "${ANTHRACITE_TEST_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/text/script/script_items_contracts.sats tests/text/script/script_items_test.hats tests/text/script/script_test.hats
+      tests/text/script/script_contracts.sats tools/script/script_compile.sats tools/script/script_compile_internal.hats ${ATS_INTERFACES})
   list(APPEND SCRIPT_ITEMS_TEST_C_SOURCES "${OUTPUT}")
 endforeach()
 add_executable(script_items_conformance EXCLUDE_FROM_ALL ${SCRIPT_ITEMS_TEST_C_SOURCES} ${SCRIPT_ITEMS_C_SOURCES}

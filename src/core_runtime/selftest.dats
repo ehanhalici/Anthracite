@@ -8,13 +8,20 @@ staload "os/fs.sats"
 staload "core_platform/platform.sats"
 staload "core_render/render.sats"
 staload "core_render/gl.sats"
-staload "data_font/font.sats"
-staload "data_ast/doc.sats"
+staload "data_font/resources/font.sats"
+staload "data_ast/document/doc.sats"
 staload "data_image/image.sats"
-staload "ui_workspace/ui_common.sats"
-staload "ui_workspace/ui.sats"
+staload "ui_workspace/common/ui_common.sats"
+staload "ui_workspace/application/ui.sats"
 staload "core_runtime/clipboard.sats"
 staload "core_runtime/selftest.sats"
+
+macdef SELFTEST_MIN_POLL_MS = 80
+macdef SELFTEST_POLL_TIMEOUT_MS = 100
+macdef SELFTEST_LIVE_MEMORY_BUDGET_BYTES = 12582912
+macdef SELFTEST_TITLE_X = 24
+macdef SELFTEST_TITLE_Y = 48
+macdef SELFTEST_TITLE = "Anthracite"
 
 fun run_core_selftests(r: !Rend): void = let
   val font_result = font_selftest(r)
@@ -59,8 +66,8 @@ in
 end
 
 fun print_health(waited: int, live: int): void = let
-  val poll_ok = if waited >= 80 then 1 else 0
-  val rss_ok = if live > 0 andalso live < 12582912 then 1 else 0
+  val poll_ok = if waited >= SELFTEST_MIN_POLL_MS then 1 else 0
+  val rss_ok = if live > 0 andalso live < SELFTEST_LIVE_MEMORY_BUDGET_BYTES then 1 else 0
   val () = print(" poll_ok=")
   val () = print_int(poll_ok)
   val () = print(" rss_ok=")
@@ -82,10 +89,11 @@ end
 fun draw_self_frame(p: !Plat, r: !Rend, f: !Font): void = let
   var w: int = 0
   var h: int = 0
-  val () = plat_wh(p, w, h)
+  val () = platform_dimensions(p, w, h)
   val () = rend_begin(r, w, h)
   val () = rend_rect(r, 0, 0, w, h, col_bg())
-  val () = seen_int(font_draw(f, r, 24, 48, c_str_ptr("Anthracite"), 10, col_text()))
+  val () = seen_int(font_draw(f, r, SELFTEST_TITLE_X, SELFTEST_TITLE_Y,
+    c_str_ptr(SELFTEST_TITLE), c_strlen(SELFTEST_TITLE), col_text()))
   val () = rend_flush(r)
   val () = plat_swap(p)
 in
@@ -93,7 +101,7 @@ end
 
 fun self_poll_ms(p: !Plat): int = let
   val before_wait = mono_ns()
-  val () = seen_int(plat_wait(p, 100))
+  val () = seen_int(plat_wait(p, SELFTEST_POLL_TIMEOUT_MS))
   val after_wait = mono_ns()
 in
   anth_ms(before_wait, after_wait)

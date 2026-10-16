@@ -1,4 +1,4 @@
-file(GLOB GPOS_SINGLE_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/gpos_single_*.dats")
+file(GLOB_RECURSE GPOS_SINGLE_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/gpos_single_*.dats")
 set(GPOS_SINGLE_C_SOURCES "")
 foreach(SOURCE ${GPOS_SINGLE_SOURCES})
   get_filename_component(MODULE "${SOURCE}" NAME_WE)
@@ -10,10 +10,10 @@ foreach(MODULE gpos_single_match_cases gpos_single_error_cases gpos_single_stres
   set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
   add_custom_command(OUTPUT "${OUTPUT}"
     COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
+      -d "${ANTHRACITE_TEST_${MODULE}}"
     COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -o "${OUTPUT}" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    DEPENDS "tests/${MODULE}.dats" tests/gpos_single_contracts.sats tests/opentype_fixture.sats ${ATS_INTERFACES})
+      -o "${OUTPUT}" -d "${ANTHRACITE_TEST_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/font/opentype/position/gpos_single_contracts.sats tests/font/opentype/tables/opentype_fixture.sats ${ATS_INTERFACES})
   list(APPEND GPOS_SINGLE_TEST_C_SOURCES "${OUTPUT}")
 endforeach()
 add_executable(gpos_single_conformance EXCLUDE_FROM_ALL ${GPOS_SINGLE_C_SOURCES} ${GPOS_VALUE_C_SOURCES} ${OT_LAYOUT_C_SOURCES}

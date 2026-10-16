@@ -1,4 +1,4 @@
-file(GLOB REVERSE_LOOKUP_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/ot_reverse_lookup_*.dats")
+file(GLOB_RECURSE REVERSE_LOOKUP_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/ot_reverse_lookup_*.dats")
 set(REVERSE_LOOKUP_C_SOURCES "")
 foreach(SOURCE ${REVERSE_LOOKUP_SOURCES})
   get_filename_component(MODULE "${SOURCE}" NAME_WE)

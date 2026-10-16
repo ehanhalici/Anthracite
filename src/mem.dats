@@ -1,6 +1,7 @@
 #define ATS_DYNLOADFLAG 0
 #include "share/atspre_define.hats"
 #include "share/atspre_staload.hats"
+#include "foundation/units.hats"
 
 staload "mem.sats"
 staload "airlock.sats"
@@ -306,9 +307,9 @@ end
 implement anth_ms(a, b) = let
   val d0 = b - a
   val d = if d0 < 0L then 0L else d0 / 1000000L
-  val cap = g0int2int_int_lint(2147483647)
+  val cap = g0int2int_int_lint(SIGNED_INT_MAX_VALUE)
 in
-  if d > cap then 2147483647 else g0int2int_lint_int(d)
+  if d > cap then SIGNED_INT_MAX_VALUE else g0int2int_lint_int(d)
 end
 
 implement anth_i2lint(n) = g0int2int_int_lint(n)

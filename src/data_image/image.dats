@@ -2,6 +2,12 @@
 #include "share/atspre_define.hats"
 #include "share/atspre_staload.hats"
 #include "common.hats"
+(* Initial allocation policy; capacities are measured in bytes. *)
+macdef IMG_OPEN_BUFFER_INITIAL_BYTES = 4
+macdef JPG_LOAD_FALLBACK_BUFFER_INITIAL_BYTES = 4
+macdef IMG_DECODE_TYPED_BUFFER_INITIAL_BYTES = 4
+macdef IMG_LOAD_IMPL_RAW_INITIAL_BYTES = 64
+
 
 staload "mem.sats"
 staload "airlock.sats"
@@ -15,10 +21,26 @@ staload "data_image/img_png.sats"
 staload "data_image/img_bmp.sats"
 staload "data_image/img_jpg.sats"
 
+macdef IMAGE_RGBA_CHANNELS = 4
+macdef IMAGE_MAX_DIMENSION_PIXELS = 2048
+macdef IMAGE_MAX_FILE_BYTES = 33554432
+macdef IMAGE_FORMAT_UNKNOWN = 0
+macdef IMAGE_FORMAT_PNG = 1
+macdef IMAGE_FORMAT_BMP = 2
+macdef IMAGE_FORMAT_JPEG = 3
+macdef PNG_SIGNATURE_FIRST = 137
+macdef PNG_SIGNATURE_P = 80
+macdef PNG_SIGNATURE_N = 78
+macdef PNG_SIGNATURE_G = 71
+macdef BMP_SIGNATURE_B = 66
+macdef BMP_SIGNATURE_M = 77
+macdef JPEG_MARKER_PREFIX = 255
+macdef JPEG_MARKER_START = 216
+
 datavtype Image_ = IMG of @{w= int, h= int, px= Buf, ok= Toggle}
 assume Image = Image_
 
-implement img_open() = IMG(@{w= 0, h= 0, px= buf_make(4), ok= Off})
+implement img_open() = IMG(@{w= 0, h= 0, px= buf_make(IMG_OPEN_BUFFER_INITIAL_BYTES), ok= Off})
 
 implement img_free(im) = let
   val+~IMG(s) = im
@@ -26,8 +48,8 @@ in
   buf_free(s.px)
 end
 
-implement img_w(im) = case+ im of | @IMG(s) => let val v = s.w in fold@(im); v end
-implement img_h(im) = case+ im of | @IMG(s) => let val v = s.h in fold@(im); v end
+implement image_width(im) = case+ im of | @IMG(s) => let val v = s.w in fold@(im); v end
+implement image_height(im) = case+ im of | @IMG(s) => let val v = s.h in fold@(im); v end
 
 implement img_upload(im, r) =
   case+ im of
@@ -51,11 +73,12 @@ fun img_store(im: !Image, px: Buf, w: int, h: int): void =
     end
 
 fun img_detect_type(src: !Buf): int =
-  if buf_len(src) < 4 then 0
-  else if ieq(buf_get(src, 0), 137) andalso ieq(buf_get(src, 1), 80) andalso ieq(buf_get(src, 2), 78) andalso ieq(buf_get(src, 3), 71) then 1
-  else if ieq(buf_get(src, 0), 66) andalso ieq(buf_get(src, 1), 77) then 2
-  else if ieq(buf_get(src, 0), 255) andalso ieq(buf_get(src, 1), 216) then 3
-  else 0
+  if buf_len(src) < WORD32_BYTES then IMAGE_FORMAT_UNKNOWN
+  else if ieq(buf_get(src, 0), PNG_SIGNATURE_FIRST) andalso ieq(buf_get(src, 1), PNG_SIGNATURE_P)
+    andalso ieq(buf_get(src, 2), PNG_SIGNATURE_N) andalso ieq(buf_get(src, 3), PNG_SIGNATURE_G) then IMAGE_FORMAT_PNG
+  else if ieq(buf_get(src, 0), BMP_SIGNATURE_B) andalso ieq(buf_get(src, 1), BMP_SIGNATURE_M) then IMAGE_FORMAT_BMP
+  else if ieq(buf_get(src, 0), JPEG_MARKER_PREFIX) andalso ieq(buf_get(src, 1), JPEG_MARKER_START) then IMAGE_FORMAT_JPEG
+  else IMAGE_FORMAT_UNKNOWN
 
 %{#
 #include "data_image/img_jpg_prog.cats"
@@ -72,9 +95,9 @@ in
     val () = w := 0
     val () = h := 0
   in
-    buf_make(4)
+    buf_make(JPG_LOAD_FALLBACK_BUFFER_INITIAL_BYTES)
   end else let
-    val sz = imul(imul(w, h), 4)
+    val sz = imul(imul(w, h), IMAGE_RGBA_CHANNELS)
     var dst = buf_make(sz)
     val () = buf_append(dst, raw, sz)
     val () = anth_free_jpg_fallback(raw)
@@ -95,15 +118,15 @@ in
 end
 
 fun img_decode_typed(ty: int, src: !Buf, w: &int >> _, h: &int >> _): Buf =
-  if ieq(ty, 1) then decode_png(src, w, h)
-  else if ieq(ty, 2) then decode_bmp(src, w, h)
-  else if ieq(ty, 3) then decode_jpg_with_fallback(src, w, h)
-  else buf_make(4)
+  if ieq(ty, IMAGE_FORMAT_PNG) then decode_png(src, w, h)
+  else if ieq(ty, IMAGE_FORMAT_BMP) then decode_bmp(src, w, h)
+  else if ieq(ty, IMAGE_FORMAT_JPEG) then decode_jpg_with_fallback(src, w, h)
+  else buf_make(IMG_DECODE_TYPED_BUFFER_INITIAL_BYTES)
 
 fun img_downscale_if_needed(im: !Image, w: int, h: int): void =
-  if w > 2048 orelse h > 2048 then let
-    val rw = if w >= h then 2048 else imax(1, idiv(imul(w, 2048), h))
-    val rh = if w >= h then imax(1, idiv(imul(h, 2048), w)) else 2048
+  if w > IMAGE_MAX_DIMENSION_PIXELS orelse h > IMAGE_MAX_DIMENSION_PIXELS then let
+    val rw = if w >= h then IMAGE_MAX_DIMENSION_PIXELS else imax(1, idiv(imul(w, IMAGE_MAX_DIMENSION_PIXELS), h))
+    val rh = if w >= h then imax(1, idiv(imul(h, IMAGE_MAX_DIMENSION_PIXELS), w)) else IMAGE_MAX_DIMENSION_PIXELS
   in
     seen_int(img_resize(im, rw, rh))
   end else ()
@@ -111,7 +134,7 @@ fun img_downscale_if_needed(im: !Image, w: int, h: int): void =
 fun img_read_file(path: string, dst: &Buf >> _): bool = let
   val sz = fs_size(path)
 in
-  if sz <= 0 orelse sz > 33554432 then false
+  if sz <= 0 orelse sz > IMAGE_MAX_FILE_BYTES then false
   else let
     val fd = fs_open_read(path)
   in
@@ -145,7 +168,7 @@ fun img_apply_decoded(im: !Image, px: Buf, w: int, h: int, path: string, f: stri
   end
 
 fun img_load_impl(im: !Image, path: string, f: string, l: int): int = let
-  var raw = buf_make(64)
+  var raw = buf_make(IMG_LOAD_IMPL_RAW_INITIAL_BYTES)
   val ok = img_read_file(path, raw)
 in
   if not(ok) then let
@@ -175,9 +198,9 @@ fun resize_px_copy(src: !Buf, dst: &Buf >> _, spos: int): void = let
 in
 end
 
-extern fun resize_row_exh(src: !Buf, dst: &Buf >> _, sw: int, sh: int, tw: int, th: int, ty: int, tx: int): void = "mac#anth_die_void"
+extern fun resize_row_fuel_exhausted(src: !Buf, dst: &Buf >> _, sw: int, sh: int, tw: int, th: int, ty: int, tx: int): void = "mac#anth_die_void"
 
-fun resize_row_m {recfuel:nat} .<recfuel>. (
+fun resize_row_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), src: !Buf, dst: &Buf >> _, sw: int, sh: int, tw: int, th: int, ty: int, tx: int
 ): void =
   if recfuel > 0 then (
@@ -187,22 +210,22 @@ fun resize_row_m {recfuel:nat} .<recfuel>. (
       val spos = imul(iadd(imul(sy, sw), sx), 4)
       val () = resize_px_copy(src, dst, spos)
     in
-      resize_row_m(recfuel - 1, src, dst, sw, sh, tw, th, ty, iadd(tx, 1))
+      resize_row_with_fuel(recfuel - 1, src, dst, sw, sh, tw, th, ty, iadd(tx, 1))
     end else ()
-  ) else resize_row_exh(src, dst, sw, sh, tw, th, ty, tx)
+  ) else resize_row_fuel_exhausted(src, dst, sw, sh, tw, th, ty, tx)
 
-extern fun resize_rows_exh(src: !Buf, dst: &Buf >> _, sw: int, sh: int, tw: int, th: int, ty: int): void = "mac#anth_die_void"
+extern fun resize_rows_fuel_exhausted(src: !Buf, dst: &Buf >> _, sw: int, sh: int, tw: int, th: int, ty: int): void = "mac#anth_die_void"
 
-fun resize_rows_m {recfuel:nat} .<recfuel>. (
+fun resize_rows_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), src: !Buf, dst: &Buf >> _, sw: int, sh: int, tw: int, th: int, ty: int
 ): void =
   if recfuel > 0 then (
     if ilt(ty, th) then let
-      val () = resize_row_m(airlock_nat(MAX_REC_FUEL), src, dst, sw, sh, tw, th, ty, 0)
+      val () = resize_row_with_fuel(airlock_nat(MAX_REC_FUEL), src, dst, sw, sh, tw, th, ty, 0)
     in
-      resize_rows_m(recfuel - 1, src, dst, sw, sh, tw, th, iadd(ty, 1))
+      resize_rows_with_fuel(recfuel - 1, src, dst, sw, sh, tw, th, iadd(ty, 1))
     end else ()
-  ) else resize_rows_exh(src, dst, sw, sh, tw, th, ty)
+  ) else resize_rows_fuel_exhausted(src, dst, sw, sh, tw, th, ty)
 
 fun img_resize_apply(im: !Image, in_w: int, in_h: int, tw: int, th: int): int = let
   val sz = imul(imul(tw, th), 4)
@@ -210,7 +233,7 @@ fun img_resize_apply(im: !Image, in_w: int, in_h: int, tw: int, th: int): int = 
 in
   case+ im of
   | @IMG(s) => let
-      val () = resize_rows_m(airlock_nat(MAX_REC_FUEL), s.px, new_px, in_w, in_h, tw, th, 0)
+      val () = resize_rows_with_fuel(airlock_nat(MAX_REC_FUEL), s.px, new_px, in_w, in_h, tw, th, 0)
       val old_px = s.px
       val () = s.px := new_px
       val () = s.w := tw
@@ -264,9 +287,9 @@ fun selftest_png_ok(im: !Image): int = let
   val pb2 = pix(im, 2)
   val bad = img_load(im, "/tmp/anth_nonexistent_test.png")
   val up = "/home/emrehan/notes/obsidian_notlar/din/eklenti/vird/raditu billahi rabba.png"
-  val uok = (if fs_exists(up) = 1 then img_load(im, up) else 1): int
+  val texture_is_valid = (if fs_exists(up) = 1 then img_load(im, up) else 1): int
 in
-  (if ieq(pn, 1) andalso ieq(bad, 0) andalso ieq(uok, 1) andalso ieq(pr, 10) andalso ieq(pg, 20) andalso ieq(pb2, 30) then 1 else 0)
+  (if ieq(pn, 1) andalso ieq(bad, 0) andalso ieq(texture_is_valid, 1) andalso ieq(pr, 10) andalso ieq(pg, 20) andalso ieq(pb2, 30) then 1 else 0)
 end
 
 fun selftest_bmp_ok(im: !Image): int = let
@@ -275,7 +298,7 @@ fun selftest_bmp_ok(im: !Image): int = let
   val bg = pix(im, 1)
   val bb2 = pix(im, 2)
 in
-  (if ieq(bn, 1) andalso ieq(img_w(im), 2) andalso ieq(img_h(im), 1) andalso ieq(br, 10) andalso ieq(bg, 20) andalso ieq(bb2, 30) then 1 else 0)
+  (if ieq(bn, 1) andalso ieq(image_width(im), 2) andalso ieq(image_height(im), 1) andalso ieq(br, 10) andalso ieq(bg, 20) andalso ieq(bb2, 30) then 1 else 0)
 end
 
 fun selftest_jpg_ok(im: !Image, pok: int, bok: int): int = let
@@ -286,10 +309,10 @@ fun selftest_jpg_ok(im: !Image, pok: int, bok: int): int = let
   val jr = pix(im, 0)
   val jg = pix(im, 1)
   val jbl = pix(im, 2)
-  val jok = (if ieq(jn, 1) andalso ieq(img_w(im), 8) andalso ieq(img_h(im), 8) andalso ile(iabs(isub(jr, 40)), 30) andalso ile(iabs(isub(jg, 90)), 30) andalso ile(iabs(isub(jbl, 140)), 30) then 1 else 0) : int
+  val jok = (if ieq(jn, 1) andalso ieq(image_width(im), 8) andalso ieq(image_height(im), 8) andalso ile(iabs(isub(jr, 40)), 30) andalso ile(iabs(isub(jg, 90)), 30) andalso ile(iabs(isub(jbl, 140)), 30) then 1 else 0) : int
   val rok = img_resize(im, 4, 4)
-  val r_w = img_w(im)
-  val r_h = img_h(im)
+  val r_w = image_width(im)
+  val r_h = image_height(im)
   val resize_ok = (if ieq(rok, 1) andalso ieq(r_w, 4) andalso ieq(r_h, 4) then 1 else 0) : int
   val () = println! ("png=", pok, " bmp=", bok, " jpg=", jok, " resize=", resize_ok, " r=", jr, " g=", jg, " b=", jbl)
 in

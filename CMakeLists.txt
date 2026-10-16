@@ -16,6 +16,8 @@ set(CMAKE_C_FLAGS_RELEASE "-O2 -flto=thin -march=native -funroll-loops -fomit-fr
 
 project(anthracite C)
 
+include(cmake/ATSSourceIndex.cmake)
+
 set(CMAKE_C_STANDARD 99)
 
 set(PATSHOME $ENV{PATSHOME})
@@ -41,6 +43,7 @@ if(OPENGL_gl_LIBRARY MATCHES "libOpenGL")
 endif()
 
 include_directories(${X11_INCLUDE_DIR} ${OPENGL_INCLUDE_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/src)
+include_directories("${CMAKE_CURRENT_SOURCE_DIR}/vendor")
 file(SHA256 "${CMAKE_SOURCE_DIR}/vendor/fonts/notonaskh-arabic/NotoNaskhArabic-Regular.ttf" ARABIC_FONT_SHA256)
 if(NOT ARABIC_FONT_SHA256 STREQUAL "2d5d78e9cc27d7193926c7e460314c9da7dbec1268494dbf117adc53c171ac06")
   message(FATAL_ERROR "Pinned Arabic font SHA-256 mismatch")
@@ -69,7 +72,7 @@ foreach(ATS_FILE ${ATS_SOURCES})
   if(BASE_NAME IN_LIST SEEN_BASE)
     message(FATAL_ERROR "Aynı ada sahip iki .dats var, C çıktısı çakışır: ${BASE_NAME}")
   endif()
-  if(EXISTS "${CMAKE_SOURCE_DIR}/tests/${BASE_NAME}.dats" OR EXISTS "${CMAKE_SOURCE_DIR}/tools/${BASE_NAME}.dats")
+  if(DEFINED ANTHRACITE_TEST_${BASE_NAME} OR DEFINED ANTHRACITE_TOOL_${BASE_NAME})
     message(FATAL_ERROR "Üretim modülü test/araç C çıktısıyla çakışıyor: ${BASE_NAME}")
   endif()
   list(APPEND SEEN_BASE ${BASE_NAME})
@@ -155,7 +158,9 @@ include(cmake/BidiTests.cmake)
 include(cmake/NativeTextAnalysisTests.cmake)
 include(cmake/NativeTextEngine.cmake)
 include(cmake/NativeTextShapeTests.cmake)
+include(cmake/InfrastructureTests.cmake)
 include(cmake/ATSGenerated.cmake)
+include(cmake/Check.cmake)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
   target_link_options(anthracite PRIVATE -flto=thin -fuse-ld=lld)

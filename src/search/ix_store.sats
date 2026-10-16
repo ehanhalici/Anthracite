@@ -1,8 +1,10 @@
 #define ATS_DYNLOADFLAG 0
 
 staload "mem.sats"
+#include "foundation/units.hats"
 
 macdef IX_FILE_STRIDE = 8
+macdef IX_FILE_BYTES = IX_FILE_STRIDE * WORD32_BYTES
 macdef IX_F_PATHOFF = 0
 macdef IX_F_PATHLEN = 1
 macdef IX_F_SIZE = 2
@@ -13,6 +15,7 @@ macdef IX_F_SYMFIRST = 6
 macdef IX_F_SYMCOUNT = 7
 
 macdef IX_SYM_STRIDE = 8
+macdef IX_SYM_BYTES = IX_SYM_STRIDE * WORD32_BYTES
 macdef IX_S_FILE = 0
 macdef IX_S_KIND = 1
 macdef IX_S_START = 2
@@ -23,7 +26,7 @@ macdef IX_S_TEXTLEN = 6
 macdef IX_S_AUX = 7
 
 macdef BLOOM_BYTES_PER_FILE = 256
-macdef BLOOM_BITS_PER_FILE = 2048
+macdef BLOOM_BITS_PER_FILE = BLOOM_BYTES_PER_FILE * BYTE_BITS
 
 macdef MAX_INDEX_FILES = 20000
 macdef MAX_INDEX_DEPTH = 12

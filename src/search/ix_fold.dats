@@ -5,7 +5,7 @@
 
 staload "mem.sats"
 staload "airlock.sats"
-staload "data_ast/doc.sats"
+staload "data_ast/document/doc.sats"
 staload "search/ix_fold.sats"
 
 fun iand(a: int, n: int): int = anth_iand(a, n)
@@ -95,21 +95,21 @@ in
   end else (push_raw(dst, omap, p, b0); iadd(p, 1))
 end
 
-fun fold_loop_buf_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, p: int, en: int, dst: &Buf >> _, omap: &Buf >> _): void =
+fun fold_loop_buf_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, p: int, en: int, dst: &Buf >> _, omap: &Buf >> _): void =
   if recfuel > 0 then (
     if ilt(p, en) then let
       val nxt = step_buf(src, p, en, dst, omap)
     in
-      fold_loop_buf_m(recfuel - 1, src, nxt, en, dst, omap)
+      fold_loop_buf_with_fuel(recfuel - 1, src, nxt, en, dst, omap)
     end else ()
   ) else ()
 
-fun fold_loop_doc_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, p: int, en: int, dst: &Buf >> _, omap: &Buf >> _): void =
+fun fold_loop_doc_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, p: int, en: int, dst: &Buf >> _, omap: &Buf >> _): void =
   if recfuel > 0 then (
     if ilt(p, en) then let
       val nxt = step_doc(d, p, en, dst, omap)
     in
-      fold_loop_doc_m(recfuel - 1, d, nxt, en, dst, omap)
+      fold_loop_doc_with_fuel(recfuel - 1, d, nxt, en, dst, omap)
     end else ()
   ) else ()
 
@@ -134,7 +134,7 @@ implement fold_range_buf(src, st, en, dst, omap) = let
   in
   end else ()
 in
-  fold_loop_buf_m(airlock_nat(MAX_REC_FUEL), src, st, en, dst, omap)
+  fold_loop_buf_with_fuel(airlock_nat(MAX_REC_FUEL), src, st, en, dst, omap)
 end
 
 implement fold_range_doc(d, st, en, dst, omap) = let
@@ -147,5 +147,5 @@ implement fold_range_doc(d, st, en, dst, omap) = let
   in
   end else ()
 in
-  fold_loop_doc_m(airlock_nat(MAX_REC_FUEL), d, st, en, dst, omap)
+  fold_loop_doc_with_fuel(airlock_nat(MAX_REC_FUEL), d, st, en, dst, omap)
 end

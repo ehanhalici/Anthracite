@@ -1,4 +1,4 @@
-file(GLOB LINE_ENGINE_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_text/line_*.dats")
+file(GLOB_RECURSE LINE_ENGINE_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_text/line_*.dats")
 set(LINE_ENGINE_C_SOURCES "")
 foreach(SOURCE ${LINE_ENGINE_SOURCES})
   get_filename_component(MODULE "${SOURCE}" NAME_WE)
@@ -7,10 +7,10 @@ endforeach()
 foreach(MODULE line_fixture line_conformance_cases line_conformance line_contracts line_contract_units line_contract_stress)
   add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c"
     COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
+      -d "${ANTHRACITE_TEST_${MODULE}}"
     COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -o "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    DEPENDS "tests/${MODULE}.dats" tests/line_fixture.sats tests/line_conformance.sats tests/line_contracts.sats ${ATS_INTERFACES})
+      -o "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c" -d "${ANTHRACITE_TEST_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/text/line_break/line_fixture.sats tests/text/line_break/line_conformance.sats tests/text/line_break/line_contracts.sats ${ATS_INTERFACES})
 endforeach()
 add_executable(line_conformance EXCLUDE_FROM_ALL ${LINE_ENGINE_C_SOURCES}
   "${CMAKE_CURRENT_BINARY_DIR}/category_property_symbols_dats.c"
@@ -44,4 +44,4 @@ add_test(NAME line_contracts COMMAND line_contracts
 find_program(ANTHRACITE_LINE_PATSOPT patsopt REQUIRED)
 add_test(NAME line_domain_type_error COMMAND "${CMAKE_COMMAND}"
   "-DPATSOPT=${ANTHRACITE_LINE_PATSOPT}" "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
-  -P "${CMAKE_SOURCE_DIR}/tests/expect_line_domain_error.cmake")
+  -P "${CMAKE_SOURCE_DIR}/tests/contracts/expect_line_domain_error.cmake")

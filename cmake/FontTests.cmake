@@ -1,11 +1,11 @@
 foreach(TEST_MODULE font_fixture sfnt_conformance component_conformance font_render_conformance)
   add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${TEST_MODULE}_dats.c"
     COMMAND patsopt -tc -IATS ${CMAKE_CURRENT_SOURCE_DIR}/src -IATS ${CMAKE_CURRENT_SOURCE_DIR}/tests
-      -d "${CMAKE_CURRENT_SOURCE_DIR}/tests/${TEST_MODULE}.dats"
+      -d "${ANTHRACITE_TEST_${TEST_MODULE}}"
     COMMAND patsopt -IATS ${CMAKE_CURRENT_SOURCE_DIR}/src -IATS ${CMAKE_CURRENT_SOURCE_DIR}/tests
       -o "${CMAKE_CURRENT_BINARY_DIR}/${TEST_MODULE}_dats.c"
-      -d "${CMAKE_CURRENT_SOURCE_DIR}/tests/${TEST_MODULE}.dats"
-    DEPENDS "tests/${TEST_MODULE}.dats" tests/font_fixture.sats tests/font_native_contracts.sats ${ATS_INTERFACES})
+      -d "${ANTHRACITE_TEST_${TEST_MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${TEST_MODULE}}" tests/font/resources/font_fixture.sats tests/font/native/ownership/font_native_contracts.sats ${ATS_INTERFACES})
 endforeach()
 set(FONT_GLYPH_ID_TEST_C_SOURCES "")
 foreach(MODULE font_glyph_id_fixture font_glyph_id_primary font_glyph_id_fallback font_glyph_id_domains
@@ -15,11 +15,11 @@ foreach(MODULE font_glyph_id_fixture font_glyph_id_primary font_glyph_id_fallbac
     font_span_missing_cases font_registry_cases doc_text_navigation_cases font_text_cache_cases event_repaint_cases font_text_metrics_cases visual_layout_cases source_edit_cases)
   set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
   add_custom_command(OUTPUT "${OUTPUT}"
-    COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests" -o "${OUTPUT}" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    DEPENDS "tests/${MODULE}.dats" tests/font_glyph_id_contracts.sats tests/font_gl_airlock.sats tests/font_run_render_contracts.sats
-      tests/font_native_contracts.sats tests/font_native_test.hats tests/native_pipeline_contracts.sats tests/native_pipeline_test.hats
-      tests/font_text_abi_airlock.sats ${ATS_INTERFACES})
+    COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests" -d "${ANTHRACITE_TEST_${MODULE}}"
+    COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests" -o "${OUTPUT}" -d "${ANTHRACITE_TEST_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/font/atlas/font_glyph_id_contracts.sats tests/font/resources/font_gl_airlock.sats tests/font/text/run/font_run_render_contracts.sats
+      tests/font/native/ownership/font_native_contracts.sats tests/font/native/ownership/font_native_test.hats tests/font/native/text/native_pipeline_contracts.sats tests/font/native/text/native_pipeline_test.hats
+      tests/font/text/font_text_abi_airlock.sats ${ATS_INTERFACES})
   list(APPEND FONT_GLYPH_ID_TEST_C_SOURCES "${OUTPUT}")
 endforeach()
 add_executable(sfnt_conformance EXCLUDE_FROM_ALL

@@ -1,4 +1,4 @@
-file(GLOB GSUB_LIGATURE_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/gsub_ligature_*.dats")
+file(GLOB_RECURSE GSUB_LIGATURE_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/gsub_ligature_*.dats")
 set(GSUB_LIGATURE_C_SOURCES "")
 foreach(SOURCE ${GSUB_LIGATURE_SOURCES})
   get_filename_component(MODULE "${SOURCE}" NAME_WE)
@@ -10,10 +10,10 @@ foreach(MODULE gsub_ligature_priority_cases gsub_ligature_error_cases gsub_ligat
   set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
   add_custom_command(OUTPUT "${OUTPUT}"
     COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
+      -d "${ANTHRACITE_TEST_${MODULE}}"
     COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -o "${OUTPUT}" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    DEPENDS "tests/${MODULE}.dats" tests/gsub_ligature_contracts.sats tests/opentype_fixture.sats ${ATS_INTERFACES})
+      -o "${OUTPUT}" -d "${ANTHRACITE_TEST_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/font/opentype/substitution/gsub_ligature_contracts.sats tests/font/opentype/tables/opentype_fixture.sats ${ATS_INTERFACES})
   list(APPEND GSUB_LIGATURE_TEST_C_SOURCES "${OUTPUT}")
 endforeach()
 add_executable(gsub_ligature_conformance EXCLUDE_FROM_ALL ${GSUB_LIGATURE_C_SOURCES}

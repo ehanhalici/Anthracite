@@ -1,4 +1,4 @@
-file(GLOB ARABIC_MARKS_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_text/arabic_marks_*.dats")
+file(GLOB_RECURSE ARABIC_MARKS_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_text/arabic_marks_*.dats")
 set(ARABIC_MARKS_C_SOURCES "")
 foreach(SOURCE ${ARABIC_MARKS_SOURCES})
   get_filename_component(MODULE "${SOURCE}" NAME_WE)
@@ -9,10 +9,10 @@ foreach(MODULE arabic_marks_fixture arabic_marks_cases arabic_marks_stress arabi
   set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
   add_custom_command(OUTPUT "${OUTPUT}"
     COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
+      -d "${ANTHRACITE_TEST_${MODULE}}"
     COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -o "${OUTPUT}" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    DEPENDS "tests/${MODULE}.dats" tests/arabic_marks_contracts.sats tests/arabic_marks_test.hats ${ATS_INTERFACES})
+      -o "${OUTPUT}" -d "${ANTHRACITE_TEST_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/text/arabic/marks/arabic_marks_contracts.sats tests/text/arabic/marks/arabic_marks_test.hats ${ATS_INTERFACES})
   list(APPEND ARABIC_MARKS_TEST_C_SOURCES "${OUTPUT}")
 endforeach()
 add_executable(arabic_marks_conformance EXCLUDE_FROM_ALL ${ARABIC_MARKS_C_SOURCES} ${ARABIC_MARKS_TEST_C_SOURCES}
@@ -29,4 +29,4 @@ add_test(NAME arabic_marks_conformance COMMAND arabic_marks_conformance
   "${CMAKE_CURRENT_BINARY_DIR}/unicode18-modifier-mark.bin")
 add_test(NAME native_shape_type_error COMMAND "${CMAKE_COMMAND}"
   "-DPATSOPT=${ANTHRACITE_OT_PATSOPT}" "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
-  -P "${CMAKE_SOURCE_DIR}/tests/expect_native_shape_error.cmake")
+  -P "${CMAKE_SOURCE_DIR}/tests/contracts/expect_native_shape_error.cmake")

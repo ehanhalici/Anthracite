@@ -1,10 +1,10 @@
 foreach(MODULE scalar_fixture normalization_fixture normalization_stable normalization_conformance normalization_contracts normalization_provenance normalization_source_contracts normalization_blob_contracts)
   add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c"
     COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
+      -d "${ANTHRACITE_TEST_${MODULE}}"
     COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -o "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    DEPENDS "tests/${MODULE}.dats" tests/scalar_fixture.sats tests/normalization_fixture.sats tests/normalization_contracts.sats ${ATS_INTERFACES})
+      -o "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c" -d "${ANTHRACITE_TEST_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/text/utf8/scalar_fixture.sats tests/text/normalization/normalization_fixture.sats tests/text/normalization/normalization_contracts.sats ${ATS_INTERFACES})
 endforeach()
 add_executable(normalization_conformance EXCLUDE_FROM_ALL ${NORMALIZATION_C_SOURCES}
   "${CMAKE_CURRENT_BINARY_DIR}/mem_dats.c" "${CMAKE_CURRENT_BINARY_DIR}/fs_buf_dats.c"
@@ -32,4 +32,4 @@ add_test(NAME normalization_conformance COMMAND normalization_conformance
 find_program(ANTHRACITE_NORMALIZATION_PATSOPT patsopt REQUIRED)
 add_test(NAME normalization_phase_type_error COMMAND "${CMAKE_COMMAND}"
   "-DPATSOPT=${ANTHRACITE_NORMALIZATION_PATSOPT}" "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
-  -P "${CMAKE_SOURCE_DIR}/tests/expect_normalization_phase_error.cmake")
+  -P "${CMAKE_SOURCE_DIR}/tests/contracts/expect_normalization_phase_error.cmake")

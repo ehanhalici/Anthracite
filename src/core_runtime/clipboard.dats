@@ -32,58 +32,58 @@ in
   end else touch_dst(dst)
 end
 
-extern fun clip_round_exh(p: !Plat, data: ptr, n: int, dst: &Buf >> _, got: &int >> _, spins: int): void = "mac#anth_die_void"
+extern fun clip_round_fuel_exhausted(p: !Plat, data: ptr, n: int, dst: &Buf >> _, got: &int >> _, spins: int): void = "mac#anth_die_void"
 
-fun clip_round_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, data: ptr, n: int, dst: &Buf >> _, got: &int >> _, spins: int): void =
+fun clip_round_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, data: ptr, n: int, dst: &Buf >> _, got: &int >> _, spins: int): void =
   if recfuel > 0 then (
     if spins <= 0 then touch_dst(dst)
     else if got > 0 then touch_dst(dst)
     else if plat_pending(p) = 0 then let
       val () = seen_int(plat_wait(p, 20))
     in
-      clip_round_m(recfuel - 1, p, data, n, dst, got, spins - 1)
+      clip_round_with_fuel(recfuel - 1, p, data, n, dst, got, spins - 1)
     end else let
       var ev: event
       val () = plat_next(p, ev)
       val () = take_sel(p, ev, data, n, dst, got)
     in
-      clip_round_m(recfuel - 1, p, data, n, dst, got, spins - 1)
+      clip_round_with_fuel(recfuel - 1, p, data, n, dst, got, spins - 1)
     end
-  ) else clip_round_exh(p, data, n, dst, got, spins)
+  ) else clip_round_fuel_exhausted(p, data, n, dst, got, spins)
 
 fun clip_round(p: !Plat, data: ptr, n: int, dst: &Buf >> _, got: &int >> _, spins: int): void =
-  clip_round_m(airlock_nat(MAX_REC_FUEL), p, data, n, dst, got, spins)
+  clip_round_with_fuel(airlock_nat(MAX_REC_FUEL), p, data, n, dst, got, spins)
 
-extern fun same_text_exh(b: !Buf, s: string, i: int): int = "mac#anth_die_int"
+extern fun same_text_fuel_exhausted(b: !Buf, s: string, i: int): int = "mac#anth_die_int"
 
-fun same_text_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, s: string, i: int): int =
+fun same_text_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, s: string, i: int): int =
   if recfuel > 0 then (
     if i >= c_strlen(s) then 1
     else if buf_get(b, i) <> c_str_byte(s, i) then 0
-    else same_text_m(recfuel - 1, b, s, i + 1)
-  ) else same_text_exh(b, s, i)
+    else same_text_with_fuel(recfuel - 1, b, s, i + 1)
+  ) else same_text_fuel_exhausted(b, s, i)
 
 fun same_text(b: !Buf, s: string, i: int): int =
-  same_text_m(airlock_nat(MAX_REC_FUEL), b, s, i)
+  same_text_with_fuel(airlock_nat(MAX_REC_FUEL), b, s, i)
 
 fun clip_match(b: !Buf, s: string, n: int): int =
   if buf_len(b) <> n then 0 else same_text(b, s, 0)
 
-extern fun drain_pending_exh(p: !Plat): void = "mac#anth_die_void"
+extern fun drain_pending_fuel_exhausted(p: !Plat): void = "mac#anth_die_void"
 
-fun drain_pending_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat): void =
+fun drain_pending_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat): void =
   if recfuel > 0 then (
     if plat_pending(p) = 0 then ()
     else let
       var ev: event
       val () = plat_next(p, ev)
     in
-      drain_pending_m(recfuel - 1, p)
+      drain_pending_with_fuel(recfuel - 1, p)
     end
-  ) else drain_pending_exh(p)
+  ) else drain_pending_fuel_exhausted(p)
 
 fun drain_pending(p: !Plat): void =
-  drain_pending_m(airlock_nat(MAX_REC_FUEL), p)
+  drain_pending_with_fuel(airlock_nat(MAX_REC_FUEL), p)
 
 implement clipboard_selftest(p) = let
   val text = "anthracite"

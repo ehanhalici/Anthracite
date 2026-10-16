@@ -3,9 +3,9 @@ foreach(MODULE script_compile script_source_range script_aliases_read script_ali
     script_extensions_source script_extensions_write script_extensions_compile)
   set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
   add_custom_command(OUTPUT "${OUTPUT}"
-    COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tools" -d "${CMAKE_SOURCE_DIR}/tools/${MODULE}.dats"
-    COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tools" -o "${OUTPUT}" -d "${CMAKE_SOURCE_DIR}/tools/${MODULE}.dats"
-    DEPENDS "tools/${MODULE}.dats" tools/script_compile.sats tools/script_compile_internal.hats ${ATS_INTERFACES})
+    COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tools/script" -d "${ANTHRACITE_TOOL_${MODULE}}"
+    COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tools/script" -o "${OUTPUT}" -d "${ANTHRACITE_TOOL_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TOOL_${MODULE}}" tools/script/script_compile.sats tools/script/script_compile_internal.hats ${ATS_INTERFACES})
   list(APPEND SCRIPT_TOOL_C_SOURCES "${OUTPUT}")
 endforeach()
 set(SCRIPT_C_SOURCES "")

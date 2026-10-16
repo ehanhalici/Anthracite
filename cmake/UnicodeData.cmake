@@ -1,8 +1,8 @@
 set(UCD_COMPILER_C "${CMAKE_CURRENT_BINARY_DIR}/unicode_compile_dats.c")
 add_custom_command(OUTPUT ${UCD_COMPILER_C}
   COMMAND patsopt -IATS ${CMAKE_CURRENT_SOURCE_DIR}/src -o ${UCD_COMPILER_C}
-    -d ${CMAKE_CURRENT_SOURCE_DIR}/tools/unicode_compile.dats
-  DEPENDS tools/unicode_compile.dats ${ATS_INTERFACES})
+    -d ${CMAKE_CURRENT_SOURCE_DIR}/tools/unicode/unicode_compile.dats
+  DEPENDS tools/unicode/unicode_compile.dats ${ATS_INTERFACES})
 add_executable(unicode_compile EXCLUDE_FROM_ALL ${UCD_COMPILER_C}
   "${CMAKE_CURRENT_BINARY_DIR}/mem_dats.c" "${CMAKE_CURRENT_BINARY_DIR}/fs_buf_dats.c"
   "${CMAKE_CURRENT_BINARY_DIR}/text_source_dats.c")
@@ -19,9 +19,9 @@ add_custom_target(unicode_data DEPENDS "${CMAKE_CURRENT_BINARY_DIR}/unicode18.bi
 
 add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/property_compile_dats.c"
   COMMAND patsopt -IATS ${CMAKE_CURRENT_SOURCE_DIR}/src
-    -o "${CMAKE_CURRENT_BINARY_DIR}/property_compile_dats.c" -d tools/property_compile.dats
+    -o "${CMAKE_CURRENT_BINARY_DIR}/property_compile_dats.c" -d tools/unicode/property_compile.dats
   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-  DEPENDS tools/property_compile.dats ${ATS_INTERFACES})
+  DEPENDS tools/unicode/property_compile.dats ${ATS_INTERFACES})
 add_executable(property_compile EXCLUDE_FROM_ALL "${CMAKE_CURRENT_BINARY_DIR}/property_compile_dats.c"
   "${CMAKE_CURRENT_BINARY_DIR}/mem_dats.c" "${CMAKE_CURRENT_BINARY_DIR}/fs_buf_dats.c"
   "${CMAKE_CURRENT_BINARY_DIR}/text_source_dats.c" "${CMAKE_CURRENT_BINARY_DIR}/unicode_property_dats.c"

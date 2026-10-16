@@ -1,0 +1,8 @@
+#include "font/native/text/native_pipeline_test.hats"
+staload "core_render/render.sats"
+staload "data_font/resources/font.sats"
+staload "data_font/atlas/font_glyph_id.sats"
+staload "data_font/text/run/font_run.sats"
+staload "data_font/native/ownership/font_native_types.sats"
+staload "data_font/native/ownership/font_native.sats"
+staload "font/native/ownership/font_native_contracts.sats"

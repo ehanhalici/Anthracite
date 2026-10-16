@@ -1,4 +1,4 @@
-file(GLOB GPOS_VALUE_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/gpos_value_*.dats"
+file(GLOB_RECURSE GPOS_VALUE_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/gpos_value_*.dats"
   "${CMAKE_SOURCE_DIR}/src/data_font/gpos_adjustment_*.dats"
   "${CMAKE_SOURCE_DIR}/src/data_font/gpos_anchor_*.dats")
 set(GPOS_VALUE_C_SOURCES "")
@@ -12,10 +12,10 @@ foreach(MODULE gpos_format_cases gpos_value_fixture gpos_value_cases
   set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
   add_custom_command(OUTPUT "${OUTPUT}"
     COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
+      -d "${ANTHRACITE_TEST_${MODULE}}"
     COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
-      -o "${OUTPUT}" -d "${CMAKE_SOURCE_DIR}/tests/${MODULE}.dats"
-    DEPENDS "tests/${MODULE}.dats" tests/gpos_value_contracts.sats tests/opentype_fixture.sats ${ATS_INTERFACES})
+      -o "${OUTPUT}" -d "${ANTHRACITE_TEST_${MODULE}}"
+    DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/font/opentype/position/gpos_value_contracts.sats tests/font/opentype/tables/opentype_fixture.sats ${ATS_INTERFACES})
   list(APPEND GPOS_VALUE_TEST_C_SOURCES "${OUTPUT}")
 endforeach()
 add_executable(gpos_value_conformance EXCLUDE_FROM_ALL ${GPOS_VALUE_C_SOURCES}

@@ -2,8 +2,12 @@
 #include "share/atspre_define.hats"
 #include "share/atspre_staload.hats"
 #include "common.hats"
+(* Initial allocation policy; capacities are measured in bytes. *)
+macdef IX_QUERY_PARSE_OMAP_INITIAL_BYTES = 64
+
 
 staload "mem.sats"
+staload "os/fs.sats"
 staload "airlock.sats"
 staload "search/ix_fold.sats"
 staload "search/ix_query.sats"
@@ -28,47 +32,60 @@ implement qop_of(code) =
 
 fun buf_push32(b: &Buf >> _, v: int): void = let
   val len = buf_len(b)
-  val idx = idiv(len, 4)
-  val need = iadd(len, 4)
+  val idx = idiv(len, WORD32_BYTES)
+  val need = iadd(len, WORD32_BYTES)
   val () = if buf_cap(b) < need then buf_resize(b, imax(imul(need, 2), 64)) else ()
   val () = buf_set_len(b, need)
   val () = buf_set32(b, idx, v)
 in
 end
 
-fun skip_ws_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), q: !Buf, p: int, n: int): int =
+fun skip_ws_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), q: !Buf, p: int, n: int): int =
   if recfuel > 0 then (
-    if ilt(p, n) andalso ile(buf_get(q, p), 32) then
-      skip_ws_m(recfuel - 1, q, iadd(p, 1), n)
+    if ilt(p, n) andalso ile(buf_get(q, p), CHAR_SPACE) then
+      skip_ws_with_fuel(recfuel - 1, q, iadd(p, 1), n)
     else p
   ) else p
 
-fun scan_quote_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), q: !Buf, p: int, n: int): int =
+fun scan_quote_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), q: !Buf, p: int, n: int): int =
   if recfuel > 0 then (
-    if ilt(p, n) andalso ine(buf_get(q, p), 34) then
-      scan_quote_m(recfuel - 1, q, iadd(p, 1), n)
+    if ilt(p, n) andalso ine(buf_get(q, p), CHAR_QUOTE) then
+      scan_quote_with_fuel(recfuel - 1, q, iadd(p, 1), n)
     else p
   ) else p
 
-fun scan_word_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), q: !Buf, p: int, n: int): int =
+fun scan_word_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), q: !Buf, p: int, n: int): int =
   if recfuel > 0 then (
-    if ilt(p, n) andalso igt(buf_get(q, p), 32) then
-      scan_word_m(recfuel - 1, q, iadd(p, 1), n)
+    if ilt(p, n) andalso igt(buf_get(q, p), CHAR_SPACE) then
+      scan_word_with_fuel(recfuel - 1, q, iadd(p, 1), n)
     else p
   ) else p
 
-fun detect_op(q: !Buf, p: int, n: int, skip: &int >> _): QOp =
-  if ilt(p, n) andalso ieq(buf_get(q, p), 35) then (skip := 1; QTag())
-  else if ilt(iadd(p, 1), n) andalso ieq(buf_get(q, p), 91) andalso ieq(buf_get(q, iadd(p, 1)), 91) then (skip := 2; QWiki())
-  else if ilt(iadd(p, 1), n) andalso ieq(buf_get(q, p), 104) andalso ieq(buf_get(q, iadd(p, 1)), 58) then (skip := 2; QHeading())
-  else if ilt(iadd(p, 4), n) andalso ieq(buf_get(q, p), 102) andalso ieq(buf_get(q, iadd(p, 1)), 105) andalso ieq(buf_get(q, iadd(p, 2)), 108) andalso ieq(buf_get(q, iadd(p, 3)), 101) andalso ieq(buf_get(q, iadd(p, 4)), 58) then (skip := 5; QFile())
-  else if ilt(iadd(p, 4), n) andalso ieq(buf_get(q, p), 116) andalso ieq(buf_get(q, iadd(p, 1)), 97) andalso ieq(buf_get(q, iadd(p, 2)), 115) andalso ieq(buf_get(q, iadd(p, 3)), 107) andalso ieq(buf_get(q, iadd(p, 4)), 58) then (skip := 5; QTask())
-  else if ilt(iadd(p, 4), n) andalso ieq(buf_get(q, p), 99) andalso ieq(buf_get(q, iadd(p, 1)), 111) andalso ieq(buf_get(q, iadd(p, 2)), 100) andalso ieq(buf_get(q, iadd(p, 3)), 101) andalso ieq(buf_get(q, iadd(p, 4)), 58) then (skip := 5; QCode())
+fun matches_ascii_tail{remaining:nat} .<remaining>. (
+  remaining: int(remaining),q: !Buf,position: int,text: string,index: int
+): bool =
+  if remaining > 0 then
+    ieq(buf_get(q,position),c_str_byte(text,index)) andalso
+      matches_ascii_tail(remaining-1,q,iadd(position,1),text,iadd(index,1))
+  else true
+
+fun matches_ascii(q: !Buf,position: int,limit: int,text: string): bool = let
+  val size=c_strlen(text)
+in if ilt(position,0) orelse igt(size,isub(limit,position)) then false
+  else matches_ascii_tail(airlock_nat(size),q,position,text,0) end
+
+fun detect_query_operator(q: !Buf,p: int,n: int,skip: &int >> _): QOp =
+  if matches_ascii(q,p,n,"#") then (skip := c_strlen("#"); QTag())
+  else if matches_ascii(q,p,n,"[[") then (skip := c_strlen("[["); QWiki())
+  else if matches_ascii(q,p,n,"h:") then (skip := c_strlen("h:"); QHeading())
+  else if matches_ascii(q,p,n,"file:") then (skip := c_strlen("file:"); QFile())
+  else if matches_ascii(q,p,n,"task:") then (skip := c_strlen("task:"); QTask())
+  else if matches_ascii(q,p,n,"code:") then (skip := c_strlen("code:"); QCode())
   else (skip := 0; QPlain())
 
-fun task_aux(pool: !Buf, toff: int, tlen: int): int =
-  if ieq(tlen, 4) andalso ieq(buf_get(pool, toff), 116) andalso ieq(buf_get(pool, iadd(toff, 1)), 111) andalso ieq(buf_get(pool, iadd(toff, 2)), 100) andalso ieq(buf_get(pool, iadd(toff, 3)), 111) then 1
-  else if ieq(tlen, 4) andalso ieq(buf_get(pool, toff), 100) andalso ieq(buf_get(pool, iadd(toff, 1)), 111) andalso ieq(buf_get(pool, iadd(toff, 2)), 110) andalso ieq(buf_get(pool, iadd(toff, 3)), 101) then 2
+fun task_status_code(pool: !Buf,offset: int,size: int): int =
+  if ieq(size,c_strlen("todo")) andalso matches_ascii(pool,offset,iadd(offset,size),"todo") then 1
+  else if ieq(size,c_strlen("done")) andalso matches_ascii(pool,offset,iadd(offset,size),"done") then 2
   else 0
 
 fun is_qop_task(qop: QOp): bool = case+ qop of
@@ -80,52 +97,42 @@ fun is_qop_task(qop: QOp): bool = case+ qop of
   | QFile() => false
   | QCode() => false
 
-fun parse_term(q: !Buf, p: int, n: int, pool: &Buf >> _, terms: &Buf >> _, omap: &Buf >> _): int = let
-  val is_q = ieq(buf_get(q, p), 34)
-in
-  if is_q then let
-    val st = iadd(p, 1)
-    val en = scan_quote_m(airlock_nat(MAX_REC_FUEL), q, st, n)
-    val next_p = if ilt(en, n) then iadd(en, 1) else en
-  in
-    if ilt(st, en) then let
-      val toff = buf_len(pool)
-      val () = fold_range_buf(q, st, en, pool, omap)
-      val tlen = isub(buf_len(pool), toff)
-      val () = buf_push32(terms, 0)
-      val () = buf_push32(terms, toff)
-      val () = buf_push32(terms, tlen)
-      val () = buf_push32(terms, 0)
-    in
-      next_p
-    end else next_p
-  end else let
-    var skip: int = 0
-    val qop = detect_op(q, p, n, skip)
-    val st = iadd(p, skip)
-    val en = scan_word_m(airlock_nat(MAX_REC_FUEL), q, st, n)
-  in
-    if ilt(st, en) then let
-      val toff = buf_len(pool)
-      val () = fold_range_buf(q, st, en, pool, omap)
-      val tlen = isub(buf_len(pool), toff)
-      val is_task = is_qop_task(qop)
-      val aux = if is_task then task_aux(pool, toff, tlen) else 0
-      val () = buf_push32(terms, qop_code(qop))
-      val () = buf_push32(terms, toff)
-      val () = buf_push32(terms, tlen)
-      val () = buf_push32(terms, aux)
-    in
-      en
-    end else en
-  end
-end
+fun append_query_term(
+  q: !Buf,start: int,finish: int,operator: QOp,pool: &Buf >> _,terms: &Buf >> _,omap: &Buf >> _
+): void =
+  if ilt(start,finish) then let
+    val offset=buf_len(pool)
+    val ()=fold_range_buf(q,start,finish,pool,omap)
+    val size=isub(buf_len(pool),offset)
+    val auxiliary=if is_qop_task(operator) then task_status_code(pool,offset,size) else 0
+    val ()=buf_push32(terms,qop_code(operator))
+    val ()=buf_push32(terms,offset)
+    val ()=buf_push32(terms,size)
+  in buf_push32(terms,auxiliary) end else ()
 
-fun parse_loop_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), q: !Buf, p: int, n: int, cnt: int, pool: &Buf >> _, terms: &Buf >> _, omap: &Buf >> _): int =
+fun parse_quoted_term(q: !Buf,p: int,n: int,pool: &Buf >> _,terms: &Buf >> _,omap: &Buf >> _): int = let
+  val start=iadd(p,1)
+  val finish=scan_quote_with_fuel(airlock_nat(MAX_REC_FUEL),q,start,n)
+  val ()=append_query_term(q,start,finish,QPlain(),pool,terms,omap)
+in if ilt(finish,n) then iadd(finish,1) else finish end
+
+fun parse_unquoted_term(q: !Buf,p: int,n: int,pool: &Buf >> _,terms: &Buf >> _,omap: &Buf >> _): int = let
+  var skip: int=0
+  val operator=detect_query_operator(q,p,n,skip)
+  val start=iadd(p,skip)
+  val finish=scan_word_with_fuel(airlock_nat(MAX_REC_FUEL),q,start,n)
+  val ()=append_query_term(q,start,finish,operator,pool,terms,omap)
+in finish end
+
+fun parse_term(q: !Buf,p: int,n: int,pool: &Buf >> _,terms: &Buf >> _,omap: &Buf >> _): int =
+  if ieq(buf_get(q,p),CHAR_QUOTE) then parse_quoted_term(q,p,n,pool,terms,omap)
+  else parse_unquoted_term(q,p,n,pool,terms,omap)
+
+fun parse_loop_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), q: !Buf, p: int, n: int, cnt: int, pool: &Buf >> _, terms: &Buf >> _, omap: &Buf >> _): int =
   if recfuel > 0 then (
     if ige(cnt, MAX_QUERY_TERMS) orelse ige(p, n) then cnt
     else let
-      val p0 = skip_ws_m(airlock_nat(MAX_REC_FUEL), q, p, n)
+      val p0 = skip_ws_with_fuel(airlock_nat(MAX_REC_FUEL), q, p, n)
     in
       if ige(p0, n) then cnt
       else let
@@ -133,7 +140,7 @@ fun parse_loop_m {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), q: !Buf, p: i
         val p1 = parse_term(q, p0, n, pool, terms, omap)
         val added = (if igt(buf_len(terms), cur_terms) then 1 else 0) : int
       in
-        parse_loop_m(recfuel - 1, q, p1, n, iadd(cnt, added), pool, terms, omap)
+        parse_loop_with_fuel(recfuel - 1, q, p1, n, iadd(cnt, added), pool, terms, omap)
       end
     end
   ) else cnt
@@ -142,8 +149,8 @@ implement ix_query_parse(q, pool, terms) = let
   val n = buf_len(q)
   val () = buf_set_len(pool, 0)
   val () = buf_set_len(terms, 0)
-  var omap = buf_make(64)
-  val cnt = parse_loop_m(airlock_nat(MAX_REC_FUEL), q, 0, n, 0, pool, terms, omap)
+  var omap = buf_make(IX_QUERY_PARSE_OMAP_INITIAL_BYTES)
+  val cnt = parse_loop_with_fuel(airlock_nat(MAX_REC_FUEL), q, 0, n, 0, pool, terms, omap)
   val () = buf_free(omap)
 in
   cnt

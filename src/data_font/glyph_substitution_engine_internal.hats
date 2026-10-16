@@ -1,5 +1,0 @@
-#include "data_font/glyph_substitution_stack_internal.hats"
-staload "data_font/ot_substitution_graph_work.sats"
-staload "data_font/glyph_substitution_engine_types.sats"
-staload "data_font/glyph_substitution_engine_work.sats"
-staload "data_font/glyph_substitution_engine.sats"
