@@ -164,12 +164,17 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-010 — Eski görsel selftest kişisel dosya yoluna bağlı
 
-- Durum: doğrulandı (kaynak incelemesi); test taşınabilirliği borcu.
+- Durum: çözüldü; kişisel görselin varlığına bağlı dal kaldırıldı.
 - Konum: `src/data_image/image.dats`, `selftest_png_ok`.
 - Kanıt: fixture testlerine ek olarak geliştiricinin not dizinindeki sabit
   bir görsel varsa yükleniyor. Test sonucu makinedeki özel dosyaya bağlı olabilir.
 - Beklenen: yalnız fixture verileriyle çalışan selftest. Yeni
   `workspace_image_contracts` benzersiz dizin ve üretilmiş fixture kullanır.
+- Çözüm: eski görsel selftest yalnız özel fixture kökünde ürettiği PNG/BMP/JPEG
+  ve aynı kökteki olmayan dosyayı yükler. Kaynak denetimi görsel modüldeki
+  `/home/<kullanıcı>/` sabit yollarını reddeder; not dosyasına dokunulmaz.
+- Doğrulama: kaynak denetimi, görsel sözleşme/orakıl testleri ve başarılı/hatalı
+  grafik selftest yolları çalıştırılır.
 
 ## BUG-011 — Artımlı ayrıştırmada başlık/liste işaret düğümleri kayboluyor
 
@@ -219,3 +224,13 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
   kontrolünden önce yapar. Büyük pozitif uzunluk/ofsette taşma olabilir.
 - Beklenen: negatif değerler dışlandıktan sonra `n <= capacity - offset`
   kontrolü; küçük gerçek tamponlarda INT_MAX çevresindeki reddetme testleri.
+
+## BUG-015 — Unifont yüklemesinde geliştiriciye özel yedek yol
+
+- Durum: kaynak incelemesinde doğrulandı; düzeltme bekliyor.
+- Konum: `src/core_render/gl.cats`, Unifont dosyasını açan yordam.
+- Kanıt: yapılandırılmış ve göreli dosya açılamazsa geliştiricinin mutlak
+  çalışma dizinindeki `unifont.bin` açılmaya çalışılıyor. Dosya eksikken
+  makineye özgü yedek farklı sonuç verebilir.
+- Beklenen: yapılandırılmış kaynak veya taşınabilir göreli yol; özel dizine
+  bağımlılığın kaldırılması ve eksik dosya yolunun korunması.

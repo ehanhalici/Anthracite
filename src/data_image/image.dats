@@ -249,10 +249,8 @@ fun selftest_png_ok(im: !Image, path: string, missing_path: string): int = let
   val pg = pix(im, 1)
   val pb2 = pix(im, 2)
   val bad = img_load(im, missing_path)
-  val up = "/home/emrehan/notes/obsidian_notlar/din/eklenti/vird/raditu billahi rabba.png"
-  val texture_is_valid = (if fs_exists(up) = 1 then img_load(im, up) else 1): int
 in
-  (if ieq(pn, 1) andalso ieq(bad, 0) andalso ieq(texture_is_valid, 1) andalso ieq(pr, 10) andalso ieq(pg, 20) andalso ieq(pb2, 30) then 1 else 0)
+  (if ieq(pn, 1) andalso ieq(bad, 0) andalso ieq(pr, 10) andalso ieq(pg, 20) andalso ieq(pb2, 30) then 1 else 0)
 end
 
 fun selftest_bmp_ok(im: !Image, path: string): int = let
