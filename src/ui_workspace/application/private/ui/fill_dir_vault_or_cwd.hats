@@ -89,7 +89,7 @@ end
 extern fun copy_node_file_fuel_exhausted(ts: !Tabs, idx: int, ni: int, vault: !Buf, clip: &Buf >> _, i: int): void = "mac#anth_die_void"
 
 fun copy_node_file_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, idx: int, ni: int, vault: !Buf, clip: &Buf >> _, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | @TNil() => let
         val () = buffer_preserve(clip)
@@ -138,7 +138,7 @@ fun node_field(doc: !Doc, ni: int, field: int): int =
 extern fun del_node_fuel_exhausted(ts: Tabs, idx: int, ni: int): Tabs = "mac#anth_die_box"
 
 fun del_node_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, ni: int): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) => let
@@ -159,7 +159,7 @@ fun del_go(ts: Tabs, idx: int, ni: int, go: Toggle): Tabs =
 extern fun strip_into_fuel_exhausted(src: !Buf, dst: &Buf >> _, i: int): void = "mac#anth_die_void"
 
 fun strip_into_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, dst: &Buf >> _, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, buf_len(src)) then buffer_preserve(dst)
     else let
       val c = buf_get(src, i)
@@ -199,4 +199,3 @@ in
     ()
   end else clear_span_stripped(doc, lo, hi)
 end
-

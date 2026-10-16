@@ -25,7 +25,7 @@ staload "data_font/resources/private/font_geometry.sats"
 extern fun quad_fuel_exhausted(f: !Font, x0: int, y0: int, x1: int, y1: int, x2: int, y2: int, depth: int): void = "mac#anth_die_void"
 
 fun quad_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, x0: int, y0: int, x1: int, y1: int, x2: int, y2: int, depth: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if depth <= 0 then edge_push(f, x0, y0, x2, y2)
     else let
       val mx01 = (x0 + x1) / 2
@@ -59,7 +59,7 @@ fun emit_xy(f: !Font, x0: int, y0: int, x1: int, y1: int, minx: int, maxy: int, 
 extern fun rot_copy_fuel_exhausted(f: !Font, n: int, s: int, i: int): void = "mac#anth_die_void"
 
 fun rot_copy_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, n: int, s: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ()
     else let
       val src = FONT_OUTLINE_INITIAL_POINTS + font_mod(s + i, n)
@@ -74,7 +74,7 @@ fun rot_copy(f: !Font, n: int, s: int, i: int): void = rot_copy_with_fuel(airloc
 extern fun rot_back_fuel_exhausted(f: !Font, n: int, i: int): void = "mac#anth_die_void"
 
 fun rot_back_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, n: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ()
     else let
       val () = pt_set(f, FONT_OUTLINE_INITIAL_POINTS + i, pt_x(f, 5200 + i), pt_y(f, 5200 + i), pt_on(f, 5200 + i))
@@ -88,7 +88,7 @@ fun rot_back(f: !Font, n: int, i: int): void = rot_back_with_fuel(airlock_nat(MA
 extern fun find_on_fuel_exhausted(f: !Font, n: int, i: int): int = "mac#anth_die_int"
 
 fun find_on_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, n: int, i: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then 0
     else if pt_on(f, FONT_OUTLINE_INITIAL_POINTS + i) <> 0 then i else find_on_with_fuel(recfuel - 1, f, n, i + 1)
   ) else find_on_fuel_exhausted(f, n, i)
@@ -105,7 +105,7 @@ end
 extern fun contour_loop_fuel_exhausted(f: !Font, k: int, clen: int, a: int, n: int): int = "mac#anth_die_int"
 
 fun contour_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, k: int, clen: int, a: int, n: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if k >= clen then n
     else let
       val curr_i = iadd(a, k)
@@ -153,7 +153,7 @@ end
 extern fun contour_walk_fuel_exhausted(f: !Font, i: int, n: int, minx: int, maxy: int, sc: double): void = "mac#anth_die_void"
 
 fun contour_walk {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, i: int, n: int, minx: int, maxy: int, sc: double): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ()
     else if pt_on(f, iadd(FONT_OUTLINE_INITIAL_POINTS, font_mod(iadd(i, 1), n))) <> 0 then let
       val () = emit_line_at(f, i, n, minx, maxy, sc)
@@ -186,7 +186,7 @@ fun one_contour(f: !Font, a: int, b: int, minx: int, maxy: int, sc: double): voi
 extern fun contours_fuel_exhausted(f: !Font, ci: int, nends: int, minx: int, maxy: int, sc: double): void = "mac#anth_die_void"
 
 fun contours_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, ci: int, nends: int, minx: int, maxy: int, sc: double): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ci >= nends then ()
     else let
       val a = (if ci = 0 then 0 else iadd(end_get(f, isub(ci, 1)), 1)) : int
@@ -202,7 +202,7 @@ implement contours(f, ci, nends, minx, maxy, sc) = contours_with_fuel(airlock_na
 extern fun bbox_fuel_exhausted(f: !Font, i: int, n: int, minx: &int, miny: &int, maxx: &int, maxy: &int): void = "mac#anth_die_void"
 
 fun bbox_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, i: int, n: int, minx: &int, miny: &int, maxx: &int, maxy: &int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ()
     else let
       val x = pt_x(f, i)

@@ -102,7 +102,7 @@ extern fun dump_node_fuel_exhausted(d: !Doc, i: int, dst: &Buf >> _): void = "ma
 fun dump_children_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, c: int, dst: &Buf >> _, is_first: bool
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if c < 0 orelse c >= doc_nnodes(d) then ()
     else let
       val () = if not(is_first) then dump_char(dst, 32) else ()
@@ -116,7 +116,7 @@ fun dump_children_with_fuel {recfuel:nat} .<recfuel>. (
 and dump_node_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, i: int, dst: &Buf >> _
 ): void =
-  if recfuel > 0 then let
+  if recursion_fuel_available(recfuel) then let
     val k = doc_node_kind(d, i)
     val () = dump_str(dst, kind_name(k))
     val () = dump_char(dst, 91)
@@ -139,7 +139,7 @@ extern fun dump_roots_fuel_exhausted(d: !Doc, i: int, n: int, dst: &Buf >> _, is
 fun dump_roots_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, i: int, n: int, dst: &Buf >> _, is_first: bool
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ()
     else if doc_node_parent(d, i) < 0 then let
       val () = if not(is_first) then dump_char(dst, 32) else ()

@@ -96,7 +96,7 @@ in
 end
 
 fun fold_loop_buf_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, p: int, en: int, dst: &Buf >> _, omap: &Buf >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(p, en) then let
       val nxt = step_buf(src, p, en, dst, omap)
     in
@@ -105,7 +105,7 @@ fun fold_loop_buf_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), sr
   ) else ()
 
 fun fold_loop_doc_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, p: int, en: int, dst: &Buf >> _, omap: &Buf >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(p, en) then let
       val nxt = step_doc(d, p, en, dst, omap)
     in

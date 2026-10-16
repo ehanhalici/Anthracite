@@ -13,7 +13,7 @@ fun dist_of(src: !Buf, n: int, st: &BitS >> _, c: int): int =
 extern fun copy_out_fuel_exhausted(dst: &Buf >> _, dist: int, len: int, i: int): void = "mac#anth_die_void"
 
 fun copy_out_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dst: &Buf >> _, dist: int, len: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, len) then ()
     else let
       val n0 = buf_len(dst)
@@ -37,7 +37,7 @@ fun sym_kind(s: int): DeflateSym =
 extern fun symloop_fuel_exhausted(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int = "mac#anth_die_int"
 
 fun symloop_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if igt(buf_len(dst), 16000000) orelse is_on(st.err) then 0
     else let
       val s = decode_huffman_symbol(src, n, st, tab, LC, LS)
@@ -56,7 +56,7 @@ fun symloop_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Bu
   ) else symloop_fuel_exhausted(src, n, st, tab, dst)
 
 and sym_copy {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _, s: int): int =
-  if recfuel > 0 then let
+  if recursion_fuel_available(recfuel) then let
     val ln = length_of(src, n, st, s)
     val dc = decode_huffman_symbol(src, n, st, tab, DC, DS)
     val dist = dist_of(src, n, st, dc)
@@ -74,7 +74,7 @@ fun symloop(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int =
 extern fun set_fixed_fuel_exhausted(tab: !Buf, i: int): void = "mac#anth_die_void"
 
 fun set_fixed_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), tab: !Buf, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, 288) then ()
     else let
       val L = if ilt(i, 144) then 8 else if ilt(i, 256) then 9 else if ilt(i, 280) then 7 else 8
@@ -89,7 +89,7 @@ fun set_fixed(tab: !Buf, i: int): void = set_fixed_with_fuel(airlock_nat(MAX_REC
 extern fun set_dist5_fuel_exhausted(tab: !Buf, i: int): void = "mac#anth_die_void"
 
 fun set_dist5_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), tab: !Buf, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, 32) then ()
     else let
       val () = buf_set32(tab, iadd(iadd(LN, 288), i), 5)
@@ -124,7 +124,7 @@ fun cl_order(i: int): int =
 extern fun read_cl_fuel_exhausted(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, ncl: int, i: int): void = "mac#anth_die_void"
 
 fun read_cl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, ncl: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, ncl) then ()
     else let
       val () = buf_set32(tab, iadd(CLN, cl_order(i)), read_bits(src, n, st, 3))
@@ -138,7 +138,7 @@ fun read_cl(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, ncl: int, i: int): voi
 extern fun fill_rep_fuel_exhausted(tab: !Buf, i: int, nlen: int, rep: int, v: int, k: int): int = "mac#anth_die_int"
 
 fun fill_rep_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), tab: !Buf, i: int, nlen: int, rep: int, v: int, k: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(k, rep) then iadd(i, rep)
     else if ige(iadd(i, k), nlen) then ~1
     else let
@@ -165,7 +165,7 @@ extern fun read_lens_code_fuel_exhausted(src: !Buf, n: int, st: &BitS >> _, tab:
 extern fun read_rep_fuel_exhausted(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, nlen: int, i: int, rep: int, v: int): int = "mac#anth_die_int"
 
 fun read_lens_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, nlen: int, i: int, prev: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, nlen) then 1
     else if is_on(st.err) then 0
     else let
@@ -185,7 +185,7 @@ fun read_lens_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !
   ) else read_lens_fuel_exhausted(src, n, st, tab, nlen, i, prev)
 
 and read_lens_code {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, nlen: int, i: int, prev: int, s: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ len_sym(s) of
     | LenCopy() => let
         val rep = iadd(3, read_bits(src, n, st, 2))
@@ -206,9 +206,8 @@ and read_lens_code {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, 
   ) else read_lens_code_fuel_exhausted(src, n, st, tab, nlen, i, prev, s)
 
 and read_rep {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, nlen: int, i: int, rep: int, v: int): int =
-  if recfuel > 0 then let
+  if recursion_fuel_available(recfuel) then let
     val j = fill_rep(tab, i, nlen, rep, v, 0)
   in
     if ilt(j, 0) then 0 else read_lens_with_fuel(recfuel - 1, src, n, st, tab, nlen, j, v)
   end else read_rep_fuel_exhausted(src, n, st, tab, nlen, i, rep, v)
-

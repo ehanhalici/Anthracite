@@ -77,7 +77,7 @@ fun bloom_check_term(ixb: !Buf, fid: int, pool: !Buf, toff: int, tlen: int): boo
   end
 
 fun bloom_check_terms_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ixb: !Buf, fid: int, pool: !Buf, terms: !Buf, ti: int, nterms: int): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(ti, nterms) then true
     else let
       val op_c = buf_get32(terms, imul(ti, 4))
@@ -91,7 +91,7 @@ fun bloom_check_terms_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel)
   ) else true
 
 fun buf_find_sub_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), haystack: !Buf, hlen: int, hp: int, needle: !Buf, nlen: int, np: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(np, nlen) then isub(hp, nlen)
     else if ige(hp, hlen) then ~1
     else if ieq(buf_get(haystack, hp), buf_get(needle, np)) then
@@ -115,7 +115,7 @@ in
 end
 
 fun match_line_all_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), fline: !Buf, flen: int, pool: !Buf, terms: !Buf, ti: int, nterms: int, first_pos: &int >> _): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(ti, nterms) then true
     else let
       val op_c = buf_get32(terms, imul(ti, 4))
@@ -177,7 +177,7 @@ in
 end
 
 fun scan_doc_lines_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, fid: int, path: !Buf, nlines: int, line: int, pool: !Buf, terms: !Buf, nterms: int, hits: &Buf >> _, hmeta: &Buf >> _, hjump: &Buf >> _, hn: &int >> _, hfile: &int >> _, headed: &int >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(line, nlines) orelse ige(hfile, MAX_HITS_PER_FILE) orelse ige(hn, MAX_SEARCH_HITS) then ()
     else let
       val () = scan_one_line(d, fid, path, line, nlines, pool, terms, nterms, hits, hmeta, hjump, hn, hfile, headed)
@@ -231,7 +231,7 @@ fun match_indexed_file(fid: int,tabs: !Tabs,ixf: !Buf,ixp: !Buf,pool: !Buf,terms
 in count end
 
 fun match_files_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), fid: int, nfiles: int, tabs: !Tabs, ixf: !Buf, ixp: !Buf, ixb: !Buf, pool: !Buf, terms: !Buf, nterms: int, hits: &Buf >> _, hmeta: &Buf >> _, hjump: &Buf >> _, hn: &int >> _, nfiles_hit: &int >> _, is_partial: &int >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(fid,nfiles) orelse ige(hn,MAX_SEARCH_HITS) then (
       if ige(hn,MAX_SEARCH_HITS) andalso ilt(fid,nfiles) then is_partial := 1 else ()
     ) else let
@@ -278,14 +278,14 @@ in
 end
 
 fun find_fwd_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, dlen: int, p: int, q: !Buf, qlen: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if igt(iadd(p, qlen), dlen) then ~1
     else if check_match_at(d, p, q, qlen) then p
     else find_fwd_with_fuel(recfuel - 1, d, dlen, iadd(p, 1), q, qlen)
   ) else ~1
 
 fun find_bwd_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, p: int, q: !Buf, qlen: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(p, 0) then ~1
     else if check_match_at(d, p, q, qlen) then p
     else find_bwd_with_fuel(recfuel - 1, d, isub(p, 1), q, qlen)
@@ -304,7 +304,7 @@ in
 end
 
 fun reveal_loop_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, n: int, off: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, n) then ()
     else let
       val k = doc_node_kind(d, i)

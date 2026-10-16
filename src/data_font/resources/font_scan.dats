@@ -39,7 +39,7 @@ end
 extern fun collect_fuel_exhausted(f: !Font, y: int, e: int, ne: int, nc: int): int = "mac#anth_die_int"
 
 fun collect_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, y: int, e: int, ne: int, nc: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if e >= ne orelse nc >= 100 then nc
     else let
       val y0 = edge_get(f, e, 1)
@@ -56,7 +56,7 @@ fun collect(f: !Font, y: int, e: int, ne: int, nc: int): int = collect_with_fuel
 extern fun cross_swap_fuel_exhausted(f: !Font, i: int): void = "mac#anth_die_void"
 
 fun cross_swap_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i <= 0 then ()
     else let
       val x = end_get(f, i * 2)
@@ -81,7 +81,7 @@ fun cross_swap(f: !Font, i: int): void = cross_swap_with_fuel(airlock_nat(MAX_RE
 extern fun cross_sort_fuel_exhausted(f: !Font, n: int, i: int): void = "mac#anth_die_void"
 
 fun cross_sort_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, n: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ()
     else let
       val () = cross_swap(f, i)
@@ -95,7 +95,7 @@ fun cross_sort(f: !Font, n: int, i: int): void = cross_sort_with_fuel(airlock_na
 extern fun paint_pix_fuel_exhausted(f: !Font, x: int, y: int, sw: int, b: int): void = "mac#anth_die_void"
 
 fun paint_pix {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, x: int, y: int, sw: int, b: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if x >= b then ()
     else let
       val () = cov_set(f, y * sw + x, 255)
@@ -114,7 +114,7 @@ end
 extern fun wind_fuel_exhausted(f: !Font, sw: int, y: int, n: int, i: int, w: int, prev: int): void = "mac#anth_die_void"
 
 fun wind_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, sw: int, y: int, n: int, i: int, w: int, prev: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ()
     else let
       val x = end_get(f, i * 2)
@@ -130,7 +130,7 @@ fun wind(f: !Font, sw: int, y: int, n: int, i: int, w: int, prev: int): void = w
 extern fun scan_rows_fuel_exhausted(f: !Font, sw: int, sh: int, y: int): void = "mac#anth_die_void"
 
 fun scan_rows_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, sw: int, sh: int, y: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if y >= sh then ()
     else let
       val ne = font_get_edge_count(f)
@@ -147,7 +147,7 @@ implement scan_rows(f, sw, sh, y) = scan_rows_with_fuel(airlock_nat(MAX_REC_FUEL
 extern fun blit_col_fuel_exhausted(f: !Font, x: int, y: int, x0: int, y0: int, sw: int, bw: int): void = "mac#anth_die_void"
 
 fun blit_col {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, x: int, y: int, x0: int, y0: int, sw: int, bw: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if x >= bw then ()
     else let
       val i00 = (y * 2) * sw + x * 2
@@ -161,7 +161,7 @@ fun blit_col {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, x: int,
 extern fun blit_fuel_exhausted(f: !Font, x0: int, y0: int, sw: int, bw: int, bh: int, y: int): void = "mac#anth_die_void"
 
 fun blit_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, x0: int, y0: int, sw: int, bw: int, bh: int, y: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if y >= bh then ()
     else let
       val () = blit_col(airlock_nat(MAX_REC_FUEL), f, 0, y, x0, y0, sw, bw)

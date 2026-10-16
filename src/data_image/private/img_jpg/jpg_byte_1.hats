@@ -197,7 +197,7 @@ fun jpg_byte(i: int): int =
 extern fun push_jpg_fuel_exhausted(b: &Buf >> _, i: int): void = "mac#anth_die_void"
 
 fun push_jpg_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: &Buf >> _, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, 631) then ()
     else let
       val () = buf_push(b, jpg_byte(i))

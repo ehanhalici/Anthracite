@@ -56,7 +56,7 @@ extern fun parse_callout_name_fuel_exhausted(d: !Doc, p: int, le: int): int = "m
 fun parse_callout_name_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, le: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, le) then p
     else let
       val b = doc_byte(d, p)
@@ -176,7 +176,7 @@ extern fun parse_table_cells_fuel_exhausted(d: !Doc, row: int, p: int, le: int, 
 fun parse_table_cells_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, row: int, p: int, le: int, prev: int, col: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, le) then ()
     else if ieq(doc_byte(d, p), CHAR_PIPE) then let
       val m = doc_node_add(d, KMark, p, iadd(p, 1), row, prev, 0, 0)

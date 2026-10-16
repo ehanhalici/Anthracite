@@ -4,7 +4,7 @@ fun draw_tabrow_pane_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), f: !Font, r: !Rend, ts: Tabs, x: int, active: int, i: int,
   filter: int, tab_pane: !Buf
 ): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) => let
@@ -49,7 +49,7 @@ fun tab_hit_test_pane_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), f: !Font, r: !Rend, ts: !Tabs, x: int, click_x: int, i: int,
   filter: int, tab_pane: !Buf, out_ti: &int >> _, out_close: &bool >> _
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | TNil() => ()
     | TCons(_, _, title, _, rest) =>
@@ -168,7 +168,7 @@ fun draw_tab_content(
 extern fun draw_focus_impl_fuel_exhausted(f: !Font, r: !Rend, ts: Tabs, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, viewmode: ViewMode): Tabs = "mac#anth_die_box"
 
 fun draw_focus_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, ts: Tabs, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, viewmode: ViewMode): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => let
         val () = seal_cs(c, scratch)
@@ -198,7 +198,7 @@ implement draw_focus(f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, vi
 extern fun node_covering_impl_fuel_exhausted(d: !Doc, y: int, oy: int, scroll: int, i: int, best: int): int = "mac#anth_die_int"
 
 fun node_covering_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, y: int, oy: int, scroll: int, i: int, best: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, doc_nnodes(d)) then best
     else let
       val k = doc_node_kind(d, i)
@@ -213,4 +213,3 @@ fun node_covering_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel
       end
     end
   ) else node_covering_impl_fuel_exhausted(d, y, oy, scroll, i, best)
-

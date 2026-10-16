@@ -45,7 +45,7 @@ implement tabs_open_at(ts, idx, path) =
 extern fun tabs_detach_fuel_exhausted(ts: Tabs, i: int): Pair = "mac#anth_die_box"
 
 fun tabs_detach_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, i: int): Pair =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => PAIR(TNil(), TNil())
     | ~TCons(doc, path, title, sc, rest) =>
@@ -71,7 +71,7 @@ implement tabs_link(one, ts) =
 extern fun tabs_insert_fuel_exhausted(ts: Tabs, i: int, one: Tabs): Tabs = "mac#anth_die_box"
 
 fun tabs_insert_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, i: int, one: Tabs): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ieq(i, 0) then tabs_link(one, ts)
     else case+ ts of
       | ~TNil() => one
@@ -118,7 +118,7 @@ extern fun tabs_clone_tab_fuel_exhausted(ts: Tabs, idx: int): Tabs = "mac#anth_d
 fun tabs_clone_tab_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), ts: Tabs, idx: int
 ): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) =>
@@ -141,7 +141,7 @@ implement tabs_clone_tab(ts, idx) = tabs_clone_tab_with_fuel(airlock_nat(MAX_REC
 extern fun tabs_toggle_impl_fuel_exhausted(ts: Tabs, idx: int, ni: int): Tabs = "mac#anth_die_box"
 
 fun tabs_toggle_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, ni: int): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) => let
@@ -158,7 +158,7 @@ implement tabs_toggle(ts, idx, ni) = tabs_toggle_impl(ts, idx, ni)
 extern fun tabs_toggle_deep_impl_fuel_exhausted(ts: Tabs, idx: int, ni: int): Tabs = "mac#anth_die_box"
 
 fun tabs_toggle_deep_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, ni: int): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) => let
@@ -175,7 +175,7 @@ implement tabs_toggle_deep(ts, idx, ni) = tabs_toggle_deep_impl(ts, idx, ni)
 extern fun tabs_toggle_task_impl_fuel_exhausted(ts: Tabs, idx: int, ni: int): Tabs = "mac#anth_die_box"
 
 fun tabs_toggle_task_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, ni: int): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) => let
@@ -198,7 +198,7 @@ in
 end
 
 fun tabs_jump_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, line: int, col: int): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) => let
@@ -208,4 +208,3 @@ fun tabs_jump_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Ta
         else TCons(doc, path, title, sc, tabs_jump_with_fuel(recfuel - 1, rest, isub(idx, 1), line, col))
       end
   ) else ts
-

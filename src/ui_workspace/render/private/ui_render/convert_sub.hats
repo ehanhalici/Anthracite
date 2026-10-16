@@ -81,7 +81,7 @@ end
 fun math_latex_to_buf_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int, out: &Buf >> _
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, en) then ()
     else let
       val b = doc_byte(d, p)

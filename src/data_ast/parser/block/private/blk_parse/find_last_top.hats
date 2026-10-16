@@ -7,7 +7,7 @@ fun find_top_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, off: int, cur: int, prev: int,
   p_top: &int >> _, c_top: &int >> _
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(cur, doc_nnodes(d)) then (p_top := prev; c_top := ~1)
     else let
       val st = doc_node_start(d, cur)
@@ -26,7 +26,7 @@ extern fun collect_res_fuel_exhausted(d: !Doc, resync: &Buf >> _, min_st: int, c
 fun collect_res_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, resync: &Buf >> _, min_st: int, cur: int, count: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(cur, doc_nnodes(d)) then count
     else let
       val st = doc_node_start(d, cur)

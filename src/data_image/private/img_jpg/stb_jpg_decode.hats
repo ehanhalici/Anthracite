@@ -5,7 +5,7 @@ typedef PlaneSizes = @{plane_bytes= int, coeff_words= int}
 
 fun calc_plane_offsets(meta: !Buf, ncomp: int): PlaneSizes = let
   fun loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), meta: !Buf, ncomp: int, i: int, poff: int, coff: int): PlaneSizes =
-    if recfuel > 0 then (
+    if recursion_fuel_available(recfuel) then (
       if ige(i, ncomp) then @{plane_bytes= poff, coeff_words= coff}
       else let
         val w2 = comp_get(meta, i, COMP_W2)
@@ -34,7 +34,7 @@ in
 end
 
 fun decode_mcu_comp_y {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, nsrc: int, meta: !Buf, hdc: !Buf, hac: !Buf, fab: !Buf, dqt: !Buf, planes: !Buf, val_b: !Buf, blk_data: !Buf, c_idx: int, mx: int, my: int, ch: int, cv: int, y: int, x: int, bst: &JpgBits >> _): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(y, cv) then true
     else if ige(x, ch) then decode_mcu_comp_y(recfuel - 1, src, nsrc, meta, hdc, hac, fab, dqt, planes, val_b, blk_data, c_idx, mx, my, ch, cv, iadd(y, 1), 0, bst)
     else let
@@ -48,7 +48,7 @@ fun decode_mcu_comp_y {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Bu
   ) else false
 
 fun decode_mcu_comps {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, nsrc: int, meta: !Buf, hdc: !Buf, hac: !Buf, fab: !Buf, dqt: !Buf, planes: !Buf, val_b: !Buf, blk_data: !Buf, mx: int, my: int, ns: int, k: int, bst: &JpgBits >> _): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(k, ns) then true
     else let
       val c_idx = order_get(meta, k)
@@ -62,7 +62,7 @@ fun decode_mcu_comps {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf
   ) else false
 
 fun decode_baseline_scan_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, nsrc: int, meta: !Buf, hdc: !Buf, hac: !Buf, fab: !Buf, dqt: !Buf, planes: !Buf, val_b: !Buf, blk_data: !Buf, mx: int, my: int, mcu_x: int, mcu_y: int, ns: int, bst: &JpgBits >> _, sst: &ScanState >> _): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(my, mcu_y) then true
     else if ige(mx, mcu_x) then decode_baseline_scan_loop(recfuel - 1, src, nsrc, meta, hdc, hac, fab, dqt, planes, val_b, blk_data, 0, iadd(my, 1), mcu_x, mcu_y, ns, bst, sst)
     else let
@@ -89,7 +89,7 @@ in
 end
 
 fun decode_prog_mcu_comp {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, nsrc: int, meta: !Buf, hdc: !Buf, hac: !Buf, fab: !Buf, coeffs: !Buf, c_idx: int, mx: int, my: int, ch: int, cv: int, y: int, x: int, bst: &JpgBits >> _, sst: &ScanState >> _): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(y, cv) then true
     else if ige(x, ch) then decode_prog_mcu_comp(recfuel - 1, src, nsrc, meta, hdc, hac, fab, coeffs, c_idx, mx, my, ch, cv, iadd(y, 1), 0, bst, sst)
     else let
@@ -103,7 +103,7 @@ fun decode_prog_mcu_comp {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: 
   ) else false
 
 fun decode_prog_mcu_comps {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, nsrc: int, meta: !Buf, hdc: !Buf, hac: !Buf, fab: !Buf, coeffs: !Buf, mx: int, my: int, ns: int, k: int, bst: &JpgBits >> _, sst: &ScanState >> _): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(k, ns) then true
     else let
       val c_idx = order_get(meta, k)
@@ -117,7 +117,7 @@ fun decode_prog_mcu_comps {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src:
   ) else false
 
 fun decode_prog_scan_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, nsrc: int, meta: !Buf, hdc: !Buf, hac: !Buf, fab: !Buf, coeffs: !Buf, mx: int, my: int, mcu_x: int, mcu_y: int, ns: int, bst: &JpgBits >> _, sst: &ScanState >> _): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(my, mcu_y) then true
     else if ige(mx, mcu_x) then decode_prog_scan_loop(recfuel - 1, src, nsrc, meta, hdc, hac, fab, coeffs, 0, iadd(my, 1), mcu_x, mcu_y, ns, bst, sst)
     else let
@@ -147,7 +147,7 @@ in
 end
 
 fun finish_prog_blocks_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), meta: !Buf, coeffs: !Buf, planes: !Buf, dqt: !Buf, val_b: !Buf, c_idx: int, cw: int, ch: int, bx: int, by: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(by, ch) then ()
     else if ige(bx, cw) then finish_prog_blocks_loop(recfuel - 1, meta, coeffs, planes, dqt, val_b, c_idx, cw, ch, 0, iadd(by, 1))
     else let
@@ -158,7 +158,7 @@ fun finish_prog_blocks_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), me
   ) else ()
 
 fun finish_prog_comps_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), meta: !Buf, coeffs: !Buf, planes: !Buf, dqt: !Buf, val_b: !Buf, ncomp: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, ncomp) then ()
     else let
       val cx = comp_get(meta, i, COMP_X)
@@ -219,7 +219,7 @@ in
 end
 
 fun render_scanlines_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), meta: !Buf, planes: !Buf, out_buf: !Buf, lb0: !Buf, lb1: !Buf, lb2: !Buf, lb3: !Buf, w: int, h: int, ncomp: int, color: JpegColorSpace, j: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(j, h) then ()
     else let
       val () = resample_comp_line(meta, planes, lb0, 0, j, w)
@@ -250,7 +250,7 @@ fun process_marker(src: !Buf, nsrc: int, bst: &JpgBits >> _, meta: !Buf, dqt: !B
   else skip_marker_segment(src, nsrc, bst)
 
 fun find_sof_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, nsrc: int, bst: &JpgBits >> _, meta: !Buf, dqt: !Buf, hdc: !Buf, hac: !Buf, fab: !Buf): bool =
-  if recfuel > 0 then let
+  if recursion_fuel_available(recfuel) then let
     val m = get_marker(src, nsrc, bst)
   in
     if ieq(m, JPG_MARK_SOF0) orelse ieq(m, JPG_MARK_SOF1) then parse_sof(src, nsrc, bst, meta, 0)
@@ -265,7 +265,7 @@ fun find_sof_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n
   end else false
 
 fun skip_jpeg_junk {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, nsrc: int, bst: &JpgBits >> _): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(bst.src_pos, nsrc) then JPG_MARK_NONE
     else let
       val x = buf_get(src, bst.src_pos)
@@ -283,7 +283,7 @@ fun skip_jpeg_junk {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, 
   ) else JPG_MARK_NONE
 
 fun decode_prog_single_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, nsrc: int, meta: !Buf, hdc: !Buf, hac: !Buf, fab: !Buf, coeffs: !Buf, c_idx: int, bx: int, by: int, bw: int, bh: int, bst: &JpgBits >> _, sst: &ScanState >> _): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(by, bh) then true
     else if ige(bx, bw) then decode_prog_single_loop(recfuel - 1, src, nsrc, meta, hdc, hac, fab, coeffs, c_idx, 0, iadd(by, 1), bw, bh, bst, sst)
     else let
@@ -358,7 +358,7 @@ fun prog_scan_step(src: !Buf, nsrc: int, bst: &JpgBits >> _, meta: !Buf, dqt: !B
   in ok end
 
 fun prog_scans_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, nsrc: int, bst: &JpgBits >> _, meta: !Buf, dqt: !Buf, hdc: !Buf, hac: !Buf, fab: !Buf, coeffs: !Buf, m: int): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ieq(m, JPG_MARK_EOI) orelse ieq(m, JPG_MARK_NONE) then true
     else let
       var m_next: int = JPG_MARK_NONE

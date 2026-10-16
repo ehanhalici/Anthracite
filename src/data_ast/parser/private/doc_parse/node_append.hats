@@ -4,7 +4,7 @@ fun node_append(d: !Doc, kind: NodeKind, st: int, en: int, depth: int, aux: int)
 extern fun at_end_fuel_exhausted(d: !Doc, i: int, re: int): int = "mac#anth_die_int"
 
 fun at_end_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, re: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, re) then re
     else if ieq(doc_byte(d, i), CHAR_LF) then i
     else at_end_with_fuel(recfuel - 1, d, iadd(i, 1), re)
@@ -15,7 +15,7 @@ fun at_end(d: !Doc, i: int, re: int): int = at_end_with_fuel(airlock_nat(MAX_REC
 extern fun skip_sp_fuel_exhausted(d: !Doc, i: int, re: int): int = "mac#anth_die_int"
 
 fun skip_sp_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, re: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, re) then i
     else if ieq(doc_byte(d, i), CHAR_SPACE) orelse ieq(doc_byte(d, i), CHAR_TAB) then skip_sp_with_fuel(recfuel - 1, d, iadd(i, 1), re)
     else i
@@ -26,7 +26,7 @@ fun skip_sp(d: !Doc, i: int, re: int): int = skip_sp_with_fuel(airlock_nat(MAX_R
 extern fun starts_go_fuel_exhausted(d: !Doc, i: int, re: int, s: string, k: int, n: int): int = "mac#anth_die_int"
 
 fun starts_go_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, re: int, s: string, k: int, n: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(k, n) then 1
     else if ige(iadd(i, k), re) then 0
     else if ine(doc_byte(d, iadd(i, k)), c_str_byte(s, k)) then 0
@@ -47,7 +47,7 @@ end
 extern fun count_hash_fuel_exhausted(d: !Doc, i: int, re: int, n: int): int = "mac#anth_die_int"
 
 fun count_hash_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, re: int, n: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if n >= 6 orelse ige(i, re) orelse ine(doc_byte(d, i), CHAR_HASH) then n
     else count_hash_with_fuel(recfuel - 1, d, iadd(i, 1), re, iadd(n, 1))
   ) else count_hash_fuel_exhausted(d, i, re, n)
@@ -72,7 +72,7 @@ fun forward(d: !Doc, i: int, re: int, en: int): int =
 extern fun hr_go_fuel_exhausted(d: !Doc, re: int, c: int, k: int, n: int): int = "mac#anth_die_int"
 
 fun hr_go_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, re: int, c: int, k: int, n: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(k, re) orelse ieq(doc_byte(d, k), CHAR_LF) then (if igt(n, 2) then 1 else 0)
     else if ieq(doc_byte(d, k), c) orelse ieq(doc_byte(d, k), CHAR_SPACE) then hr_go_with_fuel(recfuel - 1, d, re, c, iadd(k, 1), (if ieq(doc_byte(d, k), c) then iadd(n, 1) else n))
     else 0
@@ -121,7 +121,7 @@ end
 extern fun ol_digs_fuel_exhausted(d: !Doc, re: int, k: int): int = "mac#anth_die_int"
 
 fun ol_digs_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, re: int, k: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(k, re) then 0
     else if ige(doc_byte(d, k), CHAR_ZERO) andalso ile(doc_byte(d, k), CHAR_NINE) then ol_digs_with_fuel(recfuel - 1, d, re, iadd(k, 1))
     else if ieq(doc_byte(d, k), CHAR_DOT) andalso ilt(iadd(k, 1), re) andalso ieq(doc_byte(d, iadd(k, 1)), CHAR_SPACE) then 1
@@ -145,7 +145,7 @@ end
 extern fun table_bar_fuel_exhausted(d: !Doc, e: int, k: int): int = "mac#anth_die_int"
 
 fun table_bar_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, e: int, k: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(k, e) then 0
     else if ieq(doc_byte(d, k), CHAR_PIPE) then 1
     else table_bar_with_fuel(recfuel - 1, d, e, iadd(k, 1))
@@ -162,7 +162,7 @@ end
 extern fun fndef_colon_fuel_exhausted(d: !Doc, e: int, k: int): int = "mac#anth_die_int"
 
 fun fndef_colon_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, e: int, k: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(iadd(k, 1), e) then 0
     else if ieq(doc_byte(d, k), CHAR_RBRACKET) andalso ieq(doc_byte(d, iadd(k, 1)), CHAR_COLON) then 1
     else fndef_colon_with_fuel(recfuel - 1, d, e, iadd(k, 1))
@@ -189,7 +189,7 @@ fun ext_image(d: !Doc, a: int, b: int): bool =
 extern fun find_close_fuel_exhausted(d: !Doc, i: int, re: int, a: int, b: int): int = "mac#anth_die_int"
 
 fun find_close_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, re: int, a: int, b: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if iadd(i, 1) >= re then ~1
     else if ieq(doc_byte(d, i), CHAR_LF) then ~1
     else if ieq(doc_byte(d, i), a) andalso ieq(doc_byte(d, iadd(i, 1)), b) then i
@@ -197,4 +197,3 @@ fun find_close_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !D
   ) else find_close_fuel_exhausted(d, i, re, a, b)
 
 fun find_close(d: !Doc, i: int, re: int, a: int, b: int): int = find_close_with_fuel(airlock_nat(MAX_REC_FUEL), d, i, re, a, b)
-

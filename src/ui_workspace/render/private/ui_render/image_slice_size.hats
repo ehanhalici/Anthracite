@@ -79,7 +79,7 @@ fun embed_anchor_offset(anchor: !Buf): int =
 extern fun block_id_match_fuel_exhausted(d: !Doc, anchor: !Buf, p: int, a: int): bool = "mac#anth_die_bool"
 
 fun block_id_match_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, anchor: !Buf, p: int, a: int): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(a, buf_len(anchor)) then true
     else if ige(p, doc_len(d)) then false
     else if ieq(doc_byte(d, p), buf_get(anchor, a)) then block_id_match_with_fuel(recfuel - 1, d, anchor, iadd(p, 1), iadd(a, 1))
@@ -99,7 +99,7 @@ in
 end
 
 fun block_marker_find_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, anchor: !Buf, p: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, doc_len(d)) then ~1
     else if ieq(doc_byte(d, p), CHAR_CARET) andalso block_marker_boundary(d, anchor, p) andalso block_id_match_with_fuel(airlock_nat(MAX_REC_FUEL), d, anchor, iadd(p, 1), embed_anchor_offset(anchor)) then p
     else block_marker_find_with_fuel(recfuel - 1, d, anchor, iadd(p, 1))

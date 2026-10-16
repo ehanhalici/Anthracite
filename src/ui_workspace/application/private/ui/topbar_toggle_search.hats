@@ -191,7 +191,7 @@ fun copy_node_span_here(doc: !Doc, ni: int, dst: &Buf >> _): void =
   end else ()
 
 fun copy_fallback_node_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, idx: int, ni: int, dst: &Buf >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | @TNil() => fold@(ts)
     | @TCons(doc, path, title, sc, rest) => let
@@ -204,4 +204,3 @@ fun copy_fallback_node_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel
         fold@(ts)
       end
   ) else ()
-

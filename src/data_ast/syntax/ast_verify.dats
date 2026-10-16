@@ -12,7 +12,7 @@ staload "data_ast/syntax/ast_verify.sats"
 extern fun v_i1_fuel_exhausted(d: !Doc, i: int, n: int): bool = "mac#anth_die_int"
 
 fun v_i1_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, n: int): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then true
     else let
       val st = doc_node_start(d, i)
@@ -43,7 +43,7 @@ in
 end
 
 fun v_i2_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, n: int): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then true
     else if v_i2_node(d, i, n) then v_i2_with_fuel(recfuel - 1, d, iadd(i, 1), n)
     else false
@@ -56,7 +56,7 @@ extern fun v_i3_child_fuel_exhausted(d: !Doc, c: int, st: int, en: int, n: int):
 fun v_i3_child_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, c: int, st: int, en: int, n: int
 ): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if c < 0 orelse c >= n then true
     else let
       val c_st = doc_node_start(d, c)
@@ -73,7 +73,7 @@ fun v_i3_child_with_fuel {recfuel:nat} .<recfuel>. (
 extern fun v_i3_fuel_exhausted(d: !Doc, i: int, n: int): bool = "mac#anth_die_int"
 
 fun v_i3_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, n: int): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then true
     else let
       val fc = doc_node_first_child(d, i)
@@ -91,7 +91,7 @@ fun verify_i3(d: !Doc, n: int): bool = v_i3_with_fuel(airlock_nat(MAX_REC_FUEL),
 extern fun v_i4_fuel_exhausted(d: !Doc, i: int, n: int, len: int): bool = "mac#anth_die_int"
 
 fun v_i4_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, n: int, len: int): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then true
     else let
       val st = doc_node_start(d, i)
@@ -110,7 +110,7 @@ fun is_gutter_byte(b: int): bool =
 extern fun v_gap_fuel_exhausted(d: !Doc, p: int, end_p: int): bool = "mac#anth_die_int"
 
 fun v_gap_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, p: int, end_p: int): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if p >= end_p then true
     else if is_gutter_byte(doc_byte(d, p)) then v_gap_with_fuel(recfuel - 1, d, iadd(p, 1), end_p)
     else false
@@ -119,7 +119,7 @@ fun v_gap_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, p
 extern fun v_i5_fuel_exhausted(d: !Doc, i: int, n: int): bool = "mac#anth_die_int"
 
 fun v_i5_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, n: int): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then true
     else let
       val sib = doc_node_next_sib(d, i)
@@ -138,7 +138,7 @@ fun verify_i5(d: !Doc, n: int): bool = v_i5_with_fuel(airlock_nat(MAX_REC_FUEL),
 extern fun v_i6_fuel_exhausted(d: !Doc, i: int, n: int): bool = "mac#anth_die_int"
 
 fun v_i6_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, n: int): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then true
     else let
       val dp = doc_node_depth(d, i)
@@ -155,7 +155,7 @@ fun verify_i6(d: !Doc, n: int): bool = v_i6_with_fuel(airlock_nat(MAX_REC_FUEL),
 extern fun v_i7_fuel_exhausted(d: !Doc, i: int, n: int, max_dp: int): bool = "mac#anth_die_int"
 
 fun v_i7_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, n: int, max_dp: int): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then true
     else if doc_node_depth(d, i) <= max_dp then v_i7_with_fuel(recfuel - 1, d, iadd(i, 1), n, max_dp)
     else false
@@ -181,7 +181,7 @@ end
 extern fun v_i8_fuel_exhausted(d: !Doc, i: int, n: int): bool = "mac#anth_die_int"
 
 fun v_i8_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, n: int): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then true
     else if v_i8_check(d, i) then v_i8_with_fuel(recfuel - 1, d, iadd(i, 1), n)
     else false

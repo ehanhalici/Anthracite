@@ -3,7 +3,7 @@ extern fun line_end_fuel_exhausted(d: !Doc, p: int, len: int): int = "mac#anth_d
 fun line_end_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, len: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, len) then p
     else let
       val b = doc_byte(d, p)
@@ -22,7 +22,7 @@ extern fun line_next_fuel_exhausted(d: !Doc, p: int, len: int): int = "mac#anth_
 fun line_next_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, len: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, len) then p
     else if ieq(doc_byte(d, p), CHAR_LF) then iadd(p, 1)
     else line_next_with_fuel(recfuel - 1, d, iadd(p, 1), len)
@@ -37,7 +37,7 @@ fun indent_cols_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, le: int, c: int,
   cols: &int >> _, next_p: &int >> _
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, le) then (cols := c; next_p := p)
     else let
       val b = doc_byte(d, p)
@@ -59,7 +59,7 @@ extern fun is_blank_fuel_exhausted(d: !Doc, p: int, le: int): bool = "mac#anth_d
 fun is_blank_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, le: int
 ): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, le) then true
     else let
       val b = doc_byte(d, p)
@@ -131,7 +131,7 @@ extern fun count_char_fuel_exhausted(d: !Doc, p: int, le: int, ch: int, c: int):
 fun count_char_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, le: int, ch: int, c: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, le) then c
     else if ieq(doc_byte(d, p), ch) then count_char_with_fuel(recfuel - 1, d, iadd(p, 1), le, ch, iadd(c, 1))
     else c
@@ -169,7 +169,7 @@ fun find_close_fence_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, cur: int, len: int, ch: int, flen: int,
   c_st: &int >> _, c_en: &int >> _
 ): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(cur, len) then false
     else let
       val le = line_end(d, cur)

@@ -22,7 +22,7 @@ staload "data_font/resources/private/font_legacy_pairs.sats"
 extern fun kern_search_fuel_exhausted(b: !Buf, off: int, n: int, left: int, right: int, lo: int, hi: int): int = "mac#anth_die_int"
 
 fun kern_search_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, off: int, n: int, left: int, right: int, lo: int, hi: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if lo >= hi then 0
     else let
       val mid = (lo + hi) / 2

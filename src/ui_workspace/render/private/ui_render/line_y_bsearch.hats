@@ -32,7 +32,7 @@ fun plain_rows_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, st: int, en: int,
   colx: int, yy: int, safe_lh: int, wc: int, row: int, rows: int, scratch: &Buf >> _
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(row, rows) then let
       val () = plain_row_step(f, r, d, st, en, colx, yy, safe_lh, wc, row, rows, scratch)
     in
@@ -72,7 +72,7 @@ fun visual_fit_prefix_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, i0: int, lo: int, hi: int,
   max_w: int, f: !Font, r: !Rend, scratch: &Buf >> _
 ): int =
-  if recfuel > 0 then let
+  if recursion_fuel_available(recfuel) then let
     val res = visual_fit_step(d, i0, lo, hi, max_w, f, r, scratch)
   in
     if ilt(res, 0) then
@@ -93,7 +93,7 @@ extern fun plain_px_count_fuel_exhausted(f: !Font, r: !Rend, d: !Doc, st: int, e
 fun plain_px_count_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, st: int, en: int, max_w: int, scratch: &Buf >> _
 ): int =
-  if recfuel > 0 then
+  if recursion_fuel_available(recfuel) then
     if ige(st, en) then 0 else let
       val next = plain_px_end(f, r, d, st, en, max_w, scratch)
     in
@@ -107,7 +107,7 @@ fun plain_px_draw_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, st: int, en: int,
   colx: int, yy: int, lh: int, max_w: int, row: int, scratch: &Buf >> _
 ): void =
-  if recfuel > 0 then
+  if recursion_fuel_available(recfuel) then
     if ige(st, en) then () else let
       val next = plain_px_end(f, r, d, st, en, max_w, scratch)
       val base_x = row_base_pos(f, r, d, st, next, colx, scratch)
@@ -153,7 +153,7 @@ end
 extern fun plain_lines_fuel_exhausted(f: !Font, r: !Rend, d: !Doc, li: int, li_end: int, nlines: int, colx: int, oy: int, safe_lh: int, scroll: int, scratch: &Buf >> _): void = "mac#anth_die_void"
 
 fun plain_lines_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, li: int, li_end: int, nlines: int, colx: int, oy: int, safe_lh: int, scroll: int, scratch: &Buf >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(li, li_end) then let
       val () = draw_plain_line(f, r, d, li, nlines, colx, oy, safe_lh, scroll, scratch)
     in
@@ -174,7 +174,7 @@ end
 extern fun count_before_fuel_exhausted(d: !Doc, a: int, p: int, k0: int): int = "mac#anth_die_int"
 
 fun count_before_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, a: int, p: int, k0: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, a) then k0
     else count_before_with_fuel(recfuel - 1, d, a, iadd(p, 1), (if ieq(doc_byte(d, p), CHAR_LF) then iadd(k0, 1) else k0))
   ) else count_before_fuel_exhausted(d, a, p, k0)

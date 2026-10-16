@@ -1,5 +1,5 @@
 fun page_down_select_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, k: int, nlines: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if k < nlines then let
       val () = doc_down_select(d)
     in

@@ -120,7 +120,7 @@ end
 extern fun find_img_fuel_exhausted(doc: !Doc, i: int): int = "mac#anth_die_int"
 
 fun find_img_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), doc: !Doc, i: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, doc_nnodes(doc)) then ~1
     else if is_kind(doc_node_kind(doc, i), KImage) then i
     else find_img_with_fuel(recfuel - 1, doc, iadd(i, 1))
@@ -207,4 +207,3 @@ fun selftest_quote_prefix(): int = let
 in
   ok
 end
-

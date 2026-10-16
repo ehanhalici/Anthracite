@@ -18,7 +18,7 @@ fun parse_lines_resync_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, cur: int, len: int, stk: &Buf >> _,
   resync: !Buf, nres: int, delta: int, minpos: int, matched_old: &int >> _
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(cur, len) then cur
     else let
       val le = line_end(d, cur)
@@ -97,7 +97,7 @@ fun save_node_flds2(d: !Doc, dst: &Buf >> _, cur: int): void = (
 fun save_old_nodes_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, dst: &Buf >> _, cur: int, total: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(cur, total) then ()
     else let
       val () = save_node_flds1(d, dst, cur)
@@ -167,7 +167,7 @@ end
 fun copy_tail_nodes_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, old_b: !Buf, cur: int, total: int, delta: int, idxdelta: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(cur, total) then ()
     else let
       val () = copy_one_node(d, old_b, cur, delta, idxdelta)
@@ -179,7 +179,7 @@ fun copy_tail_nodes_with_fuel {recfuel:nat} .<recfuel>. (
 fun copy_head_nodes_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, old_b: !Buf, cur: int, n: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(cur, n) then ()
     else let
       val () = copy_one_node(d, old_b, cur, 0, 0)
@@ -193,7 +193,7 @@ extern fun find_last_top_fuel_exhausted(d: !Doc, cur: int, to_i: int, last: int)
 fun find_last_top_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, cur: int, to_i: int, last: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(cur, to_i) then last
     else let
       val sub = doc_node_subend(d, cur)

@@ -31,7 +31,7 @@ fun adv_p(short: int, same: int, p: int): int =
 extern fun read_ends_fuel_exhausted(f: !Font, i: int, ncont: int, p: int, base: int, eb: int): int = "mac#anth_die_int"
 
 fun read_ends_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, i: int, ncont: int, p: int, base: int, eb: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= ncont then p
     else let
       val e = file_u16(f, p)
@@ -46,7 +46,7 @@ fun read_ends(f: !Font, i: int, ncont: int, p: int, base: int, eb: int): int = r
 extern fun flag_put_fuel_exhausted(f: !Font, k: int, rep: int, i: int, np: int, base: int, flg: int): void = "mac#anth_die_void"
 
 fun flag_put {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, k: int, rep: int, i: int, np: int, base: int, flg: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if k >= rep orelse i + k >= np then ()
     else let
       val () = set_fl(f, iadd(iadd(base, i), k), flg)
@@ -58,7 +58,7 @@ fun flag_put {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, k: int,
 extern fun flag_run_fuel_exhausted(f: !Font, i: int, np: int, p: int, base: int): int = "mac#anth_die_int"
 
 fun flag_run_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, i: int, np: int, p: int, base: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= np then p
     else let
       val flg = file_u8(f, p)
@@ -77,7 +77,7 @@ fun flag_run(f: !Font, i: int, np: int, p: int, base: int): int = flag_run_with_
 extern fun xs_loop_fuel_exhausted(f: !Font, i: int, np: int, p: int, x: int, base: int): int = "mac#anth_die_int"
 
 fun xs_loop_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, i: int, np: int, p: int, x: int, base: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= np then p
     else let
       val flg = pt_on(f, base + i)
@@ -96,7 +96,7 @@ fun xs_loop(f: !Font, i: int, np: int, p: int, x: int, base: int): int = xs_loop
 extern fun ys_loop_fuel_exhausted(f: !Font, i: int, np: int, p: int, y: int, base: int, dx: double, dy: double, xx: double, yy: double, xy: double, yx: double): void = "mac#anth_die_void"
 
 fun ys_loop_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, i: int, np: int, p: int, y: int, base: int, dx: double, dy: double, xx: double, yy: double, xy: double, yx: double): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= np then ()
     else let
       val flg = pt_on(f, base + i)

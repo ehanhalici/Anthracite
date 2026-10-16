@@ -33,7 +33,7 @@ end
 extern fun scan_vaults_rec_fuel_exhausted(content: !Buf, cursor: int, paths: &Buf >> Buf, names: &Buf >> Buf, meta: &Buf >> Buf, cnt: &int >> int, tmp_p: &Buf >> Buf, tmp_n: &Buf >> Buf): void = "mac#anth_die_void"
 
 fun scan_vaults_rec_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), content: !Buf, cursor: int, paths: &Buf >> Buf, names: &Buf >> Buf, meta: &Buf >> Buf, cnt: &int >> int, tmp_p: &Buf >> Buf, tmp_n: &Buf >> Buf): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
   let
     val p_pos = find_substr(content, KEY_PATH, cursor)
   in
@@ -81,7 +81,7 @@ end
 extern fun search_conf_dir_rec_fuel_exhausted(content: !Buf, cur: int, vault: string, dst: &Buf >> Buf, pbuf: &Buf >> Buf): int = "mac#anth_die_int"
 
 fun search_conf_dir_rec_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), content: !Buf, cur: int, vault: string, dst: &Buf >> Buf, pbuf: &Buf >> Buf): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
   let
     val p_pos = find_substr(content, KEY_PATH, cur)
   in
@@ -142,7 +142,7 @@ end
 extern fun write_existing_vaults_rec_fuel_exhausted(vi: int, nvaults: int, paths: !Buf, names: !Buf, meta: !Buf, new_json: &Buf >> Buf, p_cur: &Buf >> Buf, n_cur: &Buf >> Buf, vault: string, already_in: &int >> int): void = "mac#anth_die_void"
 
 fun write_existing_vaults_rec_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), vi: int, nvaults: int, paths: !Buf, names: !Buf, meta: !Buf, new_json: &Buf >> Buf, p_cur: &Buf >> Buf, n_cur: &Buf >> Buf, vault: string, already_in: &int >> int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(vi, nvaults) then ()
     else let
       val () = load_vault_strings(paths, names, meta, vi, p_cur, n_cur)
@@ -211,4 +211,3 @@ fun save_active_vault_file(vpath: !Buf, vault: string): void = let
   val () = buf_free(new_json)
 in
 end
-

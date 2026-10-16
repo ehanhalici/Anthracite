@@ -40,7 +40,7 @@ typedef DownHit = @{
 }
 
 fun tab_pane_has_val_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, pane: int, i: int): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= buf_len(b) then false
     else if buf_get(b, i) = pane then true
     else tab_pane_has_val_with_fuel(recfuel - 1, b, pane, i + 1)
@@ -50,7 +50,7 @@ fun tab_pane_has(b: !Buf, pane: int): bool =
   tab_pane_has_val_with_fuel(airlock_nat(MAX_REC_FUEL), b, pane, 0)
 
 fun sync_tab_pane_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), tab_pane: &Buf >> _, n: int, sp: Toggle, righti: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if buf_len(tab_pane) < n then let
       val () = buf_push(tab_pane, 0)
     in
@@ -63,7 +63,7 @@ fun sync_tab_pane(tab_pane: &Buf >> _, n: int, sp: Toggle, righti: int): void =
   sync_tab_pane_with_fuel(airlock_nat(MAX_REC_FUEL), tab_pane, n, sp, righti)
 
 fun tab_pane_find_first_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, pane: int, i: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= buf_len(b) then ~1
     else if buf_get(b, i) = pane then i
     else tab_pane_find_first_with_fuel(recfuel - 1, b, pane, i + 1)
@@ -75,7 +75,7 @@ fun tab_pane_find_first(b: !Buf, pane: int): int =
 fun tab_pane_fill_all_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), b: !Buf, n: int, v: int, i: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i < n andalso i < buf_len(b) then let
       val () = buf_set(b, i, v)
     in
@@ -203,4 +203,3 @@ fun init_vault_tabs_empty(
 in
   make_empty_tabs()
 end
-

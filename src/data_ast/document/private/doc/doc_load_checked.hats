@@ -13,7 +13,7 @@ end
 fun find_task_node_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, i: int, n: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i < 0 orelse i >= n then ~1
     else if is_kind(doc_node_kind(d, i), KTask) then i
     else let
@@ -55,7 +55,7 @@ end
 fun deep_toggle_one_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, r: int, nreg: int, owner_l: int, fend_l: int, target_coll: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if r >= nreg then ()
     else let
       val o = doc_region_owner(d, r)
@@ -90,7 +90,7 @@ implement doc_toggle_deep(d, i0) =
 extern fun task_box_find_fuel_exhausted(d: !Doc, st: int, en: int, p: int): int = "mac#anth_die_int"
 
 fun task_box_find_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: int, en: int, p: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, en) orelse ige(iadd(p, 2), d_len(d)) then ~1
     else if ieq(doc_byte(d, p), CHAR_LBRACKET) andalso ieq(doc_byte(d, iadd(p, 2)), CHAR_RBRACKET) then iadd(p, 1)
     else task_box_find_with_fuel(recfuel - 1, d, st, en, iadd(p, 1))
@@ -136,7 +136,7 @@ implement column_x(pane, avail) = iadd(pane, idiv(isub(avail, column_w(avail)), 
 extern fun has_kind_fuel_exhausted(d: !Doc, k: NodeKind, i: int): int = "mac#anth_die_int"
 
 fun has_kind_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, k: NodeKind, i: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, d_nnodes(d)) then 0
     else let
       val ki = doc_node_kind(d, i)
@@ -159,7 +159,7 @@ fun put_str(d: !Doc, s: string): void =
 extern fun fill_paras_fuel_exhausted(d: !Doc, i: int): void = "mac#anth_die_void"
 
 fun fill_paras_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, 100) then ()
     else let
       val () = put_str(d, "paragraf\n\n")
@@ -173,7 +173,7 @@ fun fill_paras(d: !Doc, i: int): void = fill_paras_with_fuel(airlock_nat(MAX_REC
 extern fun first_heading_fuel_exhausted(d: !Doc, i: int): int = "mac#anth_die_int"
 
 fun first_heading_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, doc_nnodes(d)) then ~1
     else if is_kind(doc_node_kind(d, i), KH1) then i
     else first_heading_with_fuel(recfuel - 1, d, iadd(i, 1))

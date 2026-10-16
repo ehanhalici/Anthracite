@@ -102,7 +102,7 @@ extern fun fold_del_shift_fuel_exhausted(d: !Doc, i: int, n: int): void = "mac#a
 fun fold_del_shift_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, i: int, n: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ()
     else let
       val v = fold_get(d, iadd(i, 1))
@@ -140,7 +140,7 @@ extern fun fold_del_find_fuel_exhausted(d: !Doc, off: int, i: int, n: int): void
 fun fold_del_find_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, off: int, i: int, n: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ()
     else if fold_get(d, i) = off then let
       val () = fold_del_shift_with_fuel(airlock_nat(MAX_REC_FUEL), d, i, isub(n, 1))
@@ -157,7 +157,7 @@ extern fun fold_shift_fuel_exhausted(d: !Doc, at: int, delta: int, i: int, n: in
 fun fold_shift_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, at: int, delta: int, i: int, n: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ()
     else let
       val v = fold_get(d, i)
@@ -180,7 +180,7 @@ fun update_edited_fold(d: !Doc, i: int, off: int, at: int, deleted: int, inserte
 fun folds_apply_edit_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, at: int, del_bytes: int, ins_bytes: int, i: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= fold_count(d) then ()
     else let
       val off = fold_get(d, i)

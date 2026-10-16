@@ -3,7 +3,7 @@ extern fun doc_seek_anchor_fuel_exhausted(d: !Doc, n: int, a: !Buf, al: int, i: 
 fun doc_seek_anchor_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, n: int, a: !Buf, al: int, i: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if igt(iadd(i, al), n) then ~1
     else if doc_seek_sub_at_with_fuel(airlock_nat(MAX_REC_FUEL), d, n, a, al, i, 0) then i
     else doc_seek_anchor_with_fuel(recfuel - 1, d, n, a, al, iadd(i, 1))
@@ -46,7 +46,7 @@ extern fun tabs_jump_anchor_fuel_exhausted(ts: Tabs, idx: int, anchor: &Buf >> _
 fun tabs_jump_anchor_with_fuel {recfuel:nat} .<recfuel, 1>. (
   recfuel: int(recfuel), ts: Tabs, idx: int, anchor: &Buf >> _
 ): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => let
         val () = buffer_preserve(anchor)
@@ -69,7 +69,7 @@ in
     val () = buffer_preserve(anchor)
   in
     TCons(doc, path, title, nsc, rest)
-  end else if recfuel > 0 then
+  end else if recursion_fuel_available(recfuel) then
     TCons(doc, path, title, sc, tabs_jump_anchor_with_fuel(recfuel - 1, rest, isub(idx, 1), anchor))
   else let
     val () = buffer_preserve(anchor)
@@ -123,7 +123,7 @@ extern fun find_link_fuel_exhausted(doc: !Doc, caret: int, k: int): int = "mac#a
 fun find_link_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), doc: !Doc, caret: int, k: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(k, doc_nnodes(doc)) then ~1
     else if ile(doc_node_start(doc, k), caret) andalso
             ilt(caret, doc_node_end(doc, k)) andalso
@@ -164,7 +164,7 @@ extern fun tabs_wiki_prep_fuel_exhausted(ts: !Tabs, idx: int, vault: !Buf, ancho
 fun tabs_wiki_prep_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), ts: !Tabs, idx: int, vault: !Buf, anchor: &Buf >> _, shown: &Buf >> _
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | TNil() => ~1
     | TCons(doc, path, title, sc, rest) =>

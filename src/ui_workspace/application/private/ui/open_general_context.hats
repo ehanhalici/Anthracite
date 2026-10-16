@@ -149,7 +149,7 @@ in
 end
 
 fun tab_pane_shift_l_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, cur: int, target: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if cur < target then let
       val () = buf_set(b, cur, buf_get(b, cur + 1))
     in
@@ -158,7 +158,7 @@ fun tab_pane_shift_l_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel),
   ) else ()
 
 fun tab_pane_shift_r_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, cur: int, target: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if cur > target then let
       val () = buf_set(b, cur, buf_get(b, cur - 1))
     in
@@ -200,4 +200,3 @@ fun app_reorder_tab(s: &App_record >> _, from_i: int, to_i: int): void = let
 in
   save_app_session(s)
 end
-

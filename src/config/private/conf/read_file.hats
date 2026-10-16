@@ -68,7 +68,7 @@ end
 extern fun match_at_fuel_exhausted(b: !Buf, p: int, k: int, slen: int, n: int, s: string): bool = "mac#anth_die_int"
 
 fun match_at_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, p: int, k: int, slen: int, n: int, s: string): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(k, slen) then true
     else if ige(iadd(p, k), n) then false
     else if ine(buf_get(b, iadd(p, k)), c_str_byte(s, k)) then false
@@ -80,7 +80,7 @@ fun match_at(b: !Buf, p: int, k: int, slen: int, n: int, s: string): bool = matc
 extern fun search_substr_fuel_exhausted(b: !Buf, p: int, slen: int, n: int, s: string): int = "mac#anth_die_int"
 
 fun search_substr_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, p: int, slen: int, n: int, s: string): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(iadd(p, slen), n) then ~1
     else if match_at(b, p, 0, slen, n, s) then p
     else search_substr_with_fuel(recfuel - 1, b, iadd(p, 1), slen, n, s)
@@ -98,7 +98,7 @@ end
 extern fun skip_to_char_fuel_exhausted(b: !Buf, i: int, n: int, ch: int): int = "mac#anth_die_int"
 
 fun skip_to_char_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, i: int, n: int, ch: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, n) orelse ieq(buf_get(b, i), ch) then i
     else skip_to_char_with_fuel(recfuel - 1, b, iadd(i, 1), n, ch)
   ) else skip_to_char_fuel_exhausted(b, i, n, ch)
@@ -108,7 +108,7 @@ fun skip_to_char(b: !Buf, i: int, n: int, ch: int): int = skip_to_char_with_fuel
 extern fun skip_spaces_fuel_exhausted(b: !Buf, i: int, n: int): int = "mac#anth_die_int"
 
 fun skip_spaces_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, i: int, n: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, n) then i
     else let
       val c = buf_get(b, i)
@@ -123,7 +123,7 @@ fun skip_spaces(b: !Buf, i: int, n: int): int = skip_spaces_with_fuel(airlock_na
 extern fun parse_digits_sub_fuel_exhausted(b: !Buf, i: int, n: int, acc: int, has_digit: bool): int = "mac#anth_die_int"
 
 fun parse_digits_sub_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, i: int, n: int, acc: int, has_digit: bool): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, n) then (if has_digit then acc else 0)
     else let
       val c = buf_get(b, i)
@@ -209,4 +209,3 @@ in
     res
   end
 end
-

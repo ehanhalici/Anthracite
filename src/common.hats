@@ -2,6 +2,14 @@
 #define ANTHRACITE_COMMON_HATS
 
 #include "foundation/units.hats"
+staload "airlock.sats"
+
+(* Synthetic recursion budgets must not return partial results on exhaustion.
+   The indexed boolean preserves the decreasing-recursion proof in callers. *)
+fun recursion_fuel_available {n:nat} (fuel: int(n)): bool(n > 0) =
+  if fuel > 0 then true else let
+    val () = recursion_fuel_abort()
+  in false end
 
 fun iadd(a: int, b: int): int = a + b
 fun isub(a: int, b: int): int = a - b

@@ -75,7 +75,7 @@ extern fun find_kind_node_fuel_exhausted(d: !Doc, k: NodeKind, i: int, n: int): 
 fun find_kind_node_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, k: NodeKind, i: int, n: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ~1
     else if is_kind(doc_node_kind(d, i), k) then i
     else find_kind_node_with_fuel(recfuel - 1, d, k, iadd(i, 1), n)
@@ -89,7 +89,7 @@ extern fun find_heading_by_hashes_fuel_exhausted(d: !Doc, hcount: int, i: int, n
 fun find_heading_by_hashes_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, hcount: int, i: int, n: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ~1
     else let
       val k = doc_node_kind(d, i)
@@ -201,4 +201,3 @@ fun selftest_folding_model(): int = let
 in
   if ieq(p_ok, 1) andalso ieq(l_ok, 1) andalso ieq(d_ok, 1) andalso ieq(dt_ok, 1) andalso ieq(es_ok, 1) then 1 else 0
 end
-

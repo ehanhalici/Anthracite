@@ -128,7 +128,7 @@ fun math_char_to_sub(c: int): string =
 fun scan_alpha_end_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, en) then p
     else if is_latex_alpha(doc_byte(d, p)) then scan_alpha_end_with_fuel(recfuel - 1, d, iadd(p, 1), en)
     else p
@@ -140,7 +140,7 @@ fun scan_alpha_end(d: !Doc, p: int, en: int): int =
 fun math_skip_sp_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, en) then p
     else if is_math_space(doc_byte(d, p)) then math_skip_sp_with_fuel(recfuel - 1, d, iadd(p, 1), en)
     else p
@@ -152,7 +152,7 @@ fun math_skip_sp(d: !Doc, p: int, en: int): int =
 fun find_brace_close_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int, depth: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, en) then en
     else let
       val b = doc_byte(d, p)
@@ -171,7 +171,7 @@ fun find_brace_close(d: !Doc, p: int, en: int): int =
 fun convert_sup_run_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int, out: &Buf >> _
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, en) then ()
     else let
       val b = doc_byte(d, p)
@@ -200,7 +200,7 @@ fun convert_sup(d: !Doc, p: int, en: int, out: &Buf >> _): int =
 fun convert_sub_run_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int, out: &Buf >> _
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, en) then ()
     else let
       val b = doc_byte(d, p)

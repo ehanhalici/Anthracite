@@ -1,7 +1,7 @@
 extern fun gather_fuel_exhausted(d: !Doc, i: int, re: int, pred: Gather): int = "mac#anth_die_int"
 
 fun gather_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, re: int, pred: Gather): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, re) then i
     else if blank_line(d, i, re) then i
     else if is_gather(pred, GatherQuote) andalso not(is_quote(d, i, re)) then i
@@ -20,7 +20,7 @@ fun gather(d: !Doc, i: int, re: int, pred: Gather): int = gather_with_fuel(airlo
 extern fun fm_close_fuel_exhausted(d: !Doc, re: int, k: int): int = "mac#anth_die_int"
 
 fun fm_close_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, re: int, k: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(k, re) then re
     else if starts_at(d, skip_sp(d, k, re), re, "---") then let
       val e = at_end(d, k, re)
@@ -34,7 +34,7 @@ fun fm_close(d: !Doc, re: int, k: int): int = fm_close_with_fuel(airlock_nat(MAX
 extern fun fence_close_fuel_exhausted(d: !Doc, re: int, k: int): int = "mac#anth_die_int"
 
 fun fence_close_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, re: int, k: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(k, re) then re
     else if is_fence(d, k, re) then let
       val e = at_end(d, k, re)
@@ -163,7 +163,7 @@ end
 extern fun parse_blocks_fuel_exhausted(d: !Doc, i: int, re: int, depth: int): void = "mac#anth_die_void"
 
 fun parse_blocks_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, re: int, depth: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, re) then ()
     else if blank_line(d, i, re) then let
       val e = at_end(d, i, re)

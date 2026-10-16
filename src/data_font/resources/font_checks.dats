@@ -24,7 +24,7 @@ staload "data_font/resources/private/font_catalog.sats"
 extern fun atlas_cols_fuel_exhausted(f: !Font, c: int, w: int, x: int, y: int, row: int, a: int): int = "mac#anth_die_int"
 
 fun atlas_cols {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, c: int, w: int, x: int, y: int, row: int, a: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if c >= w then a
     else atlas_cols(recfuel - 1, f, c + 1, w, x, y, row, a + atlas_get(f, x + c, y + row))
   ) else atlas_cols_fuel_exhausted(f, c, w, x, y, row, a)
@@ -32,7 +32,7 @@ fun atlas_cols {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, c: in
 extern fun atlas_sum_fuel_exhausted(f: !Font, x: int, y: int, w: int, h: int, row: int, acc: int): int = "mac#anth_die_int"
 
 fun atlas_sum_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, x: int, y: int, w: int, h: int, row: int, acc: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if row >= h then acc
     else let
       val acc2 = atlas_cols(airlock_nat(MAX_REC_FUEL), f, 0, w, x, y, row, acc)

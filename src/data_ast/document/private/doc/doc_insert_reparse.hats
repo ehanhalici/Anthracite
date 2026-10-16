@@ -41,7 +41,7 @@ implement doc_insert_buf(d, src, n) =
 extern fun utf8_back_fuel_exhausted(d: !Doc, k: int, limit: int): int = "mac#anth_die_int"
 
 fun utf8_back {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, k: int, limit: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ile(k, 0) then 0
     else if ile(limit, 0) then k
     else let

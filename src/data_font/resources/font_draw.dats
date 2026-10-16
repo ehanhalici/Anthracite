@@ -102,7 +102,7 @@ end
 extern fun draw_scaled_loop_fuel_exhausted(f: !Font, r: !Rend, x0: int, y0: int, p: ptr, n: int, c: uint, i: int, pen: int, prev: int, snum: int, sden: int): int = "mac#anth_die_int"
 
 fun draw_scaled_loop_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, x0: int, y0: int, p: ptr, n: int, c: uint, i: int, pen: int, prev: int, snum: int, sden: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then pen - x0
     else let
       var j: int = i
@@ -124,7 +124,7 @@ implement font_legacy_draw_scaled(f, r, x, y, p, n, c, snum, sden) =
 extern fun width_scaled_loop_fuel_exhausted(f: !Font, r: !Rend, p: ptr, n: int, i: int, pen: int, prev: int, snum: int, sden: int): int = "mac#anth_die_int"
 
 fun width_scaled_loop_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, p: ptr, n: int, i: int, pen: int, prev: int, snum: int, sden: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then pen
     else let
       var j: int = i

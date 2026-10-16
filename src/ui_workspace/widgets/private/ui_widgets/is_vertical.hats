@@ -41,7 +41,7 @@ end
 extern fun arrow_right_fuel_exhausted(r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void = "mac#anth_die_void"
 
 fun arrow_right_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(i, steps) then let
       val h = isub(sz, imul(i, 2))
       val () = if igt(h, 0) then rend_rect(r, iadd(x, i), iadd(y, i), 1, h, col) else ()
@@ -56,7 +56,7 @@ fun draw_arrow_right(r: !Rend, x: int, y: int, sz: int, col: uint): void =
 extern fun arrow_down_fuel_exhausted(r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void = "mac#anth_die_void"
 
 fun arrow_down_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(i, steps) then let
       val w = isub(sz, imul(i, 2))
       val () = if igt(w, 0) then rend_rect(r, iadd(x, i), iadd(y, i), w, 1, col) else ()
@@ -71,7 +71,7 @@ fun draw_arrow_down(r: !Rend, x: int, y: int, sz: int, col: uint): void =
 extern fun arrow_left_fuel_exhausted(r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void = "mac#anth_die_void"
 
 fun arrow_left_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(i, steps) then let
       val h = isub(sz, imul(i, 2))
       val () = if igt(h, 0) then rend_rect(r, isub(iadd(x, sz), i), iadd(y, i), 1, h, col) else ()
@@ -86,7 +86,7 @@ fun draw_arrow_left(r: !Rend, x: int, y: int, sz: int, col: uint): void =
 extern fun arrow_up_fuel_exhausted(r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void = "mac#anth_die_void"
 
 fun arrow_up_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(i, steps) then let
       val w = isub(sz, imul(i, 2))
       val () = if igt(w, 0) then rend_rect(r, iadd(x, i), isub(iadd(y, sz), i), w, 1, col) else ()
@@ -110,7 +110,7 @@ end
 extern fun close_icon_fuel_exhausted(r: !Rend, x: int, y: int, sz: int, col: uint, i: int): void = "mac#anth_die_void"
 
 fun close_icon_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), r: !Rend, x: int, y: int, sz: int, col: uint, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(i, sz) then let
       val () = rend_rect(r, iadd(x, i), iadd(y, i), 1, 1, col)
       val () = rend_rect(r, iadd(x, isub(sz, i)), iadd(y, i), 1, 1, col)
@@ -198,4 +198,3 @@ implement ui_badge(f, r, x, y, s, bg_col, text_col) = let
   val () = draw_s(f, r, iadd(x, 6), iadd(y, 1), s, text_col)
 in
 end
-

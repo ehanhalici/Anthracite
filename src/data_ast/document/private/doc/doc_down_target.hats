@@ -39,7 +39,7 @@ fun doc_char_class(b: int): CharClass =
 extern fun blank_back_fuel_exhausted(d: !Doc, i: int): int = "mac#anth_die_int"
 
 fun blank_back_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i > 0 andalso is_class(doc_char_class(doc_byte(d, isub(i, 1))), ClassBlank) then
       blank_back_with_fuel(recfuel - 1, d, utf8_prev(d, i))
     else i
@@ -48,7 +48,7 @@ fun blank_back_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !D
 extern fun class_back_fuel_exhausted(d: !Doc, i: int, cls: CharClass): int = "mac#anth_die_int"
 
 fun class_back_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, cls: CharClass): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i > 0 andalso is_class(doc_char_class(doc_byte(d, isub(i, 1))), cls) then
       class_back_with_fuel(recfuel - 1, d, utf8_prev(d, i), cls)
     else i
@@ -65,7 +65,7 @@ fun word_left_pos(d: !Doc, cur: int): int =
 extern fun skip_class_run_fuel_exhausted(d: !Doc, i: int, len: int, cls: CharClass): int = "mac#anth_die_int"
 
 fun skip_class_run_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, len: int, cls: CharClass): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(i, len) andalso is_class(doc_char_class(doc_byte(d, i)), cls) then skip_class_run_with_fuel(recfuel - 1, d, utf8_next(d, i), len, cls)
     else i
   ) else skip_class_run_fuel_exhausted(d, i, len, cls)
@@ -75,7 +75,7 @@ fun skip_class_run(d: !Doc, i: int, len: int, cls: CharClass): int = skip_class_
 extern fun skip_blank_run_fuel_exhausted(d: !Doc, i: int, len: int): int = "mac#anth_die_int"
 
 fun skip_blank_run_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, len: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(i, len) andalso is_class(doc_char_class(doc_byte(d, i)), ClassBlank) andalso ine(doc_byte(d, i), CHAR_LF) then skip_blank_run_with_fuel(recfuel - 1, d, utf8_next(d, i), len)
     else i
   ) else skip_blank_run_fuel_exhausted(d, i, len)
@@ -161,7 +161,7 @@ implement doc_doc_end_select(d) = doc_set_caret_extend(d, d_len(d))
 extern fun page_up_move_fuel_exhausted(d: !Doc, k: int, nlines: int): void = "mac#anth_die_void"
 
 fun page_up_move_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, k: int, nlines: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if k < nlines then let
       val () = doc_up_move(d)
     in
@@ -174,7 +174,7 @@ implement doc_page_up_move(d, nlines) = page_up_move_with_fuel(airlock_nat(MAX_R
 extern fun page_up_select_fuel_exhausted(d: !Doc, k: int, nlines: int): void = "mac#anth_die_void"
 
 fun page_up_select_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, k: int, nlines: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if k < nlines then let
       val () = doc_up_select(d)
     in
@@ -187,7 +187,7 @@ implement doc_page_up_select(d, nlines) = page_up_select_with_fuel(airlock_nat(M
 extern fun page_down_move_fuel_exhausted(d: !Doc, k: int, nlines: int): void = "mac#anth_die_void"
 
 fun page_down_move_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, k: int, nlines: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if k < nlines then let
       val () = doc_down_move(d)
     in

@@ -51,7 +51,7 @@ fun draw_search_row(f: !Font, r: !Rend, hits: !Buf, hmeta: !Buf, row: int, scrol
 extern fun search_rows_fuel_exhausted(f: !Font, r: !Rend, s: &App_record, row: int, hn: int): void = "mac#anth_die_void"
 
 fun search_rows_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, s: &App_record, row: int, hn: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(row, hn) andalso ilt(isub(row, s.hscroll), 30) then let
       val () = if ige(row, s.hscroll) then draw_search_row(f, r, s.hits, s.hmeta, row, s.hscroll) else ()
     in
@@ -103,7 +103,7 @@ extern fun file_rows_fuel_exhausted(f: !Font, r: !Rend, s: &App_record, viewrow:
 fun file_rows_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), f: !Font, r: !Rend, s: &App_record, viewrow: int, limit: int, sidew: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(viewrow, limit) then let
       val source = tree_source_for_view(s, iadd(s.treescroll, viewrow))
     in
@@ -163,7 +163,7 @@ end
 extern fun font_rows_fuel_exhausted(f: !Font, r: !Rend, s: &App_record, fi: int, fcnt: int): void = "mac#anth_die_void"
 
 fun font_rows_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, s: &App_record, fi: int, fcnt: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(fi, fcnt) andalso ilt(fi, 12) then let
       val () = draw_config_font_row(f, r, s, fi)
     in
@@ -197,4 +197,3 @@ fun draw_side_title(f: !Font, r: !Rend, sd: Sidebar): void = let
   val () = draw_s(f, r, 12, 44, side_title(sd), col_heading())
 in
 end
-

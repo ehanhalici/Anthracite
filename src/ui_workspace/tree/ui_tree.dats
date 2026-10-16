@@ -40,7 +40,7 @@ fun tree_add_if(meta: &Buf >> _, text: &Buf >> _, n: &int >> _, depth: int, isdi
 extern fun scan_step_fuel_exhausted(dp: ptr, path: !Buf, depth: int, meta: &Buf >> _, text: &Buf >> _, n: &int >> _, name: &Buf >> _, isdir: &int >> _): void = "mac#anth_die_void"
 
 fun scan_dir_impl {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), path: !Buf, depth: int, meta: &Buf >> _, text: &Buf >> _, n: &int >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if igt(depth, MAX_TREE_DEPTH) orelse ige(n, MAX_TREE_ITEMS) then let
       val () = buffer_preserve(meta)
     in
@@ -60,7 +60,7 @@ fun scan_dir_impl {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), path: !Buf, 
     buffer_preserve(text)
   end
 and scan_open {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dp: ptr, path: !Buf, depth: int, meta: &Buf >> _, text: &Buf >> _, n: &int >> _, name: &Buf >> _, isdir: &int >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if dp = 0 then let
       val () = buffer_preserve(meta)
       val () = buffer_preserve(text)
@@ -80,7 +80,7 @@ and scan_open {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dp: ptr, path: !
     buffer_preserve(name)
   end
 and scan_step {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dp: ptr, path: !Buf, depth: int, meta: &Buf >> _, text: &Buf >> _, n: &int >> _, name: &Buf >> _, isdir: &int >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if dir_next_buf(dp, name, 255, isdir) = 0 then let
       val () = buffer_preserve(meta)
       val () = buffer_preserve(text)
@@ -94,7 +94,7 @@ and scan_step {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dp: ptr, path: !
     end
   ) else scan_step_fuel_exhausted(dp, path, depth, meta, text, n, name, isdir)
 and scan_entry {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), path: !Buf, depth: int, meta: &Buf >> _, text: &Buf >> _, n: &int >> _, name: &Buf >> _, isdir: &int >> _): void =
-  if recfuel > 0 then let
+  if recursion_fuel_available(recfuel) then let
     val ns = buf_cstr(name)
     val () = buf_set_len(name, c_strlen(ns))
     val skip = scan_skip(name)
@@ -113,7 +113,7 @@ and scan_entry {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), path: !Buf, dep
     buffer_preserve(name)
   end
 and scan_maybe {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), child: !Buf, depth: int, meta: &Buf >> _, text: &Buf >> _, n: &int >> _, go: Toggle): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if is_on(go) then scan_dir_impl(recfuel - 1, child, depth, meta, text, n)
     else let
       val () = buffer_preserve(meta)

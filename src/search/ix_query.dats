@@ -41,21 +41,21 @@ in
 end
 
 fun skip_ws_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), q: !Buf, p: int, n: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(p, n) andalso ile(buf_get(q, p), CHAR_SPACE) then
       skip_ws_with_fuel(recfuel - 1, q, iadd(p, 1), n)
     else p
   ) else p
 
 fun scan_quote_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), q: !Buf, p: int, n: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(p, n) andalso ine(buf_get(q, p), CHAR_QUOTE) then
       scan_quote_with_fuel(recfuel - 1, q, iadd(p, 1), n)
     else p
   ) else p
 
 fun scan_word_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), q: !Buf, p: int, n: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(p, n) andalso igt(buf_get(q, p), CHAR_SPACE) then
       scan_word_with_fuel(recfuel - 1, q, iadd(p, 1), n)
     else p
@@ -129,7 +129,7 @@ fun parse_term(q: !Buf,p: int,n: int,pool: &Buf >> _,terms: &Buf >> _,omap: &Buf
   else parse_unquoted_term(q,p,n,pool,terms,omap)
 
 fun parse_loop_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), q: !Buf, p: int, n: int, cnt: int, pool: &Buf >> _, terms: &Buf >> _, omap: &Buf >> _): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(cnt, MAX_QUERY_TERMS) orelse ige(p, n) then cnt
     else let
       val p0 = skip_ws_with_fuel(airlock_nat(MAX_REC_FUEL), q, p, n)

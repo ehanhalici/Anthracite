@@ -182,7 +182,7 @@ fun eqb(d: !Doc, i: int, b: int): int =
 extern fun text_covers_fuel_exhausted(d: !Doc, i: int, n: int, p: int): int = "mac#anth_die_int"
 
 fun text_covers_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, n: int, p: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, n) then 0
     else if is_kind(doc_node_kind(d, i), KText) andalso ile(doc_node_start(d, i), p) andalso ilt(p, doc_node_end(d, i)) then 1
     else text_covers_with_fuel(recfuel - 1, d, iadd(i, 1), n, p)
@@ -194,9 +194,8 @@ fun text_covers(d: !Doc, p: int): int =
 extern fun span_covered_fuel_exhausted(d: !Doc, p: int, n: int): int = "mac#anth_die_int"
 
 fun span_covered_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, p: int, n: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, n) then 1
     else if ieq(text_covers(d, p), 0) then 0
     else span_covered_with_fuel(recfuel - 1, d, iadd(p, 1), n)
   ) else span_covered_fuel_exhausted(d, p, n)
-

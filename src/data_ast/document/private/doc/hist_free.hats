@@ -1,7 +1,7 @@
 extern fun hist_free_fuel_exhausted(h: Hist): void = "mac#anth_die_void"
 
 fun hist_free_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), h: Hist): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ h of
     | ~HNil() => ()
     | ~HCons(b, _, rest) => let
@@ -16,7 +16,7 @@ fun hist_free(h: Hist): void = hist_free_with_fuel(airlock_nat(MAX_REC_FUEL), h)
 extern fun hist_drop_oldest_fuel_exhausted(h: Hist): Hist = "mac#anth_die_box"
 
 fun hist_drop_oldest_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), h: Hist): Hist =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ h of
     | ~HNil() => HNil()
     | ~HCons(b, c, rest) =>
@@ -35,7 +35,7 @@ fun hist_drop_oldest(h: Hist): Hist = hist_drop_oldest_with_fuel(airlock_nat(MAX
 extern fun hist_len_fuel_exhausted(h: !Hist): int = "mac#anth_die_int"
 
 fun hist_len_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), h: !Hist): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ h of
     | HNil() => 0
     | HCons(_, _, rest) => iadd(1, hist_len_with_fuel(recfuel - 1, rest))
@@ -196,9 +196,8 @@ extern fun fold_has_fuel_exhausted(d: !Doc, off: int, i: int, n: int): bool = "m
 fun fold_has_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, off: int, i: int, n: int
 ): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then false
     else if ieq(fold_get(d, i), off) then true
     else fold_has_with_fuel(recfuel - 1, d, off, iadd(i, 1), n)
   ) else fold_has_fuel_exhausted(d, off, i, n)
-

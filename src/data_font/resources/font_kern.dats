@@ -26,7 +26,7 @@ fun u_land(a: int, m: int): int = anth_iand(a, m)
 extern fun kern_at_fuel_exhausted(f: !Font, off: int, left: int, right: int, i: int, p: int, nt: int): int = "mac#anth_die_int"
 
 fun kern_at_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, off: int, left: int, right: int, i: int, p: int, nt: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= nt orelse i > 6 then 0
     else let
       val length = file_u16(f, p + 2)

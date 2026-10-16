@@ -57,7 +57,7 @@ extern fun doc_find_child_fuel_exhausted(d: !Doc, c: int, kind: NodeKind): int =
 fun doc_find_child_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, c: int, kind: NodeKind
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if c < 0 orelse c >= d_nnodes(d) then ~1
     else if is_kind(doc_node_kind(d, c), kind) then c
     else doc_find_child_with_fuel(recfuel - 1, d, doc_node_next_sib(d, c), kind)
@@ -160,7 +160,7 @@ end
 extern fun count_nl_fuel_exhausted(d: !Doc, p: int, en: int, lines: int): int = "mac#anth_die_int"
 
 fun count_nl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, p: int, en: int, lines: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, en) then lines
     else count_nl_with_fuel(recfuel - 1, d, iadd(p, 1), en, (if ieq(doc_byte(d, p), CHAR_LF) then iadd(lines, 1) else lines))
   ) else count_nl_fuel_exhausted(d, p, en, lines)
@@ -179,7 +179,7 @@ extern fun clear_flags_m_fuel_exhausted(d: !Doc, i: int, n: int): void = "mac#an
 fun clear_flags_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, i: int, n: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ()
     else let
       val fl = doc_node_flags(d, i)

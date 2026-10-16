@@ -74,7 +74,7 @@ end
 extern fun draw_nodes_impl_fuel_exhausted(f: !Font, r: !Rend, d: !Doc, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode): void = "mac#anth_die_void"
 
 fun draw_nodes_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, doc_nnodes(d)) then ()
     else let
       val y = doc_node_y(d, i)
@@ -183,7 +183,7 @@ fun draw_sel_rows_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, ls: int, le: int,
   a: int, b: int, colx: int, base_sy: int, lh: int, wc: int, row: int, rows: int, scratch: &Buf >> _
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(row, rows) then ()
     else let
       val rst = (if wc > 0 then doc_advance_cps(d, ls, le, imul(row, wc)) else ls) : int
@@ -210,4 +210,3 @@ in
     else draw_sel_rows_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, d, ls, le, a, b, colx, sy, lh, wc, 0, rows, scratch)
   end else ()
 end
-

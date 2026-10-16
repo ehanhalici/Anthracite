@@ -18,7 +18,7 @@ end
 
 
 fun tab_pane_del_at_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, i: int, n: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i < isub(n, 1) then let
       val () = buf_set(b, i, buf_get(b, i + 1))
     in
@@ -201,4 +201,3 @@ fun place_context(s: &App_record >> _, hit: DownHit): void = let
 in
   s.menuy := hit.y
 end
-

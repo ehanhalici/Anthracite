@@ -19,8 +19,10 @@ fun airlock_span(lo: int, hi: int): [r:nat] int(r) = "mac#anth_airlock_span"
 (* Postiats 0.4.2 declares llint -> int but omits its C implementation.
    Only numeric representation crosses here; overflow policy stays in ATS. *)
 fun airlock_i32(value: llint): int = "mac#anth_airlock_i32"
+fun recursion_fuel_abort(): void = "mac#anth_die_void"
 
 (* Recursion fuel. Every self-recursive function spends one unit per call.
-   2^28 covers any input this program can hold; running out aborts the
-   process (anth_airlock_die_any) instead of returning a made-up value. *)
+   2^28 is an explicit safety budget, not an input-size proof. Running out aborts the
+   process through recursion_fuel_available instead of returning partial data.
+   This is not a semantic loop length: natural countdowns may end at zero. *)
 macdef MAX_REC_FUEL = 268435456

@@ -165,7 +165,7 @@ extern fun resize_row_fuel_exhausted(src: !Buf, dst: &Buf >> _, sw: int, sh: int
 fun resize_row_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), src: !Buf, dst: &Buf >> _, sw: int, sh: int, tw: int, th: int, ty: int, tx: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(tx, tw) then let
       val sx = idiv(imul(tx, sw), tw)
       val sy = idiv(imul(ty, sh), th)
@@ -181,7 +181,7 @@ extern fun resize_rows_fuel_exhausted(src: !Buf, dst: &Buf >> _, sw: int, sh: in
 fun resize_rows_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), src: !Buf, dst: &Buf >> _, sw: int, sh: int, tw: int, th: int, ty: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(ty, th) then let
       val () = resize_row_with_fuel(airlock_nat(MAX_REC_FUEL), src, dst, sw, sh, tw, th, ty, 0)
     in

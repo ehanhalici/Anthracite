@@ -30,7 +30,7 @@ end
 extern fun cache_free_fuel_exhausted(c: Cache): void = "mac#anth_die_void"
 
 fun cache_free_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: Cache): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ c of
     | ~CNil() => ()
     | ~CCons(p, t, _, _, rest) => let
@@ -61,7 +61,7 @@ in
 end
 
 fun cache_lookup_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: Cache, path: !Buf, tex: &uint >> _, w: &int >> _, h: &int >> _, hit: &Toggle >> _): Cache =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ c of
     | ~CNil() => let
         val () = hit := Off
@@ -96,7 +96,7 @@ in @(document,CCons(p,t,w,h,rest)) end
 fun cache_take_embed_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), c: Cache, path: !Buf, cur_mt: int
 ): @(Option_vt(Doc), Cache) =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ c of
     | ~CNil() => @(None_vt(), CNil())
     | ~CCons(p, t, iw, ih, rest) =>
@@ -120,7 +120,7 @@ fun cache_take_embed(c: Cache, path: !Buf, cur_mt: int): @(Option_vt(Doc), Cache
   cache_take_embed_with_fuel(airlock_nat(MAX_REC_FUEL), c, path, cur_mt)
 
 fun count_embeds_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: !Cache, acc: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ c of
     | CNil() => acc
     | CCons(_, _, _, _, rest) => count_embeds_with_fuel(recfuel - 1, rest, acc)
@@ -128,7 +128,7 @@ fun count_embeds_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: 
   ) else acc
 
 fun trim_embeds_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: Cache, keep: int, cur: &int >> _): Cache =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ c of
     | ~CNil() => CNil()
     | ~CCons(p, t, iw, ih, rest) =>
@@ -184,7 +184,7 @@ fun take_advance(d: !Doc, mode: PathScan, i0: int, b0: int, dst: &Buf >> _): @(P
 extern fun take_path_fuel_exhausted(d: !Doc, mode: PathScan, i0: int, b0: int, dst: &Buf >> _): void = "mac#anth_die_void"
 
 fun take_path_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, mode: PathScan, i0: int, b0: int, dst: &Buf >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(i0, b0) then let
       val nxt = take_advance(d, mode, i0, b0, dst)
     in

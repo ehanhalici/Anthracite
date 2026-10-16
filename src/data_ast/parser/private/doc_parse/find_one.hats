@@ -1,7 +1,7 @@
 extern fun find_one_fuel_exhausted(d: !Doc, i: int, re: int, a: int): int = "mac#anth_die_int"
 
 fun find_one_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, re: int, a: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, re) then ~1
     else if ieq(doc_byte(d, i), CHAR_LF) then ~1
     else if ieq(doc_byte(d, i), a) then i
@@ -20,7 +20,7 @@ fun special_at(d: !Doc, i: int, re: int): bool =
 extern fun text_nxt_fuel_exhausted(d: !Doc, re: int, k: int): int = "mac#anth_die_int"
 
 fun text_nxt_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, re: int, k: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(k, re) then k
     else if special_at(d, k, re) orelse ieq(doc_byte(d, k), CHAR_LF) then k
     else text_nxt_with_fuel(recfuel - 1, d, re, iadd(k, 1))
@@ -31,7 +31,7 @@ fun text_nxt(d: !Doc, re: int, k: int): int = text_nxt_with_fuel(airlock_nat(MAX
 extern fun tag_end_fuel_exhausted(d: !Doc, i: int, re: int): int = "mac#anth_die_int"
 
 fun tag_end_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, re: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, re) then i
     else let
       val c = doc_byte(d, i)
@@ -168,7 +168,7 @@ fun emit_construct(d: !Doc, i: int, re: int, depth: int): int =
 extern fun emit_inlines_fuel_exhausted(d: !Doc, i: int, re: int, depth: int): void = "mac#anth_die_void"
 
 fun emit_inlines_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, re: int, depth: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, re) then ()
     else if ieq(doc_byte(d, i), CHAR_LF) then emit_inlines_with_fuel(recfuel - 1, d, iadd(i, 1), re, depth)
     else let
@@ -180,7 +180,7 @@ fun emit_inlines_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: 
   ) else emit_inlines_fuel_exhausted(d, i, re, depth)
 
 and emit_text_or {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, re: int, depth: int): void =
-  if recfuel > 0 then let
+  if recursion_fuel_available(recfuel) then let
     val e = text_nxt(d, re, iadd(i, 1))
     val () = if igt(e, i) then node_append(d, KText, i, e, depth, 0) else ()
   in
@@ -197,4 +197,3 @@ fun gather_code(g: Gather): int = case+ g of
   | GatherTable() => 2
 
 fun is_gather(a: Gather, b: Gather): bool = ieq(gather_code(a), gather_code(b))
-

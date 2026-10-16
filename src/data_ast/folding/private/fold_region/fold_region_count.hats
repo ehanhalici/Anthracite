@@ -34,7 +34,7 @@ extern fun fold_region_of_line_fuel_exhausted(regions: !Buf, line: int, i: int, 
 fun fold_region_of_line_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), regions: !Buf, line: int, i: int, n: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ~1
     else if ieq(fold_region_owner(regions, i), line) then i
     else fold_region_of_line_with_fuel(recfuel - 1, regions, line, iadd(i, 1), n)
@@ -48,7 +48,7 @@ extern fun fold_region_find_by_offset_fuel_exhausted(regions: !Buf, off: int, i:
 fun fold_region_find_by_offset_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), regions: !Buf, off: int, i: int, n: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ~1
     else if ieq(fold_region_offset(regions, i), off) then i
     else fold_region_find_by_offset_with_fuel(recfuel - 1, regions, off, iadd(i, 1), n)
@@ -60,7 +60,7 @@ implement fold_region_find_by_offset(regions, off) =
 fun line_skip_ws_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if p >= en then en
     else let
       val b = doc_byte(d, p)
@@ -73,7 +73,7 @@ fun line_skip_ws_with_fuel {recfuel:nat} .<recfuel>. (
 fun line_visual_indent_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int, col: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if p >= en then col
     else let
       val b = doc_byte(d, p)
@@ -87,7 +87,7 @@ fun line_visual_indent_with_fuel {recfuel:nat} .<recfuel>. (
 fun line_is_empty_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int
 ): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if p >= en then true
     else let
       val b = doc_byte(d, p)
@@ -101,7 +101,7 @@ fun line_is_empty_with_fuel {recfuel:nat} .<recfuel>. (
 fun line_heading_rank_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int, hashes: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if p >= en then (if igt(hashes, 0) andalso ile(hashes, MAX_HEADING_LEVEL) then hashes else 0)
     else let
       val b = doc_byte(d, p)
@@ -122,7 +122,7 @@ end
 fun mark_delim_range_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), delim_buf: !Buf, line: int, finish: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if line >= finish then ()
     else let
       val () = buf_set(delim_buf, line, 1)
@@ -159,7 +159,7 @@ extern fun collect_delimited_m_fuel_exhausted(d: !Doc, i: int, n: int, regions: 
 fun collect_delimited_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, i: int, n: int, regions: &Buf >> _, delim_buf: !Buf
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ()
     else let
       val () = collect_one_delimited(d, i, regions, delim_buf)
@@ -208,4 +208,3 @@ fun stack_push(
   val () = buf_set_len(stk, nbytes)
 in
 end
-

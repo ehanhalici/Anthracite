@@ -16,7 +16,7 @@ fun is_restart_marker(m: int): bool =
   ige(m, JPG_MARK_RST0) andalso ile(m, JPG_MARK_RST7)
 
 fun reset_dc_preds {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), meta: !Buf, ncomp: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, ncomp) then ()
     else let
       val () = comp_set(meta, i, COMP_DC_PRED, 0)
@@ -105,7 +105,7 @@ in
 end
 
 fun decode_block_ac_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, nsrc: int, hac: !Buf, fab: !Buf, dqt: !Buf, ha: int, tq: int, data: !Buf, dbase: int, k: int, bst: &JpgBits >> _): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(k, 64) then true
     else let
       val res = decode_block_ac_step(src, nsrc, hac, fab, dqt, ha, tq, data, dbase, k, bst)
@@ -219,7 +219,7 @@ in
 end
 
 fun prog_ac_first_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, nsrc: int, hac: !Buf, fab: !Buf, ha: int, sl: int, se: int, data: !Buf, dbase: int, k: int, bst: &JpgBits >> _, sst: &ScanState >> _): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if igt(k, se) then true
     else let
       val res = prog_ac_first_step(src, nsrc, hac, fab, ha, sl, data, dbase, k, bst, sst)
@@ -243,7 +243,7 @@ in
 end
 
 fun refine_block_eob {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, nsrc: int, bst: &JpgBits >> _, data: !Buf, dbase: int, bit: int, k: int, se: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if igt(k, se) then ()
     else let
       val () = refine_coeff(src, nsrc, bst, data, dbase, dezigzag(k), bit)
@@ -253,7 +253,7 @@ fun refine_block_eob {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf
   ) else ()
 
 fun refine_advance_run {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, nsrc: int, bst: &JpgBits >> _, data: !Buf, dbase: int, bit: int, s: int, r: int, k: int, se: int): AdvanceRes =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if igt(k, se) then @{k= k, done= true}
     else let
       val zig = dezigzag(k)
@@ -307,7 +307,7 @@ fun prog_ac_refine_loop {recfuel:nat} .<recfuel>. (
   bit: int, se: int, data: !Buf, dbase: int, k: int,
   bst: &JpgBits >> _, sst: &ScanState >> _
 ): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if igt(k, se) then true
     else let
       val rs = huff_decode(src, nsrc, hac, ha, bst)

@@ -8,7 +8,7 @@ fun put_color(dst: &Buf >> _, raw: !Buf, k: PngColor, p: int): void = case+ k of
 extern fun expand_fuel_exhausted(raw: !Buf, dst: &Buf >> _, w: int, h: int, kind: PngColor, y: int, x: int): void = "mac#anth_die_void"
 
 fun expand_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), raw: !Buf, dst: &Buf >> _, w: int, h: int, kind: PngColor, y: int, x: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(y, h) then ()
     else if ige(x, w) then expand_with_fuel(recfuel - 1, raw, dst, w, h, kind, iadd(y, 1), 0)
     else let
@@ -85,7 +85,7 @@ fun png_tag(src: !Buf, p: int, ln: int, data: int, nxt: int): PngTag =
 extern fun png_chunks_fuel_exhausted(src: !Buf, idat: &Buf >> _, p: int, w: &int >> _, h: &int >> _, kind: &int >> _, depth: &int >> _, inter: &int >> _): int = "mac#anth_die_int"
 
 fun png_chunks_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, idat: &Buf >> _, p: int, w: &int >> _, h: &int >> _, kind: &int >> _, depth: &int >> _, inter: &int >> _): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(iadd(p, 8), buf_len(src)) then 0
     else let
       val ln = be32(src, p)
@@ -198,4 +198,3 @@ fun png_byte(i: int): int =
   0
 
 extern fun push_png_fuel_exhausted(b: &Buf >> _, i: int): void = "mac#anth_die_void"
-

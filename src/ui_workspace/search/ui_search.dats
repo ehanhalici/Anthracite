@@ -56,7 +56,7 @@ implement search_dir(path, q, hits, hmeta, hn, depth) =
 extern fun hit_head_fuel_exhausted(hmeta: !Buf, r: int): int = "mac#anth_die_int"
 
 fun hit_head_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), hmeta: !Buf, r: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(r, 0) then ~1
     else if ilt(buf_get32(hmeta, imul(r, 4)), 0) then r
     else hit_head_with_fuel(recfuel - 1, hmeta, isub(r, 1))

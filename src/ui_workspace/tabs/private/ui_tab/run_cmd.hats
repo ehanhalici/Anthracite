@@ -7,7 +7,7 @@ end
 extern fun tabs_cmd_impl_fuel_exhausted(ts: Tabs, idx: int, cmd: Cmd): Tabs = "mac#anth_die_box"
 
 fun tabs_cmd_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, cmd: Cmd): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) => let
@@ -24,7 +24,7 @@ implement tabs_cmd(ts, idx, cmd) = tabs_cmd_impl(ts, idx, cmd)
 extern fun tabs_ins_impl_fuel_exhausted(ts: Tabs, idx: int, p: ptr, n: int): Tabs = "mac#anth_die_box"
 
 fun tabs_ins_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, p: ptr, n: int): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) => let
@@ -43,7 +43,7 @@ implement tabs_ins_buf(ts, idx, b, n) = tabs_ins(ts, idx, buf_ptr(b), n)
 extern fun tabs_scroll_impl_fuel_exhausted(ts: Tabs, idx: int, dv: int, lim: int): Tabs = "mac#anth_die_box"
 
 fun tabs_scroll_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, dv: int, lim: int): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) => let
@@ -87,7 +87,7 @@ fun sync_vfs_one(doc: !Doc, path: !Buf, go: Toggle): void =
 extern fun tabs_sync_vfs_impl_fuel_exhausted(ts: !Tabs, idx: int): void = "mac#anth_die_void"
 
 fun tabs_sync_vfs_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, idx: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | @TNil() => fold@(ts)
     | @TCons(doc, path, title, sc, rest) => let
@@ -106,7 +106,7 @@ implement tabs_sync_vfs(ts, idx) = tabs_sync_vfs_impl(ts, idx)
 extern fun tabs_save_all_physical_impl_fuel_exhausted(ts: !Tabs): void = "mac#anth_die_void"
 
 fun tabs_save_all_physical_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | @TNil() => fold@(ts)
     | @TCons(doc, path, title, sc, rest) => let
@@ -125,7 +125,7 @@ implement tabs_save_all_physical(ts) = tabs_save_all_physical_impl(ts)
 extern fun tabs_ensure_paths_impl_fuel_exhausted(ts: Tabs, vault: !Buf): Tabs = "mac#anth_die_box"
 
 fun tabs_ensure_paths_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, vault: !Buf): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) => let
@@ -154,7 +154,7 @@ in
 end
 
 fun tabs_copy_impl {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, idx: int, dst: &Buf >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | @TNil() => fold@(ts)
     | @TCons(doc, path, title, sc, rest) => let
@@ -167,7 +167,7 @@ fun tabs_copy_impl {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, 
       end
   ) else buffer_preserve(dst)
 and copy_arm {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), stop: Toggle, doc: !Doc, rest: !Tabs, idx: int, dst: &Buf >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if is_on(stop) then copy_here(doc, dst) else tabs_copy_impl(recfuel - 1, rest, isub(idx, 1), dst)
   ) else buffer_preserve(dst)
 
@@ -210,4 +210,3 @@ implement tabs_open(ts, path) =
       ts
     end
   end
-

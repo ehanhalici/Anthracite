@@ -1,7 +1,7 @@
 extern fun clear_node_fuel_exhausted(ts: Tabs, idx: int): Tabs = "mac#anth_die_box"
 
 fun clear_node_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) => let
@@ -204,4 +204,3 @@ fun tab_select_close_or_new(s: &App_record >> _, cmd: Cmd, ts_inter: !Tabs): voi
 in
   save_app_session(s)
 end
-

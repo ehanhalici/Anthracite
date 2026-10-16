@@ -14,7 +14,9 @@ alt sistem rehberinden ve `.sats` sözleşmesinden okunur.
   işletim sistemi ve GPU güven sınırına dahildir. JPEG algoritması ATS2 içindedir;
   [C stb](../vendor/stb/README.md) yalnız test orakılıdır, üretim yedeği değildir.
 - Sonlanma metriği azalan çağrıları doğrular; tek başına yığın taşmasını veya
-  algoritmik doğruluğu kanıtlamaz. Mevcut sessiz yakıt tükenmeleri BUG-003'tedir.
+  algoritmik doğruluğu kanıtlamaz. Yapay `recfuel` bütçeleri
+  `recursion_fuel_available` üzerinden denetlenir ve tükenince abort edilir
+  (BUG-003 çözüldü); doğal sayaçların sıfırda normal bitmesi farklı bir politikadır.
 
 ## Okunabilirlik ve modüller
 

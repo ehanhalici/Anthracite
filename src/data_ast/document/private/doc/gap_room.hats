@@ -1,7 +1,7 @@
 extern fun gap_room_fuel_exhausted(d: !Doc, n: int): void = "mac#anth_die_void"
 
 fun gap_room_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, n: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
   let
     val lo = d_lo(d)
     val hi = d_hi(d)
@@ -101,7 +101,7 @@ fun gap_byte_at(gap: !Buf, lo: int, hi: int, i: int): int =
 extern fun rebuild_scan_fuel_exhausted(lines: &Buf >> Buf, gap: !Buf, lo: int, hi: int, n: int, i: int, ln: int): int = "mac#anth_die_int"
 
 fun rebuild_scan_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), lines: &Buf >> Buf, gap: !Buf, lo: int, hi: int, n: int, i: int, ln: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, n) then ln
     else if ieq(gap_byte_at(gap, lo, hi, i), 10) then let
       val () = store_line_start(lines, ln, iadd(i, 1))
@@ -130,7 +130,7 @@ fun rebuild_lines(d: !Doc): void =
 extern fun line_bsearch_fuel_exhausted(d: !Doc, off: int, lo: int, hi: int, best: int): int = "mac#anth_die_int"
 
 fun line_bsearch_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, off: int, lo: int, hi: int, best: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if igt(lo, hi) then best
     else let
       val mid = iadd(lo, idiv(isub(hi, lo), 2))
@@ -173,7 +173,7 @@ extern fun find_keep_fuel_exhausted(d: !Doc, at: int, cur: int, n: int): int = "
 fun find_keep_lines_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, at: int, cur: int, n: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(cur, n) then n
     else let
       val st = doc_line_start(d, cur)
@@ -188,7 +188,7 @@ extern fun find_tail_fuel_exhausted(d: !Doc, max_del: int, cur: int, n: int): in
 fun find_tail_line_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, max_del: int, cur: int, n: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(cur, n) then n
     else let
       val st = doc_line_start(d, cur)
@@ -197,4 +197,3 @@ fun find_tail_line_with_fuel {recfuel:nat} .<recfuel>. (
       else cur
     end
   ) else find_tail_fuel_exhausted(d, max_del, cur, n)
-

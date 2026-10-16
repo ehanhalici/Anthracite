@@ -90,7 +90,7 @@ fun iand(a: int, n: int): int = anth_iand(a, n)
 extern fun ast_style_fuel_exhausted(d: !Doc, cur: int, acc: int): int = "mac#anth_die_int"
 
 fun ast_style_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, cur: int, acc: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if cur < 0 then acc
     else let
       val k = doc_node_kind(d, cur)
@@ -190,11 +190,10 @@ fun node_room(d: !Doc): void =
 extern fun zero_node_fuel_exhausted(d: !Doc, i: int, f: int): void = "mac#anth_die_void"
 
 fun zero_node_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, i: int, f: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if f < AST_NODE_WORDS then let
       val () = node_field_set(d, i, f, 0)
     in
       zero_node_with_fuel(recfuel - 1, d, i, iadd(f, 1))
     end else ()
   ) else zero_node_fuel_exhausted(d, i, f)
-

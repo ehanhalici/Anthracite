@@ -85,7 +85,7 @@ in
 end
 
 fun skip_ff_bytes {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, nsrc: int, pos: int): MarkerRead =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(pos, nsrc) then @{pos= pos, mark= JPG_MARK_NONE}
     else let
       val b = buf_get(src, pos)
@@ -114,7 +114,7 @@ fun get_marker(src: !Buf, nsrc: int, bst: &JpgBits >> _): int =
   end
 
 fun parse_dqt_entries {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, p: int, dqt: !Buf, t: int, sixteen: int, i: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, 64) then p
     else let
       val zig = dezigzag(i)
@@ -127,7 +127,7 @@ fun parse_dqt_entries {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Bu
   ) else p
 
 fun parse_dqt_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, p: int, end_p: int, dqt: !Buf): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, end_p) then true
     else let
       val q = buf_get(src, p)
@@ -157,7 +157,7 @@ in
 end
 
 fun read_huff_values {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, p: int, hb: !Buf, t: int, nsymbols: int, i: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, nsymbols) then p
     else let
       val v = buf_get(src, p)
@@ -183,7 +183,7 @@ fun parse_dht_one(src: !Buf, p1: int, tc: int, th: int, hdc: !Buf, hac: !Buf, fa
   end
 
 fun parse_dht_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, p: int, end_p: int, hdc: !Buf, hac: !Buf, fab: !Buf): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, end_p) then true
     else let
       val q = buf_get(src, p)
@@ -252,7 +252,7 @@ fun init_comp_dims(meta: !Buf, w: int, h: int, h_max: int, v_max: int, mcu_x: in
 in () end
 
 fun check_subsampling {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), meta: !Buf, ncomp: int, h_max: int, v_max: int, i: int): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, ncomp) then true
     else let
       val ch = comp_get(meta, i, COMP_H)
@@ -266,7 +266,7 @@ fun check_subsampling {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), meta: !B
   ) else false
 
 fun setup_comps_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), meta: !Buf, ncomp: int, w: int, h: int, h_max: int, v_max: int, mx: int, my: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, ncomp) then ()
     else let
       val () = init_comp_dims(meta, w, h, h_max, v_max, mx, my, i)
@@ -278,7 +278,7 @@ fun setup_comps_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), meta: !Bu
 typedef SofComps = @{p= int, h_max= int, v_max= int}
 
 fun parse_sof_comps {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, p: int, meta: !Buf, ncomp: int, i: int, h_max: int, v_max: int): SofComps =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, ncomp) then @{p= p, h_max= h_max, v_max= v_max}
     else let
       val cid = buf_get(src, p)
@@ -334,14 +334,14 @@ in
 end
 
 fun find_comp_id {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), meta: !Buf, ncomp: int, cid: int, i: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, ncomp) then ~1
     else if ieq(comp_get(meta, i, COMP_ID), cid) then i
     else find_comp_id(recfuel - 1, meta, ncomp, cid, iadd(i, 1))
   ) else ~1
 
 fun parse_sos_comps {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, p: int, meta: !Buf, ncomp: int, ns: int, i: int): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, ns) then true
     else let
       val cid = buf_get(src, p)

@@ -37,13 +37,18 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-003 — Yakıt tükenmesi bazı taramalarda sessiz sonuç döndürüyor
 
-- Durum: doğrulandı (kaynak incelemesi); düzeltme bekliyor.
-- Konum: katlama satır taramaları, UI taramaları ve arama sorgusu ayrıştırıcısı.
+- Durum: çözüldü; yapay `recfuel` bütçesi tükenince açık hata ile abort edilir.
+- Konum: `common.hats`, `airlock.sats`, katlama, UI, arama ve diğer `recfuel` taramaları.
 - Kanıt: bazı `{recfuel:nat}` yordamları yakıt bittiğinde `0`, `false`, kısmi
   sonuç veya `()` döndürüyor. Eski yönerge bütün yordamların abort ettiğini söylüyordu.
 - Yeniden üretme: ilgili özel yakıtlı yordamı sıfır yakıtla çağıran ayrı fixture.
-- Beklenen: her API için tükenme politikası açık olmalı; mevcut kısmi sonuçlar
-  bu davranış değişikliği gerektirdiğinden ayrıca düzeltilmeli.
+- Çözüm: 400 koşul ortak `recursion_fuel_available` kapısından geçer. İndeksli
+  boolean azalan metrik ispatını korur; sıfırda mevcut airlock hata kapısı çalışır.
+  Eski fallback ifadeleri tip/sahiplik dalları olarak kalır, tükenmede çalışmaz.
+  Doğal uzunluğu sıfıra sayarak biten `remaining` döngüleri değiştirilmedi.
+- Doğrulama: gerçek katlama/görünürlük yardımcısı ve sorgu tarayıcısı sıfır yakıtla
+  ayrı süreçte hata verir; normal taramalar sonuç üretir. Kaynak denetimi korumasız
+  `recfuel > 0` kontrolünün yeniden eklenmesini engeller.
 
 ## BUG-004 — JPEG yedek çözümleyicisi ATS ispat sınırı dışında
 

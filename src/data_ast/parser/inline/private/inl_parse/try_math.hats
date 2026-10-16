@@ -17,7 +17,7 @@ extern fun scan_tag_end_fuel_exhausted(d: !Doc, p: int, en: int): int = "mac#ant
 fun scan_tag_end_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, en) then p
     else if is_tag_char(doc_byte(d, p)) then scan_tag_end_with_fuel(recfuel - 1, d, iadd(p, 1), en)
     else p
@@ -44,7 +44,7 @@ extern fun scan_url_end_fuel_exhausted(d: !Doc, p: int, en: int): int = "mac#ant
 fun scan_url_end_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, en) then p
     else if is_url_char(doc_byte(d, p)) then scan_url_end_with_fuel(recfuel - 1, d, iadd(p, 1), en)
     else p
@@ -134,7 +134,7 @@ fun scan_inlines_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, parent: int, last_sib: &int >> _,
   p: int, en: int, depth: int, txt_st: int, orig_st: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, en) then emit_text(d, parent, last_sib, txt_st, en)
     else let
       val next_p = dispatch_syntax(d, parent, last_sib, p, en, depth, txt_st, orig_st)

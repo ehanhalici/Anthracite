@@ -104,7 +104,7 @@ extern fun fuzz_loop_fuel_exhausted(d: !Doc, s: &int >> _, step: int, max_steps:
 fun fuzz_loop_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, s: &int >> _, step: int, max_steps: int
 ): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(step, max_steps) then true
     else let
       val () = fuzz_step_edit(d, s)
@@ -131,7 +131,7 @@ end
 fun test_fuzz_seeds_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), cur_seed: int, count: int, steps: int
 ): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(count, 20) then true
     else let
       val ok = ast_fuzz(cur_seed, steps)

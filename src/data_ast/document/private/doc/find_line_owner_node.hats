@@ -3,7 +3,7 @@ extern fun find_line_owner_node_fuel_exhausted(d: !Doc, line: int, i: int, n: in
 fun find_line_owner_node_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, line: int, i: int, n: int, best_i: int, best_r: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then best_i
     else let
       val st = doc_node_start(d, i)
@@ -39,7 +39,7 @@ extern fun stamp_regions_m_fuel_exhausted(d: !Doc, r: int, nreg: int, nn: int): 
 fun stamp_regions_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, r: int, nreg: int, nn: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if r >= nreg then ()
     else let
       val () = stamp_one_region_node(d, r, nn)
@@ -66,7 +66,7 @@ extern fun sync_nodes_hidden_m_fuel_exhausted(d: !Doc, i: int, n: int): void = "
 fun sync_nodes_hidden_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, i: int, n: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ()
     else let
       val () = sync_one_node_hidden(d, i)
@@ -133,7 +133,7 @@ extern fun apply_nodes_vis_m_fuel_exhausted(d: !Doc, i: int, n: int, lh: int): v
 fun apply_nodes_vis_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, i: int, n: int, lh: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ()
     else let
       val () = apply_one_node_vis(d, i, lh)
@@ -158,7 +158,7 @@ end
 extern fun widget_h_fuel_exhausted(d: !Doc, st: int, en: int, i: int, n: int, acc: int): int = "mac#anth_die_int"
 
 fun widget_h_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: int, en: int, i: int, n: int, acc: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, n) then acc
     else let
       val k = doc_node_kind(d, i)
@@ -190,7 +190,7 @@ extern fun line_heading_pad_fuel_exhausted(d: !Doc, st: int, en: int, i: int, n:
 fun line_heading_pad_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, st: int, en: int, i: int, n: int, lh: int, acc: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, n) then acc
     else let
       val k = doc_node_kind(d, i)
@@ -200,4 +200,3 @@ fun line_heading_pad_with_fuel {recfuel:nat} .<recfuel>. (
       line_heading_pad_with_fuel(recfuel - 1, d, st, en, iadd(i, 1), n, lh, imax(acc, ex))
     end
   ) else line_heading_pad_fuel_exhausted(d, st, en, i, n, lh, acc)
-

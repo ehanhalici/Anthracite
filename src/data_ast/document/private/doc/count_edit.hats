@@ -3,7 +3,7 @@ extern fun count_edit_fuel_exhausted(d: !Doc, j: int, en: int, cnt: int): int = 
 fun count_edit_nls_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, j: int, en: int, cnt: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(j, en) then cnt
     else let
       val b = doc_byte(d, j)
@@ -18,7 +18,7 @@ extern fun shift_lines_fuel_exhausted(d: !Doc, cur: int, n: int, delta: int): vo
 fun shift_lines_inplace_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, cur: int, n: int, delta: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(cur, n) then ()
     else let
       val st = doc_line_start(d, cur)
@@ -33,7 +33,7 @@ extern fun copy_keep_fuel_exhausted(d: !Doc, dst: !Buf, cur: int, n: int): void 
 fun copy_keep_lines_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, dst: !Buf, cur: int, n: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(cur, n) then ()
     else let
       val st = doc_line_start(d, cur)
@@ -48,7 +48,7 @@ extern fun scan_add_edit_fuel_exhausted(d: !Doc, j: int, en: int, dst: !Buf, cur
 fun scan_add_edit_nls_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, j: int, en: int, dst: !Buf, cur_idx: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(j, en) then cur_idx
     else let
       val b = doc_byte(d, j)
@@ -66,7 +66,7 @@ extern fun copy_tail_fuel_exhausted(d: !Doc, cur: int, n: int, dst: !Buf, cur_id
 fun copy_tail_shifted_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, cur: int, n: int, dst: !Buf, cur_idx: int, delta: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(cur, n) then ()
     else let
       val st = doc_line_start(d, cur)
@@ -210,4 +210,3 @@ implement kind_code(k) = case+ k of
   | KLinkDest() => 48 | KLinkTitle() => 49 | KWikiTarget() => 50 | KWikiHeading() => 51
   | KWikiBlock() => 52 | KWikiAlias() => 53 | KFnInline() => 54 | KMathBlock() => 55
   | KDirective() => 90
-

@@ -24,7 +24,7 @@ end
 extern fun click_walk_fuel_exhausted(f: !Font, r: !Rend, d: !Doc, i0: int, len: int, pen: int, x: int, scratch: &Buf >> _): int = "mac#anth_die_int"
 
 fun click_walk_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, i0: int, len: int, pen: int, x: int, scratch: &Buf >> _): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(i0, len) andalso ine(doc_byte(d, i0), CHAR_LF) andalso ilt(pen, x) then let
       val clen = utf8_char_sz(d, i0, len)
       val cw = click_char_width(f, r, d, i0, clen, scratch)
@@ -88,7 +88,7 @@ end
 extern fun tabs_click_impl_fuel_exhausted(f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, pw: int, scroll_hint: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &NodeKind >> _, hiti: &int >> _, i: int): Tabs = "mac#anth_die_box"
 
 fun tabs_click_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, pw: int, scroll_hint: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &NodeKind >> _, hiti: &int >> _, i: int): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) => let

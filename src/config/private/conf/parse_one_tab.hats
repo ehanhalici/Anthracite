@@ -24,7 +24,7 @@ extern fun parse_tabs_rec_fuel_exhausted(content: !Buf, cursor: int, ts: Tabs, t
 fun parse_tabs_rec_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), content: !Buf, cursor: int, ts: Tabs, tab_pane: &Buf >> Buf
 ): Tabs =
-  if recfuel > 0 then let
+  if recursion_fuel_available(recfuel) then let
     val p_pos = find_substr(content, KEY_PATH, cursor)
   in
     if ilt(p_pos, 0) then ts
@@ -52,7 +52,7 @@ fun parse_open_dirs_rec_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), content: !Buf, cursor: int, end_pos: int,
   open_dirs: &Buf >> Buf, tmp: &Buf >> Buf
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(cursor, end_pos) then let
       val q1 = skip_to_char(content, cursor, end_pos, CHAR_QUOTE)
     in

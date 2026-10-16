@@ -1,5 +1,5 @@
 fun doc_buf_push_slice_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: int, en: int, i: int, dst: &Buf >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(i, en) then let
       val () = buf_push(dst, doc_byte(d, i))
     in
@@ -58,7 +58,7 @@ end
 extern fun count_nl_fuel_exhausted(b: !Buf, capn: int, i: int, k: int): int = "mac#anth_die_int"
 
 fun count_nl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, capn: int, i: int, k: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, buf_len(b)) orelse ige(k, capn) then k
     else count_nl_with_fuel(recfuel - 1, b, capn, iadd(i, 1), (if ieq(buf_get(b, i), CHAR_LF) then iadd(k, 1) else k))
   ) else count_nl_fuel_exhausted(b, capn, i, k)
@@ -129,7 +129,7 @@ end
 
 
 fun skip_spaces_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, p: int, en: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(p, en) then let
       val c = doc_byte(d, p)
     in
@@ -142,7 +142,7 @@ fun skip_spaces(d: !Doc, p: int, en: int): int =
   skip_spaces_with_fuel(airlock_nat(MAX_REC_FUEL), d, p, en)
 
 fun parse_digits_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, p: int, en: int, acc: int): @(int, int) =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(p, en) then let
       val c = doc_byte(d, p)
     in
@@ -194,7 +194,7 @@ in
 end
 
 fun find_last_pipe_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, p: int, st: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, st) then (
       if ieq(doc_byte(d, p), CHAR_PIPE) then p
       else find_last_pipe_with_fuel(recfuel - 1, d, isub(p, 1), st)

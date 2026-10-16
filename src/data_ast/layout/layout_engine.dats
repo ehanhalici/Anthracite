@@ -32,7 +32,7 @@ fun line_heading_extra(k: NodeKind, lh: int): int =
 fun advance_node_cursor {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, cur: int, nn: int, st: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if cur >= nn then nn
     else if doc_node_start(d, cur) < st then
       advance_node_cursor(recfuel - 1, d, iadd(cur, 1), nn, st)
@@ -42,7 +42,7 @@ fun advance_node_cursor {recfuel:nat} .<recfuel>. (
 fun line_scan_extras {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, i: int, nn: int, st: int, en: int, lh: int, is_read: int, acc_w: int, acc_h: int
 ): @(int, int) =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= nn then @(acc_w, acc_h)
     else let
       val ns = doc_node_start(d, i)
@@ -83,7 +83,7 @@ end
 fun assign_lines_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, lh: int, line: int, y: int, is_read: int, wc: int, cur: &int >> _
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(line, doc_nlines(d)) then y
     else let
       val step = line_calc_step(d, line, doc_nnodes(d), lh, is_read, wc, cur)
@@ -118,7 +118,7 @@ in if (is_kind(k,KImage) orelse is_kind(k,KEmbed)) andalso ieq(is_read,0) then
 fun stamp_nodes_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, lh: int, is_read: int, wc: int, i: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, doc_nnodes(d)) then ()
     else let
       val k = doc_node_kind(d, i)
@@ -140,7 +140,7 @@ fun plain_line_step(d: !Doc, i: int, lh: int, wc: int): int = imul(line_source_r
 fun fill_liney_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, i: int, nlines: int, lh: int, y: int, wc: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(i, nlines) then let
       val step = plain_line_step(d, i, lh, wc)
       val () = doc_layout_store_line(d, i, y, step)

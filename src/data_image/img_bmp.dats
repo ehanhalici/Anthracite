@@ -15,7 +15,7 @@ staload "data_image/img_bmp.sats"
 extern fun pow2_fuel_exhausted(n: int): int = "mac#anth_die_int"
 
 fun pow2_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), n: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
   if n <= 0 then 1 else imul(pow2_with_fuel(recfuel - 1, n - 1), 2)
   ) else pow2_fuel_exhausted(n)
 
@@ -33,7 +33,7 @@ fun lnot3(w: int): int = iand(iadd(imul(w, 3), 3), isub(0, 4))
 extern fun bmp_px_fuel_exhausted(src: !Buf, dst: &Buf >> _, w: int, h: int, off: int, stride: int, bottom: Toggle, x: int, y: int): void = "mac#anth_die_void"
 
 fun bmp_px_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, dst: &Buf >> _, w: int, h: int, off: int, stride: int, bottom: Toggle, x: int, y: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(y, h) then ()
     else if ige(x, w) then bmp_px_with_fuel(recfuel - 1, src, dst, w, h, off, stride, bottom, 0, iadd(y, 1))
     else let

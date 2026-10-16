@@ -115,7 +115,7 @@ end
 extern fun zero_pad_fuel_exhausted(b: &Buf >> _, cur: int, target: int): void = "mac#anth_die_void"
 
 fun zero_pad_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: &Buf >> _, cur: int, target: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(cur, target) then let
       val () = buf_push(b, 0)
     in

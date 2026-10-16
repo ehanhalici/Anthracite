@@ -28,7 +28,7 @@ in
 end
 
 fun feed_bloom_trigrams_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ixb: !Buf, fid: int, fbuf: !Buf, p: int, limit: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ile(p, limit) then let
       val b0 = buf_get(fbuf, p)
       val b1 = buf_get(fbuf, iadd(p, 1))
@@ -122,7 +122,7 @@ fun extract_loop_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, fid: int, i: int, n: int,
   ixs: &Buf >> _, ixp: &Buf >> _, ixb: !Buf, fbuf: &Buf >> _, omap: &Buf >> _
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(i, n) then let
       val () = extract_node(d, fid, i, ixs, ixp, ixb, fbuf, omap)
     in
@@ -141,14 +141,14 @@ in
 end
 
 fun path_match_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ixp: !Buf, poff: int, plen: int, p: !Buf, i: int): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, plen) then true
     else if ine(buf_get(ixp, iadd(poff, i)), buf_get(p, i)) then false
     else path_match_with_fuel(recfuel - 1, ixp, poff, plen, p, iadd(i, 1))
   ) else true
 
 fun find_file_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ixf: !Buf, ixp: !Buf, path: !Buf, fid: int, nfiles: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(fid, nfiles) then ~1
     else let
       val poff = ix_file_get(ixf, fid, IX_F_PATHOFF)
@@ -201,7 +201,7 @@ in
 end
 
 fun handle_dir_child {recfuel:nat} .<recfuel, 0>. (recfuel: int(recfuel), child: !Buf, is_d: int, d: int, trunc: &int >> _, ixf: &Buf >> _, ixp: &Buf >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if is_d != 0 then (
       if ilt(d, MAX_INDEX_DEPTH) then let
         val ps = buffer_c_string(child)
@@ -216,7 +216,7 @@ fun handle_dir_child {recfuel:nat} .<recfuel, 0>. (recfuel: int(recfuel), child:
   ) else ()
 
 and walk_dir_with_fuel {recfuel:nat} .<recfuel, 1>. (recfuel: int(recfuel), dp: ptr, parent: !Buf, ixf: &Buf >> _, ixp: &Buf >> _, d: int, trunc: &int >> _): void =
-  if recfuel > 0 then let
+  if recursion_fuel_available(recfuel) then let
     var name = buf_make(HANDLE_DIR_CHILD_NAME_INITIAL_BYTES)
     var isdir: int = 0
     val ok = dir_next_buf(dp, name, 255, isdir)
@@ -273,7 +273,7 @@ in
 end
 
 fun step_loop_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), fid: int, nfiles: int, ixf: &Buf >> _, ixs: &Buf >> _, ixp: &Buf >> _, ixb: !Buf, start_ns: lint, budget_ns: lint): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(fid, nfiles) then 0
     else let
       val elapsed = mono_ns() - start_ns

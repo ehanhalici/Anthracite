@@ -1,7 +1,7 @@
 extern fun sel_lines_fuel_exhausted(f: !Font, r: !Rend, d: !Doc, li: int, l1: int, smin: int, smax: int, colx: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _): void = "mac#anth_die_void"
 
 fun sel_lines_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, li: int, l1: int, smin: int, smax: int, colx: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ile(li, l1) andalso ilt(li, doc_nlines(d)) then let
       val ls = doc_line_start(d, li)
       val le = if ilt(iadd(li, 1), doc_nlines(d)) then doc_line_start(d, iadd(li, 1)) else doc_len(d)
@@ -40,7 +40,7 @@ in
 end
 
 fun find_first_vis_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, lo: int, hi: int, target_y: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(lo, hi) then lo
     else let
       val mid = iadd(lo, idiv(isub(hi, lo), 2))
@@ -56,7 +56,7 @@ fun find_first_vis_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d
   ) else lo
 
 fun rewind_line_start_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, idx: int, target_line: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ile(idx, 0) then 0
     else let
       val prev = isub(idx, 1)
@@ -135,7 +135,7 @@ extern fun draw_gutter_range_fuel_exhausted(f: !Font, r: !Rend, d: !Doc, li: int
 fun draw_gutter_range_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, li: int, en: int, colx: int, oy: int, scroll: int, ph: int, scratch: &Buf >> _
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(li, en) then ()
     else let
       val () = draw_gutter_line(f, r, d, li, colx, oy, scroll, ph, scratch)
@@ -201,4 +201,3 @@ fun tab_pane_match(filter: int, tab_pane: !Buf, i: int): bool =
   if filter < 0 then true
   else if i < buf_len(tab_pane) then ieq(buf_get(tab_pane, i), filter)
   else ieq(0, filter)
-

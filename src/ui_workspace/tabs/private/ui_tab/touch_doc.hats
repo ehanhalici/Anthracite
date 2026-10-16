@@ -3,7 +3,7 @@ implement touch_doc(d) = doc_touch(d)
 extern fun tabs_free_fuel_exhausted(ts: Tabs): void = "mac#anth_die_void"
 
 fun tabs_free_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => ()
     | ~TCons(doc, path, title, sc, rest) => let
@@ -21,7 +21,7 @@ implement tabs_free(ts) = tabs_free_with_fuel(airlock_nat(MAX_REC_FUEL), ts)
 extern fun tabs_len_fuel_exhausted(ts: !Tabs): int = "mac#anth_die_int"
 
 fun tabs_len_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | @TNil() => (fold@(ts); 0)
     | @TCons(doc, _p, _t, _s, rest) => let
@@ -65,7 +65,7 @@ fun drop_head(doc: Doc, path: Buf, title: Buf, sc: int, rest: Tabs): Tabs =
 extern fun tabs_drop_fuel_exhausted(ts: Tabs, i: int): Tabs = "mac#anth_die_box"
 
 fun tabs_drop_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, i: int): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) =>
@@ -78,7 +78,7 @@ implement tabs_drop(ts, i) = tabs_drop_with_fuel(airlock_nat(MAX_REC_FUEL), ts, 
 extern fun tabs_append_impl_fuel_exhausted(ts: Tabs, doc: Doc, path: Buf, title: Buf, sc: int): Tabs = "mac#anth_die_box"
 
 fun tabs_append_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, doc: Doc, path: Buf, title: Buf, sc: int): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TCons(doc, path, title, sc, TNil())
     | ~TCons(d, p, t, s, rest) => TCons(d, p, t, s, tabs_append_impl_with_fuel(recfuel - 1, rest, doc, path, title, sc))
@@ -97,7 +97,7 @@ extern fun tabs_replace_fuel_exhausted(ts: Tabs, idx: int, doc: Doc, path: Buf, 
 fun tabs_replace_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), ts: Tabs, idx: int, doc: Doc, path: Buf, title: Buf
 ): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TCons(doc, path, title, 0, TNil())
     | ~TCons(d, p, t, sc, rest) =>
@@ -210,4 +210,3 @@ fun run_edit_cmd(d: !Doc, cmd: Cmd): void =
   else if is_cmd(cmd, CMD_WRAP_WIKILINK) then wrap_selection(d, WIKILINK_OPEN, WIKILINK_CLOSE)
   else if is_cmd(cmd, CMD_INDENT) then doc_insert(d, c_str_ptr(INDENT_TEXT), c_strlen(INDENT_TEXT))
   else ()
-

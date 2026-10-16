@@ -20,7 +20,7 @@ extern fun find_char_fuel_exhausted(d: !Doc, p: int, en: int, ch: int): int = "m
 fun find_char_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int, ch: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, en) then ~1
     else if ieq(doc_byte(d, p), ch) then p
     else find_char_with_fuel(recfuel - 1, d, iadd(p, 1), en, ch)
@@ -34,7 +34,7 @@ extern fun find_pair_fuel_exhausted(d: !Doc, p: int, en: int, b1: int, b2: int):
 fun find_pair_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int, b1: int, b2: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(iadd(p, 1), en) then ~1
     else if ieq(doc_byte(d, p), b1) andalso ieq(doc_byte(d, iadd(p, 1)), b2) then p
     else find_pair_with_fuel(recfuel - 1, d, iadd(p, 1), en, b1, b2)
@@ -48,7 +48,7 @@ extern fun count_char_run_fuel_exhausted(d: !Doc, p: int, en: int, ch: int, c: i
 fun count_char_run_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int, ch: int, c: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, en) then c
     else if ieq(doc_byte(d, p), ch) then count_char_run_with_fuel(recfuel - 1, d, iadd(p, 1), en, ch, iadd(c, 1))
     else c
@@ -62,7 +62,7 @@ extern fun find_bt_run_fuel_exhausted(d: !Doc, p: int, en: int, n: int): int = "
 fun find_bt_run_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int, n: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, en) then ~1
     else if ieq(doc_byte(d, p), CHAR_BACKTICK) then let
       val c = count_char_run(d, p, en, 96)

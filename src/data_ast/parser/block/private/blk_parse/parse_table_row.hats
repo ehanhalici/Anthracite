@@ -20,7 +20,7 @@ extern fun check_is_delim_fuel_exhausted(d: !Doc, p: int, le: int): bool = "mac#
 fun check_is_delim_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, le: int
 ): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, le) then true
     else if is_delim_char(doc_byte(d, p)) then check_is_delim_with_fuel(recfuel - 1, d, iadd(p, 1), le)
     else false
@@ -127,7 +127,7 @@ fun try_frontmatter(d: !Doc, stk: &Buf >> _, cur: int, le: int, nxt: int, len: i
 fun find_fndef_colon_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, le: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(iadd(p, 1), le) then ~1
     else if ieq(doc_byte(d, p), CHAR_RBRACKET) andalso ieq(doc_byte(d, iadd(p, 1)), CHAR_COLON) then p
     else find_fndef_colon_with_fuel(recfuel - 1, d, iadd(p, 1), le)
@@ -186,7 +186,7 @@ extern fun bsearch_resync_fuel_exhausted(resync: !Buf, nres: int, target: int, l
 fun bsearch_resync_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), resync: !Buf, nres: int, target: int, lo: int, hi: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if igt(lo, hi) then ~1
     else let
       val mid = iadd(lo, idiv(isub(hi, lo), 2))

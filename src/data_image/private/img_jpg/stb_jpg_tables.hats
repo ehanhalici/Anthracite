@@ -45,7 +45,7 @@ fun dequant_set(dqt_buf: !Buf, tbl: int, idx: int, v: int): void =
 extern fun zero_block_fuel_exhausted(data: !Buf, dbase: int, i: int): void = "mac#anth_die_void"
 
 fun zero_block_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), data: !Buf, dbase: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, JPG_DCT_BLOCK_SIZE) then ()
     else let
       val () = buf_set32(data, iadd(dbase, i), 0)
@@ -60,7 +60,7 @@ fun zero_block(data: !Buf, dbase: int): void =
 extern fun dequantize_block_fuel_exhausted(data: !Buf, dbase: int, dqt_buf: !Buf, tbl: int, i: int): void = "mac#anth_die_void"
 
 fun dequantize_block_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), data: !Buf, dbase: int, dqt_buf: !Buf, tbl: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, JPG_DCT_BLOCK_SIZE) then ()
     else let
       val dq = dequant_get(dqt_buf, tbl, i)

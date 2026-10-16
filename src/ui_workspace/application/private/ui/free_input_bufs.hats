@@ -99,7 +99,7 @@ fun skip_to_lf(b: !Buf, i: int, n: int): int =
 fun is_in_lines_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), lines: !Buf, p: !Buf, cur: int, n: int
 ): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(cur, n) then let
       val e = skip_to_lf(lines, cur, n)
       val len = isub(e, cur)
@@ -204,4 +204,3 @@ fun tree_toggle_source(s: &App_record >> _, source: int): void =
   in
     save_app_session(s)
   end else ()
-

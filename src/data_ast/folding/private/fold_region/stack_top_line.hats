@@ -59,7 +59,7 @@ end
 fun stack_unwind_heading_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), stk: &Buf >> _, regions: &Buf >> _, rank: int, cur_line: int, d: !Doc
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if stack_is_empty(stk) then ()
     else let
       val top_r = stack_top_rank(stk)
@@ -76,7 +76,7 @@ fun stack_unwind_heading_with_fuel {recfuel:nat} .<recfuel>. (
 fun stack_unwind_indent_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), stk: &Buf >> _, regions: &Buf >> _, ind: int, cur_line: int, d: !Doc
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if stack_is_empty(stk) then ()
     else let
       val top_r = stack_top_rank(stk)
@@ -94,7 +94,7 @@ fun stack_unwind_indent_with_fuel {recfuel:nat} .<recfuel>. (
 fun stack_drain_all_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), stk: &Buf >> _, regions: &Buf >> _, nlines: int, d: !Doc
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if stack_is_empty(stk) then ()
     else let
       val () = stack_pop_one(stk, regions, nlines, d)
@@ -138,7 +138,7 @@ extern fun scan_lines_m_fuel_exhausted(d: !Doc, line: int, nlines: int, stk: &Bu
 fun scan_lines_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, line: int, nlines: int, stk: &Buf >> _, regions: &Buf >> _, delim_buf: !Buf
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if line >= nlines then ()
     else let
       val () = process_one_line(d, line, stk, regions, delim_buf, nlines)
@@ -170,7 +170,7 @@ end
 fun regions_sort_inner_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), regions: !Buf, j: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if j <= 0 then ()
     else let
       val prev = isub(j, 1)
@@ -188,7 +188,7 @@ fun regions_sort_inner_with_fuel {recfuel:nat} .<recfuel>. (
 fun regions_sort_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), regions: !Buf, i: int, n: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ()
     else let
       val () = regions_sort_inner_with_fuel(airlock_nat(MAX_REC_FUEL), regions, i)

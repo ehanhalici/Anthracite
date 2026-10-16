@@ -134,7 +134,7 @@ end
 extern fun push_fuel_exhausted(r: !Rend, x: float, y: float, cr: float, cg: float, cb: float, ca: float, u: float, v: float): void = "mac#anth_die_void"
 
 fun push_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), r: !Rend, x: float, y: float, cr: float, cg: float, cb: float, ca: float, u: float, v: float): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ r of
     | @REND(s) => let
         val n = s.nvert
@@ -205,4 +205,3 @@ fun push_quad(r: !Rend, x0: float, y0: float, x1: float, y1: float, cr: float, c
   val () = push(r, x0, y1, cr, cg, cb, ca, uu0, vv1)
 in
 end
-

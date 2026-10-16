@@ -1,7 +1,7 @@
 extern fun pow2_fuel_exhausted(n: int): int = "mac#anth_die_int"
 
 fun pow2_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), n: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
   if n <= 0 then 1 else imul(pow2_with_fuel(recfuel - 1, n - 1), 2)
   ) else pow2_fuel_exhausted(n)
 
@@ -26,7 +26,7 @@ typedef BitS = @{p= int, nb= int, acc= int, err= Toggle}
 extern fun bzero_fuel_exhausted(b: !Buf, i: int, n: int): void = "mac#anth_die_void"
 
 fun bzero_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, i: int, n: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, n) then ()
     else let
       val () = buf_set32(b, i, 0)
@@ -40,7 +40,7 @@ fun zero_buffer_range(b: !Buf, i: int, n: int): void = bzero_with_fuel(airlock_n
 extern fun bitfill_fuel_exhausted(src: !Buf, n: int, st: &BitS >> _): void = "mac#anth_die_void"
 
 fun bitfill_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(st.nb, 24) orelse ige(st.p, n) then ()
     else let
       val () = st.acc := iadd(st.acc, ishl(buf_get(src, st.p), st.nb))
@@ -72,7 +72,7 @@ end
 extern fun bitsk_fuel_exhausted(src: !Buf, n: int, st: &BitS >> _, k: int, acc: int, i: int): int = "mac#anth_die_int"
 
 fun bitsk_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, k: int, acc: int, i: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, k) then acc
     else bitsk_with_fuel(recfuel - 1, src, n, st, k, iadd(acc, imul(read_one_bit(src, n, st), ishl(1, i))), iadd(i, 1))
   ) else bitsk_fuel_exhausted(src, n, st, k, acc, i)
@@ -91,7 +91,7 @@ end
 extern fun count_lens_fuel_exhausted(tab: !Buf, len0: int, nsym: int, c0: int, s: int): void = "mac#anth_die_void"
 
 fun count_lens_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), tab: !Buf, len0: int, nsym: int, c0: int, s: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(s, nsym) then ()
     else let
       val L = buf_get32(tab, iadd(len0, s))
@@ -106,7 +106,7 @@ fun count_lens(tab: !Buf, len0: int, nsym: int, c0: int, s: int): void = count_l
 extern fun fill_offs_fuel_exhausted(tab: !Buf, c0: int, len: int): void = "mac#anth_die_void"
 
 fun fill_offs_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), tab: !Buf, c0: int, len: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(len, 15) then ()
     else let
       val () = buf_set32(tab, iadd(OFS, iadd(len, 1)), iadd(buf_get32(tab, iadd(OFS, len)), buf_get32(tab, iadd(c0, len))))
@@ -120,7 +120,7 @@ fun fill_offs(tab: !Buf, c0: int, len: int): void = fill_offs_with_fuel(airlock_
 extern fun place_syms_fuel_exhausted(tab: !Buf, len0: int, nsym: int, s0: int, s: int): void = "mac#anth_die_void"
 
 fun place_syms_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), tab: !Buf, len0: int, nsym: int, s0: int, s: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(s, nsym) then ()
     else let
       val L = buf_get32(tab, iadd(len0, s))
@@ -151,7 +151,7 @@ end
 extern fun hdec_go_fuel_exhausted(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, c0: int, s0: int, len: int, code: int, first: int, index: int): int = "mac#anth_die_int"
 
 fun hdec_go_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, c0: int, s0: int, len: int, code: int, first: int, index: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if igt(len, 15) orelse is_on(st.err) then ~1
     else let
       val bit = read_one_bit(src, n, st)
@@ -175,7 +175,7 @@ fun deflate_length_extra_bits(c: int): int =
 extern fun lbase0_fuel_exhausted(e: int): int = "mac#anth_die_int"
 
 fun lbase0_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), e: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ile(e, 1) then 11 else iadd(lbase0_with_fuel(recfuel - 1, isub(e, 1)), ishl(4, isub(e, 1)))
   ) else lbase0_fuel_exhausted(e)
 
@@ -197,9 +197,8 @@ fun dextra(c: int): int = if ilt(c, 4) then 0 else idiv(isub(c, 2), 2)
 extern fun dbase0_fuel_exhausted(e: int): int = "mac#anth_die_int"
 
 fun dbase0_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), e: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ile(e, 0) then 1
     else if ieq(e, 1) then 5
     else iadd(dbase0_with_fuel(recfuel - 1, isub(e, 1)), ishl(1, e))
   ) else dbase0_fuel_exhausted(e)
-

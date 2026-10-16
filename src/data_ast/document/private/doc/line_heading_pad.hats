@@ -20,7 +20,7 @@ end
 extern fun gap_put_fuel_exhausted(d: !Doc, p: ptr, n: int, lo: int, i: int): void = "mac#anth_die_void"
 
 fun gap_put_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, p: ptr, n: int, lo: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i < n then let
       val () = gap_set(d, iadd(lo, i), mem_byte(p, n, i))
     in
@@ -199,4 +199,3 @@ in
   in
   end
 end
-

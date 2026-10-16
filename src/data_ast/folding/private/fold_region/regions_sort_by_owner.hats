@@ -19,17 +19,7 @@ in
   fold_region_count(regions)
 end
 
-fun mark_hidden_lines_with_fuel {recfuel:nat} .<recfuel>. (
-  recfuel: int(recfuel), hidden: !Buf, line: int, finish: int
-): void =
-  if recfuel > 0 then (
-    if line >= finish then ()
-    else let
-      val () = buf_set(hidden, line, 1)
-    in
-      mark_hidden_lines_with_fuel(recfuel - 1, hidden, iadd(line, 1), finish)
-    end
-  ) else ()
+#include "data_ast/folding/private/fold_region/mark_hidden_lines.hats"
 
 fun sweep_one_region(
   d: !Doc, regions: !Buf, r: int, hidden: !Buf, cover_end: &int >> _
@@ -49,7 +39,7 @@ end
 fun sweep_regions_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, regions: !Buf, r: int, nreg: int, hidden: !Buf, cover_end: &int >> _
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if r >= nreg then ()
     else let
       val () = sweep_one_region(d, regions, r, hidden, cover_end)

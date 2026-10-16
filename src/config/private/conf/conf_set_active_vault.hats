@@ -53,7 +53,7 @@ end
 extern fun tabs_to_json_fuel_exhausted(ts: !Tabs, tab_pane: !Buf, dst: &Buf >> Buf, i: int): void = "mac#anth_die_void"
 
 fun tabs_to_json_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, tab_pane: !Buf, dst: &Buf >> Buf, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | TNil() => ()
     | TCons(doc, path, title, sc, rest) => let
@@ -127,7 +127,7 @@ end
 fun open_dirs_to_json_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), open_dirs: !Buf, dst: &Buf >> Buf, cur: int, n: int, idx: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(cur, n) then let
       val e = skip_to_char(open_dirs, cur, n, CHAR_LF)
       val len = isub(e, cur)
@@ -204,4 +204,3 @@ in
     ts
   end
 end
-

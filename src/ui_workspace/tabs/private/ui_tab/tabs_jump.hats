@@ -1,7 +1,7 @@
 implement tabs_jump(ts, idx, line, col) = tabs_jump_with_fuel(airlock_nat(MAX_REC_FUEL), ts, idx, line, col)
 
 fun tabs_find_doc_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, idx: int, q: !Buf, from: int, dir: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | TNil() => ~1
     | TCons(doc, path, title, sc, rest) =>
@@ -19,7 +19,7 @@ in
 end
 
 fun tabs_select_range_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, st: int, en: int): Tabs =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) => let
@@ -33,7 +33,7 @@ fun tabs_select_range_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel)
 implement tabs_select_range(ts, idx, st, en) = tabs_select_range_with_fuel(airlock_nat(MAX_REC_FUEL), ts, idx, st, en)
 
 fun tabs_find_path_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, p: !Buf, cur: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | TNil() => ~1
     | TCons(doc, path, title, sc, rest) => let
@@ -47,7 +47,7 @@ fun tabs_find_path_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), t
 implement tabs_find_path(ts, p) = tabs_find_path_with_fuel(airlock_nat(MAX_REC_FUEL), ts, p, 0)
 
 fun tabs_caret_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, idx: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | TNil() => 0
     | TCons(doc, path, title, sc, rest) =>
@@ -58,7 +58,7 @@ fun tabs_caret_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !
 implement tabs_caret(ts, idx) = tabs_caret_with_fuel(airlock_nat(MAX_REC_FUEL), ts, idx)
 
 fun tabs_copy_doc_text_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, p: !Buf, dst: &Buf >> _): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     case+ ts of
     | TNil() => 0
     | TCons(doc, path, title, sc, rest) =>

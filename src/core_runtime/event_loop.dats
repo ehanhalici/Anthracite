@@ -40,7 +40,7 @@ fun dispatch(p: !Plat,a: !App,f: !Font,r: !Rend,ev: &event): Repaint = let
 in changed end
 
 fun drain_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, a: !App, f: !Font, r: !Rend,dirty: Repaint): Repaint =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if plat_pending(p) = 0 then dirty
     else let
       var ev: event
@@ -79,7 +79,7 @@ in
 end
 
 fun frame_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, a: !App, f: !Font, r: !Rend, loaded: bool): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if is_off(plat_running(p)) then ()
     else let
       val dirty = drain(p, a, f, r)

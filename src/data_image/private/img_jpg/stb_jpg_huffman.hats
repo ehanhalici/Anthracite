@@ -67,7 +67,7 @@ fun bitstream_init(p0: int): JpgBits =
 typedef MarkerRead = @{pos= int, mark= int}
 
 fun read_escaped_marker {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, nsrc: int, pos: int): MarkerRead =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(pos, nsrc) then @{pos= pos, mark= JPG_MARK_NONE}
     else let
       val c = buf_get(src, pos)
@@ -104,7 +104,7 @@ fun grow_buffer_byte(src: !Buf, nsrc: int, bst: &JpgBits >> _): void =
   end
 
 fun grow_buffer_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, nsrc: int, bst: &JpgBits >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if bst.code_bits <= 24 andalso bst.nomore = 0 then let
       val () = grow_buffer_byte(src, nsrc, bst)
     in
@@ -156,7 +156,7 @@ in
 end
 
 fun huff_slow_step {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), hb: !Buf, t: int, temp: int, k: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(k, 17) then 17
     else if ilt(temp, huff_maxcode_get(hb, t, k)) then k
     else huff_slow_step(recfuel - 1, hb, t, temp, iadd(k, 1))
@@ -199,7 +199,7 @@ in
 end
 
 fun fill_size_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), hb: !Buf, t: int, sz: int, count: int, k: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ile(count, 0) then k
     else let
       val () = huff_size_set(hb, t, k, sz)
@@ -209,7 +209,7 @@ fun fill_size_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), hb: !Buf, t
   ) else k
 
 fun build_huff_sizes {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), hb: !Buf, t: int, src: !Buf, soff: int, i: int, k: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, 16) then let
       val () = huff_size_set(hb, t, k, 0)
     in k end
@@ -224,7 +224,7 @@ fun build_huff_sizes {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), hb: !Buf,
 typedef CodeState = @{code= int, k= int}
 
 fun build_codes_inner {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), hb: !Buf, t: int, j: int, code: int, k: int): CodeState =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ieq(huff_size_get(hb, t, k), j) then let
       val () = huff_code_set(hb, t, k, code)
     in
@@ -233,7 +233,7 @@ fun build_codes_inner {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), hb: !Buf
   ) else @{code= code, k= k}
 
 fun build_huff_codes {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), hb: !Buf, t: int, j: int, code: int, k: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if igt(j, 16) then huff_maxcode_set(hb, t, 17, 2147483647)
     else let
       val () = huff_delta_set(hb, t, j, isub(k, code))
@@ -245,7 +245,7 @@ fun build_huff_codes {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), hb: !Buf,
   ) else ()
 
 fun fill_fast_entries {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), hb: !Buf, t: int, sym: int, base: int, count: int, j: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(j, count) then ()
     else let
       val () = huff_fast_set(hb, t, iadd(base, j), sym)
@@ -255,7 +255,7 @@ fun fill_fast_entries {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), hb: !Buf
   ) else ()
 
 fun init_fast_table {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), hb: !Buf, t: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, 512) then ()
     else let
       val () = huff_fast_set(hb, t, i, 255)
@@ -265,7 +265,7 @@ fun init_fast_table {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), hb: !Buf, 
   ) else ()
 
 fun build_fast_huff {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), hb: !Buf, t: int, nsymbols: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, nsymbols) then ()
     else let
       val s = huff_size_get(hb, t, i)
@@ -318,7 +318,7 @@ in
 end
 
 fun build_fast_ac_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), fab: !Buf, hb: !Buf, t: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, 512) then ()
     else let
       val () = fast_ac_one(fab, hb, t, i)

@@ -35,7 +35,7 @@ end
 extern fun clip_round_fuel_exhausted(p: !Plat, data: ptr, n: int, dst: &Buf >> _, got: &int >> _, spins: int): void = "mac#anth_die_void"
 
 fun clip_round_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, data: ptr, n: int, dst: &Buf >> _, got: &int >> _, spins: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if spins <= 0 then touch_dst(dst)
     else if got > 0 then touch_dst(dst)
     else if plat_pending(p) = 0 then let
@@ -57,7 +57,7 @@ fun clip_round(p: !Plat, data: ptr, n: int, dst: &Buf >> _, got: &int >> _, spin
 extern fun same_text_fuel_exhausted(b: !Buf, s: string, i: int): int = "mac#anth_die_int"
 
 fun same_text_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: !Buf, s: string, i: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= c_strlen(s) then 1
     else if buf_get(b, i) <> c_str_byte(s, i) then 0
     else same_text_with_fuel(recfuel - 1, b, s, i + 1)
@@ -72,7 +72,7 @@ fun clip_match(b: !Buf, s: string, n: int): int =
 extern fun drain_pending_fuel_exhausted(p: !Plat): void = "mac#anth_die_void"
 
 fun drain_pending_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if plat_pending(p) = 0 then ()
     else let
       var ev: event

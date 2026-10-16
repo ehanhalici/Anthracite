@@ -9,6 +9,16 @@ function(anthracite_contract_test name source)
   target_link_libraries(${name} PRIVATE m)
 endfunction()
 
+anthracite_contract_test(recursion_fuel_contracts tests/runtime/recursion_fuel_contracts.dats
+  "${CMAKE_CURRENT_BINARY_DIR}/ix_fold_dats.c")
+target_link_libraries(recursion_fuel_contracts PRIVATE native_text_engine)
+add_test(NAME recursion_fuel_contracts COMMAND recursion_fuel_contracts)
+foreach(mode fold query)
+  add_test(NAME recursion_fuel_${mode}_exhausted COMMAND "${CMAKE_COMMAND}"
+    "-DEXECUTABLE=$<TARGET_FILE:recursion_fuel_contracts>" "-DMODE=--${mode}"
+    -P "${CMAKE_SOURCE_DIR}/tests/contracts/expect_recursion_abort.cmake")
+endforeach()
+
 anthracite_contract_test(core_contracts tests/memory/core_contracts.dats
   "${CMAKE_CURRENT_BINARY_DIR}/mem_dats.c"
   "${CMAKE_CURRENT_BINARY_DIR}/layout_dats.c"

@@ -95,7 +95,7 @@ end
 extern fun draw_vault_items_fuel_exhausted(f: !Font, r: !Rend, s: &App_record, mx: int, my: int, mw: int, vi: int, max_cnt: int): void = "mac#anth_die_void"
 
 fun draw_vault_items_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, s: &App_record, mx: int, my: int, mw: int, vi: int, max_cnt: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(vi, max_cnt) then ()
     else let
       val () = draw_vault_item(f, r, s, mx, my, mw, vi)
@@ -179,7 +179,7 @@ end
 extern fun find_wiki_fuel_exhausted(doc: !Doc, caret: int, k: int): int = "mac#anth_die_int"
 
 fun find_wiki_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), doc: !Doc, caret: int, k: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(k, doc_nnodes(doc)) then ~1
     else if ile(doc_node_start(doc, k), caret) andalso ilt(caret, doc_node_end(doc, k)) andalso is_kind(doc_node_kind(doc, k), KWiki) then k
     else find_wiki_with_fuel(recfuel - 1, doc, caret, iadd(k, 1))
@@ -200,11 +200,10 @@ extern fun doc_seek_sub_at_fuel_exhausted(d: !Doc, n: int, a: !Buf, al: int, dp:
 fun doc_seek_sub_at_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, n: int, a: !Buf, al: int, dp: int, ai: int
 ): bool =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(ai, al) then true
     else if ige(dp, n) then false
     else if ieq(doc_byte(d, dp), buf_get(a, ai)) then
       doc_seek_sub_at_with_fuel(recfuel - 1, d, n, a, al, iadd(dp, 1), iadd(ai, 1))
     else false
   ) else doc_seek_sub_at_fuel_exhausted(d, n, a, al, dp, ai)
-

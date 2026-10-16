@@ -37,7 +37,7 @@ end
 extern fun bind_media_fuel_exhausted(f: !Font,d: !Doc, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int, i: int): void = "mac#anth_die_void"
 
 fun bind_media_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font,d: !Doc, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, doc_nnodes(d)) then ()
     else let
       val () = bind_one(f,d, i, c, r, vault, lh, colw)
@@ -80,7 +80,7 @@ fun is_box(k: NodeKind): bool =
 extern fun text_end_fuel_exhausted(d: !Doc, j: int, b: int): int = "mac#anth_die_int"
 
 fun text_end_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, j: int, b: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(j, b) andalso ine(doc_byte(d, j), CHAR_LF) then text_end_with_fuel(recfuel - 1, d, iadd(j, 1), b)
     else j
   ) else text_end_fuel_exhausted(d, j, b)
@@ -108,7 +108,7 @@ end
 extern fun draw_bytes_fuel_exhausted(f: !Font, r: !Rend, d: !Doc, i0: int, b: int, x: int, x0: int, oy: int, scroll: int, c: uint, scratch: &Buf >> _): void = "mac#anth_die_void"
 
 fun draw_bytes_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, i0: int, b: int, x: int, x0: int, oy: int, scroll: int, c: uint, scratch: &Buf >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(i0, b) then
       if ieq(doc_byte(d, i0), CHAR_LF) then draw_bytes_with_fuel(recfuel - 1, f, r, d, iadd(i0, 1), b, x, x, oy, scroll, c, scratch)
       else let
@@ -133,7 +133,7 @@ extern fun buf_find_nl_fuel_exhausted(b: !Buf, n: int, i: int): int = "mac#anth_
 fun buf_find_nl_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), b: !Buf, n: int, i: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, n) then n
     else if ieq(buf_get(b, i), CHAR_LF) then i
     else buf_find_nl_with_fuel(recfuel - 1, b, n, iadd(i, 1))
@@ -145,7 +145,7 @@ fun paint_file_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), f: !Font, r: !Rend, b: !Buf, n: int, nlines: int,
   x: int, lh: int, c: uint, i0: int, line: int, y0: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i0, n) orelse ige(line, nlines) then ()
     else let
       val eol = buf_find_nl_with_fuel(airlock_nat(MAX_REC_FUEL), b, n, i0)
@@ -189,7 +189,7 @@ end
 extern fun line_y_bsearch_fuel_exhausted(d: !Doc, docy: int, lo: int, hi: int, best: int): int = "mac#anth_die_int"
 
 fun line_y_bsearch_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, docy: int, lo: int, hi: int, best: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if igt(lo, hi) then best
     else let
       val mid = iadd(lo, idiv(isub(hi, lo), 2))

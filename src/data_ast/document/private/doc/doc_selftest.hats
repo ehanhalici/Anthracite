@@ -18,7 +18,7 @@ extern fun line_node_foldable_fuel_exhausted(d: !Doc, line: int, i: int, n: int)
 fun line_node_foldable_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, line: int, i: int, n: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if i >= n then ~1
     else let
       val st = doc_node_start(d, i)
@@ -50,7 +50,7 @@ extern fun dump_lines_m_fuel_exhausted(d: !Doc, line: int, n: int): void = "mac#
 fun dump_lines_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, line: int, n: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(line, n) then ()
     else let
       val () = dump_one_line(d, line)
@@ -83,7 +83,7 @@ extern fun test_toggles_m_fuel_exhausted(d: !Doc, line: int, n: int): void = "ma
 fun test_toggles_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, line: int, n: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(line, n) then ()
     else let
       val () = test_toggle_one(d, line)

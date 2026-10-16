@@ -16,7 +16,7 @@ in
 end
 
 fun resample_row_1_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dst: !Buf, doff: int, src: !Buf, soff: int, w: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, w) then ()
     else let
       val () = buf_set(dst, iadd(doff, i), buf_get(src, iadd(soff, i)))
@@ -29,7 +29,7 @@ fun resample_row_1(dst: !Buf, doff: int, src: !Buf, soff: int, w: int): void =
   resample_row_1_loop(airlock_nat(MAX_REC_FUEL), dst, doff, src, soff, w, 0)
 
 fun resample_v2_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dst: !Buf, doff: int, src_buf: !Buf, noff: int, foff: int, w: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, w) then ()
     else let
       val n = buf_get(src_buf, iadd(noff, i))
@@ -44,7 +44,7 @@ fun resample_row_v_2(dst: !Buf, doff: int, src_buf: !Buf, noff: int, foff: int, 
   resample_v2_loop(airlock_nat(MAX_REC_FUEL), dst, doff, src_buf, noff, foff, w, 0)
 
 fun resample_h2_mid {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dst: !Buf, doff: int, src: !Buf, soff: int, w: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, isub(w, 1)) then ()
     else let
       val in_cur = buf_get(src, iadd(soff, i))
@@ -76,7 +76,7 @@ fun resample_row_h_2(dst: !Buf, doff: int, src: !Buf, soff: int, w: int): void =
   in end
 
 fun resample_hv2_mid {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dst: !Buf, doff: int, src_buf: !Buf, noff: int, foff: int, w: int, t_prev: int, i: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, w) then t_prev
     else let
       val n = buf_get(src_buf, iadd(noff, i))
@@ -106,7 +106,7 @@ fun resample_row_hv_2(dst: !Buf, doff: int, src_buf: !Buf, noff: int, foff: int,
   in end
 
 fun resample_generic_inner {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dst: !Buf, base: int, v: int, hs: int, j: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(j, hs) then ()
     else let
       val () = buf_set(dst, iadd(base, j), v)
@@ -116,7 +116,7 @@ fun resample_generic_inner {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dst
   ) else ()
 
 fun resample_generic_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dst: !Buf, doff: int, src: !Buf, soff: int, w: int, hs: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, w) then ()
     else let
       val v = buf_get(src, iadd(soff, i))
@@ -151,7 +151,7 @@ fun color_ycbcr_one(out: !Buf, ooff: int, y_val: int, cb_val: int, cr_val: int):
 in end
 
 fun ycbcr_to_rgba_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), out: !Buf, ooff: int, y_b: !Buf, yoff: int, cb_b: !Buf, cboff: int, cr_b: !Buf, croff: int, w: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, w) then ()
     else let
       val yv = buf_get(y_b, iadd(yoff, i))
@@ -167,7 +167,7 @@ fun ycbcr_to_rgba_row(out: !Buf, ooff: int, y_b: !Buf, yoff: int, cb_b: !Buf, cb
   ycbcr_to_rgba_loop(airlock_nat(MAX_REC_FUEL), out, ooff, y_b, yoff, cb_b, cboff, cr_b, croff, w, 0)
 
 fun gray_to_rgba_loop {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), out: !Buf, ooff: int, y_b: !Buf, yoff: int, w: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, w) then ()
     else let
       val yv = buf_get(y_b, iadd(yoff, i))

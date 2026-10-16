@@ -1,5 +1,5 @@
 fun push_png_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: &Buf >> _, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, 69) then ()
     else let
       val () = buf_push(b, png_byte(i))

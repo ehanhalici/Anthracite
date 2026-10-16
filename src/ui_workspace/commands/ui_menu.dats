@@ -133,7 +133,7 @@ end
 extern fun push_typed_fuel_exhausted(b: &Buf >> Buf, scratch: !Buf, j: int, n: int): void = "mac#anth_die_void"
 
 fun push_typed_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: &Buf >> Buf, scratch: !Buf, j: int, n: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(j, n) then let
       val by = buf_get(scratch, j)
       val () = if ige(by, 32) andalso ine(by, 127) then buf_push(b, by) else ()

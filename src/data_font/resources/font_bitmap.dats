@@ -36,7 +36,7 @@ fun colmask(c: int): int =
 extern fun write_pix_loop_fuel_exhausted(f: !Font, x0: int, y0: int, cp: int, ww: int, r: int, c: int): void = "mac#anth_die_void"
 
 fun write_pix_loop_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, x0: int, y0: int, cp: int, ww: int, r: int, c: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if r >= 16 then ()
     else if c >= ww then write_pix_loop_with_fuel(recfuel - 1, f, x0, y0, cp, ww, r + 1, 0)
     else let
@@ -54,7 +54,7 @@ fun write_pix_loop(f: !Font, x0: int, y0: int, cp: int, ww: int, r: int, c: int)
 extern fun write_box_loop_fuel_exhausted(f: !Font, x0: int, y0: int, r: int, c: int): void = "mac#anth_die_void"
 
 fun write_box_loop_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, x0: int, y0: int, r: int, c: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if r >= 16 then ()
     else if c >= 8 then write_box_loop_with_fuel(recfuel - 1, f, x0, y0, r + 1, 0)
     else let

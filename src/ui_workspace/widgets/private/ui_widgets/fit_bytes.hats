@@ -1,7 +1,7 @@
 extern fun fit_bytes_fuel_exhausted(f: !Font, r: !Rend, p: ptr, n: int, max_w: int, i: int, last_fit: int): int = "mac#anth_die_int"
 
 fun fit_bytes_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, p: ptr, n: int, max_w: int, i: int, last_fit: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(i, n) then let
       val next_i = fit_next_index(p, n, i)
       val w = font_width(f, r, p, next_i)
@@ -63,7 +63,7 @@ extern fun draw_cell_guides_fuel_exhausted(r: !Rend, x: int, y: int, h: int, d: 
 fun draw_cell_guides_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), r: !Rend, x: int, y: int, h: int, d: int, depth: int
 ): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(d, depth) then let
       val gx = iadd(x, iadd(imul(d, 14), 7))
       val () = rend_rect(r, gx, y, 1, h, col_line())

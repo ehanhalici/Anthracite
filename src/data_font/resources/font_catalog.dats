@@ -90,7 +90,7 @@ extern fun scan_subdir_fuel_exhausted(dir: string, nlen: int, name_buf: !Buf, de
 extern fun scan_fonts_rec_fuel_exhausted(dir: string, depth: int, paths: &Buf >> _, names: &Buf >> _, meta: &Buf >> _, cnt: &int >> _): void = "mac#anth_die_void"
 
 fun scan_step_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dp: ptr, dir: string, depth: int, paths: &Buf >> _, names: &Buf >> _, meta: &Buf >> _, cnt: &int >> _, name_buf: &Buf >> _, isdir: &int >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(cnt, 100) orelse ieq(dir_next_buf(dp, name_buf, 255, isdir), 0) then ()
     else let
       val fname = buf_cstr(name_buf)
@@ -108,7 +108,7 @@ fun scan_step_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dp: pt
   ) else scan_step_fuel_exhausted(dp, dir, depth, paths, names, meta, cnt, name_buf, isdir)
 
 and scan_subdir {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dir: string, nlen: int, name_buf: !Buf, depth: int, paths: &Buf >> _, names: &Buf >> _, meta: &Buf >> _, cnt: &int >> _): void =
-  if recfuel > 0 then let
+  if recursion_fuel_available(recfuel) then let
     var sub_dir = buf_make(SCAN_STEP_WITH_FUEL_SUB_DIR_INITIAL_BYTES)
     val () = buf_append_str(sub_dir, dir)
     val () = buf_push(sub_dir, 47)
@@ -120,7 +120,7 @@ and scan_subdir {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dir: string, n
   end else scan_subdir_fuel_exhausted(dir, nlen, name_buf, depth, paths, names, meta, cnt)
 
 and scan_fonts_rec {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dir: string, depth: int, paths: &Buf >> _, names: &Buf >> _, meta: &Buf >> _, cnt: &int >> _): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if igt(depth, 4) orelse ige(cnt, 100) then ()
     else let
       val dp = dir_open(dir)

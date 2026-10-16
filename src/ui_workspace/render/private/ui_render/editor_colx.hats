@@ -32,7 +32,7 @@ fun pen_inc_row(pl: int): int =
   if pl < 0 then 0 else iadd(pl, 1)
 
 fun scan_word_end_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, p: int, en: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(p, en) then en
     else if ieq(doc_byte(d, p), CHAR_SPACE) then iadd(p, 1)
     else scan_word_end_with_fuel(recfuel - 1, d, iadd(p, 1), en)
@@ -130,7 +130,7 @@ fun view_slice_with_fuel {recfuel:nat} .<recfuel>. (
   colx: int, oy: int, scroll: int, lh: int, ph: int, c: uint,
   scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _, total: int
 ): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(i0, b) then
       if ieq(doc_byte(d, i0), CHAR_LF) then let
         val () = view_newline_adv(f, r, d, i0, colx, scratch, pen_x, pen_line)
@@ -182,7 +182,7 @@ fun heading_scale(k: NodeKind, snum: &int >> _, sden: &int >> _): void =
 extern fun skip_hash_fuel_exhausted(d: !Doc, st: int, b: int): int = "mac#anth_die_int"
 
 fun skip_hash_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: int, b: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(st, b) andalso ieq(doc_byte(d, st), CHAR_HASH) then skip_hash_with_fuel(recfuel - 1, d, iadd(st, 1), b)
     else st
   ) else skip_hash_fuel_exhausted(d, st, b)
@@ -190,7 +190,7 @@ fun skip_hash_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Do
 extern fun skip_gap_fuel_exhausted(d: !Doc, st: int, b: int): int = "mac#anth_die_int"
 
 fun skip_gap_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, st: int, b: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ilt(st, b) andalso (ieq(doc_byte(d, st), CHAR_SPACE) orelse ieq(doc_byte(d, st), CHAR_TAB)) then skip_gap_with_fuel(recfuel - 1, d, iadd(st, 1), b)
     else st
   ) else skip_gap_fuel_exhausted(d, st, b)
@@ -198,7 +198,7 @@ fun skip_gap_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc
 extern fun trim_tail_fuel_exhausted(d: !Doc, en: int, st: int): int = "mac#anth_die_int"
 
 fun trim_tail_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, en: int, st: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if igt(en, st) andalso (ieq(doc_byte(d, isub(en, 1)), CHAR_LF) orelse ieq(doc_byte(d, isub(en, 1)), CHAR_CR)) then trim_tail_with_fuel(recfuel - 1, d, isub(en, 1), st)
     else en
   ) else trim_tail_fuel_exhausted(d, en, st)

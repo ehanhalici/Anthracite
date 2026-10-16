@@ -29,7 +29,7 @@ fun u16(src: !Buf, i: int): int = iadd(buf_get(src, i), ishl(buf_get(src, iadd(i
 extern fun stored_cp_fuel_exhausted(src: !Buf, dst: &Buf >> _, at: int, ln: int, i: int): void = "mac#anth_die_void"
 
 fun stored_cp_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, dst: &Buf >> _, at: int, ln: int, i: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(i, ln) then ()
     else let
       val () = buf_push(dst, buf_get(src, iadd(at, i)))
@@ -66,7 +66,7 @@ fun block_of(n: int): DeflateBlock =
 extern fun blocks_fuel_exhausted(src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int = "mac#anth_die_int"
 
 fun blocks_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, n: int, st: &BitS >> _, tab: !Buf, dst: &Buf >> _): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if is_on(st.err) then 0
     else let
       val fin = read_one_bit(src, n, st)
@@ -134,7 +134,7 @@ fun pred_of(f: PngFilt, left: int, up: int, ul: int): int = case+ f of
 extern fun unfilter_row_fuel_exhausted(src: !Buf, raw: &Buf >> _, base: int, stride: int, bpp: int, y: int, f: PngFilt, x: int): void = "mac#anth_die_void"
 
 fun unfilter_row_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), src: !Buf, raw: &Buf >> _, base: int, stride: int, bpp: int, y: int, f: PngFilt, x: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(x, stride) then ()
     else let
       val v = buf_get(src, iadd(base, x))
@@ -153,7 +153,7 @@ fun unfilter_row(src: !Buf, raw: &Buf >> _, base: int, stride: int, bpp: int, y:
 extern fun unfilter_rows_fuel_exhausted(inf: !Buf, raw: &Buf >> _, stride: int, bpp: int, h: int, y: int, p: int): int = "mac#anth_die_int"
 
 fun unfilter_rows_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), inf: !Buf, raw: &Buf >> _, stride: int, bpp: int, h: int, y: int, p: int): int =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(y, h) then 1
     else if ige(p, buf_len(inf)) then 0
     else let
@@ -199,4 +199,3 @@ fun color_stride(k: PngColor, w: int): int = case+ k of
   | ColRgb() => imul(w, 3)
   | ColRgba() => imul(w, 4)
   | ColOther() => imul(w, 4)
-

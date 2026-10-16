@@ -99,7 +99,7 @@ end
 extern fun idct_cols_fuel_exhausted(val_buf: !Buf, data: !Buf, sbase: int, c: int): void = "mac#anth_die_void"
 
 fun idct_cols_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), val_buf: !Buf, data: !Buf, sbase: int, c: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(c, 8) then ()
     else let
       val () = idct_col(val_buf, data, sbase, c)
@@ -139,7 +139,7 @@ end
 extern fun idct_rows_fuel_exhausted(dst: !Buf, out_off: int, out_stride: int, val_buf: !Buf, r: int): void = "mac#anth_die_void"
 
 fun idct_rows_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), dst: !Buf, out_off: int, out_stride: int, val_buf: !Buf, r: int): void =
-  if recfuel > 0 then (
+  if recursion_fuel_available(recfuel) then (
     if ige(r, 8) then ()
     else let
       val dbase = iadd(out_off, imul(r, out_stride))
