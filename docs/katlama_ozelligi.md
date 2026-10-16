@@ -42,6 +42,10 @@ kontrolüdür. Mevcut belge selftest'i ayrıca üst/alt durum, derin geçiş ve 
 kaydırma işlemlerini sınar; fixture adı tek başına bütün işlem dizisinin
 exhaustive testi anlamına gelmez.
 
+Callout gövdesi ilk alıntı olmayan satıra kadar taranır; son ve boş alıntı
+satırları da dış aralıktadır. `callout_contracts` gövde uzunluğu, girinti,
+LF olmayan son satır ve AST yapısını denetler (BUG-008 çözüldü).
+
 `ctest --test-dir build -R '^fold_' --output-on-failure` paketi çalıştırır.
 `./build/anthracite --fold-dump dosya.md` ekran açmadan mevcut ayrıştırma ve
 katlama dökümünü verir; çıktı içindeki sabit hiyerarşi örnekleri genel oracle değildir.

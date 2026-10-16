@@ -51,8 +51,7 @@ See the [Turkish architecture index](docs/README.md), [development rules](docs/s
 [refactoring record](docs/refactoring_durumu.md) and [known issues](docs/olasi_hatalar.md).
 Generated C, Unicode binaries and build outputs are not edited by hand.
 
-The new boundary/equivalence tests expose two pre-existing issues (BUG-008 and
-BUG-011). They retain their correct expectations and carry the `known_issue`
+The equivalence test still exposes pre-existing BUG-011. Its correct expectations carry the `known_issue`
 label; the full suite currently reports those failures. Details and reproduction
 commands are in the known-issues document. They are not skipped by `check`.
 

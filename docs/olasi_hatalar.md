@@ -129,14 +129,20 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-008 — Callout'un son alıntı satırı katlama bölgesi dışında
 
-- Durum: başlangıç ve refactoring derlemelerinde yeniden üretildi; düzeltme bekliyor.
+- Durum: çözüldü; callout gövdesindeki tüm ardışık alıntı satırları ayrıştırılır.
 - Girdi: `tests/folds/callout_alinti.md` içindeki üç alıntı satırı.
 - Kanıt: `--fold-dump` sahibi 0 olan bölgenin özel bitişini 2 gösteriyor;
   üçüncü `> devam` satırı katlanmıyor. Beklenen özel bitiş 3.
 - Yeniden üretme: `./build/anthracite --fold-dump tests/folds/callout_alinti.md`
   veya `ctest --test-dir build/refactor-release -R fold_callout_alinti --output-on-failure`.
 - Beklenen: callout gövdesindeki son satırın da aralığa dahil edilmesi. Golden
-  beklenti 3 olarak korunur; test bu mevcut hatayı görünür tutar, sessizce geçirilmez.
+  beklenti 3 olarak korunmuştur.
+- Neden: blok ayrıştırıcısı callout başlığından sonra yalnız bir gövde satırı
+  tüketiyordu; katlama doğru AST sınırını aldığı halde AST eksikti.
+- Çözüm: gövde satırları monotonik taranır, her dolu satır kardeş paragraf olur;
+  boş alıntılar da dış aralığa dahildir. İlk alıntı olmayan satır tüketilmez.
+- Doğrulama: mevcut golden değişmeden geçer. Ek sözleşmeler sıfır/bir/çok
+  satır, boş alıntı, girinti, son LF olmayan girdi ve AST yapısını denetler.
 
 ## BUG-009 — Kelime erişiminde çarpımın temsil sınırı
 

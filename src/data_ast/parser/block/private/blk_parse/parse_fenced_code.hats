@@ -98,20 +98,43 @@ in
   head
 end
 
-fun callout_add_body(d: !Doc, c_node: int, head: int, ln2_st: int, ln2_le: int): void =
-  if igt(ln2_le, 0) then let
-    val body_p = doc_node_add(d, KPara, ln2_st, ln2_le, c_node, head, 0, 0)
+fun callout_add_body(d: !Doc, c_node: int, previous: int, start: int, finish: int): int =
+  if ilt(start, finish) then let
+    val body_p = doc_node_add(d, KPara, start, finish, c_node, previous, 0, 0)
     val () = if ige(body_p, 0) then let
       var sib: int = ~1
-      val () = inl_parse_depth(d, body_p, ln2_st, ln2_le, 0, sib)
-      val () = doc_node_close(d, body_p, ln2_le, ln2_st, ln2_le)
+      val () = inl_parse_depth(d, body_p, start, finish, 0, sib)
+      val () = doc_node_close(d, body_p, finish, start, finish)
     in
     end else ()
-  in
-  end else ()
+  in if ige(body_p, 0) then body_p else previous end else previous
+
+fun callout_body_start(d: !Doc, start: int, finish: int): int = let
+  var columns: int = 0
+  var position: int = start
+  val () = indent_cols(d, start, finish, columns, position)
+in
+  if ilt(position, finish) andalso ieq(doc_byte(d, position), CHAR_GT) then let
+    val content = iadd(position, 1)
+  in if ilt(content, finish) andalso ieq(doc_byte(d, content), CHAR_SPACE) then iadd(content, 1) else content end
+  else ~1
+end
+
+fun callout_body_lines{recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), d: !Doc, node: int, line: int, previous: int, finish: &int >> _
+): int =
+  if recursion_fuel_available(recfuel) then (
+    if ige(line, doc_len(d)) then line else let
+      val line_finish = line_end(d, line)
+      val content = callout_body_start(d, line, line_finish)
+    in if ilt(content, 0) then line else let
+      val sibling = callout_add_body(d, node, previous, content, line_finish)
+      val () = finish := line_finish
+    in callout_body_lines(recfuel-1, d, node, line_next(d, line), sibling, finish) end end
+  ) else line
 
 fun parse_callout_block(
-  d: !Doc, stk: &Buf >> _, ls: int, le: int, p: int, ln2_st: int, ln2_le: int,
+  d: !Doc, stk: &Buf >> _, ls: int, le: int, p: int,
   next_pos: &int >> _
 ): void = let
   val type_st = iadd(p, 2)
@@ -120,14 +143,14 @@ fun parse_callout_block(
   var mark_end: int = type_en
   val () = callout_fold_check(d, le, type_en, fold_aux, mark_end)
   val mark2_en = (if ilt(mark_end, le) andalso is_space_or_tab(doc_byte(d, mark_end)) then iadd(mark_end, 1) else mark_end)
-  val callout_end = (if igt(ln2_le, 0) then ln2_le else le)
-  val c_node = add_child_node(d, stk, KCallout, ls, callout_end, fold_aux, 0)
+  var callout_end: int = le
+  val c_node = add_child_node(d, stk, KCallout, ls, le, fold_aux, 0)
 in
   if ige(c_node, 0) then let
     val head = callout_add_head(d, c_node, p, le, type_st, type_en, mark2_en)
-    val () = callout_add_body(d, c_node, head, ln2_st, ln2_le)
+    val next_line = callout_body_lines(airlock_nat(MAX_REC_FUEL), d, c_node, line_next(d, ls), head, callout_end)
     val () = doc_node_close(d, c_node, callout_end, p, callout_end)
-    val () = next_pos := (if igt(ln2_le, 0) then line_next(d, ln2_st) else line_next(d, ls))
+    val () = next_pos := next_line
   in
   end else ()
 end

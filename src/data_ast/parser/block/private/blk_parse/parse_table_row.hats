@@ -69,12 +69,9 @@ fun try_quote_callout(d: !Doc, stk: &Buf >> _, cur: int, le: int, nxt: int, len:
     val c_st = (if ilt(iadd(p, 1), le) andalso ieq(doc_byte(d, iadd(p, 1)), CHAR_SPACE) then iadd(p, 2) else iadd(p, 1))
   in
     if is_callout_head(d, c_st, le) then let
-      val nxt_le = (if ilt(nxt, len) then line_end(d, nxt) else ~1)
-      val nxt_p = (if ilt(nxt, len) andalso ieq(doc_byte(d, nxt), CHAR_GT) then (
-        if ilt(iadd(nxt, 1), nxt_le) andalso ieq(doc_byte(d, iadd(nxt, 1)), CHAR_SPACE) then iadd(nxt, 2) else iadd(nxt, 1)
-      ) else ~1)
       var next_pos: int = nxt
-      val () = parse_callout_block(d, stk, cur, le, c_st, (if ige(nxt_p, 0) then nxt_p else 0), (if ige(nxt_p, 0) then nxt_le else ~1), next_pos)
+      val () = parse_callout_block(d, stk, cur, le, c_st, next_pos)
+      val () = seen_int(len)
     in
       next_pos
     end else (parse_quote(d, stk, cur, le, p); nxt)
