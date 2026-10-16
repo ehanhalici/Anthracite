@@ -28,6 +28,14 @@ add_test(NAME graphics_selftest COMMAND "${CMAKE_COMMAND}"
   "-DEXECUTABLE=$<TARGET_FILE:anthracite>" "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
   "-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}" -P "${CMAKE_SOURCE_DIR}/tests/runtime/verify_graphics.cmake")
 set_tests_properties(graphics_selftest PROPERTIES LABELS graphics RUN_SERIAL TRUE TIMEOUT 90)
+add_test(NAME selftest_no_display COMMAND "${CMAKE_COMMAND}"
+  "-DEXECUTABLE=$<TARGET_FILE:anthracite>" "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+  "-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}" -P "${CMAKE_SOURCE_DIR}/tests/runtime/verify_no_display.cmake")
+set_tests_properties(selftest_no_display PROPERTIES LABELS "runtime;negative" TIMEOUT 30)
+add_test(NAME graphics_selftest_failure COMMAND "${CMAKE_COMMAND}"
+  "-DEXECUTABLE=$<TARGET_FILE:anthracite>" "-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}"
+  -P "${CMAKE_SOURCE_DIR}/tests/runtime/verify_selftest_failure.cmake")
+set_tests_properties(graphics_selftest_failure PROPERTIES LABELS "graphics;negative" RUN_SERIAL TRUE TIMEOUT 90)
 add_test(NAME source_integrity COMMAND "${CMAKE_COMMAND}" -P "${CMAKE_SOURCE_DIR}/cmake/SourceIntegrity.cmake")
 
 anthracite_contract_test(fold_contracts tests/folds/fold_contracts.dats)

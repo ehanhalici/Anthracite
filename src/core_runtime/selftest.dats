@@ -23,7 +23,7 @@ macdef SELFTEST_TITLE_X = 24
 macdef SELFTEST_TITLE_Y = 48
 macdef SELFTEST_TITLE = "Anthracite"
 
-fun run_core_selftests(r: !Rend): void = let
+fun run_core_selftests(r: !Rend): int = let
   val font_result = font_selftest(r)
   val doc_result = doc_selftest()
   val image_result = img_selftest()
@@ -31,8 +31,10 @@ fun run_core_selftests(r: !Rend): void = let
   val () = println! ("font_selftest=", font_result)
   val () = println! ("doc_selftest=", doc_result)
   val () = println! ("img_selftest=", image_result)
+  val () = println! ("app_selftest=", app_result)
+  val ok = if ieq(font_result, 1) andalso ieq(doc_result, 1) andalso ieq(image_result, 1) andalso ieq(app_result, 1) then 1 else 0
 in
-  println! ("app_selftest=", app_result)
+  ok
 end
 
 fun print_start(start: int): void = let
@@ -65,9 +67,7 @@ in
   print_int(clip_ok)
 end
 
-fun print_health(waited: int, live: int): void = let
-  val poll_ok = if waited >= SELFTEST_MIN_POLL_MS then 1 else 0
-  val rss_ok = if live > 0 andalso live < SELFTEST_LIVE_MEMORY_BUDGET_BYTES then 1 else 0
+fun print_health(poll_ok: int, rss_ok: int): void = let
   val () = print(" poll_ok=")
   val () = print_int(poll_ok)
   val () = print(" rss_ok=")
@@ -75,13 +75,13 @@ in
   print_int(rss_ok)
 end
 
-fun print_budget_metrics(start: int, rss: int, live: int, waited: int, clip_ok: int): void = let
+fun print_budget_metrics(start: int, rss: int, live: int, waited: int, clip_ok: int, poll_ok: int, rss_ok: int): void = let
   val () = print_start(start)
   val () = print_rss(rss)
   val () = print_live(live)
   val () = print_poll(waited)
   val () = print_clip(clip_ok)
-  val () = print_health(waited, live)
+  val () = print_health(poll_ok, rss_ok)
 in
   print_newline()
 end
@@ -111,13 +111,18 @@ implement runtime_selftest(p, r, started_at) = let
   val f = font_open()
   val () = draw_self_frame(p, r, f)
   val elapsed = anth_ms(started_at, mono_ns())
-  val () = run_core_selftests(r)
+  val core_ok = run_core_selftests(r)
   val clip_result = clipboard_selftest(p)
   val waited = self_poll_ms(p)
   val rss = rss_kb()
   val live = mem_live()
-  val () = print_budget_metrics(elapsed, rss, live, waited, clip_result)
+  val poll_ok = if waited >= SELFTEST_MIN_POLL_MS then 1 else 0
+  val rss_ok = if live > 0 andalso live < SELFTEST_LIVE_MEMORY_BUDGET_BYTES then 1 else 0
+  val () = print_budget_metrics(elapsed, rss, live, waited, clip_result, poll_ok, rss_ok)
   val () = font_free(f)
+  val () = plat_stop(p)
+  val all_ok = if ieq(core_ok, 1) andalso ieq(clip_result, 1) andalso ieq(poll_ok, 1) andalso ieq(rss_ok, 1) then 1 else 0
+  val () = if ieq(all_ok, 0) then println! ("event=selftest status=failed") else ()
 in
-  plat_stop(p)
+  all_ok
 end

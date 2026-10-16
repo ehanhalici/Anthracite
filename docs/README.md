@@ -32,5 +32,7 @@ X11/GLX ekranı ister; CPU paketini `ctest --test-dir build -LE graphics
 
 Test sayısı CMake yapılandırmasındaki isteğe bağlı fontlara göre değişebilir.
 Başlangıç ölçümü 77 testtir; güncel sonuç ve ortam ilerleme kaydında tutulur.
-`--selftest` çıkış kodu mevcut uygulamada tek başına yeterli değildir; grafik
-CTest sarmalayıcısı sonuç satırlarını da kontrol eder (BUG-001).
+`--selftest` bütün alt selftest ve sağlık bayrakları başarılıysa `0`, bir denetim
+başarısızsa `1` döndürür. Ekran açılamaması da normal başlatmada ve selftest'te
+`1` üretir (BUG-001 çözüldü). Grafik CTest sarmalayıcısı çıkış koduna ek olarak
+sonuç satırlarını denetler; ekransız hata yolu ayrı CPU testiyle sınanır.

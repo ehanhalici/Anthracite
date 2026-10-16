@@ -1,5 +1,6 @@
 #include "share/atspre_define.hats"
 #include "share/atspre_staload.hats"
+#include "common.hats"
 
 staload "os/fs.sats"
 staload "core_platform/platform.sats"
@@ -15,10 +16,15 @@ macdef FOLD_PATH_ARGUMENT = 2
 fun run_display(p: Plat, started_at: lint): void = let
   val r = rend_open()
   val selftest = c_argc() > FIRST_ARGUMENT andalso c_strcmp(c_argv(FIRST_ARGUMENT), "--selftest") = 0
-  val () = if selftest then runtime_selftest(p, r, started_at) else application_run(p, r)
+  val ok = if selftest then runtime_selftest(p, r, started_at) else let
+    val () = application_run(p, r)
+  in
+    1
+  end
   val () = rend_close(r)
+  val () = plat_close(p)
 in
-  plat_close(p)
+  if ieq(ok, 0) then exit(1) else ()
 end
 
 fun start_application(): void = let
@@ -27,8 +33,9 @@ fun start_application(): void = let
 in
   if not(plat_ok(p)) then let
     val () = println! ("event=display_error status=failed error=cannot_open_display")
+    val () = plat_close(p)
   in
-    plat_close(p)
+    exit(1)
   end else run_display(p, t0)
 end
 

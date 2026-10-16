@@ -5,14 +5,24 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-001 — Selftest başarısızlığı çıkış koduna yansımıyor
 
-- Durum: doğrulandı (kaynak incelemesi); düzeltme bekliyor.
-- Konum: çalışma zamanı selftest orkestrasyonu ve `main0`.
-- Kanıt: font/belge/görsel/UI sonuçları yazdırılıyor; başarısız sonuçlar için
-  süreç başarısız çıkış kodu üretmiyor. Ekran açılamaması da normal dönüş yapıyor.
-- Yeniden üretme: `DISPLAY= ./build/anthracite --selftest`; günlükte
-  `status=failed` varken süreç kodunu kontrol et.
-- Beklenen: başarısız selftest ve ekran başlatma başarısızlığı başarısız süreç
-  kodu üretmeli. Test koşucusu bu düzeltilene kadar sonuç satırlarını da doğrulamalı.
+- Durum: çözüldü (2026-10-16; selftest ve ekran başlatma hataları çıkış koduna bağlandı).
+- Konum: `src/core_runtime/selftest.dats`, `src/core_runtime/selftest.sats`,
+  `src/main.dats` ve `tests/runtime/verify_*.cmake`.
+- Kanıt: `runtime_selftest` ve `run_core_selftests` font/belge/görsel/uygulama,
+  pano (`clip`), bekleme (`poll_ok`) ve izlenen canlı tampon bütçesi (`rss_ok`)
+  denetimlerini birleştirir. Başarısızlıkta `event=selftest status=failed` yazılır;
+  `main` renderer/platform kaynaklarını bıraktıktan sonra `exit(1)` çağırır.
+  Ekran açılamaması da platform kapatıldıktan sonra `exit(1)` üretir.
+- Yeniden üretme: `DISPLAY= ./build/anthracite --selftest` ve `DISPLAY= ./build/anthracite`
+  tam olarak `1` döndürür, `event=display_error status=failed error=cannot_open_display`
+  yazar. Grafik ortamında boş çalışma dizini, selftest'in göreli font yüklemesini
+  başarısız kılar: `font_selftest=0`, toplam hata günlüğü ve süreç kodu `1` beklenir.
+- Doğrulama: `graphics_selftest` başarılı `0` yolunu; ekran gerektirmeyen
+  `selftest_no_display` iki başlatma modunun hata yolunu;
+  `graphics_selftest_failure` gerçek alt selftest hata yolunu denetler.
+  Negatif testler herhangi bir sıfır dışı kodu değil, tam olarak `1` ister;
+  sinyal, farklı hata kodu ve zaman aşımı başarı sayılmaz. Üretim koduna test
+  için sahte sonuç veya hata enjeksiyonu anahtarı eklenmedi.
 
 ## BUG-002 — Menü modal durumu belgeyle uyuşmuyor
 
@@ -141,3 +151,17 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
   workspace_document_contracts --output-on-failure`; test her iki ağacı yazdırır.
 - Beklenen: artımlı ve tam ayrıştırmanın işaret/çocuk düğümlerini de koruyarak
   eşleşmesi. Test `known_issue` etiketlidir; devre dışı veya ters beklentili değildir.
+
+## BUG-012 — Paylaşılan ATS test fixture'ı paralel üretiliyor
+
+- Durum: çözüldü (2026-10-16; BUG-001 doğrulamasında yeniden üretildi).
+- Konum: `cmake/ATSGenerated.cmake` ve birden çok yürütücüye bağlanan test kaynakları.
+- Kanıt: Debug `check-build -j 16` sırasında `font_fixture_dats.c` on kez üretildi;
+  `sfnt_conformance` dosyayı boşken derledi (`-Wempty-translation-unit`) ve fixture
+  simgelerini bağlayamadı. Bu, selftest çıkış kodu değişikliğinin mantıksal hatası değildir.
+- Yeniden üretme: `cmake -E touch_nocreate tests/font/resources/font_fixture.sats`
+  sonrasında paralel `check-build`. Önceki grafikte başarısızlık zamanlamaya bağlıydı.
+- Çözüm: paylaşılan test C çıktıları `ats_shared_test_generated` tek üretici
+  hedefine bağlandı; bütün tüketiciler bu hedefin tamamlanmasını bekler.
+- Doğrulama: aynı test arayüzü tekrar güncelletilip her iki profilde `check-build
+  -j 16` çalıştırıldı; fixture her profilde bir kez üretildi ve bağlama tamamlandı.

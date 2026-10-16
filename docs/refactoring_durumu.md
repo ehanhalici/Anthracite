@@ -89,6 +89,29 @@ tekrarlanabilir testler ve uygulamayla eşleşen belgeler sağlamak.
   farklardaki boşluk denetimi geçti. [JPEG test rehberi](../tests/image/README.md)
   veri kümesini ve yeniden üretim komutlarını açıklar.
 
+### BUG-001 inceleme doğrulaması (2026-10-16)
+
+- Kullanıcının çekirdek düzeltmesinde alt selftest/sağlık sonuçlarının `main`'e
+  taşınması ve başarısızlıkta kaynaklar bırakıldıktan sonra `exit(1)` çağrılması
+  doğrulandı; bu akış değiştirilmedi.
+- Testteki "herhangi bir sıfır dışı sonuç yeterlidir" kontrolü kaldırıldı.
+  `selftest_no_display` grafik ortama bağlı olmadan normal başlatma ve
+  `--selftest` için tam olarak `1` ister. Doğru hata mesajı yazan yapay süreçlerde
+  `0` ve `7` reddedildi, yalnız `1` kabul edildi.
+- `graphics_selftest_failure`, gerçek üretim ikilisini boş çalışma dizininde
+  çalıştırarak göreli font yükleme hatasını, `font_selftest=0`, toplam hata
+  günlüğü ve `exit(1)` yolunu sınar. Üretim hata enjeksiyonu veya sahte selftest
+  kullanılmaz. Başarılı grafik selftest ve sonuç bayrağı kontrolleri korunur.
+- BUG-001'i hâlâ açık gösteren mimari/index açıklamaları güncellendi.
+- Debug doğrulamasında paylaşılan test fixture'larının paralel üretim yarışı
+  bulundu (BUG-012). Ortak çıktılar `ats_shared_test_generated` tek üreticisine
+  alındı. Test arayüzünün zaman damgası güncellenerek iki profilde `check-build
+  -j 16` tekrarlandı: fixture başına tek üretim ve başarılı bağlama doğrulandı.
+- Son tam paket her profilde 246 testtir: 244 geçti, yalnız önceki BUG-008 ve
+  BUG-011 başarısız. BUG-001'e ait başarılı grafik, gerçek alt selftest hatası ve
+  ekransız başlatma testlerinin üçü de Release/Debug'da geçti. Test beklentileri
+  veya `known_issue` etiketleri değiştirilmedi.
+
 ### Komutlar
 
 ```sh
