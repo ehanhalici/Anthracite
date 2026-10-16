@@ -16,6 +16,9 @@ Kelime erişiminde negatif indeks ve kelimeden küçük kapasite reddedilir;
 çarpımdan önce `i <= (capacity-WORD32_BYTES)/WORD32_BYTES` kontrolü yapılır.
 ATS ve C ABI sarmalayıcıları aynı taşmasız reddetme politikasını kullanır.
 `word_boundary_contracts` bunu `-fno-wrapv` ve UBSan altında sınar.
+Bayt kopyalarında ofset kapasiteye kadar doğrulandıktan sonra kalan kapasiteyle
+uzunluk karşılaştırılır; taşabilecek `offset+length` hesaplanmaz.
+`copy_boundary_contracts` C ABI sınırını UBSan ve aralık matrisiyle sınar.
 
 Mevcut erişim yordamları kapasite dışındaki bazı okumalar için sıfır döndürür,
 bazı yazmaları yok sayar. Sessiz varsayımlarla iş mantığı kurulmaz; arayüzün

@@ -65,17 +65,22 @@ static inline char *anth_ptr_string(void *p) {
   return p ? (char *)p : (char *)"";
 }
 
+static inline int anth_byte_range_valid(int capacity, int offset, int length) {
+  return offset >= 0 && offset <= capacity && length > 0 &&
+    length <= capacity - offset;
+}
+
 static inline void anth_buf_copy(void *dst, int dst_cap, int dst_off, const void *src, int src_cap, int src_off, int n) {
   if (!dst || !src || n <= 0) return;
-  if (dst_off < 0 || dst_off + n > dst_cap) return;
-  if (src_off < 0 || src_off + n > src_cap) return;
+  if (!anth_byte_range_valid(dst_cap, dst_off, n)) return;
+  if (!anth_byte_range_valid(src_cap, src_off, n)) return;
   memmove((unsigned char *)dst + dst_off, (const unsigned char *)src + src_off, (size_t)n);
 }
 
 static inline void anth_copy_to_ptr(const void *src, int src_cap, int src_off, void *dst, int dst_cap, int dst_off, int n) {
   if (!src || !dst || n <= 0) return;
-  if (src_off < 0 || src_off + n > src_cap) return;
-  if (dst_off < 0 || dst_off + n > dst_cap) return;
+  if (!anth_byte_range_valid(src_cap, src_off, n)) return;
+  if (!anth_byte_range_valid(dst_cap, dst_off, n)) return;
   memcpy((unsigned char *)dst + dst_off, (const unsigned char *)src + src_off, (size_t)n);
 }
 

@@ -42,6 +42,10 @@ anthracite_contract_test(word_boundary_contracts tests/memory/word_boundary_cont
 target_compile_options(word_boundary_contracts PRIVATE -fno-wrapv -fsanitize=undefined -fno-sanitize-recover=undefined)
 target_link_options(word_boundary_contracts PRIVATE -fsanitize=undefined)
 add_test(NAME word_boundary_contracts COMMAND word_boundary_contracts)
+add_executable(copy_boundary_contracts EXCLUDE_FROM_ALL tests/memory/copy_boundary_contracts.c)
+target_compile_options(copy_boundary_contracts PRIVATE -fno-wrapv -fsanitize=undefined -fno-sanitize-recover=undefined)
+target_link_options(copy_boundary_contracts PRIVATE -fsanitize=undefined)
+add_test(NAME copy_boundary_contracts COMMAND copy_boundary_contracts)
 add_test(NAME editor_fsm_contracts COMMAND editor_fsm_contracts)
 
 anthracite_contract_test(event_repaint_contracts tests/runtime/event_repaint_contracts.dats

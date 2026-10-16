@@ -228,12 +228,19 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-014 — C tampon kopyalama sınırında toplam taşması
 
-- Durum: kaynak incelemesinde doğrulandı; sanitizer yeniden üretimi ve düzeltme bekliyor.
+- Durum: çözüldü; UBSan ile yeniden üretildi ve çıkarma temelli kontrol eklendi.
 - Konum: `src/mem.cats`, `anth_buf_copy` / `anth_copy_to_ptr`.
 - Kanıt: `offset + n > capacity` denetimi signed `int` toplamasını sınır
   kontrolünden önce yapar. Büyük pozitif uzunluk/ofsette taşma olabilir.
 - Beklenen: negatif değerler dışlandıktan sonra `n <= capacity - offset`
   kontrolü; küçük gerçek tamponlarda INT_MAX çevresindeki reddetme testleri.
+- Yeniden üretme: eski kod 16 baytlık tamponda ofset 8, uzunluk INT_MAX için
+  `8 + 2147483647` signed overflow tanısı verdi (`-fno-wrapv`, UBSan).
+- Çözüm: `0 <= offset <= capacity` sonrasında `length <= capacity-offset`
+  kontrolü iki kopyalama kapısında ortak kullanılır; çakışan aralıklar için
+  `anth_buf_copy` mevcut `memmove` davranışını korur.
+- Doğrulama: UBSan testi kapasite/ofset/uzunluk matrisi, negatif kapasiteler,
+  INT_MIN/MAX sınırları, hedef/kaynak reddi ve geçerli çakışan kopyayı sınar.
 
 ## BUG-015 — Unifont yüklemesinde geliştiriciye özel yedek yol
 
