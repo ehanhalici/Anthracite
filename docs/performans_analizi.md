@@ -38,3 +38,9 @@ Release, Xvfb :93, 1280×800, 18 px; iki dosya ayrı süreçlerde sırayla
 Gömülü örneğin ilk karesi 38 çocuk belge yüklemesi, 39 sarma ve 39 görsel
 indeks hazırlığı yaptı. Uzun metinde şekillendirilen toplam bayt 4.221.439'dur.
 Bu tek koşunun başlangıç ölçümüdür; medyan/p95 veya gerçek GPU garantisi değildir.
+
+## Katlama hazırlığı
+
+Yeniden ayrıştırmada hazırlık bir kez yapılır. Bölge sahipleri tek monoton
+düğüm imleciyle eşlenir; `fold_scaling_contracts` 32/256/2048 başlıkta ziyaret
+sayısının düğüm + bölge sayısını aşmadığını ve sahip bayraklarını doğrular.

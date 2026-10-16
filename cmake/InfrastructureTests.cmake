@@ -14,6 +14,10 @@ target_link_libraries(document_performance PRIVATE anthracite_host native_text_e
   ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
 add_executable(performance_counter_contracts EXCLUDE_FROM_ALL tests/performance/performance_counter_contracts.c)
 add_test(NAME performance_counter_contracts COMMAND performance_counter_contracts)
+anthracite_contract_test(fold_scaling_contracts tests/performance/fold_scaling_contracts.dats)
+target_link_libraries(fold_scaling_contracts PRIVATE anthracite_host native_text_engine
+  ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
+add_test(NAME fold_scaling_contracts COMMAND fold_scaling_contracts)
 
 anthracite_contract_test(selftest_memory_contracts tests/runtime/selftest_memory_contracts.dats)
 target_link_libraries(selftest_memory_contracts PRIVATE anthracite_host native_text_engine

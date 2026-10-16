@@ -306,9 +306,15 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-022 — Katlama hazırlığında tekrar ve bölge × düğüm taraması
 
-- Durum: doğrulandı (kaynak incelemesi); düzeltme sürüyor.
+- Durum: çözüldü; tek hazırlama ve monoton düğüm taraması kullanılıyor.
 - Kanıt: yeniden ayrıştırma sonrası `doc_compute_foldability` ve onu tekrar
   çağıran `fold_apply` çalışır. Her bölge, sahibi için bütün AST'yi tarar.
+- Çözüm: yeniden ayrıştırmanın gereksiz ilk hazırlaması kaldırıldı; sıralı
+  bölgeler aynı düğüm imlecini ilerletir, aynı satırdaki sahip yeniden kullanılır.
+  Önceki düğüm türü önceliği ve eşitlikte ilk düğüm davranışı korunur.
+- Doğrulama: 32/256/2048 başlıklı sentetik belgelerde tek hazırlama,
+  düğüm ziyaretleri ≤ düğüm + bölge sayısı, bütün başlık sahipleri ve bellek
+  dengesi denetlenir. Release katlama/workspace/ayrıştırma paketinde 16/16 geçti.
 
 ## BUG-023 — Sıcak yerleşim çağrısı yine tam hazırlama işi yapıyor
 

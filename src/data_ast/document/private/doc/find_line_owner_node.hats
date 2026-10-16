@@ -1,28 +1,26 @@
-extern fun find_line_owner_node_fuel_exhausted(d: !Doc, line: int, i: int, n: int, best_i: int, best_r: int): int = "mac#anth_die_int"
-
 fun find_line_owner_node_with_fuel {recfuel:nat} .<recfuel>. (
-  recfuel: int(recfuel), d: !Doc, line: int, i: int, n: int, best_i: int, best_r: int
+  recfuel: int(recfuel), d: !Doc, line: int, cursor: &int >> _, n: int, best_i: int, best_r: int
 ): int =
   if recursion_fuel_available(recfuel) then (
-    if i >= n then best_i
+    if cursor >= n then best_i
     else let
+      val i = cursor
+      val () = performance_note(PERF_FOLD_NODE_VISITS, 1)
       val st = doc_node_start(d, i)
       val l = doc_line_of(d, st)
     in
-      if ieq(l, line) then let
-        val k = doc_node_kind(d, i)
-        val r = node_block_rank(k)
+      if igt(l, line) then best_i else let
+        val () = cursor := iadd(i, 1)
+        val rank = if ieq(l, line) then node_block_rank(doc_node_kind(d, i)) else 0
+        val better = igt(rank, best_r)
       in
-        if igt(r, best_r) then find_line_owner_node_with_fuel(recfuel - 1, d, line, iadd(i, 1), n, i, r)
-        else find_line_owner_node_with_fuel(recfuel - 1, d, line, iadd(i, 1), n, best_i, best_r)
-      end else find_line_owner_node_with_fuel(recfuel - 1, d, line, iadd(i, 1), n, best_i, best_r)
+        find_line_owner_node_with_fuel(recfuel - 1, d, line, cursor, n,
+          if better then i else best_i, if better then rank else best_r)
+      end
     end
-  ) else find_line_owner_node_fuel_exhausted(d, line, i, n, best_i, best_r)
+  ) else best_i
 
-fun stamp_one_region_node(d: !Doc, r: int, nn: int): void = let
-  val owner_l = doc_region_owner(d, r)
-  val ni = find_line_owner_node_with_fuel(airlock_nat(MAX_REC_FUEL), d, owner_l, 0, nn, ~1, 0)
-in
+fun stamp_one_region_node(d: !Doc, r: int, ni: int, nn: int): void =
   if ige(ni, 0) andalso ilt(ni, nn) then let
     val fl = doc_node_flags(d, ni)
     val new_fl = (if ieq(iand(fl, FL_FOLDABLE), 0) then iadd(fl, FL_FOLDABLE) else fl)
@@ -32,21 +30,15 @@ in
     val () = node_field_set(d, ni, NF_COLLAPSED, coll)
   in
   end else ()
-end
-
-extern fun stamp_regions_m_fuel_exhausted(d: !Doc, r: int, nreg: int, nn: int): void = "mac#anth_die_void"
-
-fun stamp_regions_with_fuel {recfuel:nat} .<recfuel>. (
-  recfuel: int(recfuel), d: !Doc, r: int, nreg: int, nn: int
+fun stamp_regions_with_fuel {remaining:nat} .<remaining>. (
+  remaining: int(remaining), d: !Doc, r: int, nn: int, cursor: &int >> _, last_line: int, last_node: int
 ): void =
-  if recursion_fuel_available(recfuel) then (
-    if r >= nreg then ()
-    else let
-      val () = stamp_one_region_node(d, r, nn)
-    in
-      stamp_regions_with_fuel(recfuel - 1, d, iadd(r, 1), nreg, nn)
-    end
-  ) else stamp_regions_m_fuel_exhausted(d, r, nreg, nn)
+  if remaining > 0 then let
+    val owner = doc_region_owner(d, r)
+    val node = if ieq(owner, last_line) then last_node else
+      find_line_owner_node_with_fuel(airlock_nat(MAX_REC_FUEL), d, owner, cursor, nn, ~1, 0)
+    val () = stamp_one_region_node(d, r, node, nn)
+  in stamp_regions_with_fuel(remaining-1, d, iadd(r, 1), nn, cursor, owner, node) end else ()
 
 fun sync_one_node_hidden(d: !Doc, i: int): void = let
   val st = doc_node_start(d, i)
@@ -84,8 +76,9 @@ implement doc_compute_foldability(d) = let
   val () = doc_put_regions(d, r)
   val () = doc_put_hidden(d, h)
   val nn = d_nnodes(d)
+  var cursor: int = 0
   val () = clear_flags_with_fuel(airlock_nat(MAX_REC_FUEL), d, 0, nn)
-  val () = stamp_regions_with_fuel(airlock_nat(MAX_REC_FUEL), d, 0, nreg, nn)
+  val () = stamp_regions_with_fuel(airlock_nat(nreg), d, 0, nn, cursor, ~1, ~1)
   val () = sync_nodes_hidden_with_fuel(airlock_nat(MAX_REC_FUEL), d, 0, nn)
 in
 end

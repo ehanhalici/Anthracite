@@ -2,7 +2,6 @@ fun doc_insert_reparse(d: !Doc, at: int, n: int, old: int, delta: int): void = l
   val () = lines_apply_edit(d, at, 0, n)
   val () = folds_apply_edit(d, at, 0, n)
   val () = ast_reparse_v2(d, at, 0, n)
-  val () = doc_compute_foldability(d)
   val () = seen_int(old); val () = seen_int(delta)
 in
   fold_apply(d)

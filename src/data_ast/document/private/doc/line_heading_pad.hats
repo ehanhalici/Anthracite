@@ -12,7 +12,6 @@ fun reparse(d: !Doc, at: int, oldlen: int): void = let
   val () = lines_apply_edit(d, at, del_bytes, ins_bytes)
   val () = folds_apply_edit(d, at, del_bytes, ins_bytes)
   val () = ast_reparse_v2(d, at, del_bytes, ins_bytes)
-  val () = doc_compute_foldability(d)
 in
   fold_apply(d)
 end
