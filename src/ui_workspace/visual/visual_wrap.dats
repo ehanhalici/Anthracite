@@ -7,6 +7,7 @@ macdef VISUAL_WRAP_FILL_SCRATCH_INITIAL_BYTES = 256
 
 staload "airlock.sats"
 staload "mem.sats"
+staload "core_runtime/performance.sats"
 staload "data_ast/document/doc.sats"
 staload "data_ast/layout/visual_rows.sats"
 staload "data_font/resources/font.sats"
@@ -105,6 +106,7 @@ fun lines{n:nat} .<n>. (left: int(n),f: !Font,r: !Rend,d: !Doc,rows: &VisualRows
   else let val ()=one(f,r,d,rows,i,cur,scratch) in lines(left-1,f,r,d,rows,iadd(i,1),cur,scratch) end
 
 implement visual_wrap_fill(f,r,d,rows) = let
+  val () = performance_note(PERF_WRAP_BUILDS, 1)
   var scratch = buf_make(VISUAL_WRAP_FILL_SCRATCH_INITIAL_BYTES)
   var cur: int = 0
   val () = lines(airlock_nat(doc_nlines(d)), f, r, d, rows, 0, cur, scratch)

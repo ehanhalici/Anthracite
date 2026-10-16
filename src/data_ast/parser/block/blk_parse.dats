@@ -8,6 +8,7 @@ macdef AST_REPARSE_DO_RESYNC_INITIAL_BYTES = 64
 
 
 staload "mem.sats"
+staload "core_runtime/performance.sats"
 staload "airlock.sats"
 staload "flag.sats"
 staload "os/fs.sats"

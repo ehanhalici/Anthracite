@@ -76,6 +76,7 @@ fun sync_nodes_hidden_with_fuel {recfuel:nat} .<recfuel>. (
   ) else sync_nodes_hidden_m_fuel_exhausted(d, i, n)
 
 implement doc_compute_foldability(d) = let
+  val () = performance_note(PERF_FOLD_PREPARES, 1)
   var r = doc_take_regions(d)
   var h = doc_take_hidden(d)
   val nreg = fold_region_build(d, r)

@@ -1,4 +1,5 @@
 #include "data_font/text/font_text_internal.hats"
+staload "core_runtime/performance.sats"
 fun pixels(value: int): int = iadd(idiv(value,64),if ieq(imod(value,64),0) then 0 else 1)
 fun measured{b:bool}(slot: !option_vt(FontTextCache,b)): FontTextResult = case+ slot of
   | None_vt() => FontTextFailed(SpanShaping())
@@ -26,5 +27,6 @@ fun session_width(f: !Font,state: &Option_vt(FontTextSession) >> _,b: !Buf,lengt
   | @None_vt() => let prval ()=fold@(state) in FontTextInactive() end
   | @Some_vt(session) => let val result=active(f,session,b,length) prval ()=fold@(state) in result end
 implement font_text_width(f,b,length) = let var state=font_text_take(f)
+  val ()=performance_note(PERF_WIDTH_QUERIES,1)
   val result=session_width(f,state,b,length) val ()=font_text_put(f,state)
 in result end

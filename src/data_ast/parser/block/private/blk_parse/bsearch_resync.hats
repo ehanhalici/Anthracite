@@ -49,6 +49,7 @@ in
 end
 
 implement ast_parse_all(d) = let
+  val () = performance_note(PERF_AST_PARSES, 1)
   val is_md = doc_is_md(d)
 in
   if is_off(is_md) then (doc_clear_nodes(d); doc_set_span(d, 0))

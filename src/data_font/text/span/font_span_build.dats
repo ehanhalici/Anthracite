@@ -1,4 +1,5 @@
 #include "data_font/text/span/font_span_internal.hats"
+staload "core_runtime/performance.sats"
 staload "data_font/text/span/private/font_span_partition.sats"
 fun allocated(f: !Font,assets: !NativeTextAssets,a: NativeTextAnalysis,contexts: !NativeTextContexts,
   items: NativeTextItems,options: FontSpanOptions): FontSpanRead = let
@@ -29,6 +30,10 @@ fun paragraph(f: !Font,assets: !NativeTextAssets,a: NativeTextAnalysis,options: 
   val single=ieq(n,0) orelse ieq(bidi_document_paragraph_end(bidi,0),n)
 in if single then contextual(f,assets,a,options) else let val ()=native_text_analysis_dispose(a)
   in FontSpanRejected(SpanParagraph()) end end
-implement font_span_make(f,assets,source,length,options) = case+ native_text_analyze(assets,source,length,AutoLtr()) of
+implement font_span_make(f,assets,source,length,options) = let
+  val ()=performance_note(PERF_SHAPE_CALLS,1)
+  val ()=performance_note(PERF_SHAPED_BYTES,length)
+in case+ native_text_analyze(assets,source,length,AutoLtr()) of
   | ~NativeAnalysisRejected(e) => FontSpanRejected(SpanAnalysis())
   | ~NativeAnalysisAccepted(a) => paragraph(f,assets,a,options)
+end

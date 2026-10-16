@@ -4,6 +4,7 @@
 #include "common.hats"
 staload "airlock.sats"
 staload "mem.sats"
+staload "core_runtime/performance.sats"
 staload "data_ast/document/doc.sats"
 staload "data_ast/layout/doc_visual.sats"
 staload "data_ast/layout/visual_rows.sats"
@@ -21,6 +22,7 @@ fun row_x(f: !Font,row: VisualRow,width: int,colx: int,scratch: !Buf): int =
     iadd(colx,imax(0,isub(width,row.width))) else colx
 fun fixed_row(f: !Font,r: !Rend,d: !Doc,rows: !VisualRows,i: int,range: TextRange,paint: TextPaint,
   colx: int,oy: int,scroll: int,lh: int,c: uint,scratch: &Buf >> _): int = let
+  val ()=performance_note(PERF_PAINT_ROWS,1)
   val row=visual_rows_at(rows,i) val+ VisualRows(text,map,lines,data,count,key)=rows
   val ()=buf_set_len(scratch,0) val ()=buf_append_at(scratch,text,row.start,isub(row.finish,row.start))
   val a=imax(range.start,row.start) val b=imin(range.finish,row.finish)

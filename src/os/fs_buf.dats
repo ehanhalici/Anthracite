@@ -4,8 +4,12 @@
 
 staload "mem.sats"
 staload "os/fs.sats"
+staload "core_runtime/performance.sats"
 
-implement fs_read_buf(fd, b, n) = fs_read(fd, buf_ptr(b), n)
+implement fs_read_buf(fd, b, n) = let
+  val bytes = fs_read(fd, buf_ptr(b), n)
+  val () = performance_note(PERF_READ_BYTES, bytes)
+in bytes end
 
 implement fs_write_buf(path, b, n) = fs_atomic_write(path, buf_ptr(b), n)
 

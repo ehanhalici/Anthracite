@@ -273,3 +273,45 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
   Sahte Doc uygulaması veya optimizasyonla hata gizleme eklenmedi.
 - Doğrulama: her iki profilde `check-build -j12` ve 260/260 CTest geçti;
   normal tarama ile iki sıfır yakıt/abort testi Debug'da da başarıyla çalıştı.
+
+## BUG-017 — Embed ölçümü ve çizimi aynı belgeyi paylaşmıyor
+
+- Durum: doğrulandı (kaynak incelemesi); düzeltme sürüyor.
+- Kanıt: `measure_embedded_height` belgeyi yükleyip serbest bırakır; çizim
+  yolunun ayrı `CEmbed` cache'i vardır. İlk ölçüm çizimde tekrar kullanılamaz.
+
+## BUG-018 — Embed yükseklik anahtarı hedef bloğu içermiyor
+
+- Durum: doğrulandı (kaynak incelemesi); düzeltme sürüyor.
+- Kanıt: C yükseklik tablosu yalnız path/width/lh kullanır; aynı dosyanın
+  farklı `#^blok` referansları aynı yüksekliği paylaşır. Font sürümü eksiktir.
+
+## BUG-019 — Çocuk clip'i ebeveynin görünür sınırını genişletebiliyor
+
+- Durum: doğrulandı (kaynak incelemesi); grafik regresyonu eklenecek.
+- Kanıt: `rend_scissor` mutlak GL dikdörtgeni kurar; embed kendi dikdörtgenini
+  ebeveynle kesiştirmeden kullanır. Sekme alanına taşma mümkündür.
+
+## BUG-020 — Gömülü metinde seçim ve hedefe gitme eksik
+
+- Durum: doğrulandı (kaynak incelemesi); düzeltme sürüyor.
+- Kanıt: hit-test embed'i tek nesne sayıp parent caret'ini başına koyar;
+  hedef açma yolu yalnız KWiki/KLink arar, KEmbed kabul etmez.
+
+## BUG-021 — Sarma çok sayıda örtüşen metin parçasını yeniden şekillendiriyor
+
+- Durum: doğrulandı (kaynak incelemesi); ölçüm ve düzeltme sürüyor.
+- Kanıt: `fit` her grapheme adayında büyüyen öneki ölçer; `line_rows` her
+  satır için kalan son eki ölçer. Aynı satır yaprak boyamasında da tekrarlanır.
+
+## BUG-022 — Katlama hazırlığında tekrar ve bölge × düğüm taraması
+
+- Durum: doğrulandı (kaynak incelemesi); düzeltme sürüyor.
+- Kanıt: yeniden ayrıştırma sonrası `doc_compute_foldability` ve onu tekrar
+  çağıran `fold_apply` çalışır. Her bölge, sahibi için bütün AST'yi tarar.
+
+## BUG-023 — Sıcak yerleşim çağrısı yine tam hazırlama işi yapıyor
+
+- Durum: doğrulandı (kaynak incelemesi); düzeltme sürüyor.
+- Kanıt: `prepare_document_layout` cache isabetinde bile medya taramasını
+  ve `doc_visual_index` üzerinden tam düğüm indeksi kurulumunu çalıştırır.

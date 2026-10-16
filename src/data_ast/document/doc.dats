@@ -17,6 +17,7 @@ macdef REPLACE_TASK_MARK_BUFFER_INITIAL_BYTES = 2
 
 
 staload "mem.sats"
+staload "core_runtime/performance.sats"
 staload "airlock.sats"
 staload "flag.sats"
 staload "os/fs.sats"

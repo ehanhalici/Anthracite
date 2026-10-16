@@ -198,6 +198,7 @@ in
 end
 
 implement doc_load(d, path) = let
+  val () = performance_note(PERF_DOCUMENT_LOADS, 1)
   var vbuf = buf_make(DOC_LOAD_VBUF_INITIAL_BYTES)
   val actual_path = resolve_load_path(path, vbuf)
   val res = load_doc_file(d, path, actual_path)

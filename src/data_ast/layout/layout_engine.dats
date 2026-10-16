@@ -4,6 +4,7 @@
 #include "common.hats"
 
 staload "airlock.sats"
+staload "core_runtime/performance.sats"
 staload "flag.sats"
 staload "data_ast/document/doc.sats"
 staload "data_ast/layout/layout_internal.sats"
@@ -188,6 +189,7 @@ in
   if doc_layout_cache_match(d, version, key, is_read) then
     doc_layout_cache_height(d)
   else let
+    val () = performance_note(PERF_LAYOUT_BUILDS, 1)
     val height = doc_layout_calc(d, lh, doc_nnodes(d), is_read, colw)
     val () = doc_layout_cache_store(d, version, key, height, is_read, wrap)
   in
