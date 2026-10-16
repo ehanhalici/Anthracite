@@ -29,24 +29,31 @@ static inline void anth_mem_set_byte(void *p, int n, int i, int v) {
   ((unsigned char *)p)[i] = (unsigned char)v;
 }
 
+enum { ANTH_WORD_BYTES = 4 };
+
+static inline int anth_word_index_valid(int capacity_bytes, int index) {
+  return index >= 0 && capacity_bytes >= ANTH_WORD_BYTES &&
+    index <= (capacity_bytes - ANTH_WORD_BYTES) / ANTH_WORD_BYTES;
+}
+
 static inline int anth_mem_i32(const void *p, int n, int i) {
-  int nb = i * 4;
   int v = 0;
-  if (!p || i < 0 || nb < 0 || nb + 4 > n) return 0;
-  memcpy(&v, (const unsigned char *)p + nb, 4);
+  if (!p || !anth_word_index_valid(n, i)) return 0;
+  int nb = i * ANTH_WORD_BYTES;
+  memcpy(&v, (const unsigned char *)p + nb, ANTH_WORD_BYTES);
   return v;
 }
 
 static inline void anth_mem_set_i32(void *p, int n, int i, int v) {
-  int nb = i * 4;
-  if (!p || i < 0 || nb < 0 || nb + 4 > n) return;
-  memcpy((unsigned char *)p + nb, &v, 4);
+  if (!p || !anth_word_index_valid(n, i)) return;
+  int nb = i * ANTH_WORD_BYTES;
+  memcpy((unsigned char *)p + nb, &v, ANTH_WORD_BYTES);
 }
 
 static inline void anth_mem_set_f32(void *p, int n, int i, float v) {
-  int nb = i * 4;
-  if (!p || i < 0 || nb < 0 || nb + 4 > n) return;
-  memcpy((unsigned char *)p + nb, &v, 4);
+  if (!p || !anth_word_index_valid(n, i)) return;
+  int nb = i * ANTH_WORD_BYTES;
+  memcpy((unsigned char *)p + nb, &v, ANTH_WORD_BYTES);
 }
 
 static inline void *anth_ptr_at(void *p, int n, int i) {

@@ -65,14 +65,16 @@ fun word_get{l:addr}{n:nat}(
   A: !arrayptr(byte, l, n), cap: int(n), i: int
 ) : int =
   if i >= 0 then
-    (if 4*i+4 <= cap then word_get_at(A, airlock_word(i, cap)) else 0)
+    (if cap >= WORD32_BYTES andalso i <= (cap-WORD32_BYTES)/WORD32_BYTES
+      then word_get_at(A, airlock_word(i, cap)) else 0)
   else 0
 
 fun word_put{l:addr}{n:nat}(
   A: !arrayptr(byte, l, n), cap: int(n), i: int, v: int
 ) : void =
   if i >= 0 then
-    (if 4*i+4 <= cap then word_put_at(A, airlock_word(i, cap), v) else ())
+    (if cap >= WORD32_BYTES andalso i <= (cap-WORD32_BYTES)/WORD32_BYTES
+      then word_put_at(A, airlock_word(i, cap), v) else ())
   else ()
 
 (* ---- construction / destruction ---- *)

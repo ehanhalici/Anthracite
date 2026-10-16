@@ -37,6 +37,11 @@ anthracite_contract_test(editor_fsm_contracts tests/workspace/editor_fsm_contrac
   "${CMAKE_CURRENT_BINARY_DIR}/mem_dats.c"
   "${CMAKE_CURRENT_BINARY_DIR}/editor_fsm_dats.c")
 add_test(NAME core_contracts COMMAND core_contracts)
+anthracite_contract_test(word_boundary_contracts tests/memory/word_boundary_contracts.dats
+  "${CMAKE_CURRENT_BINARY_DIR}/mem_dats.c")
+target_compile_options(word_boundary_contracts PRIVATE -fno-wrapv -fsanitize=undefined -fno-sanitize-recover=undefined)
+target_link_options(word_boundary_contracts PRIVATE -fsanitize=undefined)
+add_test(NAME word_boundary_contracts COMMAND word_boundary_contracts)
 add_test(NAME editor_fsm_contracts COMMAND editor_fsm_contracts)
 
 anthracite_contract_test(event_repaint_contracts tests/runtime/event_repaint_contracts.dats

@@ -12,6 +12,11 @@ alır. Kelime i, bayt `WORD32_BYTES*i` konumundadır. K alanlı kayıtta N'inci
 kaydın F alanı kelime `N*K+F` olur. [Ortak birimler](../src/foundation/units.hats)
 statik ifadelerde de kullanılan temsil sabitlerini tanımlar.
 
+Kelime erişiminde negatif indeks ve kelimeden küçük kapasite reddedilir;
+çarpımdan önce `i <= (capacity-WORD32_BYTES)/WORD32_BYTES` kontrolü yapılır.
+ATS ve C ABI sarmalayıcıları aynı taşmasız reddetme politikasını kullanır.
+`word_boundary_contracts` bunu `-fno-wrapv` ve UBSan altında sınar.
+
 Mevcut erişim yordamları kapasite dışındaki bazı okumalar için sıfır döndürür,
 bazı yazmaları yok sayar. Sessiz varsayımlarla iş mantığı kurulmaz; arayüzün
 gerçek denetim politikası kaynak üzerinden değerlendirilir.

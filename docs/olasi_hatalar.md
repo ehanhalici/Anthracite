@@ -146,14 +146,21 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-009 — Kelime erişiminde çarpımın temsil sınırı
 
-- Durum: şüphe; sanitizer ile yeniden üretme bekliyor.
+- Durum: çözüldü; çarpımdan önce bölme temelli sınır kontrolü yapılır.
 - Konum: `src/mem.dats`, `word_get` / `word_put`.
 - Kanıt: dinamik `int` indeksinde `4*i+4 <= cap` koşulu, `airlock_word`
   çağrısından önce hesaplanıyor. Çok büyük pozitif indekslerde signed int
   çarpım/toplam taşması ihtimali ayrıca denetlenmeli.
 - Beklenen: çarpımdan önce bölme temelli kapasite kontrolü veya geniş türde
-  denetim; INT_MAX çevresindeki indekslerle UB/sınır testleri. Bu kayıt bir
-  doğrulanmış çalışma zamanı taşması iddiası değildir.
+  denetim; INT_MAX çevresindeki indekslerle UB/sınır testleri.
+- Yeniden üretme: eski Buf yolu INT_MAX indeksinde airlock abort'una ulaştı;
+  aynı C kelime sarmalayıcısı UBSan altında `2147483647 * 4` taşması verdi.
+  Nix derleyicisinin `-fwrapv` varsayımı testte `-fno-wrapv` ile kaldırıldı.
+- Çözüm: ATS ve C tamsayı/float kelime erişimi, indeksin negatif olmadığını
+  ve `(capacity-WORD32_BYTES)/WORD32_BYTES` sınırını çarpımdan önce denetler.
+- Doğrulama: kalıcı UBSan testi INT_MIN/MAX, çarpım/toplam sınırı, son geçerli
+  kelime, ilk geçersiz kelime ve kelimeden küçük kapasiteleri sınar; geçersiz
+  yazmalar iki komşu kelimeyi değiştirmez, okumalar sıfır döner.
 
 ## BUG-010 — Eski görsel selftest kişisel dosya yoluna bağlı
 
