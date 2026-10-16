@@ -10,3 +10,5 @@ fun font_span_runs_measure(runs: !FontSpanRuns,index: int): FontRunExtent
 fun font_span_runs_check(runs: !FontSpanRuns,index: int,f: !Font): FontRunStatus
 fun font_span_runs_draw(runs: !FontSpanRuns,index: int,f: !Font,r: !Rend,x: double,y: double,color: uint): FontRunExtent
 fun font_span_runs_dispose(runs: FontSpanRuns): void
+(* Accumulate logical cluster advances, independently of visual bidi order. *)
+fun font_span_runs_advances(runs: !FontSpanRuns,index: int,flags: !Buf,advances: !Buf,length: int): void

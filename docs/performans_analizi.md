@@ -44,3 +44,17 @@ Bu tek koşunun başlangıç ölçümüdür; medyan/p95 veya gerçek GPU garanti
 Yeniden ayrıştırmada hazırlık bir kez yapılır. Bölge sahipleri tek monoton
 düğüm imleciyle eşlenir; `fold_scaling_contracts` 32/256/2048 başlıkta ziyaret
 sayısının düğüm + bölge sayısını aşmadığını ve sahip bayraklarını doğrular.
+
+## Sarma: paragraf küme genişlikleri
+
+Her paragraf bir kez analiz/shape edilir; mantıksal kaynak sırasındaki küme
+advance'ları byte-indeksli prefix tablosuna aktarılır. Bidi görsel caret x'i
+prefix olarak kullanılmaz. Ligatür içi kırılma engellenir; seçilen gerçek satır
+yeniden şekillendirilir ve kenar birleşmesi genişliği artırırsa daraltılır.
+U+2029 gibi bir fiziksel satırdaki çoklu paragraflar zorunlu sınırlarda ayrılır.
+
+Ara ölçüm (aynı Release/Xvfb koşulları, tek koşu): gömülü örnek 263 ms /
+777 shaping çağrısı; uzun örnek 534 ms / 2.415 çağrı. Başlangıca göre yaklaşık
+11× / 18× daha hızlıdır. Henüz son medyan/p95 kabul ölçümü değildir.
+64/256/1024 tekrar içeren karışık Türkçe/Arapça test, şekillendirmeyi satır
+sayısına göre sınırlar; önceki her grapheme için yeniden ölçme yolunu reddeder.

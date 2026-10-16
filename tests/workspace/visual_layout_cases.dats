@@ -14,6 +14,7 @@ staload "ui_workspace/tabs/ui_tab.sats"
 staload "ui_workspace/commands/ui_cmd.sats"
 staload "ui_workspace/render/ui_render.sats"
 staload "font/resources/font_gl_airlock.sats"
+staload "core_runtime/performance.sats"
 extern fun native_visual_layout_cases(f: !Font,r: !Rend): int = "ext#native_visual_layout_cases"
 fun bytes(s: string): Buf = let val n=c_strlen(s) val b=buf_make(n)
   fun copy{k:nat} .<k>. (left: int(k),s: string,b: !Buf,i: int): void =
@@ -128,10 +129,32 @@ fun folding_and_task(f: !Font, r: !Rend): int = let
   val ok_task_toggle = ieq(doc_byte(d, mark_pos), 120)
   val () = doc_free(d)
   val ok = ok_h0 andalso ok_fold andalso ok_unfold andalso ok_task_node andalso ok_task_toggle
+  val ()=println!("event=visual_fold heading=",ok_h0," folded=",ok_fold," unfolded=",ok_unfold,
+    " task_node=",ok_task_node," task_toggle=",ok_task_toggle)
 in
   if ok then 0 else 1
 end
-implement native_visual_layout_cases(f,r) = let val before=mem_live() val d=doc_open()
-  val errors=iadd(test(f,r,d),iadd(iadd(markdown(f,r),hard_lines(f,r)),iadd(navigation(f,r),folding_and_task(f,r)))) val ()=doc_free(d) val delta=isub(mem_live(),before)
-  val ()=println!("event=native_visual_layout errors=",errors," retained_font_source_bytes=",delta)
+fun repeat_words{n:nat} .<n>. (left: int(n),b: &Buf >> _): void =
+  if left = 0 then () else let val ()=buffer_append_string(b,"office İŞ بسم الله 123 ")
+  in repeat_words(left-1,b) end
+fun wrap_scale(f: !Font,r: !Rend,words: int): int = let
+  val d=doc_open() var source=buf_make(256)
+  val ()=repeat_words(airlock_nat(words),source) val length=buf_len(source)
+  val ()=doc_insert_buf(d,source,length) val ()=buf_free(source)
+  val ()=performance_enable(1) val ()=performance_reset()
+  val ()=visual_layout_prepare(f,r,d,240,ViewEdit)
+  val count=doc_visual_line_rows(d,0)
+  val calls=performance_value(PERF_SHAPE_CALLS)
+  val limit=g0int2uint_int_ullint(iadd(imul(count,2),2))
+  val errors=iadd(snapshot(d),if calls <= limit then 0 else 1)
+  val ()=println!("event=wrap_scale words=",words," rows=",count," shapes=",calls," limit=",limit)
+  val ()=performance_enable(0) val ()=doc_free(d)
 in errors end
+implement native_visual_layout_cases(f,r) = let val before=mem_live() val d=doc_open()
+  val body=test(f,r,d) val markup=markdown(f,r) val hard=hard_lines(f,r)
+  val nav=navigation(f,r) val fold=folding_and_task(f,r)
+  val errors=body+markup+hard+nav+fold val ()=doc_free(d) val delta=isub(mem_live(),before)
+  val scale=iadd(wrap_scale(f,r,64),iadd(wrap_scale(f,r,256),wrap_scale(f,r,1024)))
+  val ()=println!("event=native_visual_layout errors=",errors," retained_font_source_bytes=",delta)
+  val ()=println!("event=visual_cases body=",body," markdown=",markup," hard=",hard," navigation=",nav," fold=",fold)
+in iadd(errors,scale) end

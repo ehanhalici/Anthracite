@@ -4,6 +4,7 @@
 #include "common.hats"
 (* Initial allocation policy; capacities are measured in bytes. *)
 macdef VISUAL_WRAP_FILL_SCRATCH_INITIAL_BYTES = 256
+macdef SHAPE_UNITS_PER_PIXEL = 64
 
 staload "airlock.sats"
 staload "mem.sats"
@@ -22,18 +23,31 @@ in if ieq(a,b) then 0 else font_width_buf(f,r,scratch,isub(b,a)) end
 fun boundary{n:nat} .<n>. (fuel: int(n),flags: !Buf,i: int,endpos: int): int =
   if fuel = 0 then exhausted() else if ige(i,endpos) orelse ine(buf_get(flags,i),0) then i
   else boundary(fuel-1,flags,iadd(i,1),endpos)
-fun fit{n:nat} .<n>. (fuel: int(n),f: !Font,r: !Rend,text: !Buf,flags: !Buf,base: int,start: int,
-  stop: int,p: int,last: int,allowed: int,width: int,scratch: &Buf >> _): int =
-  if fuel = 0 then exhausted() else let val pixels=measure(f,r,text,start,p,scratch)
+(* Prefix advances select a candidate without reshaping overlapping prefixes.
+   Logical source positions, not visual bidi caret coordinates, are monotonic. *)
+fun fit{n:nat} .<n>. (fuel: int(n),flags: !Buf,advances: !Buf,base: int,start: int,
+  stop: int,p: int,last: int,allowed: int,width: int): int =
+  if fuel = 0 then exhausted() else let
+    val extent=isub(buf_get32(advances,isub(p,base)),buf_get32(advances,isub(start,base)))
+    val pixels=iadd(idiv(extent,SHAPE_UNITS_PER_PIXEL),if ieq(imod(extent,SHAPE_UNITS_PER_PIXEL),0) then 0 else 1)
   in if igt(pixels,width) then if igt(allowed,start) then allowed else if igt(last,start) then last else p
     else if ige(p,stop) orelse ieq(buf_get(flags,isub(p,base)),5) then p else let
       val best=if ieq(buf_get(flags,isub(p,base)),3) then p else allowed
       val next=iadd(base,boundary(airlock_nat(MAX_REC_FUEL),flags,iadd(isub(p,base),1),isub(stop,base)))
-    in fit(fuel-1,f,r,text,flags,base,start,stop,next,p,best,width,scratch) end end
-fun append(f: !Font,r: !Rend,rows: &VisualRows >> VisualRows,a: int,b: int,line: int,ordinal: int,scratch: &Buf >> _): void = let
-  val+ VisualRows(text,map,lines,data,n,key)=rows
-  val width=measure(f,r,text,a,b,scratch)
-in visual_rows_append(rows,@{start=a,finish=b,width=width,line=line,ordinal=ordinal}) end
+    in fit(fuel-1,flags,advances,base,start,stop,next,p,best,width) end end
+fun previous{n:nat} .<n>. (fuel: int(n),flags: !Buf,p: int,lower: int,best: int): int =
+  if fuel = 0 then exhausted() else if ile(p,lower) then best
+  else if ige(buf_get(flags,p),3) then p
+  else previous(fuel-1,flags,isub(p,1),lower,if ieq(best,lower) andalso igt(buf_get(flags,p),0) then p else best)
+(* Joining/kerning can change at a row edge: shape the actual row and shrink
+   if needed. A single oversized cluster is allowed, ensuring forward progress. *)
+fun exact_row{n:nat} .<n>. (fuel: int(n),f: !Font,r: !Rend,text: !Buf,flags: !Buf,base: int,
+  a: int,b: int,target: int,scratch: &Buf >> _): @(int,int) =
+  if fuel = 0 then let val p=exhausted() in @(p,0) end else let
+    val width=measure(f,r,text,a,b,scratch)
+    val prev=iadd(base,previous(airlock_nat(MAX_REC_FUEL),flags,isub(isub(b,base),1),isub(a,base),isub(a,base)))
+  in if ile(width,target) orelse ile(prev,a) then @(b,width)
+    else exact_row(fuel-1,f,r,text,flags,base,a,prev,target,scratch) end
 fun is_specialized_block(k: NodeKind): bool =
   is_kind(k, KQuote) orelse is_kind(k, KCallout) orelse is_kind(k, KCode)
   orelse is_kind(k, KTable) orelse is_kind(k, KTableRow) orelse is_kind(k, KTableCell)
@@ -70,20 +84,15 @@ fun line_target_width_kind(k: NodeKind, default_w: int): int =
 fun append_known(rows: &VisualRows >> VisualRows,a: int,b: int,line: int,ordinal: int,width: int): void =
   visual_rows_append(rows,@{start=a,finish=b,width=width,line=line,ordinal=ordinal})
 
-fun line_rows{n:nat} .<n>. (fuel: int(n),f: !Font,r: !Rend,rows: &VisualRows >> VisualRows,flags: !Buf,
+fun line_rows{n:nat} .<n>. (fuel: int(n),f: !Font,r: !Rend,rows: &VisualRows >> VisualRows,flags: !Buf,advances: !Buf,
   base: int,a: int,b: int,line: int,ordinal: int,target_w: int,scratch: &Buf >> _): void =
   if fuel = 0 then fill_exhausted(rows) else if ige(a,b) then () else let
     val+ VisualRows(text,map,lines,data,count,key)=rows
-    val full_w=measure(f,r,text,a,b,scratch)
-  in
-    if ile(full_w,target_w) then
-      append_known(rows,a,b,line,ordinal,full_w)
-    else let
-      val next=iadd(base,boundary(airlock_nat(MAX_REC_FUEL),flags,iadd(isub(a,base),1),isub(b,base)))
-      val endpos=fit(airlock_nat(MAX_REC_FUEL),f,r,text,flags,base,a,b,next,a,a,target_w,scratch)
-      val ()=append(f,r,rows,a,endpos,line,ordinal,scratch)
-    in line_rows(fuel-1,f,r,rows,flags,base,endpos,b,line,iadd(ordinal,1),target_w,scratch) end
-  end
+    val next=iadd(base,boundary(airlock_nat(MAX_REC_FUEL),flags,iadd(isub(a,base),1),isub(b,base)))
+    val candidate=fit(airlock_nat(MAX_REC_FUEL),flags,advances,base,a,b,next,a,a,target_w)
+    val (endpos,width)=exact_row(airlock_nat(MAX_REC_FUEL),f,r,text,flags,base,a,candidate,target_w,scratch)
+    val ()=append_known(rows,a,endpos,line,ordinal,width)
+  in line_rows(fuel-1,f,r,rows,flags,advances,base,endpos,b,line,iadd(ordinal,1),target_w,scratch) end
 
 fun one(f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,line: int,cur: &int >> _,scratch: &Buf >> _): void = let
   val st=doc_line_start(d,line)
@@ -96,9 +105,10 @@ fun one(f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,line: int,cur:
   val k = block_kind_at(airlock_nat(MAX_REC_FUEL), d, st, cur, nn, KNone)
   val target_w = line_target_width_kind(k, key.width)
   val ()=buf_set_len(scratch,0) val ()=buf_append_at(scratch,text,a,isub(b,a))
-  val flags=font_text_boundaries(f,scratch,isub(b,a))
+  val (flags,advances)=font_text_wrap_metrics(f,scratch,isub(b,a))
   val ()=if ieq(a,b) then append_known(rows,a,b,line,0,0)
-    else line_rows(airlock_nat(MAX_REC_FUEL),f,r,rows,flags,a,a,b,line,0,target_w,scratch)
+    else line_rows(airlock_nat(MAX_REC_FUEL),f,r,rows,flags,advances,a,a,b,line,0,target_w,scratch)
+  val ()=buf_free(advances)
 in buf_free(flags) end
 
 fun lines{n:nat} .<n>. (left: int(n),f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,i: int,cur: &int >> _,scratch: &Buf >> _): void =

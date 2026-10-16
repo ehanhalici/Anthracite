@@ -14,3 +14,6 @@ fun font_span_direction(layout: !FontSpanLayout): int
 fun font_span_draw(f: !Font,r: !Rend,layout: !FontSpanLayout,x: double,baseline: double,color: uint): FontRunStatus
 fun font_span_dispose(layout: FontSpanLayout): void
 fun font_span_check(f: !Font,layout: !FontSpanLayout): FontRunStatus
+(* Byte-indexed EGC/break flags and logical prefix advances in 26.6 units.
+   Interior ligature boundaries are excluded; actual rows are shaped separately. *)
+fun font_span_wrap_metrics(layout: !FontSpanLayout,length: int): @(Buf,Buf)

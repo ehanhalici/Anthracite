@@ -13,3 +13,4 @@ fun font_text_direction_code(f: !Font,b: !Buf,length: int): FontTextResult
 fun font_text_draw(f: !Font,r: !Rend,b: !Buf,length: int,x: int,y: int,color: uint): FontTextResult
 (* Byte-indexed flags: 1 is an EGC boundary, 3 also permits a UAX #14 break. *)
 fun font_text_boundaries(f: !Font,b: !Buf,length: int): Buf
+fun font_text_wrap_metrics(f: !Font,b: !Buf,length: int): @(Buf,Buf)

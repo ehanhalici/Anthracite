@@ -303,6 +303,9 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 - Durum: doğrulandı (kaynak incelemesi); ölçüm ve düzeltme sürüyor.
 - Kanıt: `fit` her grapheme adayında büyüyen öneki ölçer; `line_rows` her
   satır için kalan son eki ölçer. Aynı satır yaprak boyamasında da tekrarlanır.
+- İlerleme: paragraf küme advance/prefix yolu ve gerçek satır sonu doğrulaması
+  eklendi; 88.269 → 2.415 shaping çağrısı ölçüldü. Kalıcı satır planlarının
+  ölçüm/boyama/hit arasında paylaşılması henüz tamamlanmadı; madde açık kalır.
 
 ## BUG-022 — Katlama hazırlığında tekrar ve bölge × düğüm taraması
 
@@ -321,3 +324,12 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 - Durum: doğrulandı (kaynak incelemesi); düzeltme sürüyor.
 - Kanıt: `prepare_document_layout` cache isabetinde bile medya taramasını
   ve `doc_visual_index` üzerinden tam düğüm indeksi kurulumunu çalıştırır.
+
+## BUG-024 — Görev kutusu dikey hit-test'te atlanıyor
+
+- Durum: doğrulandı; grafik regresyonu genişletilirken bulundu.
+- Kanıt: `node_covering_impl_with_fuel` bütün inline düğümleri atlar;
+  `KTask` inline olduğu için liste satırında KLi döner. Mevcut
+  `folding_and_task` grafik testi görev düğümünü/toggle'ını bulamıyor.
+- Beklenen: görev kutusunun ilk görsel satırındaki hit-test'in görev
+  düğümünü döndürmesi; katlama ve görev değiştirme regresyonunun geçmesi.
