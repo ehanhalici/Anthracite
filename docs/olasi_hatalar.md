@@ -244,10 +244,18 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-015 — Unifont yüklemesinde geliştiriciye özel yedek yol
 
-- Durum: kaynak incelemesinde doğrulandı; düzeltme bekliyor.
+- Durum: çözüldü; kişisel Unifont yedek yolu kaldırıldı.
 - Konum: `src/core_render/gl.cats`, Unifont dosyasını açan yordam.
 - Kanıt: yapılandırılmış ve göreli dosya açılamazsa geliştiricinin mutlak
   çalışma dizinindeki `unifont.bin` açılmaya çalışılıyor. Dosya eksikken
   makineye özgü yedek farklı sonuç verebilir.
 - Beklenen: yapılandırılmış kaynak veya taşınabilir göreli yol; özel dizine
   bağımlılığın kaldırılması ve eksik dosya yolunun korunması.
+- Yeniden üretme: boş çalışma dizini ve olmayan yapılandırılmış dosya ile
+  `unifont_missing_path` eski kodda `expected=0 loaded=1` verdi; kişisel
+  depodaki font istenmeden yükleniyordu.
+- Çözüm: yalnız `ANTHRACITE_UNIFONT`, `src/data_font/unifont.bin` ve
+  `../src/data_font/unifont.bin` denenir. Tümü eksikse mevcut boş sonuç korunur.
+  Kaynak denetimi kişisel `fopen` sabitini reddeder.
+- Doğrulama: ekran gerektirmeyen dört test, yalıtılmış dizinlerde eksik dosya,
+  yapılandırılmış dosya ve iki göreli yerleşimi denetler.

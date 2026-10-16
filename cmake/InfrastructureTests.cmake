@@ -19,6 +19,29 @@ anthracite_contract_test(selftest_fixture_contracts tests/runtime/selftest_fixtu
   "${CMAKE_CURRENT_BINARY_DIR}/selftest_fixture_dats.c")
 add_test(NAME selftest_fixture_contracts COMMAND selftest_fixture_contracts)
 
+foreach(mode missing configured)
+  add_executable(unifont_${mode}_contracts EXCLUDE_FROM_ALL tests/runtime/unifont_path_contracts.c)
+  target_link_libraries(unifont_${mode}_contracts PRIVATE ${OPENGL_LIBRARIES} m)
+endforeach()
+string(RANDOM LENGTH 12 ALPHABET 0123456789abcdef unifont_suffix)
+target_compile_definitions(unifont_missing_contracts PRIVATE
+  "ANTHRACITE_UNIFONT=\"${CMAKE_CURRENT_BINARY_DIR}/absent-unifont-${unifont_suffix}/unifont.bin\"")
+target_compile_definitions(unifont_configured_contracts PRIVATE
+  "ANTHRACITE_UNIFONT=\"${CMAKE_SOURCE_DIR}/src/data_font/unifont.bin\"")
+foreach(mode missing configured source_relative parent_relative)
+  set(executable unifont_missing_contracts)
+  set(expected 1)
+  if(mode STREQUAL missing)
+    set(expected 0)
+  elseif(mode STREQUAL configured)
+    set(executable unifont_configured_contracts)
+  endif()
+  add_test(NAME unifont_${mode}_path COMMAND "${CMAKE_COMMAND}"
+    "-DEXECUTABLE=$<TARGET_FILE:${executable}>" "-DEXPECTED=${expected}"
+    "-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}" "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}" "-DLAYOUT=${mode}"
+    -P "${CMAKE_SOURCE_DIR}/tests/runtime/verify_unifont_path.cmake")
+endforeach()
+
 anthracite_contract_test(recursion_fuel_contracts tests/runtime/recursion_fuel_contracts.dats
   "${CMAKE_CURRENT_BINARY_DIR}/ix_fold_dats.c")
 target_link_libraries(recursion_fuel_contracts PRIVATE native_text_engine)
