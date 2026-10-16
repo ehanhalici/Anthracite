@@ -71,7 +71,7 @@ fun ast_reparse_do(
   val head_end = (if c_top >= 0 then c_top else 0)
   var resync = buf_make(AST_REPARSE_DO_RESYNC_INITIAL_BYTES)
   val nres = collect_res_with_fuel(airlock_nat(MAX_REC_FUEL), d, resync, iadd(at, oldlen), 0, 0)
-  var old_b = buf_make(imul(old_total, 64))
+  var old_b = buf_make(imul(old_total, SAVED_AST_NODE_BYTES))
   val () = save_old_nodes_with_fuel(airlock_nat(MAX_REC_FUEL), d, old_b, 0, old_total)
   val () = doc_clear_nodes(d)
   val () = copy_head_nodes_with_fuel(airlock_nat(MAX_REC_FUEL), d, old_b, 0, head_end)

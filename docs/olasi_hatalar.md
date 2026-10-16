@@ -178,8 +178,7 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-011 — Artımlı ayrıştırmada başlık/liste işaret düğümleri kayboluyor
 
-- Durum: başlangıç üretim nesneleri ve refactoring derlemesinde aynı girdilerle
-  yeniden üretildi; düzeltme bekliyor.
+- Durum: çözüldü; kopyalanan çocuklar ebeveynin ilk çocuk bağını korur.
 - Girdiler: `# Baslik\nTurkce İı\n` ve `- Ana\n  - Alt\n- Son\n`.
 - Kanıt: bayt bayt `doc_insert` sonrası AST, aynı metne `ast_parse_all`
   uygulanmış referans AST'den farklı. Başlıkta `Mark[0,2]`; listede ilk iki
@@ -191,7 +190,18 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 - Yeniden üretme: `ctest --test-dir build/refactor-release -R
   workspace_document_contracts --output-on-failure`; test her iki ağacı yazdırır.
 - Beklenen: artımlı ve tam ayrıştırmanın işaret/çocuk düğümlerini de koruyarak
-  eşleşmesi. Test `known_issue` etiketlidir; devre dışı veya ters beklentili değildir.
+  eşleşmesi. `known_issue` etiketi düzeltmeden sonra kaldırılmıştır; beklentiler
+  değiştirilmemiştir.
+- Neden: `doc_node_add(..., prev_sib=-1, ...)` her kopyalanan çocukta ebeveynin
+  ilk çocuk bağını değiştiriyordu. Kayıtlar kalıyor, önceki çocuklar döküm ve
+  gezinmede erişilemez oluyordu.
+- Çözüm: baş/kuyruk kopyasında ebeveynin kaydedilmiş ilk çocuk indeksi doğru
+  indeks kaymasıyla geri yüklenir. Artımlı yeniden eşzamanlama korunur; her
+  düzenleme zorunlu tam ayrıştırmaya dönüştürülmez.
+- Doğrulama: eski sekiz girdinin bayt bayt testi; altı Markdown/Unicode
+  fixture'ında her bayt konumunda iki parçalı ekleme, metin/LF ekleme, silme
+  ve değiştirme tam ayrıştırmayla karşılaştırılır. Kind/aralık/ebeveyn/çocuk/
+  kardeş/alt ağaç/içerik/aux alanları ve AST doğrulayıcısı denetlenir.
 
 ## BUG-012 — Paylaşılan ATS test fixture'ı paralel üretiliyor
 

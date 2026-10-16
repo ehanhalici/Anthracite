@@ -51,9 +51,9 @@ See the [Turkish architecture index](docs/README.md), [development rules](docs/s
 [refactoring record](docs/refactoring_durumu.md) and [known issues](docs/olasi_hatalar.md).
 Generated C, Unicode binaries and build outputs are not edited by hand.
 
-The equivalence test still exposes pre-existing BUG-011. Its correct expectations carry the `known_issue`
-label; the full suite currently reports those failures. Details and reproduction
-commands are in the known-issues document. They are not skipped by `check`.
+The pre-existing callout boundary and incremental AST copying bugs (BUG-008 and
+BUG-011) have been fixed without weakening their original expectations.
+Regression tests are included in `check`; details are in the known-issues document.
 
 ## Verification limits
 

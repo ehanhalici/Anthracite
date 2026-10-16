@@ -92,7 +92,13 @@ foreach(mode image config document)
     "-DEXECUTABLE=$<TARGET_FILE:workspace_contracts>" "-DMODE=${mode}"
     "-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}" -P "${CMAKE_SOURCE_DIR}/tests/workspace/run_isolated.cmake")
 endforeach()
-set_tests_properties(workspace_document_contracts PROPERTIES LABELS "document;known_issue")
+set_tests_properties(workspace_document_contracts PROPERTIES LABELS document)
+
+anthracite_contract_test(incremental_parser_contracts tests/workspace/incremental_parser_contracts.dats)
+target_link_libraries(incremental_parser_contracts PRIVATE anthracite_host native_text_engine
+  ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
+add_test(NAME incremental_parser_contracts COMMAND incremental_parser_contracts)
+set_tests_properties(incremental_parser_contracts PROPERTIES LABELS document)
 
 anthracite_contract_test(image_oracle_contracts tests/image/test_jpg_oracle.dats)
 target_include_directories(image_oracle_contracts PRIVATE "${CMAKE_SOURCE_DIR}/vendor" "${CMAKE_SOURCE_DIR}" "${CMAKE_SOURCE_DIR}/tests")

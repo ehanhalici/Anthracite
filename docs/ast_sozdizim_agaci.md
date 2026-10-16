@@ -40,7 +40,11 @@ Gizli satırların adımı sıfırdır; katlama tercihi ve görünürlük ayrı 
 düzenleme ve görsel entegrasyonu, AST selftest ayrıştırma/geçmişi sınar.
 `workspace_document_contracts` sekiz ASCII/Unicode/Markdown girdisini bayt bayt
 ekleyerek çıkan ağacı tam ayrıştırma referansı ve AST doğrulayıcısıyla karşılaştırır.
-Başlık/liste işaretlerindeki mevcut eşdeğerlik hatası BUG-011 olarak kaydedilmiştir;
-bu test doğru beklentiyle kırmızı kalır.
+Başlık/liste işaretlerini erişilemez yapan kopyalama hatası BUG-011 kapsamında
+düzeltilmiştir: her çocuk kopyasında ebeveynin kaydedilmiş ilk çocuk bağı
+indeks kaymasıyla korunur. `incremental_parser_contracts` altı fixture'ın her
+bayt konumunda parçalı ekleme, metin/LF ekleme, silme ve değiştirmeyi tam
+ayrıştırmayla karşılaştırır. Kökler `SUBEND` ile gezildiği için isteğe bağlı kök
+`NEXT_SIB` alanı eşdeğerlik ölçütü değildir; çocuk kardeş bağları karşılaştırılır.
 [Katlama testleri](../tests/folds) bölge sınırları ve görünürlük için bağımsızdır.
 Mevcut sorunlar [hata listesinde](olasi_hatalar.md) tutulur.

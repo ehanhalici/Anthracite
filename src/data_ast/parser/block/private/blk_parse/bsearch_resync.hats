@@ -1,3 +1,6 @@
+macdef SAVED_AST_NODE_WORDS = NF_FLAGS + 1
+macdef SAVED_AST_NODE_BYTES = SAVED_AST_NODE_WORDS * WORD32_BYTES
+
 fun bsearch_resync(resync: !Buf, nres: int, target: int): int =
   if ile(nres, 0) then ~1
   else bsearch_resync_with_fuel(airlock_nat(MAX_REC_FUEL), resync, nres, target, 0, isub(nres, 1))
@@ -110,12 +113,12 @@ fun save_old_nodes_with_fuel {recfuel:nat} .<recfuel>. (
 fun set_node_extra1(
   d: !Doc, old_b: !Buf, base: int, new_i: int, idxdelta: int
 ): void = let
-  val dep = buf_get32(old_b, iadd(base, 3))
-  val col = buf_get32(old_b, iadd(base, 4))
-  val h = buf_get32(old_b, iadd(base, 5))
-  val sib0 = buf_get32(old_b, iadd(base, 7))
+  val dep = buf_get32(old_b, iadd(base, NF_DEPTH))
+  val col = buf_get32(old_b, iadd(base, NF_COLLAPSED))
+  val h = buf_get32(old_b, iadd(base, NF_HEIGHT))
+  val sib0 = buf_get32(old_b, iadd(base, NF_NEXT_SIB))
   val sib = (if ige(sib0, 0) then iadd(sib0, idxdelta) else ~1)
-  val fc0 = buf_get32(old_b, iadd(base, 8))
+  val fc0 = buf_get32(old_b, iadd(base, NF_FIRST_CHILD))
   val fc = (if ige(fc0, 0) then iadd(fc0, idxdelta) else ~1)
 in
   doc_set(d, new_i, NF_DEPTH, dep);
@@ -128,13 +131,13 @@ end
 fun set_node_extra2(
   d: !Doc, old_b: !Buf, base: int, new_i: int, delta: int, idxdelta: int
 ): void = let
-  val hid = buf_get32(old_b, iadd(base, 9))
-  val cs0 = buf_get32(old_b, iadd(base, 11))
+  val hid = buf_get32(old_b, iadd(base, NF_HIDDEN))
+  val cs0 = buf_get32(old_b, iadd(base, NF_CSTART))
   val cs = (if ige(cs0, 0) then iadd(cs0, delta) else cs0)
-  val ce0 = buf_get32(old_b, iadd(base, 12))
+  val ce0 = buf_get32(old_b, iadd(base, NF_CEND))
   val ce = (if ige(ce0, 0) then iadd(ce0, delta) else ce0)
-  val y = buf_get32(old_b, iadd(base, 13))
-  val sub0 = buf_get32(old_b, iadd(base, 14))
+  val y = buf_get32(old_b, iadd(base, NF_Y))
+  val sub0 = buf_get32(old_b, iadd(base, NF_SUBEND))
   val sub = (if ige(sub0, 0) then iadd(sub0, idxdelta) else sub0)
 in
   doc_set(d, new_i, NF_HIDDEN, hid);
@@ -144,21 +147,32 @@ in
   doc_set(d, new_i, NF_SUBEND, sub)
 end
 
+(* doc_node_add links a node with prev_sib=-1 as its parent's first child.
+   Copied records already carry complete sibling links: restore the parent's
+   saved first-child link rather than letting each copied sibling replace it. *)
+fun restore_copied_parent(d: !Doc, old_b: !Buf, parent: int, idxdelta: int): void =
+  if ige(parent, 0) then let
+    val base = imul(parent, SAVED_AST_NODE_WORDS)
+    val first = buf_get32(old_b, iadd(base, NF_FIRST_CHILD))
+    val shifted = if ige(first, 0) then iadd(first, idxdelta) else ~1
+  in doc_set(d, iadd(parent, idxdelta), NF_FIRST_CHILD, shifted) end else ()
+
 fun copy_one_node(
   d: !Doc, old_b: !Buf, idx: int, delta: int, idxdelta: int
 ): void = let
-  val base = imul(idx, 16)
-  val k_code = buf_get32(old_b, iadd(base, 0))
+  val base = imul(idx, SAVED_AST_NODE_WORDS)
+  val k_code = buf_get32(old_b, iadd(base, NF_KIND))
   val k = kind_of(k_code)
-  val st = iadd(buf_get32(old_b, iadd(base, 1)), delta)
-  val en = iadd(buf_get32(old_b, iadd(base, 2)), delta)
-  val par0 = buf_get32(old_b, iadd(base, 6))
+  val st = iadd(buf_get32(old_b, iadd(base, NF_START)), delta)
+  val en = iadd(buf_get32(old_b, iadd(base, NF_END)), delta)
+  val par0 = buf_get32(old_b, iadd(base, NF_PARENT))
   val par = (if ige(par0, 0) then iadd(par0, idxdelta) else ~1)
-  val aux = buf_get32(old_b, iadd(base, 10))
-  val flg = buf_get32(old_b, iadd(base, 15))
+  val aux = buf_get32(old_b, iadd(base, NF_AUX))
+  val flg = buf_get32(old_b, iadd(base, NF_FLAGS))
   val new_i = doc_node_add(d, k, st, en, par, ~1, aux, flg)
 in
   if ige(new_i, 0) then (
+    restore_copied_parent(d, old_b, par0, idxdelta);
     set_node_extra1(d, old_b, base, new_i, idxdelta);
     set_node_extra2(d, old_b, base, new_i, delta, idxdelta)
   ) else ()
