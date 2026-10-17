@@ -330,12 +330,18 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-021 — Sarma çok sayıda örtüşen metin parçasını yeniden şekillendiriyor
 
-- Durum: doğrulandı (kaynak incelemesi); ölçüm ve düzeltme sürüyor.
+- Durum: çözüldü; paragraf prefix araması ve sahipli satır planları kullanılıyor.
 - Kanıt: `fit` her grapheme adayında büyüyen öneki ölçer; `line_rows` her
   satır için kalan son eki ölçer. Aynı satır yaprak boyamasında da tekrarlanır.
-- İlerleme: paragraf küme advance/prefix yolu ve gerçek satır sonu doğrulaması
-  eklendi; 88.269 → 2.415 shaping çağrısı ölçüldü. Kalıcı satır planlarının
-  ölçüm/boyama/hit arasında paylaşılması henüz tamamlanmadı; madde açık kalır.
+- Çözüm: paragraf küme advance/prefix yolu ve gerçek satır sonu doğrulaması
+  eklendi; ara ölçümde 88.269 → 2.415 shaping çağrısı görüldü. Görünür satırlar
+  ölçüm cache'inden plan sahipliğini devralır; yoksa bir kez şekillendirilir.
+  VisualRows'a bağlı 128 yuvalı indeksli plan cache'i boyama/yön/hit/seçim
+  tarafından paylaşılır; font kimliği/sürümü doğrulanır ve view kapanışında
+  planlar bırakılır. Viewport altına geçildiğinde satır yürüyüşü durur.
+- Doğrulama: Türkçe/Arapça, bidi/işaret/ligatür ve 64/256/1024 tekrarlı sarma
+  sözleşmeleri geçti. Genel font cache'i 256 ayrı metinle tahliye edildikten
+  sonra aynı satırın boyama/caret/hit işlemleri sıfır yeni shaping yapar.
 
 ## BUG-022 — Katlama hazırlığında tekrar ve bölge × düğüm taraması
 

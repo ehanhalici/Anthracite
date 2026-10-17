@@ -44,4 +44,4 @@ implement visual_projection_make(d,key) =
     val text=buf_make(imax(1,n)) val map=buf_make(imul(iadd(n,1),4))
     val length=project(airlock_nat(n),d,mask,text,map,0,0) val ()=buf_free(mask) val ()=buf_set_len(text,length)
     val lines=buf_make(imul(iadd(doc_nlines(d),1),4))
-  in VisualRows(text,map,lines,buf_make(VISUAL_PROJECTION_MAKE_BUFFER_INITIAL_BYTES),0,key) end
+  in VisualRows(text,map,lines,buf_make(VISUAL_PROJECTION_MAKE_BUFFER_INITIAL_BYTES),0,key,visual_plans_make(0)) end

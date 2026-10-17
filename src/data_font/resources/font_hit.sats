@@ -8,4 +8,5 @@ typedef TextHit = @{distance=int,value=int}
 fun font_hit_edge(query: TextQuery,source: int,x: int,best: TextHit): TextHit
 fun font_position_hit(p: !GlyphPositioned(1),offset: int,query: TextQuery,best: TextHit): TextHit
 fun font_span_hit(layout: !FontSpanLayout,query: TextQuery): int
+fun font_span_text_hit(layout: !FontSpanLayout,query: TextQuery,length: int): int
 fun font_text_hit(f: !Font,b: !Buf,n: int,query: TextQuery): FontTextResult

@@ -87,7 +87,7 @@ fun append_known(rows: &VisualRows >> VisualRows,a: int,b: int,line: int,ordinal
 fun line_rows{n:nat} .<n>. (fuel: int(n),f: !Font,r: !Rend,rows: &VisualRows >> VisualRows,flags: !Buf,advances: !Buf,
   base: int,a: int,b: int,line: int,ordinal: int,target_w: int,scratch: &Buf >> _): void =
   if fuel = 0 then fill_exhausted(rows) else if ige(a,b) then () else let
-    val+ VisualRows(text,map,lines,data,count,key)=rows
+    val+ VisualRows(text,map,lines,data,count,key,plans)=rows
     val next=iadd(base,boundary(airlock_nat(MAX_REC_FUEL),flags,iadd(isub(a,base),1),isub(b,base)))
     val candidate=fit(airlock_nat(MAX_REC_FUEL),flags,advances,base,a,b,next,a,a,target_w)
     val (endpos,width)=exact_row(airlock_nat(MAX_REC_FUEL),f,r,text,flags,base,a,candidate,target_w,scratch)
@@ -99,7 +99,7 @@ fun one(f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,line: int,cur:
   val raw=if ilt(iadd(line,1),doc_nlines(d)) then doc_line_start(d,iadd(line,1)) else doc_len(d)
   val en=if igt(raw,st) andalso ieq(doc_byte(d,isub(raw,1)),CHAR_LF) then isub(raw,1) else raw
   val a=visual_rows_offset(rows,st) val b=visual_rows_offset(rows,en)
-  val+ VisualRows(text,map,lines,data,count,key)=rows val ()=buf_set32(lines,line,count)
+  val+ VisualRows(text,map,lines,data,count,key,plans)=rows val ()=buf_set32(lines,line,count)
   val nn = doc_nnodes(d)
   val () = cur := advance_wrap_cursor(airlock_nat(MAX_REC_FUEL), d, cur, nn, st)
   val k = block_kind_at(airlock_nat(MAX_REC_FUEL), d, st, cur, nn, KNone)
@@ -112,7 +112,7 @@ fun one(f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,line: int,cur:
 in buf_free(flags) end
 
 fun lines{n:nat} .<n>. (left: int(n),f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,i: int,cur: &int >> _,scratch: &Buf >> _): void =
-  if left = 0 then let val+ VisualRows(t,m,l,data,count,key)=rows in buf_set32(l,i,count) end
+  if left = 0 then let val+ VisualRows(t,m,l,data,count,key,plans)=rows in buf_set32(l,i,count) end
   else let val ()=one(f,r,d,rows,i,cur,scratch) in lines(left-1,f,r,d,rows,iadd(i,1),cur,scratch) end
 
 implement visual_wrap_fill(f,r,d,rows) = let
@@ -120,6 +120,9 @@ implement visual_wrap_fill(f,r,d,rows) = let
   var scratch = buf_make(VISUAL_WRAP_FILL_SCRATCH_INITIAL_BYTES)
   var cur: int = 0
   val () = lines(airlock_nat(doc_nlines(d)), f, r, d, rows, 0, cur, scratch)
+  val+ ~VisualRows(text,map,line_rows,data,count,key,old_plans)=rows
+  val ()=visual_plans_dispose(old_plans)
+  val ()=rows := VisualRows(text,map,line_rows,data,count,key,visual_plans_make(count))
 in
   buf_free(scratch)
 end

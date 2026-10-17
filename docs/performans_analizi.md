@@ -58,3 +58,16 @@ Ara ölçüm (aynı Release/Xvfb koşulları, tek koşu): gömülü örnek 263 m
 11× / 18× daha hızlıdır. Henüz son medyan/p95 kabul ölçümü değildir.
 64/256/1024 tekrar içeren karışık Türkçe/Arapça test, şekillendirmeyi satır
 sayısına göre sınırlar; önceki her grapheme için yeniden ölçme yolunu reddeder.
+
+Görünür satırın şekillendirilmiş planı Font ölçüm cache'inden VisualRows
+sahipliğine aktarılır; bir miss'te bir kez üretilir. 128 yuvalı indeksli cache
+satır boyama, yön, hit/caret ve seçim arasında paylaşılır. Çakışan yuva,
+geçersiz font token'ı ve görünüm kapanışı eski planı serbest bırakır. Genel
+font cache'i tahliye edilse de görünüm planı geçerliliğini korur; testte yeni
+shaping sayısı sıfırdır. Offscreen satır planları yalnız ihtiyaçta oluşturulur.
+
+Benchmark artık ilk kare ve iki sıcak sabit kare sonrasında 60 kaydırma
+karesi ölçer: belge boyunca eşit aralıklı 30 konum, iki geçiş. Bu gerçek içerik
+çizimidir; yalnız yer tutucu/boş kare ölçümü değildir. `tools/performance/summarize.py`
+loglardan medyan ve nearest-rank p95 çıkarır. İlk görünüm medyanı için birden
+çok ayrı süreç logu verilmelidir. Dosya yüklenemezse benchmark başarısız döner.

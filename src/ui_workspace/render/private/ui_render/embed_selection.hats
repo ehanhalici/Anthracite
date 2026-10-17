@@ -83,7 +83,7 @@ fun copy_projected(child: !Doc,info: EmbeddedSelection,destination: &Buf >> _): 
   if info.child <> doc_identity(child) orelse ine(info.childVersion,doc_ver(child)) then false else let
     val state=doc_visual_take(child)
     val copied=case+ state of | None_vt() => false | Some_vt(rows) => let
-      val+ VisualRows(text,map,lines,data,n,key)=rows
+      val+ VisualRows(text,map,lines,data,n,key,plans)=rows
       val a=visual_rows_offset(rows,imin(info.anchor,info.caret))
       val b=visual_rows_offset(rows,imax(info.anchor,info.caret))
       val ()=buffer_clear(destination) val ()=buffer_append_range(destination,text,a,isub(b,a))
