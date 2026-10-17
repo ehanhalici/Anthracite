@@ -42,6 +42,11 @@ Kanonik dosya/AST cache'i (48 Doc) ile görünüm geometrisi cache'i (128 giriş
 64 MiB) ayrıdır. Anchor aralığı, genişlik ve tam font bağlamı görünüm anahtarına
 dahildir. Kaynak aynıysa farklı blok veya bölme genişliği AST'yi çoğaltmaz.
 Aktif yola dönen embed döngüsü durdurulur; diğer zincirler derinlik 8 ile sınırlıdır.
+Görünür kaynaklar önceliklidir; bir viewport üst/alt taşma payındaki miss'ler
+4 ms esnek bütçeyle aşamalı hazırlanır. Uzak kaynaklar yüklenmez. Görünürlük
+ilk tahmini yüksekliklerle belirlenir, gerçek yükseklikler gelince tekrar
+değerlendirilir; üst kaynak satırı + piksel ofseti korunarak kaydırma düzeltilir.
+Seçili görünüm ve bütçeye sığan görünür görünümler LRU tahliyesinden önce korunur.
 
 Çocuk çizimleri `rend_clip_push/pop` ile ebeveyn clip'ine kesiştirilir;
 embed, widget veya sekme kendi sınırını genişletip üst UI alanını boyayamaz.
@@ -59,12 +64,16 @@ gösteren diğer kutu vurgulanmaz. Ctrl+C görünür izdüşüm metnini mantıks
 kopyalar; embed seçimi etkinken kesme/yazma/silme uygulanmaz. Sekme/ebeveyn
 değiştiren kullanıcı girdisi seçim ömrünü sonlandırır. Yeni hedefe kaydırma
 yerleşim hesaplandıktan sonra yapılır.
+İç içe gömü ve wiki/Markdown linklerinde en içteki hedef tıklaması dış kutunun
+hedefinden önce gelir. Aynı-dosya anchor'ı gömülü dosyaya aittir; Ctrl+tıklama
+da aynı hedef çözümlemesini kullanır. Gezinmeden önce kaynak tazeliği doğrulanır.
 
 `native_graphics_contracts` DejaVu Sans Mono'nun sabit metriklerini ve depodaki
 Noto Naskh Arabic fixture'ını kullanır; uygulamanın seçilebilir fontu değildir.
 CTest için ekran gerekir; DejaVu fixture bulunamazsa yapılandırmada açık uyarı
 verilir. Test gömülü dosya/anchor/cache, kaynak tazeliği, sarma, clip pikselleri
-ve seçim izolasyonunu da çalıştırır.
+ve seçim izolasyonunu da çalıştırır. Süresi tükenmiş iş bütçesi, takip kareleri,
+uzak kaynakların yüklenmemesi, kaydırma anchor'ı ve iç içe hedef önceliği de sınanır.
 
 ## Görsel koordinatlar
 

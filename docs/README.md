@@ -21,6 +21,8 @@ Uygulanmış davranış, tasarım hedefi ve ölçüm sonucu birbirinin yerine ku
 
 [Kod kuralları](skill.md), [ilerleme kaydı](refactoring_durumu.md) ve
 [hata listesi](olasi_hatalar.md) çalışma sırasında birlikte güncellenir.
+[Büyük belge performans raporu](performans_analizi.md) baseline, ölçüm yöntemi,
+gömü/metin yerleşimi değişiklikleri ve kabul sonuçlarını tutar.
 `.agents/rules` belirli bellek, sahiplik, önbellek ve karmaşıklık kurallarını taşır.
 
 ## Doğrulama

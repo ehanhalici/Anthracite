@@ -17,8 +17,8 @@ Yeni bulgular mevcut en yüksek BUG numarasından devam eder; numaralar yeniden 
   kutulanmak yerine düz kayıtla taşınıyor. Geometri anahtarı, görsel düğüm alt
   sınırı ve embed seçim/koruma sonuçları `Option_vt` ile tüketilip bırakılıyor.
   Bu yeni sahiplik yollarına nonlinear `Some` kaybı eklenmemeli.
-  Bu düzeltmelerden sonraki genişletilmiş suite 45.196 tahsiste 360.952 bayt
-  kalan kayıp raporladı; LSan hâlâ kırmızıdır.
+  Son genişletilmiş suite 45.601 tahsiste 363.280 bayt kalan kayıp raporladı;
+  LSan hâlâ kırmızıdır.
 - TODO: `glyph_position_finish` içindeki `PositionFinal(d)` ve diğer eski
   font/OpenType payload'lı `datatype`/`Option` geçicilerini incele. Tek kullanımlı
   değerleri düz kayıt veya tüketilen lineer sonuç yap; paylaşılan değerleri

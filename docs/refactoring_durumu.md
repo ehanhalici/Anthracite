@@ -1,5 +1,25 @@
 # Refactoring çalışma kaydı
 
+## 2026-10-17 — Büyük belge ve gömü performansı
+
+`8ca4286` sonrasındaki çalışma AST/katlama taramalarını, paragraf/satır
+planlarını, kaynak/anchor/geometri cache'ini ve viewport hazırlığını kapsar.
+Gömü clip kesişimi, readonly seçim/kopya, iç bağlantı önceliği ve hedefe
+gezinme regresyonlarla korunur. Son beş süreçlik ölçümde ilk kare medyanları
+45,037 / 468,977 ms; sıcak kaydırma p95 değerleri 3,023 / 5,032 ms'dir.
+Koşullar ve sınırlamalar [performans raporundadır](performans_analizi.md).
+
+Release ve Debug: ayrı ayrı 265/265 CTest geçti. Debug turu 206,03 s sürdü.
+ASan/UBSan erişim denetimi 3/3, CPU LSan denetimi 2/2 geçti.
+Grafik LSan temiz değildir; eski boxed font/OpenType yardımcıları BUG-032'de
+açık tutulur. İlgili yeni metadata okumaları lineerleştirildi, küme başına
+partition kutulaması kaldırıldı. 5.520 kaynak fonksiyonunda 20 satır sınırını
+aşan gövde yoktur; import/belge bağlantıları ve yedi opak sahip denetimi geçti.
+
+Çözülen BUG-001–031 ve BUG-033, kullanıcının isteğiyle aktif hata listesinden
+çıkarıldı; kanıt ve düzeltmeler Git geçmişindedir. Yeni numaralar yeniden
+kullanılmaz. Aşağıdaki eski doğrulama bölümleri tarihsel kayıttır.
+
 Başlangıç: 2026-10-16, `188239f` (`uzun metin optimizasyonu eklendi`).
 Amaç: davranışı koruyarak okunabilir sabitler/adlar, konuya göre modüller,
 tekrarlanabilir testler ve uygulamayla eşleşen belgeler sağlamak.

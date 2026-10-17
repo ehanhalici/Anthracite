@@ -174,3 +174,40 @@ Grafik oracle aynı 640×480 piksel uzayını kuyruk özyinelemeli tarar; Debug'
 yığın taşmasına yol açan dönüşte toplama kaldırıldı (BUG-031). Genişletilmiş
 suite için Debug/sanitizer zaman aşımı 600 s, Release 100 s'dir. Bu test süre
 sınırı, uygulamanın Release ilk görünüm/kaydırma kabul hedefi değildir.
+
+## Son kabul ölçümü — 2026-10-17
+
+Release (-O2/LTO), Xvfb/GLX :94, Mesa 26.1.8, 1280×800, 18 px, `read`
+izdüşümü. Ana font depodaki Source Code Pro, Arapça fallback depodaki Noto
+Naskh Arabic. Her örnek beş ayrı süreçte, sırayla çalıştırıldı; derleme/test
+yükü aynı anda çalıştırılmadı. OS dosya cache'i zorla temizlenmedi.
+
+| Örnek | Doc yükleme medyanı | İlk kare medyanı | Yükleme + ilk kare medyanı | Sıcak kaydırma p95 |
+|---|---:|---:|---:|---:|
+| Gömülü referanslı | 0,137 ms | 45,037 ms | 45,171 ms | 3,023 ms |
+| Uzun metin | 1,510 ms | 468,977 ms | 470,806 ms | 5,032 ms |
+
+İlk karede beşer örnek, sıcak kaydırmada örnek başına 300 gerçek içerik karesi
+vardır. Yükleme + ilk karenin gözlenen en yüksek süreleri 46,234 / 478,528 ms;
+iki dosya da 500 ms ilk kullanılabilir görünüm ve 16,7 ms sıcak kaydırma p95
+hedefini bu ortamda karşılar. Font/Unicode varlıklarının uygulama açılışındaki
+hazırlanması bu belge-açma ölçümüne dahil değildir; GL tamamlanması ve swap dahildir.
+
+Başlangıç ilk kare tek koşuda 2.859 / 9.639 ms idi; son ilk kare medyanlarıyla
+yaklaşık 64× / 21× fark vardır. Başlangıcın tek koşu olduğu unutulmamalıdır.
+Bu Xvfb sonucu gerçek masaüstü GPU'sunda veya her dosyada aynı süre garantisi değildir.
+
+Gömülü örnekte ilk kare on hedef Doc hazırlar; tam tur sonunda 31 kanonik
+kaynak cache'tedir. Beş koşunun sıcak kaydırma karelerinde belge yükleme,
+AST ayrıştırma, medya indeksi, sarma ve layout kurma sayaçları sıfırdır.
+Yakın işler tamamlandıktan sonraki sabit karelerde de yeniden layout/sarma yoktur;
+sabit kare medyanları 2,855 / 1,008 ms'dir. Ön-ısıtma kareleri bu istatistiklere
+karıştırılmadı. Not dosyaları salt okunur kullanıldı; içerikleri fixture'lara taşınmadı.
+
+Doğrulama: Release ve Debug profillerinde ayrı ayrı 265/265 CTest geçti.
+ASan+UBSan erişim/UB denetimi
+grafik/Unicode analiz/anchor paketlerinde 3/3 geçti (`detect_leaks=0`). CPU
+analiz/anchor paketleri ayrıca sızıntı denetimi açıkken 2/2 geçti. Grafik
+LSan hâlâ [BUG-032](olasi_hatalar.md) nedeniyle kırmızıdır; son genişletilmiş
+suite 45.601 tahsiste 363.280 bayt kayıp raporlar. Bastırma eklenmedi.
+Ayrıntılı doğrulama geçmişi [çalışma kaydında](refactoring_durumu.md) tutulur.

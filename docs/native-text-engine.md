@@ -24,6 +24,19 @@ sarılmış satırları, kaynak/görsel ofset dönüşümünü, hit-test ve dike
 paylaşır. Katlama görünürlüğü görsel izdüşüm öncesi güncellenir; önbellek anahtarı
 belge ve font/geometri sürümlerini kapsar.
 
+Paragraf analizi (`font_text_paragraph_analysis`) VisualRows'a aittir.
+`font_text_line_plan`, EGC hizalı `native_text_analysis_window` ile normalize
+scalar'ları ve çözülmüş paragraf bidi/script bağlamını devralır; satır için
+UBA'yı bağımsız AutoLtr olarak başlatmaz. L1/reset ve görsel sıra satırda,
+Arapça joining ise gerçek satır kenarlarında uygulanır. Orijinal UTF8 uzunluğu
+açık metadata'dır; yeniden sıralanmış son combining mark'ın son ofsetinden
+türetilmez. Kaynak aralığı dışında kalan embed satırları analiz/shape edilmez.
+
+Küme advance prefix'i kırılma adaylarını ölçer; seçilmiş gerçek satırın kesin
+planı görünümün 128 yuvalı sahipli plan cache'ine aktarılır. Boyama, caret,
+hit-test ve seçim aynı planı kullanır. Font token değişimi/yuva tahliyesi/view
+kapanışı eski planı bırakır; bağımsız Font ölçüm cache'i tahliyesi planı bozmaz.
+
 `native_text_assets_conformance`, `native_text_analysis_conformance`,
 `native_text_shape_conformance`, `source_edit_conformance` ve font paketleri
 bu katmanları doğrular. Üretimde hazır olma ve performans, yalnız test sayısına

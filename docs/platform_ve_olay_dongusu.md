@@ -16,7 +16,10 @@ platform kaynağı bırakıldıktan sonra `exit(1)` ile sonuçlanır (BUG-001 ç
 [event_loop](../src/core_runtime/event_loop.dats) olayları bekler/yönlendirir;
 [application](../src/core_runtime/application.dats) çalışma alanını yürütür.
 [event_repaint](../src/core_runtime/event_repaint.dats) olayın yeniden çizim
-isteyip istemediğini ayırır. Olay olmayan durumda bloke bekleme hedeflenir;
+isteyip istemediğini ayırır. `app_work_pending` gömü ön-hazırlığı beklediğinde
+yeni olay gerekmeden kare üretir ve bloke beklemez. Her karede görünür gerçek
+içerik hazırlanır; yakın gömü miss'leri 4 ms esnek iş bütçesine tabidir. İşler
+bitince `plat_wait(-1)` ile bloke beklemeye döner. Olay olmayan ve işi bitmiş durumda
 her ortamda tam yüzde sıfır CPU sayısal garantisi verilmez.
 
 ## Pano ve testler

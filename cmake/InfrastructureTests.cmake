@@ -14,6 +14,7 @@ target_link_libraries(document_performance PRIVATE anthracite_host native_text_e
   ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
 add_executable(performance_counter_contracts EXCLUDE_FROM_ALL tests/performance/performance_counter_contracts.c)
 add_test(NAME performance_counter_contracts COMMAND performance_counter_contracts)
+add_test(NAME performance_summary_contracts COMMAND python3 "${CMAKE_SOURCE_DIR}/tests/performance/test_summarize.py")
 anthracite_contract_test(fold_scaling_contracts tests/performance/fold_scaling_contracts.dats)
 target_link_libraries(fold_scaling_contracts PRIVATE anthracite_host native_text_engine
   ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
