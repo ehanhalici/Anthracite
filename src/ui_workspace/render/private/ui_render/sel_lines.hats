@@ -152,12 +152,8 @@ in
   draw_gutter_range_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, d, start_li, end_li, colx, oy, scroll, ph, scratch)
 end
 
-implement draw_doc(f, r, d, ox, oy, pw, ph, scroll, lh0, vault, c, scratch, viewmode) = let
-  val lh=if font_text_active(f) then font_document_line_height(f,lh0) else lh0
-  val colx = editor_colx(f, r, ox, pw)
-  val width=imax(1,imin(column_w(pw),isub(iadd(ox,pw),iadd(colx,16))))
-  val colw=if font_text_active(f) then width else column_w(pw)
-  val height=prepare_document_layout(f,d,c,r,vault,lh,colw,viewmode)
+fun draw_document_prepared(f: !Font,r: !Rend,d: !Doc,ox: int,oy: int,pw: int,ph: int,
+  scroll: int,lh: int,vault: !Buf,c: &Cache >> _,scratch: &Buf >> _,viewmode: ViewMode,height: int,colx: int): void = let
   var py: int = oy
   var pa: int = 0
   var pen_x: int = colx
@@ -173,6 +169,24 @@ implement draw_doc(f, r, d, ox, oy, pw, ph, scroll, lh0, vault, c, scratch, view
   val () = seen_int(pa)
 in
 end
+
+fun draw_document_scrolled(f: !Font,r: !Rend,d: !Doc,ox: int,oy: int,pw: int,ph: int,
+  scroll: int,lh0: int,vault: !Buf,c: &Cache >> _,scratch: &Buf >> _,mode: ViewMode): int = let
+  val lh=if font_text_active(f) then font_document_line_height(f,lh0) else lh0
+  val colx=editor_colx(f,r,ox,pw)
+  val width=if font_text_active(f) then imax(1,imin(column_w(pw),isub(iadd(ox,pw),iadd(colx,16)))) else column_w(pw)
+  val state=work_state(airlock_nat(MAX_REC_FUEL),c)
+  val line=if doc_layout_cache_height(d)>0 then line_at_y_fast(d,scroll,lh) else ~1
+  val scope: EmbedWorkScope= @{active=state.enabled,document=doc_identity(d),anchorLine=line,
+    scroll=isub(scroll,if ilt(line,0) then 0 else doc_line_y(d,line)),height=ph,foreground=true,childDelta=0,band=EmbedWorkVisible()}
+  val ()=work_set_scope(c,scope)
+  val height=prepare_document_layout(f,d,c,r,vault,lh,width,mode)
+  val adjusted=if state.enabled then imin(imax(0,isub(height,ph)),imax(0,work_top(d,scope))) else scroll
+  val ()=draw_document_prepared(f,r,d,ox,oy,pw,ph,adjusted,lh,vault,c,scratch,mode,height,colx)
+  val ()=work_set_scope(c,state.scope)
+in adjusted end
+implement draw_doc(f,r,d,ox,oy,pw,ph,scroll,lh,vault,c,scratch,mode) =
+  seen_int(draw_document_scrolled(f,r,d,ox,oy,pw,ph,scroll,lh,vault,c,scratch,mode))
 
 
 fun tab_item_width(f: !Font, r: !Rend, title: !Buf): int = let

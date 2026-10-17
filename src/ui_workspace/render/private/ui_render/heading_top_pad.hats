@@ -121,7 +121,9 @@ fun draw_embedded_doc(f: !Font, r: !Rend, parent: !Doc,node: int,child: !Doc,pat
                       lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _): void = let
   val colx = editor_colx(f, r, x, child_colw)
   val width=if font_text_active(f) then imax(1,isub(iadd(x,w),iadd(colx,16))) else child_colw
+  val previous=work_paint_scope(c,isub(viewport_y,iadd(y,4)),viewport_h)
   val height=prepare_embedded_view(f,child,c,r,vault,path,lh,width,scope,anchor)
+  val ()=work_set_scope(c,previous)
   val target=embedded_target(child,scope,anchor)
   val content_height=embedded_target_height(child,target,lh)
   val content_y = iadd(y, 4)

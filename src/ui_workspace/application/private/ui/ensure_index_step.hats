@@ -167,6 +167,7 @@ fun app_overlay_state(a: !App): @(Sidebar, PromptKind, MenuKind, int, int, int, 
     end
 
 implement app_draw(a, f, r, w, h) = let
+  val ()=case+ a of | @APP(s) => (cache_work_begin(s.cache);fold@(a))
   val () = draw_panes(f, r, a, w, h)
   val @(show, prompt, menu, menux, menuy, menuw, vault_select) = app_overlay_state(a)
   val () = if not(is_side_none(show)) then draw_side(f, r, a, h) else ()
@@ -176,6 +177,9 @@ implement app_draw(a, f, r, w, h) = let
 in
   draw_vault_select(f, r, a, w, h)
 end
+implement app_work_pending(a) = case+ a of | @APP(s) => let
+  val pending=cache_work_pending(s.cache)
+in fold@(a); pending end
 extern fun find_wiki_fuel_exhausted(doc: !Doc, caret: int, k: int): int = "mac#anth_die_int"
 
 fun find_wiki_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), doc: !Doc, caret: int, k: int): int =

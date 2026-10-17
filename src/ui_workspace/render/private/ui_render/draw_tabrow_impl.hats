@@ -159,11 +159,11 @@ end
 fun draw_tab_content(
   f: !Font, r: !Rend, doc: !Doc, path: !Buf, ox: int, oy: int, pw: int, ph: int,
   sc: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, viewmode: ViewMode
-): void =
+): int =
   if is_image_path(path) then
-    draw_image_viewer(f, r, path, ox, oy, pw, ph, c, scratch)
+    (draw_image_viewer(f, r, path, ox, oy, pw, ph, c, scratch); sc)
   else
-    draw_doc(f, r, doc, ox, oy, pw, ph, sc, lh, vault, c, scratch, viewmode)
+    draw_document_scrolled(f, r, doc, ox, oy, pw, ph, sc, lh, vault, c, scratch, viewmode)
 
 extern fun draw_focus_impl_fuel_exhausted(f: !Font, r: !Rend, ts: Tabs, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, viewmode: ViewMode): Tabs = "mac#anth_die_box"
 
@@ -187,10 +187,10 @@ fun draw_focus_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), 
       end
     | ~TCons(doc, path, title, sc, rest) => let
         val scroll=if ieq(i,idx) then pending_anchor_scroll(f,r,doc,ox,pw,ph,lh,vault,c,sc,viewmode) else sc
-        val () = if ieq(i, idx) then draw_tab_content(f, r, doc, path, ox, oy, pw, ph, scroll, lh, vault, c, scratch, viewmode) else seal_cs(c, scratch)
+        val adjusted = if ieq(i, idx) then draw_tab_content(f, r, doc, path, ox, oy, pw, ph, scroll, lh, vault, c, scratch, viewmode) else scroll
         val rest2 = draw_focus_impl_with_fuel(recfuel - 1, f, r, rest, idx, ox, oy, pw, ph, lh, vault, c, scratch, iadd(i, 1), viewmode)
       in
-        TCons(doc, path, title, scroll, rest2)
+        TCons(doc, path, title, adjusted, rest2)
       end
   ) else draw_focus_impl_fuel_exhausted(f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, viewmode)
 

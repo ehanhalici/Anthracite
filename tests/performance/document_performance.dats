@@ -39,6 +39,7 @@ fun report(): void = let
 in counter("visual_index_builds",PERF_VISUAL_INDEX_BUILDS) end
 
 fun paint(f: !Font,r: !Rend,p: !Plat,d: !Doc,vault: !Buf,cache: &Cache >> _,scratch: &Buf >> _,mode: ViewMode,scroll: int): void = let
+  val ()=cache_work_begin(cache)
   val ()=rend_begin(r,VIEW_WIDTH_PIXELS,VIEW_HEIGHT_PIXELS)
   val ()=draw_doc(f,r,d,0,UI_TOPBAR_HEIGHT,VIEW_WIDTH_PIXELS,
     isub(VIEW_HEIGHT_PIXELS,UI_TOPBAR_HEIGHT),scroll,FONT_SIZE_PIXELS,vault,cache,scratch,mode)

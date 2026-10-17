@@ -88,21 +88,36 @@ fun prepare_embedded_view(f: !Font,doc: !Doc,cache: &Cache >> _,r: !Rend,vault: 
   path: !Buf,lh: int,width: int,scope: EmbedScope,anchor: !Buf): int = let
   val target=embedded_target(doc,scope,anchor)
   val ()=doc_set_view_range(doc,target.start,target.finish)
-  val ()=if font_text_active(f) then cache_view_restore(f,doc,cache,path,width) else ()
-in prepare_document_layout(f,doc,cache,r,vault,lh,width,ViewRead) end
+  val restored: bool=if font_text_active(f) then cache_view_restore(f,doc,cache,path,width) else false
+  val allowed: bool=if restored then true else work_allow(cache)
+in if allowed then let
+    val previous=work_scope(cache)
+    var scope: EmbedWorkScope=previous
+    val ()=scope.document := doc_identity(doc)
+    val ()=scope.anchorLine := doc_line_of(doc,target.start)
+    val ()=scope.scroll := previous.childDelta
+    val ()=scope.band := EmbedWorkVisible()
+    val ()=work_set_scope(cache,scope)
+    val height=prepare_document_layout(f,doc,cache,r,vault,lh,width,ViewRead)
+    val ()=work_set_scope(cache,previous)
+  in height end else ~1 end
+
+fun measure_loaded_embed(f: !Font,c: &Cache >> _,r: !Rend,vault: !Buf,shown: !Buf,
+  anchor: !Buf,scope: EmbedScope,level: int,lh: int,colw: int,stamp: EmbedSourceStamp): int = let
+  val (child,loaded)=obtain_embed_doc(c,shown,buf_cstr(shown),stamp,level)
+in if loaded then let
+    val height=prepare_embedded_view(f,child,c,r,vault,shown,lh,embed_text_width(f,r,colw),scope,anchor)
+    val content=if ilt(height,0) then ~1 else iadd(imax(lh,embedded_content_height(child,scope,anchor,lh,height)),EMBED_FRAME_PADDING_PIXELS)
+    val ()=save_embed_cache(c,shown,stamp,child,colw,lh)
+  in content end else let val ()=doc_free(child) in iadd(lh,EMBED_FRAME_PADDING_PIXELS) end end
 
 fun measure_embedded_height(f: !Font,c: &Cache >> _,r: !Rend,vault: !Buf,shown: !Buf,
   anchor: !Buf,scope: EmbedScope,level: int,lh: int,colw: int): int =
   if igt(level,MAX_EMBED_DEPTH) then iadd(lh,8) else let
     val mtime=embedded_source_stamp(buf_cstr(shown))
-  in if not(mtime.file.exists) then iadd(lh,8) else let
-    val (child,loaded)=obtain_embed_doc(c,shown,buf_cstr(shown),mtime,level)
-  in if loaded then let
-    val height=prepare_embedded_view(f,child,c,r,vault,shown,lh,embed_text_width(f,r,colw),scope,anchor)
-    val content_height = embedded_content_height(child, scope, anchor, lh, height)
-    val ()=save_embed_cache(c,shown,mtime,child,colw,lh)
-  in iadd(imax(lh,content_height),8) end
-  else let val ()=doc_free(child) in iadd(lh,8) end end end
+  in if not(mtime.file.exists) then iadd(lh,EMBED_FRAME_PADDING_PIXELS)
+    else if not(work_has_document(airlock_nat(MAX_REC_FUEL),c,shown,mtime)) andalso not(work_allow(c)) then ~1
+    else measure_loaded_embed(f,c,r,vault,shown,anchor,scope,level,lh,colw,mtime) end
 
 fun embedded_height(f: !Font,d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault: !Buf, shown: !Buf, lh: int, colw: int): int = let
   var anchor = buf_make(EMBEDDED_HEIGHT_ANCHOR_INITIAL_BYTES)
@@ -122,10 +137,9 @@ fun bind_embed_height(f: !Font, d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault
   val width = isub(colw, imul(doc_node_depth(d, i), 20))
   val dh = resolve_embed_height(f, d, i, c, r, vault, shown, lh, width)
   val old_h = doc_node_height(d, i)
-  val () = if ine(old_h, dh) then doc_bump_ver(d) else ()
+  val () = if ige(dh,0) andalso ine(old_h, dh) then doc_bump_ver(d) else ()
 in
-  doc_set(d, i, NF_HEIGHT, dh);
-  doc_set(d, i, NF_AUX, dh)
+  if ige(dh,0) then (doc_set(d,i,NF_HEIGHT,dh); doc_set(d,i,NF_AUX,dh)) else ()
 end
 
 fun try_media_folder(vault: !Buf, sub: string, rel: !Buf, shown: &Buf >> _): bool = let

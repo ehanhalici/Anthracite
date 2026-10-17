@@ -11,6 +11,11 @@ staload "data_ast/layout/visual_rows.sats"
 typedef EmbeddedSelection = @{parent=ptr,parentVersion=int,node=int,child=ptr,childVersion=int,
   anchor=int,caret=int,start=int,finish=int,dragged=bool,source=EmbedSourceStamp,view=VisualKey}
 datavtype EmbedViewState = EmbedViewPending | EmbedViewReady of (VisualKey,DocGeometry)
+datatype EmbedWorkBand = EmbedWorkVisible | EmbedWorkOverscan
+typedef EmbedWorkScope = @{active=bool,document=ptr,anchorLine=int,scroll=int,height=int,
+  foreground=bool,childDelta=int,band=EmbedWorkBand}
+typedef EmbedWorkState = @{enabled=bool,deadline=lint,pending=bool,scope=EmbedWorkScope}
+datavtype EmbedPins = EmbedPinsNil | EmbedPinsCons of (Buf,EmbedSourceStamp,VisualKey,EmbedPins)
 
 datavtype Cache =
   | CNil of ()
@@ -18,6 +23,10 @@ datavtype Cache =
   | CEmbed of (Buf, EmbedSourceStamp, Doc, int, int, Cache)
   | CSelection of (EmbeddedSelection,Buf,Cache)
   | CView of (Buf,EmbedSourceStamp,EmbedViewState,Cache)
+  | CWork of (EmbedWorkState,EmbedPins,Cache)
+
+fun cache_work_begin(cache: &Cache >> _): void
+fun cache_work_pending(cache: !Cache): bool
 
 fun cache_clear_embed_selection(cache: &Cache >> _): void
 fun cache_copy_embed_selection(cache: !Cache,destination: &Buf >> _): bool

@@ -30,24 +30,26 @@ end
 extern fun cache_free_fuel_exhausted(c: Cache): void = "mac#anth_die_void"
 fun cache_view_release(state: EmbedViewState): void = case+ state of
   | ~EmbedViewPending() => () | ~EmbedViewReady(key,geometry) => doc_geometry_dispose(geometry)
+fun free_cached_texture(path: Buf,texture: uint): void = let val ()=buf_free(path) in rend_tex_free(texture) end
+fun free_cached_document(path: Buf,doc: Doc): void = let val ()=buf_free(path) in doc_free(doc) end
 
 fun cache_free_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: Cache): void =
   if recursion_fuel_available(recfuel) then (
     case+ c of
     | ~CNil() => ()
+    | ~CWork(state,pins,rest) => let val ()=work_pins_free(airlock_nat(MAX_REC_FUEL),pins)
+      in cache_free_with_fuel(recfuel-1,rest) end
     | ~CView(path,stamp,state,rest) => let val ()=buf_free(path) val ()=cache_view_release(state)
       in cache_free_with_fuel(recfuel-1,rest) end
     | ~CSelection(_,path,rest) => let val ()=buf_free(path)
       in cache_free_with_fuel(recfuel-1,rest) end
     | ~CCons(p, t, _, _, rest) => let
-        val () = buf_free(p)
-        val () = rend_tex_free(t)
+        val () = free_cached_texture(p,t)
       in
         cache_free_with_fuel(recfuel - 1, rest)
       end
     | ~CEmbed(p, _, doc, _, _, rest) => let
-        val () = buf_free(p)
-        val () = doc_free(doc)
+        val () = free_cached_document(p,doc)
       in
         cache_free_with_fuel(recfuel - 1, rest)
       end
@@ -76,6 +78,7 @@ fun cache_lookup_with_fuel {recfuel:nat} .<recfuel,1>. (recfuel: int(recfuel), c
       end
     | ~CSelection(selection,saved,rest) =>
         CSelection(selection,saved,cache_lookup_with_fuel(recfuel-1,rest,path,tex,w,h,hit))
+    | ~CWork(state,pins,rest) => CWork(state,pins,cache_lookup_with_fuel(recfuel-1,rest,path,tex,w,h,hit))
     | ~CView(saved,stamp,state,rest) =>
         CView(saved,stamp,state,cache_lookup_with_fuel(recfuel-1,rest,path,tex,w,h,hit))
     | ~CCons(p,t,iw,ih,rest) => cache_lookup_texture(recfuel,p,t,iw,ih,rest,path,tex,w,h,hit)
@@ -107,6 +110,9 @@ in @(document,CEmbed(path,stamp,child,width,height,rest)) end
 fun restore_view_entry(path: Buf,stamp: EmbedSourceStamp,state: EmbedViewState,
   result: @(Option_vt(Doc),Cache)): @(Option_vt(Doc),Cache) = let val (document,rest)=result
 in @(document,CView(path,stamp,state,rest)) end
+fun restore_work_document(state: EmbedWorkState,pins: EmbedPins,result: @(Option_vt(Doc),Cache)): @(Option_vt(Doc),Cache) = let
+  val (document,rest)=result
+in @(document,CWork(state,pins,rest)) end
 
 fun cache_take_embed_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), c: Cache, path: !Buf, cur_mt: EmbedSourceStamp
@@ -114,6 +120,7 @@ fun cache_take_embed_with_fuel {recfuel:nat} .<recfuel>. (
   if recursion_fuel_available(recfuel) then (
     case+ c of
     | ~CNil() => @(None_vt(), CNil())
+    | ~CWork(state,pins,rest) => restore_work_document(state,pins,cache_take_embed_with_fuel(recfuel-1,rest,path,cur_mt))
     | ~CView(saved,stamp,state,rest) =>
         restore_view_entry(saved,stamp,state,cache_take_embed_with_fuel(recfuel-1,rest,path,cur_mt))
     | ~CSelection(selection,saved,rest) =>
@@ -138,6 +145,7 @@ fun count_embeds_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: 
   if recursion_fuel_available(recfuel) then (
     case+ c of
     | CNil() => acc
+    | CWork(state,pins,rest) => count_embeds_with_fuel(recfuel-1,rest,acc)
     | CView(_,_,_,rest) => count_embeds_with_fuel(recfuel-1,rest,acc)
     | CSelection(_,_,rest) => count_embeds_with_fuel(recfuel-1,rest,acc)
     | CCons(_, _, _, _, rest) => count_embeds_with_fuel(recfuel - 1, rest, acc)
@@ -152,6 +160,7 @@ fun trim_embeds_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: C
   if recursion_fuel_available(recfuel) then (
     case+ c of
     | ~CNil() => CNil()
+    | ~CWork(state,pins,rest) => CWork(state,pins,trim_embeds_with_fuel(recfuel-1,rest,keep,pinned,cur))
     | ~CView(path,stamp,state,rest) => CView(path,stamp,state,trim_embeds_with_fuel(recfuel-1,rest,keep,pinned,cur))
     | ~CSelection(selection,path,rest) => CSelection(selection,path,trim_embeds_with_fuel(recfuel-1,rest,keep,pinned,cur))
     | ~CCons(p, t, iw, ih, rest) =>
@@ -171,7 +180,7 @@ fun trim_embeds_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: C
 
 extern fun cache_pin_path(cache: !Cache,path: &Buf >> _): void
 extern fun cache_pin_info(cache: !Cache): Option(EmbeddedSelection)
-fun cache_put_embed(c: Cache, path: Buf, mt: EmbedSourceStamp, doc: Doc, cw: int, lh: int): Cache = let
+fun cache_put_embed_trimmed(c: Cache, path: Buf, mt: EmbedSourceStamp, doc: Doc, cw: int, lh: int): Cache = let
   val n = count_embeds_with_fuel(airlock_nat(MAX_REC_FUEL), c, 0)
 in
   if ige(n, MAX_EMBED_CACHE_ENTRIES) then let
@@ -185,6 +194,12 @@ in
   end else
     CEmbed(path, mt, doc, cw, lh, c)
 end
+
+fun cache_put_embed(c0: Cache,path: Buf,stamp: EmbedSourceStamp,doc: Doc,width: int,height: int): Cache = let
+  var cache: Cache=c0
+  val ()=if ige(count_embeds_with_fuel(airlock_nat(MAX_REC_FUEL),cache,0),MAX_EMBED_CACHE_ENTRIES) then work_promote_documents(cache) else ()
+  val owned: Cache=cache
+in cache_put_embed_trimmed(owned,path,stamp,doc,width,height) end
 
 datatype PathScan = ScanSeek | ScanCopy | ScanDone
 

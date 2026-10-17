@@ -427,3 +427,19 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
   NFC yeniden sıralama, hatalı UTF8, EGC içi ve çapraz-paragraf reddi sınanır.
   Grafik testi, nötr/sayıyla başlayan RTL devam satırlarının sağa hizalandığını
   doğrular. Native analiz, grafik ve selftest paketleri geçti.
+
+## BUG-028 — Görünmeyen gömüler ilk karede eşzamanlı hazırlanıyor
+
+- Durum: çözüldü; görünür alan ve bir viewport taşma payı ile aşamalı hazırlık.
+- Kanıt: medya indeksi her karede bütün gömüleri ölçüyordu; aşağıdaki kaynaklar
+  ilk görünüm için gerekmese de yükleme/AST/sarma maliyetine katılıyordu.
+- Çözüm: görünür gerçek içerik öncelikli hazırlanır. Yakındaki önbellek miss'leri
+  4 ms esnek iş bütçesiyle sürdürülür; uzak kaynaklar yüklenmez. Bir atomik
+  parse/shape işi süreyi aşabilir; denetim işler arasındadır. Olay döngüsü bekleyen
+  işler bitene kadar yeni kare üretir, sonra normal olay beklemesine döner.
+  Yüksekliği bilinmeyen gömü tahmin edilir; gerçek yükseklik gelince üst kaynak
+  satırı + satır içi piksel ofseti korunur. Seçili görünümden sonra sığan görünür
+  görünümler tahliyede öne alınır; 48 belge/128 görünüm/64 MiB sınırları korunur.
+- Doğrulama: süresi baştan tükenmiş bütçe testi görünür içeriği hazırlayıp yakın
+  miss'i erteler; takip kareleri işi bitirir, uzak dosyaları açmaz. Alta kaydırma
+  yeni kaynakları açar; üstteki bir gömü değiştiğinde kaydırma anchor'ı korunur.

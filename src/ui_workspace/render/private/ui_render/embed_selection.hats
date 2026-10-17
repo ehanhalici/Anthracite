@@ -1,6 +1,7 @@
 fun selection_info{n:nat} .<n>. (fuel: int(n),cache: !Cache): Option(EmbeddedSelection) =
   if not(recursion_fuel_available(fuel)) then None() else case+ cache of
   | CNil() => None() | CSelection(info,path,rest) => Some(info)
+  | CWork(state,pins,rest) => selection_info(fuel-1,rest)
   | CView(path,stamp,state,rest) => selection_info(fuel-1,rest)
   | CCons(path,tex,w,h,rest) => selection_info(fuel-1,rest)
   | CEmbed(path,stamp,doc,w,h,rest) => selection_info(fuel-1,rest)
@@ -11,6 +12,7 @@ implement cache_embed_selection_dragged(cache) = case+ selection_info(airlock_na
 fun selection_remove{n:nat} .<n>. (fuel: int(n),cache: Cache): Cache =
   if not(recursion_fuel_available(fuel)) then cache else case+ cache of
   | ~CNil() => CNil()
+  | ~CWork(state,pins,rest) => CWork(state,pins,selection_remove(fuel-1,rest))
   | ~CView(path,stamp,state,rest) => CView(path,stamp,state,selection_remove(fuel-1,rest))
   | ~CSelection(info,path,rest) => let val ()=buf_free(path) in selection_remove(fuel-1,rest) end
   | ~CCons(path,tex,w,h,rest) => CCons(path,tex,w,h,selection_remove(fuel-1,rest))
@@ -96,6 +98,7 @@ fun copy_projected(child: !Doc,info: EmbeddedSelection,destination: &Buf >> _): 
 fun copy_document{n:nat} .<n>. (fuel: int(n),cache: !Cache,path: !Buf,info: EmbeddedSelection,destination: &Buf >> _): bool =
   if not(recursion_fuel_available(fuel)) then false else case+ cache of
   | CNil() => false | CSelection(selection,saved,rest) => copy_document(fuel-1,rest,path,info,destination)
+  | CWork(state,pins,rest) => copy_document(fuel-1,rest,path,info,destination)
   | CView(saved,stamp,state,rest) => copy_document(fuel-1,rest,path,info,destination)
   | CCons(saved,tex,w,h,rest) => copy_document(fuel-1,rest,path,info,destination)
   | CEmbed(saved,stamp,doc,w,h,rest) =>
@@ -107,6 +110,7 @@ fun selection_path{n:nat} .<n>. (fuel: int(n),cache: !Cache,destination: &Buf >>
   | CNil() => None() | CSelection(info,path,rest) => let
       val ()=buffer_append_range(destination,path,0,buf_len(path))
     in Some(info) end
+  | CWork(state,pins,rest) => selection_path(fuel-1,rest,destination)
   | CView(path,stamp,state,rest) => selection_path(fuel-1,rest,destination)
   | CCons(path,tex,w,h,rest) => selection_path(fuel-1,rest,destination)
   | CEmbed(path,stamp,doc,w,h,rest) => selection_path(fuel-1,rest,destination)

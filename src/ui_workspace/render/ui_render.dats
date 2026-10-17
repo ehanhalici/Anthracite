@@ -61,9 +61,11 @@ macdef MAX_EMBED_DEPTH = 8
 
 
 (* Private implementation groups share this owner and its linear representation. *)
+#include "ui_workspace/render/private/ui_render/embed_work.hats"
 #include "ui_workspace/render/private/ui_render/anth_ui_caret_adv.hats"
 #include "ui_workspace/render/private/ui_render/doc_buf_push_slice.hats"
 #include "ui_workspace/render/private/ui_render/embed_view_cache.hats"
+#include "ui_workspace/render/private/ui_render/embed_visible_pins.hats"
 #include "ui_workspace/render/private/ui_render/embed_document_cache.hats"
 #include "ui_workspace/render/private/ui_render/image_slice_size.hats"
 #include "ui_workspace/render/private/ui_render/bind_mathb_height.hats"

@@ -253,12 +253,14 @@ fun embed_file_cache{n:nat} .<n>. (fuel: int(n),cache: !Cache): int =
   if fuel = 0 then 0 else case+ cache of | CNil() => 0
   | CCons(p,t,w,h,rest) => embed_file_cache(fuel-1,rest)
   | CSelection(info,path,rest) => embed_file_cache(fuel-1,rest)
+  | CWork(state,pins,rest) => embed_file_cache(fuel-1,rest)
   | CView(path,stamp,state,rest) => embed_file_cache(fuel-1,rest)
   | CEmbed(p,mtime,d,w,h,rest) => iadd(1,embed_file_cache(fuel-1,rest))
 fun cached_first_byte{n:nat} .<n>. (fuel: int(n),cache: !Cache): int =
   if fuel = 0 then ~1 else case+ cache of | CNil() => ~1
   | CCons(p,t,w,h,rest) => cached_first_byte(fuel-1,rest)
   | CSelection(info,path,rest) => cached_first_byte(fuel-1,rest)
+  | CWork(state,pins,rest) => cached_first_byte(fuel-1,rest)
   | CView(path,stamp,state,rest) => cached_first_byte(fuel-1,rest)
   | CEmbed(p,mtime,d,w,h,rest) => doc_byte(d,0)
 fun embed_reload(f: !Font,r: !Rend,d: !Doc,cache: &Cache >> _,root: !Buf,expected: int): int = let
@@ -346,10 +348,12 @@ fun selection_ink(f: !Font,r: !Rend,tabs: !Tabs,root: !Buf,cache: &Cache >> _,sc
 in iadd(errors,if igt(found,0) then 0 else 1) end
 fun selected_info{n:nat} .<n>. (left: int(n),cache: !Cache): Option(EmbeddedSelection) =
   if left = 0 then None() else case+ cache of | CNil() => None() | CSelection(info,path,rest) => Some(info)
+  | CWork(state,pins,rest) => selected_info(left-1,rest)
   | CCons(p,t,w,h,rest) => selected_info(left-1,rest) | CEmbed(p,s,d,w,h,rest) => selected_info(left-1,rest)
   | CView(p,s,state,rest) => selected_info(left-1,rest)
 fun selected_view_exists{n:nat} .<n>. (left: int(n),cache: !Cache,info: EmbeddedSelection): bool =
   if left = 0 then false else case+ cache of | CNil() => false
+  | CWork(state,pins,rest) => selected_view_exists(left-1,rest,info)
   | CSelection(s,p,rest) => selected_view_exists(left-1,rest,info)
   | CCons(p,t,w,h,rest) => selected_view_exists(left-1,rest,info)
   | CEmbed(p,s,d,w,h,rest) => selected_view_exists(left-1,rest,info)
@@ -424,6 +428,7 @@ fun remove_depth_chain{n:nat} .<n>. (left: int(n),root: !Buf,index: int): int =
   if left = 0 then 0 else let val path=depth_path(root,index) val removed=fs_unlink(buf_cstr(path))
     val ()=buf_free(path)
   in iadd(if ieq(removed,0) then 0 else 1,remove_depth_chain(left-1,root,iadd(index,1))) end
+#include "workspace/embed_scheduler_cases.hats"
 fun nested_embeds(f: !Font,r: !Rend,root: !Buf): int = let
   val first=write_note(root,"cycle-a.md","![[cycle-b]]\n") val second=write_note(root,"cycle-b.md","![[cycle-a]]\n")
   val cycle=nested_embed_case(f,r,root,"![[cycle-a]]\n",2)
@@ -439,7 +444,7 @@ fun embedded_documents(f: !Font,r: !Rend): int = let var root=buf_make(512)
 in if not(created) then let val ()=buf_free(root) in 1 end else let
     val path=selftest_fixture_path(buf_cstr(root),"child.md")
     val errors=iadd(embed_fixture_test(f,r,root,path),embed_selection_fixture(f,r,root,path))
-    val nesting=nested_embeds(f,r,root)
+    val nesting=iadd(nested_embeds(f,r,root),scheduler_fixture(f,r,root))
     val removed=fs_unlink(buf_cstr(path)) val closed=fs_rmdir(buf_cstr(root))
     val ()=buf_free(path) val ()=buf_free(root)
   in iadd(nesting,iadd(errors,if ieq(removed,0) andalso ieq(closed,0) then 0 else 1)) end end
