@@ -46,6 +46,10 @@ sıfırlanmış geçerli kayıt için önce sıfırlayın, sonra `buf_set_len` �
 Görsel izdüşümden önce katlama görünürlüğü eşzamanlı güncellenir. Satır ve
 AST eşleştirmelerinde monotonik imleç veya aralık araması kullanılır. Önbellek
 isabetinde belgeyi yeniden açmayın; tahliye ve kapanışta `Doc` sahipliğini bırakın.
+Görünür native metinde boyama/yön/hit/seçim için VisualRows'un sahipli satır
+planını kullanın; her inline yaprakta yeniden shape etmeyin. Plan aktarımı
+Font'tan tüketerek yapılır, sahip kopyalanmaz. Font token'ı değiştiğinde plan
+yenilenir; view bırakıldığında bütün dolu yuvalar serbest bırakılır.
 Karmaşıklık bütün çağrı zinciri için değerlendirilir: katlama bölgesi sıralaması
 32 bit sahip anahtarında kararlı dört geçişli radix sıralamadır (O(R), ek O(R)
 bellek). Kararlılık ve döngü adımları `region_sort_contracts` ile korunur.

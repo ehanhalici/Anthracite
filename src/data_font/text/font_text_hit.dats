@@ -14,10 +14,13 @@ fun rounded(value: int): int = iadd(idiv(value,64),if ige(imod(value,64),32) the
 fun bounded(layout: !FontSpanLayout,query: TextQuery,length: int): TextQuery = case+ query of
   | QueryCaret(byte) => QueryCaret(imin(length,imax(0,byte)))
   | QueryClick(pixel) => QueryClick(imin(font_span_width(layout),imax(0,pixel)))
+implement font_span_text_hit(layout,query,length) = let
+  val raw=font_span_hit(layout,bounded(layout,query,length))
+in case+ query of | QueryCaret(byte) => rounded(raw)
+  | QueryClick(pixel) => click_offset(layout,imin(length,imax(0,raw)),length) end
 fun queried{b:bool}(slot: !option_vt(FontTextCache,b),n: int,query: TextQuery): FontTextResult = case+ slot of
   | None_vt() => FontTextFailed(SpanShaping()) | Some_vt(cache) => let val+ FontTextCache(key,layout,px,tail)=cache
-    val raw=font_span_hit(layout,bounded(layout,query,n))
-    val value=case+ query of | QueryCaret(byte) => rounded(raw) | QueryClick(pixel) => click_offset(layout,imin(n,imax(0,raw)),n)
+    val value=font_span_text_hit(layout,query,n)
   in FontTextValue(value) end
 fun active(f: !Font,session: &FontTextSession >> FontTextSession,b: !Buf,n: int,query: TextQuery): FontTextResult = let
   val+ ~FontTextSession(assets,old,p,a,m)=session var cache: Option_vt(FontTextCache)=old val px=font_get_px(f)

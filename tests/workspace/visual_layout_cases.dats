@@ -4,6 +4,7 @@ staload "data_ast/layout/doc_visual.sats"
 staload "data_ast/layout/layout_internal.sats"
 staload "data_ast/layout/visual_rows.sats"
 staload "data_font/resources/font_document_metrics.sats"
+staload "data_font/text/font_text.sats"
 staload "data_font/resources/private/font_storage.sats"
 staload "ui_workspace/common/ui_common.sats"
 staload "ui_workspace/visual/visual_layout.sats"
@@ -25,12 +26,12 @@ fun bytes(s: string): Buf = let val n=c_strlen(s) val b=buf_make(n)
 in b end
 fun rows{n:nat} .<n>. (left: int(n),snapshot: !VisualRows,i: int): int =
   if left = 0 then 0 else let val row=visual_rows_at(snapshot,i)
-    val+ VisualRows(text,map,lines,data,count,key)=snapshot
+    val+ VisualRows(text,map,lines,data,count,key,plans)=snapshot
     val starts=ilt(row.start,row.finish) orelse ieq(row.width,0)
     val bounded=ile(row.width,key.width)
   in iadd(if starts andalso bounded then 0 else 1,rows(left-1,snapshot,iadd(i,1))) end
 fun snapshot(d: !Doc): int = let val state=doc_visual_take(d)
-  val errors=case+ state of | None_vt() => 1 | Some_vt(s) => let val+ VisualRows(t,m,l,data,n,k)=s
+  val errors=case+ state of | None_vt() => 1 | Some_vt(s) => let val+ VisualRows(t,m,l,data,n,k,plans)=s
   in rows(airlock_nat(n),s,0) end
   val ()=doc_visual_put(d,state)
 in errors end
@@ -66,7 +67,7 @@ in iadd(pixels,if restored then 0 else 1) end
 fun equal{n:nat} .<n>. (left: int(n),b: !Buf,s: string,i: int): bool =
   if left = 0 then true else ieq(buf_get(b,i),c_str_byte(s,i)) andalso equal(left-1,b,s,iadd(i,1))
 fun projected{b:bool}(state: !option_vt(VisualRows,b)): int = case+ state of
-  | None_vt() => 1 | Some_vt(rows) => let val+ VisualRows(text,map,lines,data,n,key)=rows
+  | None_vt() => 1 | Some_vt(rows) => let val+ VisualRows(text,map,lines,data,n,key,plans)=rows
     val expected="İŞ Başlık\n" val length=c_strlen(expected)
   in if ieq(buf_len(text),length) andalso equal(airlock_nat(length),text,expected,0) then 0 else 1 end
 fun markdown(f: !Font,r: !Rend): int = let val d=doc_open() val b=bytes("**İŞ** [[note|Başlık]]\n")
@@ -189,6 +190,28 @@ fun warm_layout(f: !Font,r: !Rend): int = let
   val ()=performance_enable(0) val ()=buf_free(source) val ()=buf_free(vault)
   val ()=cache_free(cache) val ()=doc_free(d)
 in if hit andalso invalidated then 0 else 1 end
+fun evict_font_cache{n:nat} .<n>. (left: int(n),f: !Font,i: int): void =
+  if left = 0 then () else let var source=buf_make(32)
+    val ()=buffer_append_string(source,"eviction ")
+    val ()=buf_push(source,iadd(CHAR_UPPER_A,idiv(i,16))) val ()=buf_push(source,iadd(CHAR_UPPER_A,imod(i,16)))
+    val length=buf_len(source) val width=font_text_width(f,source,length) val ()=buf_free(source)
+  in evict_font_cache(left-1,f,iadd(i,1)) end
+fun owned_row_plans(f: !Font,r: !Rend): int = let
+  val d=doc_open() val source=bytes("Türkçe **metin** بسم الله الرحمن الرحيم\nikinci satır\n")
+  val length=buf_len(source) val ()=doc_insert_buf(d,source,length) val ()=buf_free(source)
+  val ()=doc_set_caret_move(d,0)
+  val ()=visual_layout_prepare(f,r,d,240,ViewRead) val height=doc_layout_mode(d,24,1,320)
+  var scratch: Buf=buf_make(256) val ()=rend_begin(r,640,480)
+  val first=visual_draw_slice(f,r,d,0,doc_len(d),20,20,0,24,440,0xFFFFFFFFu,scratch)
+  val ()=evict_font_cache(256,f,0) val ()=performance_enable(1) val ()=performance_reset()
+  val second=visual_draw_slice(f,r,d,0,doc_len(d),20,20,0,24,440,0xFFFFFFFFu,scratch)
+  val at=visual_click_source(f,d,20,20,20,20,0,24,scratch)
+  val point=visual_caret_point(f,d,20,20,0,24,scratch)
+  val shared=performance_value(PERF_SHAPE_CALLS)=0ULL andalso ieq(first,second)
+  val calls=performance_value(PERF_SHAPE_CALLS)
+  val ()=println!("event=owned_row_plans first=",first," second=",second," shapes=",calls)
+  val ()=performance_enable(0) val ()=buf_free(scratch) val ()=doc_free(d)
+in if shared then 0 else 1 end
 fun embed_fixture_fill{n:nat} .<n>. (left: int(n),child: &Buf >> _,parent: &Buf >> _,i: int): void =
   if left = 0 then () else let
     val ()=repeat_words(airlock_nat(imul(iadd(i,1),4)),child)
@@ -317,7 +340,7 @@ implement native_visual_layout_cases(f,r) = let val before=mem_live() val d=doc_
   val nav=navigation(f,r) val fold=folding_and_task(f,r)
   val errors=body+markup+hard+nav+fold val ()=doc_free(d) val delta=isub(mem_live(),before)
   val scale=iadd(wrap_scale(f,r,64),iadd(wrap_scale(f,r,256),wrap_scale(f,r,1024)))
-  val clipping=iadd(nested_clips(r),warm_layout(f,r))
+  val clipping=iadd(owned_row_plans(f,r),iadd(nested_clips(r),warm_layout(f,r)))
   val embedded=embedded_documents(f,r)
   val ()=println!("event=native_visual_layout errors=",errors," retained_font_source_bytes=",delta)
   val ()=println!("event=visual_cases body=",body," markdown=",markup," hard=",hard," navigation=",nav," fold=",fold)

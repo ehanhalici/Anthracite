@@ -22,7 +22,7 @@ fun vertical_of(cmd: Cmd): Option(VerticalEdit) =
   if is_cmd(cmd,CMD_CARET_UP) then Some(MoveUp()) else if is_cmd(cmd,CMD_CARET_DOWN) then Some(MoveDown())
   else if is_cmd(cmd,CMD_SELECT_UP) then Some(SelectUp()) else if is_cmd(cmd,CMD_SELECT_DOWN) then Some(SelectDown()) else None()
 fun snapshot{b:bool}(state: !option_vt(VisualRows,b)): Option(VisualKey) = case+ state of
-  | None_vt() => None() | Some_vt(rows) => let val+ VisualRows(t,m,l,data,n,key)=rows in Some(key) end
+  | None_vt() => None() | Some_vt(rows) => let val+ VisualRows(t,m,l,data,n,key,plans)=rows in Some(key) end
 fun refresh(f: !Font,r: !Rend,d: !Doc): bool = let val state=doc_visual_take(d)
   val key=snapshot(state) val ()=doc_visual_put(d,state)
 in case+ key of | None() => false | Some(k) => let
