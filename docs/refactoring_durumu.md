@@ -19,6 +19,9 @@ için sızıntısızlık ispatı değildir. BUG-036 aktif listeden çıkarıldı
 Genişletilmiş FSM dahil Release tam paket 271/271 geçti (5,79 s); kaynak/belge
 bağlantıları, yedi opak sahip, 5.601 fonksiyonun gövde sınırı ve boşluk denetimi
 başarılıdır. Son CPU sanitizer tekrarı da 4/4 geçti (0,05 s).
+Güncel FSM ve genişletilmiş test yürütücüsüyle son Debug tam paket 271/271
+geçti (181,79 s). Her iki profilde `check-build -j16` başarılıdır; hiçbir test
+devre dışı bırakılmadı. Aktif hata listesinde kayıt kalmadı.
 
 ## 2026-10-17 — BUG-034 ham metin araması ve sonuç gezinmesi
 
