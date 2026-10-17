@@ -429,6 +429,7 @@ fun remove_depth_chain{n:nat} .<n>. (left: int(n),root: !Buf,index: int): int =
     val ()=buf_free(path)
   in iadd(if ieq(removed,0) then 0 else 1,remove_depth_chain(left-1,root,iadd(index,1))) end
 #include "workspace/embed_scheduler_cases.hats"
+#include "workspace/embed_navigation_cases.hats"
 fun nested_embeds(f: !Font,r: !Rend,root: !Buf): int = let
   val first=write_note(root,"cycle-a.md","![[cycle-b]]\n") val second=write_note(root,"cycle-b.md","![[cycle-a]]\n")
   val cycle=nested_embed_case(f,r,root,"![[cycle-a]]\n",2)
@@ -444,7 +445,7 @@ fun embedded_documents(f: !Font,r: !Rend): int = let var root=buf_make(512)
 in if not(created) then let val ()=buf_free(root) in 1 end else let
     val path=selftest_fixture_path(buf_cstr(root),"child.md")
     val errors=iadd(embed_fixture_test(f,r,root,path),embed_selection_fixture(f,r,root,path))
-    val nesting=iadd(nested_embeds(f,r,root),scheduler_fixture(f,r,root))
+    val nesting=iadd(nested_link_fixture(f,r,root),iadd(nested_embeds(f,r,root),scheduler_fixture(f,r,root)))
     val removed=fs_unlink(buf_cstr(path)) val closed=fs_rmdir(buf_cstr(root))
     val ()=buf_free(path) val ()=buf_free(root)
   in iadd(nesting,iadd(errors,if ieq(removed,0) andalso ieq(closed,0) then 0 else 1)) end end

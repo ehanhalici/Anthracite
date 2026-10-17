@@ -8,8 +8,10 @@ staload "ui_workspace/tabs/ui_tab.sats"
 staload "ui_workspace/embed/embedded_doc.sats"
 staload "data_ast/layout/doc_geometry.sats"
 staload "data_ast/layout/visual_rows.sats"
+typedef EmbedLinkHit = @{child=ptr,version=int,node=int,source=EmbedSourceStamp}
 typedef EmbeddedSelection = @{parent=ptr,parentVersion=int,node=int,child=ptr,childVersion=int,
-  anchor=int,caret=int,start=int,finish=int,dragged=bool,source=EmbedSourceStamp,view=VisualKey}
+  anchor=int,caret=int,start=int,finish=int,dragged=bool,source=EmbedSourceStamp,view=VisualKey,link=EmbedLinkHit}
+datatype EmbedNavigationKind = EmbedNavigationNone | EmbedNavigationFile | EmbedNavigationExternal
 datavtype EmbedViewState = EmbedViewPending | EmbedViewReady of (VisualKey,DocGeometry)
 datatype EmbedWorkBand = EmbedWorkVisible | EmbedWorkOverscan
 typedef EmbedWorkScope = @{active=bool,document=ptr,anchorLine=int,scroll=int,height=int,
@@ -32,6 +34,7 @@ fun cache_clear_embed_selection(cache: &Cache >> _): void
 fun cache_copy_embed_selection(cache: !Cache,destination: &Buf >> _): bool
 fun cache_embed_selection_active(cache: !Cache): bool
 fun cache_embed_selection_dragged(cache: !Cache): bool
+fun cache_embed_navigation(cache: !Cache,vault: !Buf,path: &Buf >> _,anchor: &Buf >> _): EmbedNavigationKind
 typedef EmbedCacheStats = @{documents=int,views=int,pending=int,viewBytes=llint}
 fun cache_embed_stats(cache: !Cache): EmbedCacheStats
 fun tabs_embed_select(f: !Font,r: !Rend,tabs: !Tabs,index: int,x: int,y: int,ox: int,width: int,

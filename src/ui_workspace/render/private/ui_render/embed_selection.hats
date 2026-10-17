@@ -37,18 +37,22 @@ fun selection_node(cache: !Cache,parent: !Doc,fallback: int,extend: bool): int =
   if not(extend) then fallback else case+ selection_info(airlock_nat(MAX_REC_FUEL),cache) of
   | None() => ~1 | Some(info) => if info.parent = doc_identity(parent) andalso ieq(info.parentVersion,doc_parse_generation(parent)) then info.node else ~1
 typedef EmbedHitBox = @{x=int,y=int,width=int,scroll=int,lh=int}
+#include "ui_workspace/render/private/ui_render/embed_navigation.hats"
 fun select_child(f: !Font,r: !Rend,parent: !Doc,node: int,child: !Doc,anchor: !Buf,path: !Buf,
   box: EmbedHitBox,x: int,y: int,vault: !Buf,cache: &Cache >> _,scratch: &Buf >> _,extend: bool): bool = let
-  val height=prepare_embedded_view(f,child,cache,r,vault,path,box.lh,embed_text_width(f,r,box.width),embed_scope(parent,node),anchor)
+  val height=prepare_embed_hit_view(f,r,child,path,anchor,embed_scope(parent,node),box,vault,cache)
   val target=embedded_target(child,embed_scope(parent,node),anchor)
   val scroll=doc_line_y(child,doc_line_of(child,target.start))
   val content_h=embedded_target_height(child,target,box.lh)
   val hit_y=imin(isub(iadd(box.y,content_h),1),imax(box.y,y))
   val raw=visual_click_source(f,child,x,hit_y,editor_colx(f,r,box.x,box.width),box.y,scroll,box.lh,scratch)
   val offset=imin(target.finish,imax(target.start,raw))
+  var link: EmbedLinkHit=link_hit_none()
+  val ()=if extend then () else link := embed_link_hit(airlock_nat(MAX_REC_FUEL),f,r,child,path,target,box,x,y,vault,cache,scratch)
   val info: EmbeddedSelection= @{parent=doc_identity(parent),parentVersion=doc_parse_generation(parent),node=node,
     child=doc_identity(child),childVersion=doc_parse_generation(child),anchor=offset,caret=offset,start=target.start,finish=target.finish,dragged=false,
-    source=embedded_source_stamp(buf_cstr(path)),view=visual_layout_key(f,child,embed_text_width(f,r,box.width),ViewRead)}
+    source=embedded_source_stamp(buf_cstr(path)),view=visual_layout_key(f,child,embed_text_width(f,r,box.width),ViewRead),
+    link=link}
 in if target.found then selection_install(cache,info,path,extend) else false end
 fun select_path(f: !Font,r: !Rend,parent: !Doc,node: int,anchor: !Buf,path: !Buf,box: EmbedHitBox,
   x: int,y: int,vault: !Buf,cache: &Cache >> _,scratch: &Buf >> _,extend: bool): bool = let
@@ -122,3 +126,7 @@ implement cache_copy_embed_selection(cache,destination) = let var path: Buf=buf_
 in copied end
 implement cache_pin_path(cache,path) = let val selection=selection_path(airlock_nat(MAX_REC_FUEL),cache,path) in () end
 implement cache_pin_info(cache) = selection_info(airlock_nat(MAX_REC_FUEL),cache)
+implement cache_embed_navigation(cache,vault,path,anchor) = case+ selection_info(airlock_nat(MAX_REC_FUEL),cache) of
+  | None() => EmbedNavigationNone() | Some(info) => if info.dragged then EmbedNavigationNone()
+    else if ilt(info.link.node,0) then EmbedNavigationNone()
+      else embed_link_resolve(airlock_nat(MAX_REC_FUEL),cache,info.link,vault,path,anchor)

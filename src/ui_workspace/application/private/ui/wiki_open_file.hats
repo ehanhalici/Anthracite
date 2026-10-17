@@ -39,6 +39,23 @@ in
   app_wiki_open(ts, idx, vault, dummy)
 end
 
+fun app_embedded_navigation(ts: Tabs,index: int,vault: !Buf,cache: !Cache,target: &int >> _): Tabs = let
+  var anchor: Buf=buf_make(0)
+  var path: Buf=buf_make(0)
+  val kind=cache_embed_navigation(cache,vault,path,anchor)
+  val result=app_embedded_dispatch(ts,index,vault,kind,path,anchor,target)
+  val ()=buf_free(anchor)
+in result end
+and app_embedded_dispatch(ts: Tabs,index: int,vault: !Buf,kind: EmbedNavigationKind,path: Buf,
+  anchor: &Buf >> _,target: &int >> _): Tabs = let val length=buf_len(anchor)
+in case+ kind of
+  | EmbedNavigationNone() => let val ()=buf_free(path) in app_wiki_open(ts,index,vault,target) end
+  | EmbedNavigationFile() => wiki_open_file(ts,anchor,path,length,target)
+  | EmbedNavigationExternal() => let
+      val ()=fs_open_url(buf_cstr(path)) val ()=buf_free(path) val ()=target := ~1
+    in ts end
+end
+
 fun close_active_tab(ts: Tabs, idx: int): Tabs = let
   val ts2 = tabs_drop(ts, idx)
 in
@@ -197,4 +214,3 @@ fun fill_dir_from_dirname(dir: &Buf >> _, cur: !Buf, vault: !Buf): void = let
   val () = if ieq(buf_len(dir), 0) andalso igt(buf_len(vault), 0) then buffer_append_range(dir, vault, 0, buf_len(vault)) else ()
 in
 end
-

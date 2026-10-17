@@ -443,3 +443,20 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 - Doğrulama: süresi baştan tükenmiş bütçe testi görünür içeriği hazırlayıp yakın
   miss'i erteler; takip kareleri işi bitirir, uzak dosyaları açmaz. Alta kaydırma
   yeni kaynakları açar; üstteki bir gömü değiştiğinde kaydırma anchor'ı korunur.
+
+## BUG-029 — Gömü içindeki bağlantı yerine dış gömünün hedefi açılıyor
+
+- Durum: çözüldü; en içteki bağlantı tıklaması dış kutu gezinmesini geçersiz kılar.
+- Kanıt: fare bırakıldığında yalnız ana belgenin caret'i ile `app_wiki_open`
+  çağrılıyordu. Gömünün çizilmiş içeriğindeki wiki/Markdown bağlantısına veya
+  iç içe başka gömüye tıklamak dış gömünün dosyasını açıyordu.
+- Çözüm: aynı native satır geometrisiyle koordinat iç gömülere aktarılır;
+  en içteki linkin kaynak kimliği/parse generation/düğümü seçim durumunda
+  tutulur. Bırakmada etkin dosya stamp'i tekrar doğrulanır. Wiki/yerel link
+  mevcut sekmeyi yeniden kullanır, aynı-dosya anchor'ı çocuk dosyaya gider;
+  dış URL normal platform açma yolunu kullanır. Ctrl+tıklama da aynı önceliği
+  izler; sürükleme bağlantı gezinmesini iptal eder.
+- Doğrulama: grafik regresyonunda iki gömü derinliğindeki wiki+anchor,
+  linksiz iç kutunun kendi hedefi, aynı dosya anchor'ı, dış Markdown URL'si
+  ve sürükleme sonrası gezinmenin iptali sınandı. Gerçek dış URL açılmaz;
+  test çözümlenen hedef ve hedef türünü denetler. Grafik/selftest paketleri geçti.

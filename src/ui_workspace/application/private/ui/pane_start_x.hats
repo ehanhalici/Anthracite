@@ -204,10 +204,10 @@ fun on_up_editor(s: &App_record >> _, x: int, y: int): void = let
   val is_read = is_view_read(s.viewmode) orelse is_kind(s.hitk,KEmbed)
 in
   if clicked_no_drag andalso is_read then let
-    val ()=cache_clear_embed_selection(s.cache)
     val idx = pane_of(s.focus, s.active, s.righti)
     var target_act: int = ~1
-    val ts2 = app_wiki_open(s.tabs, idx, s.vault, target_act)
+    val ts2 = app_embedded_navigation(s.tabs, idx, s.vault,s.cache, target_act)
+    val ()=cache_clear_embed_selection(s.cache)
     val () = s.tabs := ts2
     val cur_len = tabs_len(s.tabs)
     val () = if ige(target_act, 0) then editor_wiki_focus_act(s, cur_len, target_act) else ()

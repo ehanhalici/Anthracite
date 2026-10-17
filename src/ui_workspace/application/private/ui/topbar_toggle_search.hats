@@ -98,8 +98,8 @@ in
   ts4_b
 end
 
-fun app_wiki_go(ts: Tabs, idx: int, vault: !Buf, gowiki: bool, target_act: &int >> _): Tabs =
-  if gowiki then app_wiki_open(ts, idx, vault, target_act)
+fun app_wiki_go(ts: Tabs, idx: int, vault: !Buf,cache: !Cache, gowiki: bool, target_act: &int >> _): Tabs =
+  if gowiki then app_embedded_navigation(ts, idx, vault,cache, target_act)
   else let
     val () = target_act := ~1
   in
@@ -108,7 +108,7 @@ fun app_wiki_go(ts: Tabs, idx: int, vault: !Buf, gowiki: bool, target_act: &int 
 
 fun editor_post_click(s: &App_record >> _, ts4: Tabs, idx: int, idx2: int, imgdel: Toggle, clear: Toggle, gowiki: bool): Tabs = let
   var target_act: int = ~1
-  val ts5 = app_wiki_go(ts4, idx2, s.vault, gowiki, target_act)
+  val ts5 = app_wiki_go(ts4, idx2, s.vault,s.cache, gowiki, target_act)
   val ts6 = del_go(ts5, idx, s.hiti, toggle_of(is_on(imgdel)))
   val ts7 = clear_go(ts6, idx, toggle_of(is_on(clear)))
   val () = if gowiki andalso ige(target_act, 0) then editor_wiki_focus_act(s, tabs_len(ts7), target_act) else ()
@@ -120,7 +120,7 @@ fun is_zone_editor(z: DownZone): bool = case+ z of | DownEditor() => true | _ =>
 
 fun begin_embedded_selection(s: &App_record >> _,f: !Font,r: !Rend,tabs: !Tabs,index: int,
   hit: DownHit,ox: int,width: int,editor: bool,control: bool): void =
-  if editor andalso not(control) then let
+  if editor then let
     val selected=tabs_embed_select(f,r,tabs,index,hit.x,hit.y,ox,width,font_line_h(f),s.vault,s.cache,s.scratch,false)
   in () end else ()
 
