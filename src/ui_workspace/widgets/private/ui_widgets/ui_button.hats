@@ -27,10 +27,10 @@ implement ui_hover_label(f, r, x, y, w, h, text, is_hover) = let
   ) else ()
   val ty = iadd(y, idiv(isub(h, font_line_h(f)), 2))
   val tcol = if is_on(is_hover) then col_heading() else col_text()
-  val () = rend_scissor(r, x, y, w, h)
+  val () = rend_clip_push(r, x, y, w, h)
   val () = draw_s(f, r, iadd(x, 6), ty, text, tcol)
 in
-  rend_scissor_off(r)
+  rend_clip_pop(r)
 end
 
 implement ui_expander(f, r, x, y, is_expanded, is_hover) = let
@@ -85,7 +85,7 @@ implement ui_line_edit_draw(f, r, x, y, w, h, b, cursor, mark, is_focused, place
   val () = rend_rect(r, x, y, w, h, col_bg())
   val border = if is_on(is_focused) then col_accent() else col_line()
   val () = ui_draw_border(r, x, y, w, h, 1, border)
-  val () = rend_scissor(r, iadd(x, 4), iadd(y, 2), isub(w, 8), isub(h, 4))
+  val () = rend_clip_push(r, iadd(x, 4), iadd(y, 2), isub(w, 8), isub(h, 4))
   val n = buf_len(b)
   val ty = iadd(y, idiv(isub(h, font_line_h(f)), 2))
   val () = if ieq(n, 0) andalso is_off(is_focused) then let
@@ -97,7 +97,7 @@ implement ui_line_edit_draw(f, r, x, y, w, h, b, cursor, mark, is_focused, place
     val () = if is_on(is_focused) then line_edit_caret(f, r, x, y, h, b, cursor, n) else ()
   in
   end
-  val () = rend_scissor_off(r)
+  val () = rend_clip_pop(r)
 in
 end
 
@@ -176,7 +176,7 @@ end
 
 implement ui_icon_button(f, r, icon, text, x, y, w, h, is_active, is_hover) = let
   val () = icon_button_frame(r, x, y, w, h, is_active, is_hover)
-  val () = rend_scissor(r, x, y, w, h)
+  val () = rend_clip_push(r, x, y, w, h)
   val icon_col =
     if is_on(is_active) then col_accent()
     else if is_on(is_hover) then col_heading()
@@ -187,7 +187,7 @@ implement ui_icon_button(f, r, icon, text, x, y, w, h, is_active, is_hover) = le
     else col_text()
   val () = icon_button_label(f, r, icon, text, x, y, h, icon_col, text_col)
 in
-  rend_scissor_off(r)
+  rend_clip_pop(r)
 end
 
 

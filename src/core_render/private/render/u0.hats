@@ -35,6 +35,7 @@ fun make_rend(prog: uint, blur_prog: uint, vao: uint, vbo: uint, nbytes: int): R
   , blur_loc_tex= gl_uloc(blur_prog, "u_tex")
   , blur_loc_pixel= gl_uloc(blur_prog, "u_pixel")
   , batch= buf_make(nbytes)
+  , clips= buf_make(RENDER_CLIP_INITIAL_BYTES)
   , nvert= 0, mode= ShadeNone, tex= u0(), vw= 1, vh= 1, blur_w= 0, blur_h= 0
   })
 
@@ -54,6 +55,7 @@ end
 
 implement rend_close(r) = let
   val+~REND(s) = r
+  val () = buf_free(s.clips)
   val () = glDeleteProgram(s.prog)
   val () = glDeleteProgram(s.blur_prog)
   var blur_tex: uint = s.blur_tex
@@ -164,6 +166,7 @@ implement rend_begin(r, w, h) =
       val () = s.vw := (if w > 0 then w else 1)
       val () = s.vh := (if h > 0 then h else 1)
       val () = s.nvert := 0
+      val () = buf_set_len(s.clips,0)
       val () = s.mode := ShadeNone
       val () = glViewport(0, 0, s.vw, s.vh)
       val () = glDisable(GL_SCISSOR_TEST)

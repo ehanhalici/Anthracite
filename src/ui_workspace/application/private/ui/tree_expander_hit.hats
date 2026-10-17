@@ -181,7 +181,7 @@ end
 
 fun draw_side_frame(r: !Rend, sidew: int, h: int): void = let
   val body_h = isub(h, UI_TOPBAR_HEIGHT)
-  val () = rend_scissor(r, 0, UI_TOPBAR_HEIGHT, sidew, body_h)
+  val () = rend_clip_push(r, 0, UI_TOPBAR_HEIGHT, sidew, body_h)
   val () = rend_rect(r, 0, UI_TOPBAR_HEIGHT, sidew, body_h, col_side())
   val () = ui_divider(r, 0, 64, sidew, Horizontal)
   val () = ui_divider(r, isub(sidew, 1), UI_TOPBAR_HEIGHT, body_h, Vertical)

@@ -11,6 +11,7 @@ staload "core_render/gl.sats"
 staload "core_render/render.sats"
 
 #define RENDER_BATCH_MAX_VERTICES 4096
+#define RENDER_CLIP_INITIAL_BYTES 256
 
 datavtype Rend_ = REND of @{
   prog= uint
@@ -25,6 +26,7 @@ datavtype Rend_ = REND of @{
 , blur_loc_tex= int
 , blur_loc_pixel= int
 , batch= Buf
+, clips= Buf
 , nvert= int
 , mode= Shade
 , tex= uint
@@ -40,3 +42,4 @@ assume Rend = Rend_
 (* Private implementation groups share this owner and its linear representation. *)
 #include "core_render/private/render/u0.hats"
 #include "core_render/private/render/rend_quad_pixels.hats"
+#include "core_render/private/render/nested_clip.hats"

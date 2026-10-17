@@ -10,7 +10,7 @@ fun draw_side(f: !Font, r: !Rend, a: !App, h: int): void =
       val () = draw_side_title(f, r, s.side)
       val () = ensure_tree_fresh(s)
       val () = draw_side_body(f, r, s, h)
-      val () = rend_scissor_off(r)
+      val () = rend_clip_pop(r)
     in
       fold@(a)
     end
@@ -146,12 +146,12 @@ in
 end
 
 fun draw_split_tabs(f: !Font, r: !Rend, ts: Tabs, tab_x0: int, mid: int, bx: int, act: int, righti: int, tab_pane: !Buf): Tabs = let
-  val () = rend_scissor(r, tab_x0, 0, isub(mid, tab_x0), UI_TOPBAR_HEIGHT)
+  val () = rend_clip_push(r, tab_x0, 0, isub(mid, tab_x0), UI_TOPBAR_HEIGHT)
   val ts_l = draw_tabrow_pane(f, r, ts, tab_x0, act, 0, 0, tab_pane)
-  val () = rend_scissor_off(r)
-  val () = rend_scissor(r, iadd(mid, 4), 0, isub(bx, mid), UI_TOPBAR_HEIGHT)
+  val () = rend_clip_pop(r)
+  val () = rend_clip_push(r, iadd(mid, 4), 0, isub(bx, mid), UI_TOPBAR_HEIGHT)
   val ts_r = draw_tabrow_pane(f, r, ts_l, iadd(mid, 4), righti, 0, 1, tab_pane)
-  val () = rend_scissor_off(r)
+  val () = rend_clip_pop(r)
 in
   ts_r
 end

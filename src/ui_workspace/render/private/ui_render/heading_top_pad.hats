@@ -117,11 +117,11 @@ fun draw_embedded_doc(f: !Font, r: !Rend, child: !Doc, anchor: !Buf, scope: Embe
   var pa: int = 0
   val () = rend_rect(r, x, y, w, h, col_side())
   val () = ui_draw_border(r, x, y, w, h, 1, col_line())
-  val () = rend_scissor(r, x, content_y, w, content_h)
+  val () = rend_clip_push(r, x, content_y, w, content_h)
   val () = if igt(doc_nnodes(child), 0) then
     draw_nodes(f, r, child, x, content_y, child_colw, imin(content_h, content_height), line_scroll, lh, vault, c, scratch, 0, py, pa, ViewRead)
   else draw_plain_doc(f, r, child, colx, content_y, child_colw, imin(content_h, content_height), line_scroll, lh, scratch)
-  val () = rend_scissor(r, viewport_x, viewport_y, viewport_w, viewport_h)
+  val () = rend_clip_pop(r)
 in
   ()
 end

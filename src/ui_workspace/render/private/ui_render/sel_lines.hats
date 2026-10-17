@@ -162,12 +162,12 @@ implement draw_doc(f, r, d, ox, oy, pw, ph, scroll, lh0, vault, c, scratch, view
   var pa: int = 0
   var pen_x: int = colx
   var pen_line: int = ~1
-  val () = rend_scissor(r, ox, oy, pw, ph)
+  val () = rend_clip_push(r, ox, oy, pw, ph)
   val () = draw_line_gutter(f, r, d, colx, oy, pw, ph, scroll, lh, scratch)
   val () = draw_selection(f, r, d, colx, oy, scroll, lh, scratch)
   val () = draw_doc_content(f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, viewmode, colx, py, pa, pen_x, pen_line)
   val () = if is_view_edit(viewmode) then draw_caret(f, r, d, colx, oy, scroll, lh, scratch) else ()
-  val () = rend_scissor_off(r)
+  val () = rend_clip_pop(r)
   val () = if igt(height, ph) then ui_scroll_bar(r, isub(iadd(ox, pw), 6), oy, 6, ph, Vertical, height, ph, scroll, Off, Off) else ()
   val () = seen_int(py)
   val () = seen_int(pa)
@@ -189,9 +189,9 @@ fun draw_tab_frame(f: !Font, r: !Rend, title: !Buf, bx: int, tab_w: int, i: int,
   val () = ui_draw_border(r, bx, 4, tab_w, 28, 1, if ieq(i, active) then col_line() else col_bar())
   val () = if ieq(i, active) then rend_rect(r, bx, 4, tab_w, 2, col_accent()) else ()
   val text_w = isub(tab_w, 32)
-  val () = rend_scissor(r, iadd(bx, 8), 4, text_w, 28)
+  val () = rend_clip_push(r, iadd(bx, 8), 4, text_w, 28)
   val () = seen_int(font_draw_buf(f, r, iadd(bx, 8), 8, title, tlen, if ieq(i, active) then col_white() else col_text()))
-  val () = rend_scissor_off(r)
+  val () = rend_clip_pop(r)
   val close_x = isub(iadd(bx, tab_w), 18)
   val () = ui_draw_icon(f, r, UI_ICON_CLOSE, close_x, 14, 8, col_muted())
 in

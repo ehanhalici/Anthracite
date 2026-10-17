@@ -14,6 +14,7 @@ staload "ui_workspace/tabs/ui_tab.sats"
 staload "ui_workspace/commands/ui_cmd.sats"
 staload "ui_workspace/render/ui_render.sats"
 staload "font/resources/font_gl_airlock.sats"
+staload "core_render/gl.sats"
 staload "core_runtime/performance.sats"
 extern fun native_visual_layout_cases(f: !Font,r: !Rend): int = "ext#native_visual_layout_cases"
 fun bytes(s: string): Buf = let val n=c_strlen(s) val b=buf_make(n)
@@ -149,11 +150,34 @@ fun wrap_scale(f: !Font,r: !Rend,words: int): int = let
   val ()=println!("event=wrap_scale words=",words," rows=",count," shapes=",calls," limit=",limit)
   val ()=performance_enable(0) val ()=doc_free(d)
 in errors end
+fun clip_pixels{n:nat} .<n>. (left: int(n),pixels: !Buf,i: int): int =
+  if left = 0 then 0 else let
+    val x=imod(i,128) val y=isub(127,idiv(i,128)) val at=imul(i,4)
+    val white=ieq(buf_get(pixels,at),255) andalso ieq(buf_get(pixels,iadd(at,1)),255)
+      andalso ieq(buf_get(pixels,iadd(at,2)),255)
+    val inside=ige(x,16) andalso ilt(x,80) andalso ige(y,32) andalso ilt(y,96)
+    val error=if white = inside then 0 else 1
+  in iadd(error,clip_pixels(left-1,pixels,iadd(i,1))) end
+fun nested_clips(r: !Rend): int = let
+  val ()=rend_begin(r,128,128)
+  val ()=rend_clip_push(r,16,32,64,64) val ()=rend_clip_push(r,0,0,128,128)
+  val ()=rend_rect(r,0,0,128,128,0xFFFFFFFFu) val ()=rend_clip_pop(r)
+  val ()=rend_clip_push(r,0,0,8,8)
+  val ()=rend_rect(r,0,0,128,128,0xFF0000FFu) val ()=rend_clip_pop(r)
+  val ()=rend_clip_pop(r) val ()=rend_rect(r,0,0,8,8,0x00FF00FFu)
+  val ()=rend_flush(r) val pixels=buf_make(imul(imul(128,128),4))
+  val ()=font_gl_read_raw(0,0,128,128,GL_RGBA,GL_UNSIGNED_BYTE,buf_ptr(pixels))
+  val errors=clip_pixels(16384,pixels,0)
+  val restored=ieq(buf_get(pixels,imul(imul(127,128),4)),0)
+    andalso ieq(buf_get(pixels,iadd(imul(imul(127,128),4),1)),255)
+  val ()=buf_free(pixels)
+in iadd(errors,if restored then 0 else 1) end
 implement native_visual_layout_cases(f,r) = let val before=mem_live() val d=doc_open()
   val body=test(f,r,d) val markup=markdown(f,r) val hard=hard_lines(f,r)
   val nav=navigation(f,r) val fold=folding_and_task(f,r)
   val errors=body+markup+hard+nav+fold val ()=doc_free(d) val delta=isub(mem_live(),before)
   val scale=iadd(wrap_scale(f,r,64),iadd(wrap_scale(f,r,256),wrap_scale(f,r,1024)))
+  val clipping=nested_clips(r)
   val ()=println!("event=native_visual_layout errors=",errors," retained_font_source_bytes=",delta)
   val ()=println!("event=visual_cases body=",body," markdown=",markup," hard=",hard," navigation=",nav," fold=",fold)
-in iadd(errors,scale) end
+in iadd(clipping,iadd(errors,scale)) end

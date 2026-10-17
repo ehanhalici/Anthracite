@@ -288,9 +288,14 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-019 — Çocuk clip'i ebeveynin görünür sınırını genişletebiliyor
 
-- Durum: doğrulandı (kaynak incelemesi); grafik regresyonu eklenecek.
+- Durum: çözüldü; iç içe clip yığını ve GPU piksel regresyonu eklendi.
 - Kanıt: `rend_scissor` mutlak GL dikdörtgeni kurar; embed kendi dikdörtgenini
   ebeveynle kesiştirmeden kullanır. Sekme alanına taşma mümkündür.
+- Çözüm: `rend_clip_push/pop` ebeveynle kesiştirir ve önceki sınırı geri
+  yükler; belge/embed, sekme, sidebar ve widget çağrıları taşındı. Boş kesişim
+  çizimi kapatır; boyama sınırını genişletmez. Yığın Rend tarafından bırakılır.
+- Doğrulama: Xvfb native grafik suite'i geçti. 128×128 GPU çıktısında ebeveyni
+  aşan çocuk, ayrık/boş çocuk ve pop sonrası kök çizimi piksel piksel sınanır.
 
 ## BUG-020 — Gömülü metinde seçim ve hedefe gitme eksik
 
