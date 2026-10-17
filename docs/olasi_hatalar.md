@@ -460,3 +460,13 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
   linksiz iç kutunun kendi hedefi, aynı dosya anchor'ı, dış Markdown URL'si
   ve sürükleme sonrası gezinmenin iptali sınandı. Gerçek dış URL açılmaz;
   test çözümlenen hedef ve hedef türünü denetler. Grafik/selftest paketleri geçti.
+
+## BUG-030 — Aşamalı yükseklik tahmini katlanmış gömüyü tekrar kirletiyor
+
+- Durum: çözüldü; yeni zamanlayıcı için sıcak katlama regresyonu eklendi.
+- Kanıt: görünürlüğe bakmadan sıfır yüksekliğe tahmin yazılması, katlamanın
+  bilinçli sıfır yüksekliğini her karede yeniden yerleşim miss'ine çeviriyordu.
+- Çözüm: gizli medya düğümleri ilk yükseklik tahminine de dahil edilmez.
+  Katlama görünürlüğü görsel izdüşüm öncesinde eşzamanlı hazır tutulur.
+- Doğrulama: başlığı katlanmış gömünün ikinci zamanlayıcılı karesinde belge
+  yükleme, sarma ve yerleşim kurma sayaçlarının üçü de sıfır olmalıdır.

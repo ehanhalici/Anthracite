@@ -23,8 +23,21 @@ fun scheduler_anchor(f: !Font,r: !Rend,d: Doc,root: !Buf,cache: &Cache >> _,scra
   val stable=case+ drawn of | TNil() => false | TCons(doc,p,t,sc,rest) => ieq(sc,iadd(doc_line_y(doc,3),1))
   val ()=tabs_free(drawn)
 in stable end
+fun hidden_embed_schedule(f: !Font,r: !Rend,root: !Buf): int = let
+  val source=bytes("# folded\n![[depth-A]]\n") val d=doc_open() val length=buf_len(source)
+  val ()=doc_insert_buf(d,source,length) val ()=buf_free(source)
+  val node=doc_line_node_foldable(d,0) val ()=doc_toggle(d,node)
+  var cache: Cache=CNil() var scratch: Buf=buf_make(256)
+  val ()=cache_work_begin(cache) val ()=scheduler_frame(f,r,d,root,cache,scratch,0)
+  val ()=performance_enable(1) val ()=performance_reset()
+  val ()=cache_work_begin(cache) val ()=scheduler_frame(f,r,d,root,cache,scratch,0)
+  val stable=performance_value(PERF_DOCUMENT_LOADS)=0ULL andalso performance_value(PERF_WRAP_BUILDS)=0ULL
+    andalso performance_value(PERF_LAYOUT_BUILDS)=0ULL
+  val ()=performance_enable(0) val ()=cache_free(cache) val ()=buf_free(scratch) val ()=doc_free(d)
+in if stable then 0 else 1 end
 fun scheduler_fixture(f: !Font,r: !Rend,root: !Buf): int = let
   val created=scheduler_pages(5,root,0,false)
+  val hidden=hidden_embed_schedule(f,r,root)
   val source=bytes("![[depth-A]]\n![[depth-B]]\n![[depth-C]]\n![[depth-D]]\n![[depth-E]]\n")
   val d=doc_open() val length=buf_len(source) val ()=doc_insert_buf(d,source,length) val ()=buf_free(source)
   val scope: EmbedWorkScope= @{active=false,document=the_null_ptr,anchorLine= ~1,scroll=0,height=0,foreground=true,childDelta=0,band=EmbedWorkVisible()}
@@ -41,4 +54,4 @@ fun scheduler_fixture(f: !Font,r: !Rend,root: !Buf): int = let
   val ()=cache_free(cache) val ()=buf_free(scratch)
   val removed=scheduler_pages(5,root,0,true)
   val ()=println!("event=embed_scheduler deferred=",deferred," drained=",drained," limited=",limited," reached=",reached," anchor=",stable)
-in iadd(created+removed,if deferred andalso drained andalso limited andalso reached andalso stable then 0 else 1) end
+in iadd(created+removed+hidden,if deferred andalso drained andalso limited andalso reached andalso stable then 0 else 1) end

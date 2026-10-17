@@ -77,7 +77,7 @@ fun seed_media_index{n:nat} .<n>. (left: int(n),d: !Doc,index: !Buf,i: int,lh: i
     val node=buf_get32(index,i) val k=doc_node_kind(d,node)
     val estimate=if is_kind(k,KEmbed) then iadd(imul(lh,EMBED_ESTIMATED_LINES),EMBED_FRAME_PADDING_PIXELS)
       else if is_kind(k,KMathb) then iadd(lh,12) else imul(lh,EMBED_ESTIMATED_LINES)
-    val ()=if media_in_view(d,node) andalso ile(doc_node_height(d,node),0) then
+    val ()=if media_in_view(d,node) andalso not(is_on(doc_node_hidden(d,node))) andalso ile(doc_node_height(d,node),0) then
       (doc_set(d,node,NF_HEIGHT,estimate);doc_set(d,node,NF_AUX,estimate);doc_bump_ver(d)) else ()
   in seed_media_index(left-1,d,index,iadd(i,1),lh) end
 fun seed_media(d: !Doc,lh: int): void = let
