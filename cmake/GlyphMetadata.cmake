@@ -1,0 +1,6 @@
+file(GLOB_RECURSE GLYPH_METADATA_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/data_font/glyph_metadata_*.dats")
+set(GLYPH_METADATA_C_SOURCES "")
+foreach(SOURCE ${GLYPH_METADATA_SOURCES})
+  get_filename_component(MODULE "${SOURCE}" NAME_WE)
+  list(APPEND GLYPH_METADATA_C_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
+endforeach()

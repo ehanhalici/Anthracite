@@ -29,24 +29,31 @@ static inline void anth_mem_set_byte(void *p, int n, int i, int v) {
   ((unsigned char *)p)[i] = (unsigned char)v;
 }
 
+enum { ANTH_WORD_BYTES = 4 };
+
+static inline int anth_word_index_valid(int capacity_bytes, int index) {
+  return index >= 0 && capacity_bytes >= ANTH_WORD_BYTES &&
+    index <= (capacity_bytes - ANTH_WORD_BYTES) / ANTH_WORD_BYTES;
+}
+
 static inline int anth_mem_i32(const void *p, int n, int i) {
-  int nb = i * 4;
   int v = 0;
-  if (!p || i < 0 || nb < 0 || nb + 4 > n) return 0;
-  memcpy(&v, (const unsigned char *)p + nb, 4);
+  if (!p || !anth_word_index_valid(n, i)) return 0;
+  int nb = i * ANTH_WORD_BYTES;
+  memcpy(&v, (const unsigned char *)p + nb, ANTH_WORD_BYTES);
   return v;
 }
 
 static inline void anth_mem_set_i32(void *p, int n, int i, int v) {
-  int nb = i * 4;
-  if (!p || i < 0 || nb < 0 || nb + 4 > n) return;
-  memcpy((unsigned char *)p + nb, &v, 4);
+  if (!p || !anth_word_index_valid(n, i)) return;
+  int nb = i * ANTH_WORD_BYTES;
+  memcpy((unsigned char *)p + nb, &v, ANTH_WORD_BYTES);
 }
 
 static inline void anth_mem_set_f32(void *p, int n, int i, float v) {
-  int nb = i * 4;
-  if (!p || i < 0 || nb < 0 || nb + 4 > n) return;
-  memcpy((unsigned char *)p + nb, &v, 4);
+  if (!p || !anth_word_index_valid(n, i)) return;
+  int nb = i * ANTH_WORD_BYTES;
+  memcpy((unsigned char *)p + nb, &v, ANTH_WORD_BYTES);
 }
 
 static inline void *anth_ptr_at(void *p, int n, int i) {
@@ -58,5 +65,23 @@ static inline char *anth_ptr_string(void *p) {
   return p ? (char *)p : (char *)"";
 }
 
+static inline int anth_byte_range_valid(int capacity, int offset, int length) {
+  return offset >= 0 && offset <= capacity && length > 0 &&
+    length <= capacity - offset;
+}
+
+static inline void anth_buf_copy(void *dst, int dst_cap, int dst_off, const void *src, int src_cap, int src_off, int n) {
+  if (!dst || !src || n <= 0) return;
+  if (!anth_byte_range_valid(dst_cap, dst_off, n)) return;
+  if (!anth_byte_range_valid(src_cap, src_off, n)) return;
+  memmove((unsigned char *)dst + dst_off, (const unsigned char *)src + src_off, (size_t)n);
+}
+
+static inline void anth_copy_to_ptr(const void *src, int src_cap, int src_off, void *dst, int dst_cap, int dst_off, int n) {
+  if (!src || !dst || n <= 0) return;
+  if (!anth_byte_range_valid(src_cap, src_off, n)) return;
+  if (!anth_byte_range_valid(dst_cap, dst_off, n)) return;
+  memcpy((unsigned char *)dst + dst_off, (const unsigned char *)src + src_off, (size_t)n);
+}
 
 #endif

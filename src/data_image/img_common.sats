@@ -1,3 +1,3 @@
 staload "mem.sats"
 
-fun put4(b: &Buf >> _, r: int, g: int, bl: int, a: int): void
+fun append_rgba_pixel(b: &Buf >> _, r: int, g: int, bl: int, a: int): void

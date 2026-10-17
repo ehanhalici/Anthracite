@@ -9,6 +9,7 @@ staload "core_platform/platform.sats"
 implement event_of(n) =
   if n = EV_CLOSE then EvClose
   else if n = EV_RESIZE then EvResize
+  else if n = EV_EXPOSE then EvExpose
   else if n = EV_KEY then EvKey
   else if n = EV_DOWN then EvDown
   else if n = EV_UP then EvUp
@@ -22,6 +23,7 @@ fun ev_code(k: Ev): int = case+ k of
   | EvNone() => 0
   | EvClose() => 1
   | EvResize() => 2
+  | EvExpose() => 3
   | EvKey() => 4
   | EvDown() => 5
   | EvUp() => 6
@@ -190,7 +192,7 @@ implement plat_ok(p) =
       fold@(p); k
     end
 
-implement plat_wh(p, w, h) =
+implement platform_dimensions(p, w, h) =
   case+ p of
   | @PLAT(r) => let
       val () = w := r.w
@@ -236,7 +238,8 @@ implement plat_wait(p, ms) =
   case+ p of
   | @PLAT(r) => let
       val () = x_flush(r.dpy)
-      val n: int = (if x_sig_exit() = 1 then 0 else x_poll(r.fd, ms)): int
+      val n: int = (if x_sig_exit() = 1 then 0
+        else if x_pending(r.dpy) > 0 then 1 else x_poll(r.fd, ms)): int
     in
       fold@(p); n
     end

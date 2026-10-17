@@ -1,47 +1,64 @@
 # Anthracite
 
-Anthracite is a lightweight, zero-dependency Markdown editor and viewer built with **ATS2** (Applied Type System). It combines compile-time formal verification with hardware-accelerated rendering to deliver an uncompromising writing and reading experience—without the overhead of web runtimes or heavy widget toolkits.
+Anthracite is a native Markdown editor written in ATS2/Postiats 0.4.2, using
+X11/GLX and OpenGL directly. It does not use a browser runtime or a GUI toolkit.
+System libraries and checked FFI remain part of its trusted boundary;
+ATS proofs cover the contracts actually represented in its types. JPEG decoding
+is implemented in ATS2; the bundled C stb implementation is a test oracle only.
 
----
+## Build and verify
 
-## Philosophy & Architecture
+Run inside `nix-shell` (or an equivalent environment providing ATS2, Clang,
+CMake, X11, OpenGL and `PATSHOME`):
 
-Most modern document editors bundle an entire web browser, trading hundreds of megabytes of memory and battery life for basic text manipulation. Anthracite is engineered under a different set of constraints:
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+./build/anthracite
+```
 
-- **Formally Verified Safety (ATS2):** Leveraging ATS2's dependent types and linear logic, critical invariants such as memory management, pointer validity, and buffer boundaries are proved at compile time. Memory leaks, use-after-free, and null dereferences are eliminated before execution—without a garbage collector.
-- **Zero Runtime Dependencies:** Anthracite compiles down to a standalone native binary. There is no Electron, no WebKit, and no reliance on large GUI toolkits like GTK or Qt. Window management connects directly to the native display server (X11), and drawing is handled via modern, hardware-accelerated OpenGL.
-- **True 0% Idle Footprint:** The event loop is strictly event-driven. When you are reading or pausing between keystrokes, socket polling keeps CPU utilization at absolute zero.
-- **Sub-Millisecond Keystroke Response:** Parsing is backed by an incremental Abstract Syntax Tree (AST). Changes recalculate only affected subtrees rather than re-parsing entire documents, delivering instant rendering and smooth typing cadence even in large files.
+`./compile.sh -r` and `./compile.sh -d` configure, build and start the app.
+The primary font under `fonts/` is required and its hash is checked by CMake;
+the pinned Arabic font is in `vendor/fonts/`.
 
----
+```sh
+cmake --build build --target check-build --parallel
+ctest --test-dir build --output-on-failure -LE graphics
+# Requires a working X11/GLX display, for example a separate Xvfb instance:
+DISPLAY=:1 ctest --test-dir build --output-on-failure -L graphics
+```
 
-## Features
+With a display available, `cmake --build build --target check` builds all test
+executables, including those excluded from the default build, and runs CTest.
+Use a separate build directory for Debug verification. Optional real-font cases
+are enabled by `ANTHRACITE_OT_LATIN_TTF`, `ANTHRACITE_OT_ARABIC_TTF` and
+`ANTHRACITE_OT_KERN_TTF`; record these paths when comparing test runs.
 
-### Editing & Reading
-- **Centered Typography Canvas:** Mathematically centered reading column conforming to optimal typographic line-length standards.
-- **Obsidian & CommonMark Support:** Native handling for CommonMark, GFM tables, task lists, code blocks, callouts, and Wikilinks (`[[Page]]`, `![[Embed]]`).
-- **GPU Glyph Pipeline:** Custom texture-atlas glyph cache with precise kerning and high-DPI font rendering.
-- **Direct Image Rendering:** Native in-engine image decoding and OpenGL texture binding without third-party image libraries.
+## Architecture
 
-### Workspace Ergonomics
-- **Split View & Tab Management:** Rearrange tabs or drag to split views vertically for side-by-side editing and reference.
-- **Workspace Navigation:** Fast file-tree drawer and contextual fuzzy document search.
-- **Keyboard-Centric Flow:** Intuitive shortcuts designed for uninterrupted writing and navigation.
+`src/data_text` contains Unicode analysis; `src/data_font` contains font parsing,
+shaping, rasterization and atlas ownership. `src/data_ast` owns documents,
+parsing, editing, folding and layout. `src/ui_workspace` implements workspace
+interaction and painting. Platform, renderer, runtime, image, search, configuration
+and OS services remain separate subsystems.
 
----
+Sources and tests are grouped by subject. A large owner can include private
+`.hats` implementation groups so its linear representation stays private without
+adding unsafe casts or new opaque pointer types. CMake indexes nested ATS modules
+by unique basename and shares compiled host/text-engine objects between consumers.
 
-## Performance Profile
+See the [Turkish architecture index](docs/README.md), [development rules](docs/skill.md),
+[refactoring record](docs/refactoring_durumu.md) and [known issues](docs/olasi_hatalar.md).
+Generated C, Unicode binaries and build outputs are not edited by hand.
 
-| Metric | Anthracite | Typical Web-Based Editor |
-| :--- | :--- | :--- |
-| **Startup Time** | Instant (< 50ms) | 1.5s – 4.0s |
-| **Memory Footprint** | Lightweight (~10–25 MB) | 250 MB – 1 GB+ |
-| **Runtime Overhead** | None (Zero GC pauses) | V8 / Chromium runtime |
-| **Safety Guarantees** | Proven at compile time via linear types | Runtime exceptions |
-| **Idle CPU Usage** | 0.0% | Background thread churn |
+The pre-existing callout boundary and incremental AST copying bugs (BUG-008 and
+BUG-011) have been fixed without weakening their original expectations.
+Regression tests are included in `check`; details are in the known-issues document.
 
----
+## Verification limits
 
-## Summary
-
-Anthracite treats text and notes as essential tools that deserve systems-level engineering: predictable, robust, and completely independent.
+Dependent and linear types, compile-rejection tests, conformance datasets, finite
+state matrices and runtime ownership checks complement one another. Passing tests
+does not prove correctness for every possible document, font or image. Performance
+figures require a recorded environment and workload; a fixed live-byte reading is
+not a universal leak-freedom guarantee.

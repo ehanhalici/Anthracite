@@ -1,0 +1,10 @@
+#define ATS_DYNLOADFLAG 0
+#include "share/atspre_define.hats"
+#include "share/atspre_staload.hats"
+#include "common.hats"
+staload "mem.sats"
+staload "airlock.sats"
+staload "data_text/unicode/unicode_property.sats"
+staload "data_text/script/script_types.sats"
+staload "data_text/script/script.sats"
+staload "data_text/script/script_work.sats"

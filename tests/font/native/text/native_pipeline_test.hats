@@ -1,0 +1,8 @@
+#include "data_font/native/text/native_text_shape_internal.hats"
+staload "data_font/glyph/run/glyph_run_types.sats"
+staload "data_font/glyph/position/glyph_position_types.sats"
+staload "data_font/glyph/position/glyph_position.sats"
+staload "data_text/normalization/normalization_errors.sats"
+staload "data_text/arabic/marks/arabic_marks.sats"
+staload "data_text/arabic/marks/arabic_marks_types.sats"
+staload "font/native/text/native_pipeline_contracts.sats"

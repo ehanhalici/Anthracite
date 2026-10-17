@@ -5,7 +5,7 @@
 staload "mem.sats"
 staload "data_image/img_common.sats"
 
-implement put4(b, r, g, bl, a) = let
+implement append_rgba_pixel(b, r, g, bl, a) = let
   val () = buf_push(b, r)
   val () = buf_push(b, g)
   val () = buf_push(b, bl)

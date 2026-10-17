@@ -1,0 +1,8 @@
+#include "data_font/native/text/native_text_analysis_internal.hats"
+staload "airlock.sats"
+staload "data_font/opentype/shape/ot_shape_types.sats"
+staload "data_font/native/text/native_text_items_types.sats"
+staload "data_font/native/text/native_text_items.sats"
+staload "data_font/native/text/native_text_items_work.sats"
+extern fun native_items_fuel_failed(): int = "mac#anth_die_int"
+extern fun native_items_walk_failed(): void = "mac#anth_die_void"

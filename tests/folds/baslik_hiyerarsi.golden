@@ -1,0 +1,5 @@
+region owner=0 end=6 kind=1
+region owner=1 end=4 kind=1
+region owner=2 end=4 kind=1
+region owner=4 end=6 kind=1
+region owner=6 end=8 kind=1

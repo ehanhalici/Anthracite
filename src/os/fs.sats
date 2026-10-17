@@ -8,9 +8,15 @@ fun fs_atomic_write(path: string, buf: ptr, n: int): int = "mac#anth_atomic_writ
 fun fs_close(fd: int): void = "mac#anth_close"
 fun fs_size(path: string): int = "mac#anth_size"
 fun fs_mtime(path: string): int = "mac#anth_mtime"
+typedef FileStamp = @{exists=bool,seconds=lint,nanoseconds=int,length=lint,device=ullint,inode=ullint}
+fun fs_stat_stamp_raw(path: string,seconds: &lint >> _,nanoseconds: &int >> _,length: &lint >> _,
+  device: &ullint >> _,inode: &ullint >> _): int = "mac#anth_stat_stamp"
+fun fs_file_stamp(path: string): FileStamp
+fun fs_file_stamp_equal(a: FileStamp,b: FileStamp): bool
 fun fs_isdir(path: string): int = "mac#anth_isdir"
 fun fs_exists(path: string): int = "mac#anth_exists"
 fun fs_mkdir(path: string): int = "mac#anth_mkdir"
+fun fs_make_temp_dir(dst: ptr, capacity_bytes: int): int = "mac#anth_make_temp_dir"
 fun fs_rename(a: string, b: string): int = "mac#rename"
 fun fs_unlink(path: string): int = "mac#unlink"
 fun fs_rmdir(path: string): int = "mac#rmdir"
@@ -26,6 +32,7 @@ fun rss_kb(): int = "mac#anth_rss_kb"
 
 fun c_strlen(s: string): int = "mac#strlen"
 fun c_strcmp(a: string, b: string): int = "mac#strcmp"
+fun c_fc_arabic_font(dst: ptr, n: int): int = "mac#anth_fc_arabic_font"
 fun c_str_byte(s: string, i: int): int = "mac#anth_str_byte"
 fun c_str_ptr(s: string): ptr = "mac#anth_str_ptr"
 fun c_getenv(k: string): string = "mac#anth_getenv"

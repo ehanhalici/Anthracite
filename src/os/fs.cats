@@ -63,6 +63,19 @@ static inline int anth_mtime(const char *p) {
   if (stat(p, &st) != 0) return -1;
   return (int)st.st_mtime;
 }
+/* OS metadata only: the ATS caller owns comparison and cache policy. */
+static inline int anth_stat_stamp(const char *path, long *seconds, int *nanoseconds,
+                                 long *length, unsigned long long *device,
+                                 unsigned long long *inode) {
+  struct stat value;
+  if (stat(path, &value) != 0) return 0;
+  *seconds = (long)value.st_mtim.tv_sec;
+  *nanoseconds = (int)value.st_mtim.tv_nsec;
+  *length = (long)value.st_size;
+  *device = (unsigned long long)value.st_dev;
+  *inode = (unsigned long long)value.st_ino;
+  return 1;
+}
 static inline int anth_isdir(const char *p) {
   struct stat st;
   if (stat(p, &st) != 0) return 0;
@@ -72,6 +85,16 @@ static inline int anth_exists(const char *p) {
   return access(p, F_OK) == 0 ? 1 : 0;
 }
 static inline int anth_mkdir(const char *p) { return mkdir(p, 0755); }
+
+/* mkdtemp creates an exclusive mode-0700 directory; no existing target is used. */
+static inline int anth_make_temp_dir(char *dst, int capacity_bytes) {
+  static const char fixture_template[] = "/tmp/anthracite-selftest-XXXXXX";
+  if (!dst || capacity_bytes < (int)sizeof(fixture_template)) return 0;
+  memcpy(dst, fixture_template, sizeof(fixture_template));
+  if (mkdtemp(dst)) return 1;
+  dst[0] = '\0';
+  return 0;
+}
 
 static inline void anth_dirclose(void *d) { if (d) closedir((DIR *)d); }
 static inline int anth_dirnext(void *d, char *name, int namemax, int *isdir) {
@@ -177,6 +200,18 @@ static inline int anth_fc_font(char *dst, int n) {
   }
   dst[0] = 0;
   return 0;
+}
+
+/* Font discovery is an OS boundary; parsing and owning the face are ATS2. */
+static inline int anth_fc_arabic_font(char *dst, int n) {
+  if (!dst || n < 2) return 0;
+  dst[0] = 0;
+  FILE *stream = popen("fc-match ':lang=ar' -f '%{file}' 2>/dev/null", "r");
+  if (!stream) return 0;
+  char *line = fgets(dst, n, stream);
+  int status = pclose(stream);
+  if (!line || status != 0) { dst[0] = 0; return 0; }
+  return dst[0] && access(dst, F_OK) == 0;
 }
 
 static inline double anth_i2d(int i) { return (double)i; }

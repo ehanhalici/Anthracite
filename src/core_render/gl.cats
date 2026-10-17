@@ -171,6 +171,7 @@ static void anth_uf_load(void) {
   path = ANTHRACITE_UNIFONT;
   f = fopen(path, "rb");
   if (!f) f = fopen("src/data_font/unifont.bin", "rb");
+  if (!f) f = fopen("../src/data_font/unifont.bin", "rb");
   if (!f) return;
   if (fread(magic, 1, 4, f) != 4 || memcmp(magic, "UFNT", 4) != 0) { fclose(f); return; }
   if (fread(&ver, 4, 1, f) != 1 || fread(&n, 4, 1, f) != 1 || ver != 1 || n > 200000) {

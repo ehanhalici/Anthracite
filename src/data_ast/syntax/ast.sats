@@ -1,0 +1,38 @@
+#define ATS_DYNLOADFLAG 0
+
+macdef MAX_BLOCK_DEPTH = 12
+macdef MAX_INLINE_DEPTH = 6
+macdef MAX_NODES = 2000000
+macdef MAX_LEAF_INLINE_BYTES = 100000
+macdef MAX_TABLE_COLS = 64
+macdef MAX_TAG_LEN = 100
+macdef MAX_LINK_DEST = 2048
+macdef MAX_FENCE_INFO = 64
+
+macdef FL_CLOSED = 1
+macdef FL_TILDE = 2
+macdef FL_INDENTED = 4
+macdef FL_SETEXT = 8
+macdef FL_LOOSE = 16
+macdef FL_ORDERED = 32
+macdef FL_PAREN = 64
+macdef FL_HEADER_ROW = 128
+macdef FL_BARE = 256
+macdef FL_READ_HIDDEN = 512
+macdef FL_UNDERSCORE = 1024
+macdef FL_EXTERNAL = 2048
+macdef FL_TRUNCATED = 4096
+macdef FL_ERROR = 8192
+macdef FL_ALIGN_SHIFT = 13
+macdef FL_FOLDABLE = 16384
+
+macdef STYLE_BOLD = 1
+macdef STYLE_ITALIC = 2
+macdef STYLE_STRIKE = 4
+macdef STYLE_HIGH = 8
+macdef STYLE_LINK = 16
+macdef STYLE_CODE = 32
+macdef STYLE_MATH = 64
+macdef STYLE_HEADING = 128
+macdef STYLE_QUOTE = 256
+macdef STYLE_ERROR = 512

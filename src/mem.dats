@@ -1,6 +1,7 @@
 #define ATS_DYNLOADFLAG 0
 #include "share/atspre_define.hats"
 #include "share/atspre_staload.hats"
+#include "foundation/units.hats"
 
 staload "mem.sats"
 staload "airlock.sats"
@@ -64,14 +65,16 @@ fun word_get{l:addr}{n:nat}(
   A: !arrayptr(byte, l, n), cap: int(n), i: int
 ) : int =
   if i >= 0 then
-    (if 4*i+4 <= cap then word_get_at(A, airlock_word(i, cap)) else 0)
+    (if cap >= WORD32_BYTES andalso i <= (cap-WORD32_BYTES)/WORD32_BYTES
+      then word_get_at(A, airlock_word(i, cap)) else 0)
   else 0
 
 fun word_put{l:addr}{n:nat}(
   A: !arrayptr(byte, l, n), cap: int(n), i: int, v: int
 ) : void =
   if i >= 0 then
-    (if 4*i+4 <= cap then word_put_at(A, airlock_word(i, cap), v) else ())
+    (if cap >= WORD32_BYTES andalso i <= (cap-WORD32_BYTES)/WORD32_BYTES
+      then word_put_at(A, airlock_word(i, cap), v) else ())
   else ()
 
 (* ---- construction / destruction ---- *)
@@ -255,6 +258,35 @@ implement buf_append_at(dst, src, st, n) =
     buf_append(dst, p, n)
   end else ()
 
+extern fun anth_buf_copy_c(dst: ptr, dst_cap: int, dst_off: int, src: ptr, src_cap: int, src_off: int, n: int): void = "mac#anth_buf_copy"
+extern fun anth_copy_to_ptr_c(src: ptr, src_cap: int, src_off: int, dst: ptr, dst_cap: int, dst_off: int, n: int): void = "mac#anth_copy_to_ptr"
+
+implement buf_copy_range(dst, dst_off, src, src_off, n) =
+  if n > 0 then let
+    val dcap = buf_cap(dst)
+    val scap = buf_cap(src)
+    val dp = buf_ptr(dst)
+    val sp = buf_ptr(src)
+    val () = anth_buf_copy_c(dp, dcap, dst_off, sp, scap, src_off, n)
+  in
+  end else ()
+
+implement buf_move_within(b, dst_off, src_off, n) =
+  if n > 0 then let
+    val cap = buf_cap(b)
+    val p = buf_ptr(b)
+    val () = anth_buf_copy_c(p, cap, dst_off, p, cap, src_off, n)
+  in
+  end else ()
+
+implement buf_copy_to_ptr(src, src_off, dst, dst_cap, dst_off, n) =
+  if n > 0 then let
+    val scap = buf_cap(src)
+    val sp = buf_ptr(src)
+    val () = anth_copy_to_ptr_c(sp, scap, src_off, dst, dst_cap, dst_off, n)
+  in
+  end else ()
+
 extern fun mem_live_c(): int = "mac#anth_mem_live"
 implement mem_live() = mem_live_c()
 
@@ -277,9 +309,9 @@ end
 implement anth_ms(a, b) = let
   val d0 = b - a
   val d = if d0 < 0L then 0L else d0 / 1000000L
-  val cap = g0int2int_int_lint(2147483647)
+  val cap = g0int2int_int_lint(SIGNED_INT_MAX_VALUE)
 in
-  if d > cap then 2147483647 else g0int2int_lint_int(d)
+  if d > cap then SIGNED_INT_MAX_VALUE else g0int2int_lint_int(d)
 end
 
 implement anth_i2lint(n) = g0int2int_int_lint(n)

@@ -1,0 +1,13 @@
+execute_process(COMMAND "${EXECUTABLE}" "${FIXTURE}"
+  RESULT_VARIABLE result OUTPUT_VARIABLE output ERROR_VARIABLE diagnostics TIMEOUT 30)
+if(NOT result EQUAL 0 OR NOT output MATCHES "event=fold_contracts errors=0")
+  message(FATAL_ERROR "Fold contracts failed (${result}): ${output}\n${diagnostics}")
+endif()
+string(REGEX MATCHALL "region owner=[0-9]+ end=[0-9]+ kind=[0-9]+" records "${output}")
+string(REPLACE ";" "\n" actual "${records}")
+string(STRIP "${actual}" actual)
+file(READ "${GOLDEN}" expected)
+string(STRIP "${expected}" expected)
+if(NOT actual STREQUAL expected)
+  message(FATAL_ERROR "Fold boundary mismatch for ${FIXTURE}\nExpected:\n${expected}\nActual:\n${actual}")
+endif()
