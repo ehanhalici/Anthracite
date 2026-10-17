@@ -22,13 +22,13 @@ fun cases(preferred: !SfntFace,alternative: !SfntFace,ignored: !PropertyMap(8)):
   +check(preferred,alternative,ignored,"A‍",ClusterPreferred())
 fun alternative(preferred: !SfntFace,ignored: !PropertyMap(8)): int = let val bytes=fixture_font(Fixture12())
   val ()=fixture_put32(bytes,164,789) and ()=fixture_put32(bytes,168,789)
-in case+ sfnt_parse(bytes) of | InvalidSfnt(e) => let val ()=buf_free(bytes) in 1 end
-  | ValidSfnt(info) => let val face=SfntFace(bytes,info) val errors=cases(preferred,face,ignored)
+in case+ sfnt_parse(bytes) of | ~InvalidSfnt(e) => let val ()=buf_free(bytes) in 1 end
+  | ~ValidSfnt(info) => let val face=SfntFace(bytes,info) val errors=cases(preferred,face,ignored)
     val ()=sfnt_dispose(face) in errors end end
 implement pipeline_coverage_cases(assets) = let
   val+ NativeTextAssets(aux,w,l,e)=assets val+ NativeTextAux(base,s,b,br,m)=aux
   val+ NativeTextBase(data,n,mcm)=base val+ NativeShapeData(db,category,ignored,joining)=data
   val bytes=fixture_font(Fixture12())
-in case+ sfnt_parse(bytes) of | InvalidSfnt(e) => let val ()=buf_free(bytes) in 1 end
-  | ValidSfnt(info) => let val face=SfntFace(bytes,info) val errors=alternative(face,ignored)
+in case+ sfnt_parse(bytes) of | ~InvalidSfnt(e) => let val ()=buf_free(bytes) in 1 end
+  | ~ValidSfnt(info) => let val face=SfntFace(bytes,info) val errors=alternative(face,ignored)
     val ()=sfnt_dispose(face) in errors end end

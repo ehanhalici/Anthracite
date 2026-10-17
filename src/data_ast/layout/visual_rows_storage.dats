@@ -12,12 +12,14 @@ in buf_free(data) end
 fun projection(a: VisualProjection,b: VisualProjection): bool = case+ a of
   | VisualSource() => (case+ b of | VisualSource() => true | VisualRendered() => false)
   | VisualRendered() => (case+ b of | VisualSource() => false | VisualRendered() => true)
-implement visual_rows_matches(rows,k) = let val+ VisualRows(t,m,l,d,n,a,plans)=rows
-in ieq(a.version,k.version) andalso ieq(a.width,k.width) andalso ieq(a.px,k.px)
+implement visual_key_context_matches(a,k) = ieq(a.width,k.width) andalso ieq(a.px,k.px)
+  andalso ieq(a.sourceStart,k.sourceStart) andalso ieq(a.sourceFinish,k.sourceFinish)
   andalso ieq(a.height,k.height) andalso ieq(a.ascent,k.ascent)
   andalso ieq(a.primary,k.primary) andalso ieq(a.fallback,k.fallback)
   andalso ieq(a.primaryGeneration,k.primaryGeneration) andalso ieq(a.fallbackGeneration,k.fallbackGeneration)
-  andalso projection(a.projection,k.projection) end
+  andalso projection(a.projection,k.projection)
+implement visual_rows_matches(rows,k) = let val+ VisualRows(t,m,l,d,n,a,plans)=rows
+in ieq(a.version,k.version) andalso visual_key_context_matches(a,k) end
 implement visual_rows_count(rows,line) = let val+ VisualRows(t,m,l,d,n,k,plans)=rows
 in isub(buf_get32(l,iadd(line,1)),buf_get32(l,line)) end
 implement visual_rows_at(rows,i) = let

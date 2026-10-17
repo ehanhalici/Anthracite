@@ -9,10 +9,10 @@ staload "data_font/native/text/native_text_assets_types.sats"
 staload "core_runtime/text_engine_startup.sats"
 extern fun startup_failed(): void = "mac#anth_die_void"
 fun activated(result: FontTextEnable): void = case+ result of
-  | FontTextEnabled() =>
+  | ~FontTextEnabled() =>
     println!("event=text_engine engine=native unicode=18.0.0 layout=shared_span document_rows=projected_pixel wrap=shared_body height=shared_body caret=shared_body status=ready")
-  | FontTextAlreadyEnabled() => println!("event=text_engine engine=native status=already_ready")
-  | FontTextAssetsFailed(error) => let
+  | ~FontTextAlreadyEnabled() => println!("event=text_engine engine=native status=already_ready")
+  | ~FontTextAssetsFailed(error) => let
     val ()=println!("event=text_engine engine=native status=failed reason=unicode_assets detail=",error.detail)
   in startup_failed() end
 implement workspace_font_start(f) = let

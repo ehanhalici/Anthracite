@@ -35,8 +35,8 @@ fun glyphs(b: !Buf,info: SfntInfo,h: GdefHeaderInfo,base: int,mark: int,expected
 
 fun table(b: !Buf,info: SfntInfo,base: int,mark: int,expected: GdefGlyphKind): int =
   case+ sfnt_table(b,info.tables,TableGdef()) of
-  | NoSfntTable() => 1
-  | HasSfntTable(span) => case+ gdef_header_parse(b,span) of
+  | ~NoSfntTable() => 1
+  | ~HasSfntTable(span) => case+ gdef_header_parse(b,span) of
     | ~GdefHeaderRejected(e) => 1 | ~GdefHeaderAccepted(h) => glyphs(b,info,h,base,mark,expected)
 
 fun face(face: !SfntFace,base: int,mark: int,expected: GdefGlyphKind): int = let val+ SfntFace(b,info)=face in

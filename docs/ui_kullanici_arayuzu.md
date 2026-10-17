@@ -22,8 +22,14 @@ esintisi tasarım bağlamıdır; bağımlılık veya birebir API uyumluluğu de�
 ## Durum ve sahiplik
 
 `EditorState` idle, typing, selecting, prompt, menu ve split-drag varyantlarına
-sahiptir. `editor_fsm_contracts` altı durum ve on bir eylemin 66 geçişini bağımsız
-tabloyla, yük verileri ve editing/modal bayraklarıyla karşılaştırır.
+sahiptir. Durum ve eylemler, tahsis yapmayan nullary kind etiketli düz kayıtlardır;
+yalnız etikete ait payload alanları anlamlıdır. Geçişler GC gerektiren kutular
+bırakmaz. `editor_fsm_contracts` altı durum ve on bir eylemin 66 geçişini bağımsız
+tabloyla 128 kez, yük verileri ve editing/modal bayraklarıyla karşılaştırır.
+Ayrıca signed int min/max, -1 ve 0'dan türeyen 64 seçim payload üçlüsünü ve
+split konumunun korunmasını sınar; aynı yürütücü LSan altında da çalıştırılır.
+Ayrı 88 geçiş prompt/menü payload'larının dört varyantını her eylemle karşılaştırır;
+durum adları da bağımsız beklentiyle korunur.
 `editor_fsm_is_modal` prompt ve menü durumlarında true döndürür. Menü FSM'si
 kapatma/Escape dışındaki arka plan eylemlerini zaten yok sayar; modal bilgisi
 bu geçiş politikasıyla uyumludur (BUG-002 çözüldü).
@@ -38,6 +44,15 @@ Cache isabeti dosyayı yeniden okumamalıdır; kaçırma/geçersizleştirme yük
 yoktur. Blok yüksekliği ilgili hedef aralığının görsel satırlarından türetilir.
 Doc'un sürümlü seyrek medya indeksi sıcak karede bütün AST taramasını önler;
 görsel düğüm indeksi yalnız yerleşim yenilendiğinde kurulur.
+Kanonik dosya/AST cache'i (48 Doc) ile görünüm geometrisi cache'i (128 giriş,
+64 MiB) ayrıdır. Anchor aralığı, genişlik ve tam font bağlamı görünüm anahtarına
+dahildir. Kaynak aynıysa farklı blok veya bölme genişliği AST'yi çoğaltmaz.
+Aktif yola dönen embed döngüsü durdurulur; diğer zincirler derinlik 8 ile sınırlıdır.
+Görünür kaynaklar önceliklidir; bir viewport üst/alt taşma payındaki miss'ler
+4 ms esnek bütçeyle aşamalı hazırlanır. Uzak kaynaklar yüklenmez. Görünürlük
+ilk tahmini yüksekliklerle belirlenir, gerçek yükseklikler gelince tekrar
+değerlendirilir; üst kaynak satırı + piksel ofseti korunarak kaydırma düzeltilir.
+Seçili görünüm ve bütçeye sığan görünür görünümler LRU tahliyesinden önce korunur.
 
 Çocuk çizimleri `rend_clip_push/pop` ile ebeveyn clip'ine kesiştirilir;
 embed, widget veya sekme kendi sınırını genişletip üst UI alanını boyayamaz.
@@ -55,14 +70,28 @@ gösteren diğer kutu vurgulanmaz. Ctrl+C görünür izdüşüm metnini mantıks
 kopyalar; embed seçimi etkinken kesme/yazma/silme uygulanmaz. Sekme/ebeveyn
 değiştiren kullanıcı girdisi seçim ömrünü sonlandırır. Yeni hedefe kaydırma
 yerleşim hesaplandıktan sonra yapılır.
+İç içe gömü ve wiki/Markdown linklerinde en içteki hedef tıklaması dış kutunun
+hedefinden önce gelir. Aynı-dosya anchor'ı gömülü dosyaya aittir; Ctrl+tıklama
+da aynı hedef çözümlemesini kullanır. Gezinmeden önce kaynak tazeliği doğrulanır.
 
 `native_graphics_contracts` DejaVu Sans Mono'nun sabit metriklerini ve depodaki
 Noto Naskh Arabic fixture'ını kullanır; uygulamanın seçilebilir fontu değildir.
 CTest için ekran gerekir; DejaVu fixture bulunamazsa yapılandırmada açık uyarı
 verilir. Test gömülü dosya/anchor/cache, kaynak tazeliği, sarma, clip pikselleri
-ve seçim izolasyonunu da çalıştırır.
+ve seçim izolasyonunu da çalıştırır. Süresi tükenmiş iş bütçesi, takip kareleri,
+uzak kaynakların yüklenmemesi, kaydırma anchor'ı ve iç içe hedef önceliği de sınanır.
 
 ## Görsel koordinatlar
+
+Matematik bloklarının yüksekliği medya bağlama, AST görünürlük hazırlığı ve
+yerleşim boyunca `doc_math_block_height` ile aynı hesaplanır; damgalama bu
+ölçümü sabit 24 px'e çevirmez. Aksi halde görünür hazırlık sabit noktaya ulaşamaz.
+Matematik önizlemesi sınırlı bir Unicode metin dönüşümüdür, tam TeX/MathJax veya
+iki boyutlu denklem yerleşimi değildir. `math_append_preview` mevcut tampona
+ekler; üst/alt indis fallback'i desteklenmeyen scalar'ın UTF8 baytlarını birlikte
+taşır. `math_preview_contracts` çok baytlı karakterleri, kesik grupları ve
+append sözleşmesini; grafik testler font boyutu/mod değişimi ve sıcak karede
+yeniden sarma/yerleşim olmamasını denetler.
 
 Kaynak bayt ofseti, fiziksel satır, görsel sarma satırı ve piksel koordinatı
 ayrı kavramlardır. Çizim, caret, fare hit-test ve dikey hareket aynı görsel satır

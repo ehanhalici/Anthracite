@@ -3,16 +3,16 @@ staload "data_font/native/text/native_text_assets_types.sats"
 staload "data_font/native/text/native_text_analysis_types.sats"
 staload "data_font/native/text/native_text_items_types.sats"
 (* Ownership-only adapter; Unicode/cmap traversal belongs to coverage.dats. *)
-fun covered_file(b: !Buf,info: Option(SfntInfo),assets: !NativeTextAssets,
-  a: !NativeTextAnalysis,item: NativeTextItem): bool = case+ info of
-  | None() => false | Some(info) => let
+fun covered_file(b: !Buf,info: SfntMetadata,assets: !NativeTextAssets,
+  a: !NativeTextAnalysis,item: NativeTextItem): bool =
+  if not(info.present) then false else let
     val+ NativeTextAssets(aux,words,lines,east)=assets
     val+ NativeTextAux(base,scripts,bidi,brackets,mirrors)=aux
     val+ NativeTextBase(data,norm,mcm)=base
     val+ NativeShapeData(db,category,ignorable,joining)=data
-    val+ NativeTextAnalysis(text,doc,items,breaks,graphemes)=a
-  in native_text_range_covered(b,info,ignorable,text,item.start,item.finish) end
-fun covered_fallback(b: &Option_vt(Buf) >> _,info: Option(SfntInfo),assets: !NativeTextAssets,
+    val+ NativeTextAnalysis(text,doc,items,breaks,graphemes,source_length)=a
+  in native_text_range_covered(b,info.info,ignorable,text,item.start,item.finish) end
+fun covered_fallback(b: &Option_vt(Buf) >> _,info: SfntMetadata,assets: !NativeTextAssets,
   a: !NativeTextAnalysis,item: NativeTextItem): bool = case+ b of
   | @None_vt() => let prval ()=fold@(b) in false end
   | @Some_vt(file) => let val result=covered_file(file,info,assets,a,item)

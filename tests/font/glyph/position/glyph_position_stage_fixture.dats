@@ -36,4 +36,4 @@ implement position_test_stage_build(b,s,m) = case+ ot_layout_parse(b,s,OtPositio
     val stage=selected(b,t,m) val ()=ot_layout_dispose(t)
   in stage end
 implement position_font_stage(b,info,m) = case+ sfnt_table(b,info.tables,TableGpos()) of
-  | NoSfntTable() => stage_fixture_failed() | HasSfntTable(s) => position_test_stage_build(b,s,m)
+  | ~NoSfntTable() => stage_fixture_failed() | ~HasSfntTable(s) => position_test_stage_build(b,s,m)

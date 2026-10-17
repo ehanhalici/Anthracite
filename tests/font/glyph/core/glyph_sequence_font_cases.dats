@@ -54,8 +54,8 @@ fun reference(b: !Buf,h: OtLayoutInfo,m: !GlyphMetadata,glyphs: int): int = let
   val ()=buf_free(oracle)
 in errors end
 fun gdef(b: !Buf,info: SfntInfo): OtChild = case+ sfnt_table(b,info.tables,TableGdef()) of
-  | NoSfntTable() => @{kind=ChildMissing(),span= @{offset=0,length=0}}
-  | HasSfntTable(s) => @{kind=ChildPresent(),span=s}
+  | ~NoSfntTable() => @{kind=ChildMissing(),span= @{offset=0,length=0}}
+  | ~HasSfntTable(s) => @{kind=ChildPresent(),span=s}
 fun metadata(b: !Buf,info: SfntInfo,h: OtLayoutInfo): int =
   case+ glyph_metadata_parse(b,gdef(b,info),3,info.glyphs) of
   | ~GlyphMetadataRejected(e) => 1 | ~GlyphMetadataAccepted(m) => let
@@ -63,7 +63,7 @@ fun metadata(b: !Buf,info: SfntInfo,h: OtLayoutInfo): int =
   in errors end
 fun face(face: !SfntFace): int = let val+ SfntFace(b,info)=face in
   case+ sfnt_table(b,info.tables,TableGsub()) of
-  | NoSfntTable() => 1 | HasSfntTable(s) => case+ ot_layout_header_parse(b,s) of
+  | ~NoSfntTable() => 1 | ~HasSfntTable(s) => case+ ot_layout_header_parse(b,s) of
     | ~HeaderRejected(e) => 1 | ~HeaderAccepted(h) => metadata(b,info,h) end
 implement seq_test_fonts(path) = case+ sfnt_open(path) of
   | ~RejectedSfnt(e) => 1 | ~LoadedSfnt(f) => let val errors=face(f) val ()=sfnt_dispose(f) in errors end

@@ -6,7 +6,7 @@ fun failure_code(error: FontSpanFailure): int = case+ error of
   | SpanCapacity() => 5 | SpanOverflow() => 6 | SpanParagraph() => 7
   | SpanMissing() => 8 | SpanUnsupported() => 9
 implement font_text_result_pixels(result) = case+ result of
-  | FontTextValue(value) => value
-  | FontTextInactive() => let val ()=println!("event=native_text_dispatch reason=inactive") in dispatch_failed() end
-  | FontTextFailed(error) => let val ()=println!("event=native_text_dispatch reason=layout detail=",failure_code(error))
+  | ~FontTextValue(value) => value
+  | ~FontTextInactive() => let val ()=println!("event=native_text_dispatch reason=inactive") in dispatch_failed() end
+  | ~FontTextFailed(error) => let val ()=println!("event=native_text_dispatch reason=layout detail=",failure_code(error))
     in dispatch_failed() end

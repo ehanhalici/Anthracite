@@ -21,7 +21,12 @@ Uygulanmış davranış, tasarım hedefi ve ölçüm sonucu birbirinin yerine ku
 
 [Kod kuralları](skill.md), [ilerleme kaydı](refactoring_durumu.md) ve
 [hata listesi](olasi_hatalar.md) çalışma sırasında birlikte güncellenir.
+[Büyük belge performans raporu](performans_analizi.md) baseline, ölçüm yöntemi,
+gömü/metin yerleşimi değişiklikleri ve kabul sonuçlarını tutar.
 `.agents/rules` belirli bellek, sahiplik, önbellek ve karmaşıklık kurallarını taşır.
+[Arama rehberi](arama_ve_indeksleme.md) literal sorgu/case politikası, ham metin
+ömrü, kareler arası iş, gruplama ve sonuç sınırlarını açıklar; eski AST indeks
+API'leri ile panelin varsayılan yolu birbirine karıştırılmamalıdır.
 
 ## Doğrulama
 
@@ -36,3 +41,21 @@ Başlangıç ölçümü 77 testtir; güncel sonuç ve ortam ilerleme kaydında t
 başarısızsa `1` döndürür. Ekran açılamaması da normal başlatmada ve selftest'te
 `1` üretir (BUG-001 çözüldü). Grafik CTest sarmalayıcısı çıkış koduna ek olarak
 sonuç satırlarını denetler; ekransız hata yolu ayrı CPU testiyle sınanır.
+
+## Sanitizer ve geçici sahiplik
+
+Sızıntı denetimi için ayrı bir dizin kullanın:
+
+```sh
+cmake -S . -B build/sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DANTHRACITE_SANITIZERS=ON
+cmake --build build/sanitize --target check-build --parallel
+ASAN_OPTIONS=detect_leaks=1 ctest --test-dir build/sanitize --output-on-failure -R '^(sfnt_conformance|component_conformance|native_text_analysis_conformance|anchor_contracts|native_graphics_contracts|font_temporary_ownership_type_error|editor_fsm_contracts|graphics_selftest|literal_search_contracts|search_results_contracts|search_geometry_contracts)$'
+```
+
+Grafik paketi için yine X11/GLX ekranı gerekir. `font_temporary_ownership_type_error`
+altı geçici sonuç türünün tüketilmeden bırakılmasını derleme aşamasında reddeder.
+GC'siz ATS yapısında yalnız `mem_live=0` sızıntısızlık kanıtı değildir; `datatype`
+payload'ı otomatik bırakılmaz. Tek kullanımlı sonuçlar tüketilen lineer tür,
+paylaşılan salt metadata ise düz kayıt olmalıdır. Kapsam ve sonuçlar
+[bellek rehberinde](bellek_ve_guvenlik_mimarisi.md) ve
+[çalışma kaydında](refactoring_durumu.md) tutulur.

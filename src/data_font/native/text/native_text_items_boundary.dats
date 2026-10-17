@@ -9,7 +9,7 @@ fun finish{fuel:nat} .<fuel>. (fuel: int(fuel),a: !NativeTextAnalysis,index: int
     (ige(index,paragraph) orelse changed(a,index,level,script)) then index
   else finish(fuel-1,a,iadd(index,1),limit,paragraph,level,script)
 implement native_text_item_finish(a,start) = let
-  val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes)=a
+  val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes,source_length)=a
   val limit=scalar_count(text) val paragraph=bidi_document_paragraph_end(bidi,start)
   val level=native_text_analysis_level(a,start) val script=native_text_analysis_script(a,start)
 in finish(MAX_REC_FUEL,a,iadd(start,1),limit,paragraph,level,script) end

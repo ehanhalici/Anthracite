@@ -8,7 +8,7 @@ extern fun failed(): Buf = "mac#anth_die_box"
 fun break_code(b: LineBreak): int = case+ b of
   | BreakForbidden() => 1 | BreakOptional() => 3 | BreakMandatory() => 5
 fun fill{n:nat} .<n>. (left: int(n),a: !NativeTextAnalysis,flags: !Buf,i: int): void =
-  if left = 0 then () else let val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes)=a
+  if left = 0 then () else let val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes,source_length)=a
     val ()=if native_text_analysis_grapheme(a,i) then
       buf_set(flags,scalar_start(text,i),break_code(native_text_analysis_break(a,i))) else ()
   in fill(left-1,a,flags,iadd(i,1)) end

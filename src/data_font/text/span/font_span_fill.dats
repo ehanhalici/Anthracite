@@ -74,7 +74,7 @@ fun placed(f: !Font,assets: !NativeTextAssets,a: !NativeTextAnalysis,c: !NativeT
   | SpanLineEndCandidate() => line_end(layout,index,item,font_span_space_shape(f,assets,options))
   | SpanPrimaryCandidate() => stored(layout,index,item,font_span_shape(f,assets,a,c,item,options))
   | SpanFallbackCandidate() => stored(layout,index,item,font_span_shape(f,assets,a,c,item,options))
-  | SpanMissingCandidate() => let val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes)=a
+  | SpanMissingCandidate() => let val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes,source_length)=a
     val ()=println!("event=native_span_coverage first_scalar=",scalar_value(text,item.start))
   in notdef(f,assets,a,c,layout,options,index,item) end
 fun pending(error: FontSpanFailure): bool = case+ error of

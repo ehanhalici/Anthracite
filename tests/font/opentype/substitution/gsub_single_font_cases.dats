@@ -53,7 +53,7 @@ fun header(b: !Buf,s: OtSpan,glyphs: int,font: SingleTestFont): int =
   | ~HeaderRejected(e) => 1 | ~HeaderAccepted(info) =>
     if not(ot_rows_fit(info.lookups,2,info.lookupCount,2)) then 1 else oracle(b,info,glyphs,font)
 fun table(b: !Buf,info: SfntInfo,font: SingleTestFont): int = case+ sfnt_table(b,info.tables,TableGsub()) of
-  | NoSfntTable() => 1 | HasSfntTable(s) => header(b,s,info.glyphs,font)
+  | ~NoSfntTable() => 1 | ~HasSfntTable(s) => header(b,s,info.glyphs,font)
 fun face(face: !SfntFace,font: SingleTestFont): int = let val+ SfntFace(b,info)=face in table(b,info,font) end
 implement single_test_font(path,font) = case+ sfnt_open(path) of
   | ~RejectedSfnt(e) => 1 | ~LoadedSfnt(f) => let

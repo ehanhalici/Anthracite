@@ -90,6 +90,7 @@ fun node_height(d: !Doc, i: int, lh: int): int = let
   val lines = count_nl(d, doc_node_start(d, i), doc_node_end(d, i), 1)
 in
   if is_on(doc_node_hidden(d, i)) then 0
+  else if is_kind(k, KMathb) then doc_math_block_height(lh)
   else if is_kind(k, KEmbed) then let
     val a = doc_node_height(d, i)
   in

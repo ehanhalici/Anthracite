@@ -133,10 +133,10 @@ in ige(buf_len(b),floor) andalso igt(n,0)
   andalso tables_disjoint(b,n) end
 
 fun present_size(table: SfntOptional, size: int): bool = case+ table of
-  | NoSfntTable() => false | HasSfntTable(span) => ige(span.length,size)
+  | ~NoSfntTable() => false | ~HasSfntTable(span) => ige(span.length,size)
 
 fun table_offset(table: SfntOptional): int = case+ table of
-  | NoSfntTable() => ~1 | HasSfntTable(span) => span.offset
+  | ~NoSfntTable() => ~1 | ~HasSfntTable(span) => span.offset
 
 fun required_tables(b: !Buf, n: int): bool =
   present_size(sfnt_table(b,n,TableHead()),54)
@@ -164,7 +164,7 @@ in ieq(sfnt_be32(b,iadd(h,12)),1594834165)
   andalso present_size(sfnt_table(b,n,TableHmtx()),bytes) end
 
 fun optional_span(table: SfntOptional): SfntSpan = case+ table of
-  | HasSfntTable(span) => span | NoSfntTable() => @{offset=0,length=0}
+  | ~HasSfntTable(span) => span | ~NoSfntTable() => @{offset=0,length=0}
 
 fun loca_value(b: !Buf, span: SfntSpan, long: bool, i: int): int =
   if long then sfnt_be32(b,iadd(span.offset,imul(i,4)))
@@ -284,15 +284,15 @@ in ige(span.length,16) andalso ieq(sfnt_be16(b,iadd(span.offset,2)),0)
   andalso ige(n,0) andalso ile(n,idiv(isub(span.length,16),12))
   andalso cmap12_groups(airlock_nat(imax(0,n)),b,iadd(span.offset,16),~1,glyphs) end
 
-fun character_map(b: !Buf, n: int, glyphs: int): Option(SfntCmap) = let
+fun character_map(b: !Buf, n: int, glyphs: int): Option_vt(SfntCmap) = let
   val selected = cmap_selection(b,optional_span(sfnt_table(b,n,TableCmap())))
   val span = selected.span
-in if ile(selected.score,0) then None()
+in if ile(selected.score,0) then None_vt()
   else if ieq(selected.format,4) andalso cmap4_valid(b,span,glyphs)
-    then Some(Cmap4(span,idiv(sfnt_be16(b,iadd(span.offset,6)),2)))
+    then Some_vt(@{kind=CmapSegmented(),span=span,count=idiv(sfnt_be16(b,iadd(span.offset,6)),2)})
   else if ieq(selected.format,12) andalso cmap12_valid(b,span,glyphs)
-    then Some(Cmap12(span,sfnt_be32(b,iadd(span.offset,12))))
-  else None() end
+    then Some_vt(@{kind=CmapGrouped(),span=span,count=sfnt_be32(b,iadd(span.offset,12))})
+  else None_vt() end
 
 fun build_info(b: !Buf, n: int, cmap: SfntCmap): SfntInfo = let
   val h = table_offset(sfnt_table(b,n,TableHead()))
@@ -310,8 +310,8 @@ fun parse_static(b: !Buf, n: int): SfntParsed =
   else if not(locations_valid(b,n)) then InvalidSfnt(SfntLocations())
   else let val m = table_offset(sfnt_table(b,n,TableMaxp())) in
     case+ character_map(b,n,sfnt_be16(b,iadd(m,4))) of
-    | None() => InvalidSfnt(SfntCharacterMap())
-    | Some(cmap) => ValidSfnt(build_info(b,n,cmap)) end
+    | ~None_vt() => InvalidSfnt(SfntCharacterMap())
+    | ~Some_vt(cmap) => ValidSfnt(build_info(b,n,cmap)) end
 
 implement sfnt_parse(b) =
   if ilt(buf_len(b),12) then InvalidSfnt(SfntDirectory())
@@ -319,14 +319,14 @@ implement sfnt_parse(b) =
     then InvalidSfnt(SfntContainer())
   else if not(directory_header(b)) then InvalidSfnt(SfntDirectory())
   else let val n = sfnt_be16(b,4) in case+ sfnt_table(b,n,TableFvar()) of
-    | HasSfntTable(span) => InvalidSfnt(SfntVariable())
-    | NoSfntTable() => parse_static(b,n) end
+    | ~HasSfntTable(span) => InvalidSfnt(SfntVariable())
+    | ~NoSfntTable() => parse_static(b,n) end
 
 implement sfnt_open(path) = case+ text_file_read(path) of
   | ~TextFileError(code) => RejectedSfnt(SfntIo(code))
   | ~TextFile(b) => (case+ sfnt_parse(b) of
-    | ValidSfnt(info) => LoadedSfnt(SfntFace(b,info))
-    | InvalidSfnt(error) => let val () = buf_free(b) in RejectedSfnt(error) end)
+    | ~ValidSfnt(info) => LoadedSfnt(SfntFace(b,info))
+    | ~InvalidSfnt(error) => let val () = buf_free(b) in RejectedSfnt(error) end)
 
 implement sfnt_dispose(face) = let val+ ~SfntFace(b,info) = face in buf_free(b) end
 implement sfnt_info(face) = let val+ SfntFace(b,info) = face in info end
@@ -358,9 +358,16 @@ fun cmap12_search {n:nat} .<n>. (
 
 implement sfnt_map(b,info,cp) =
   if ilt(cp,0) orelse igt(cp,UNICODE_MAX_SCALAR) orelse (ige(cp,UNICODE_SURROGATE_START) andalso ile(cp,57343)) then 0
-  else case+ info.cmap of
-  | Cmap4(span,n) => if igt(cp,WORD16_MAX_VALUE) then 0 else cmap4_search(airlock_nat(iadd(n,1)),b,span,n,cp,0,n)
-  | Cmap12(span,n) => cmap12_search(airlock_nat(iadd(n,1)),b,span,cp,0,n)
+  else let val map=info.cmap val n=map.count in case+ map.kind of
+  | CmapSegmented() => if igt(cp,WORD16_MAX_VALUE) then 0 else cmap4_search(airlock_nat(iadd(n,1)),b,map.span,n,cp,0,n)
+  | CmapGrouped() => cmap12_search(airlock_nat(iadd(n,1)),b,map.span,cp,0,n) end
+
+implement sfnt_metadata_empty() = let
+  val empty: SfntSpan= @{offset=0,length=0}
+  val cmap: SfntCmap= @{kind=CmapSegmented(),span=empty,count=0}
+  val info: SfntInfo= @{tables=0,units=0,ascender=0,descender=0,line_gap=0,
+    glyphs=0,hmetrics=0,long_loca=false,glyf=empty,loca=empty,hmtx=empty,cmap=cmap}
+in @{present=false,info=info} end
 
 extern fun bad_glyph(): int = "mac#anth_die_int"
 

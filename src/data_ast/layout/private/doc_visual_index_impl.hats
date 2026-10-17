@@ -18,9 +18,9 @@ implement doc_visual_index(d) = let val state=doc_visual_take(d)
   val () = performance_note(PERF_VISUAL_INDEX_BUILDS, 1)
   val updated=visual_reindex(d,state)
 in doc_visual_put(d,updated) end
-fun visual_bottom{b:bool}(state: !option_vt(VisualRows,b),index: int): Option(int) = case+ state of
-  | None_vt() => None() | Some_vt(rows) => let val+ VisualRows(t,m,l,data,n,k,plans)=rows val at=iadd(imul(n,5),index)
-  in if ige(at,0) andalso ilt(at,idiv(buf_len(data),4)) then Some(buf_get32(data,at)) else None() end
+fun visual_bottom{b:bool}(state: !option_vt(VisualRows,b),index: int): Option_vt(int) = case+ state of
+  | None_vt() => None_vt() | Some_vt(rows) => let val+ VisualRows(t,m,l,data,n,k,plans)=rows val at=iadd(imul(n,5),index)
+  in if ige(at,0) andalso ilt(at,idiv(buf_len(data),4)) then Some_vt(buf_get32(data,at)) else None_vt() end
 implement doc_visual_node_bottom(d,index) = case+ d of | @DOC(s) => let
   val bottom=visual_bottom(s.visual,index) prval ()=fold@(d)
 in bottom end

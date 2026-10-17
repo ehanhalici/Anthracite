@@ -1,5 +1,5 @@
 fun bind_mathb_height(d: !Doc, i: int, lh: int): void = let
-  val dh = iadd(lh, 12)
+  val dh = doc_math_block_height(lh)
   val old_h = doc_node_height(d, i)
   val () = if ine(old_h, dh) then doc_bump_ver(d) else ()
 in
@@ -13,7 +13,10 @@ fun bind_one_kind(f: !Font,d: !Doc, i: int, k: NodeKind, c: &Cache >> _, r: !Ren
   else if is_kind(k, KMathb) then bind_mathb_height(d, i, lh)
   else ()
 
-fun bind_one(f: !Font,d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int): void = let
+fun media_in_view(d: !Doc,i: int): bool = let val range=doc_view_range(d)
+in ilt(doc_node_start(d,i),range.finish) andalso igt(doc_node_end(d,i),range.start) end
+fun bind_one(f: !Font,d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int): void =
+  if not(media_in_view(d,i)) then () else let
   val k = doc_node_kind(d, i)
 in
   if is_kind(k, KImage) orelse is_kind(k, KEmbed) then let
@@ -43,27 +46,77 @@ fun media_index_fill{n:nat} .<n>. (left: int(n),d: !Doc,index: &Buf >> _,i: int)
     val ()=if is_kind(k,KImage) orelse is_kind(k,KEmbed) orelse is_kind(k,KMathb) then media_index_append(index,i) else ()
   in media_index_fill(left-1,d,index,iadd(i,1)) end
 fun media_index_prepare(d: !Doc,index: &Buf >> _): void =
-  if ige(buf_len(index),WORD32_BYTES) andalso ieq(buf_get32(index,0),doc_layout_version(d)) then () else let
+  if ige(buf_len(index),WORD32_BYTES) andalso ieq(buf_get32(index,0),doc_parse_generation(d)) then () else let
     val ()=performance_note(PERF_MEDIA_INDEX_BUILDS,1)
     val ()=buf_ensure(index,WORD32_BYTES) val ()=buf_set_len(index,WORD32_BYTES)
-  in media_index_fill(airlock_nat(doc_nnodes(d)),d,index,0) end
+    val ()=media_index_fill(airlock_nat(doc_nnodes(d)),d,index,0)
+  in buf_set32(index,0,doc_parse_generation(d)) end
 fun bind_media_index{n:nat} .<n>. (left: int(n),f: !Font,d: !Doc,c: &Cache >> _,r: !Rend,
   vault: !Buf,lh: int,colw: int,index: !Buf,i: int): void =
-  if left = 0 then () else let val ()=bind_one(f,d,buf_get32(index,i),c,r,vault,lh,colw)
+  if left = 0 then () else let
+    val node=buf_get32(index,i) val previous=work_scope(c)
+    val ()=if work_in_band(d,node,c) andalso not(is_on(doc_node_hidden(d,node))) then let
+      val ()=work_focus(d,node,c)
+    in bind_one(f,d,node,c,r,vault,lh,colw) end else ()
+    val ()=work_set_scope(c,previous)
   in bind_media_index(left-1,f,d,c,r,vault,lh,colw,index,iadd(i,1)) end
 fun bind_media(f: !Font,d: !Doc,c: &Cache >> _,r: !Rend,vault: !Buf,lh: int,colw: int,i: int): void = let
   var index=doc_media_take(d) val ()=media_index_prepare(d,index)
   val ()=bind_media_index(airlock_nat(isub(idiv(buf_len(index),WORD32_BYTES),1)),f,d,c,r,vault,lh,colw,index,1)
-  val ()=buf_set32(index,0,doc_layout_version(d))
+  val ()=buf_set32(index,0,doc_parse_generation(d))
 in doc_media_put(d,index) end
 
-implement prepare_document_layout(f,d, c, r, vault, lh, colw, viewmode) = let
-  val () = bind_media(f,d, c, r, vault, lh, colw, 0)
+fun prepare_layout_geometry(f: !Font,r: !Rend,d: !Doc,lh: int,colw: int,viewmode: ViewMode): int = let
   val ()=visual_layout_prepare(f,r,d,colw,viewmode)
   val is_read = (if is_view_read(viewmode) then 1 else 0)
   val height=doc_layout_mode(d,lh,is_read,colw)
 in height
 end
+fun seed_media_index{n:nat} .<n>. (left: int(n),d: !Doc,index: !Buf,i: int,lh: int): void =
+  if left = 0 then () else let
+    val node=buf_get32(index,i) val k=doc_node_kind(d,node)
+    val estimate=if is_kind(k,KEmbed) then iadd(imul(lh,EMBED_ESTIMATED_LINES),EMBED_FRAME_PADDING_PIXELS)
+      else if is_kind(k,KMathb) then doc_math_block_height(lh) else imul(lh,EMBED_ESTIMATED_LINES)
+    val ()=if media_in_view(d,node) andalso not(is_on(doc_node_hidden(d,node))) andalso ile(doc_node_height(d,node),0) then
+      (doc_set(d,node,NF_HEIGHT,estimate);doc_set(d,node,NF_AUX,estimate);doc_bump_ver(d)) else ()
+  in seed_media_index(left-1,d,index,iadd(i,1),lh) end
+fun seed_media(d: !Doc,lh: int): void = let
+  var index=doc_media_take(d) val ()=media_index_prepare(d,index)
+  val ()=seed_media_index(airlock_nat(isub(idiv(buf_len(index),WORD32_BYTES),1)),d,index,1,lh)
+in doc_media_put(d,index) end
+extern fun prepare_visible_exhausted(): int = "mac#anth_die_int"
+fun prepare_visible{n:nat} .<n>. (fuel: int(n),f: !Font,d: !Doc,cache: &Cache >> _,r: !Rend,
+  vault: !Buf,lh: int,width: int,mode: ViewMode): int =
+  if not(recursion_fuel_available(fuel)) then prepare_visible_exhausted() else let
+    val version=doc_layout_version(d)
+    val ()=bind_media(f,d,cache,r,vault,lh,width,0)
+    val height=prepare_layout_geometry(f,r,d,lh,width,mode)
+  in if ieq(version,doc_layout_version(d)) then height else prepare_visible(fuel-1,f,d,cache,r,vault,lh,width,mode) end
+extern fun prepare_nearby_exhausted(): int = "mac#anth_die_int"
+fun prepare_nearby{n:nat} .<n>. (fuel: int(n),f: !Font,d: !Doc,cache: &Cache >> _,r: !Rend,vault: !Buf,
+  lh: int,width: int,mode: ViewMode): int =
+  if not(recursion_fuel_available(fuel)) then prepare_nearby_exhausted() else let
+  val previous=work_scope(cache)
+  val version=doc_layout_version(d)
+  val visible=prepare_visible(airlock_nat(MAX_REC_FUEL),f,d,cache,r,vault,lh,width,mode)
+  var overscan: EmbedWorkScope=previous val ()=overscan.band := EmbedWorkOverscan()
+  val ()=work_set_scope(cache,overscan)
+  val ()=bind_media(f,d,cache,r,vault,lh,width,0)
+  val background=prepare_layout_geometry(f,r,d,lh,width,mode)
+  val ()=work_set_scope(cache,previous)
+  val height=prepare_visible(airlock_nat(MAX_REC_FUEL),f,d,cache,r,vault,lh,width,mode)
+in if ieq(version,doc_layout_version(d)) orelse cache_work_pending(cache) then height
+  else prepare_nearby(fuel-1,f,d,cache,r,vault,lh,width,mode) end
+fun prepare_scheduled(f: !Font,d: !Doc,cache: &Cache >> _,r: !Rend,vault: !Buf,
+  lh: int,width: int,mode: ViewMode): int = let
+  val ()=seed_media(d,lh)
+  val initial=prepare_layout_geometry(f,r,d,lh,width,mode)
+in prepare_nearby(airlock_nat(MAX_REC_FUEL),f,d,cache,r,vault,lh,width,mode) end
+implement prepare_document_layout(f,d,cache,r,vault,lh,width,mode) = let
+  val scope=work_scope(cache)
+in if scope.active andalso scope.document = doc_identity(d) then prepare_scheduled(f,d,cache,r,vault,lh,width,mode)
+  else let val ()=bind_media(f,d,cache,r,vault,lh,width,0)
+    in prepare_layout_geometry(f,r,d,lh,width,mode) end end
 
 fun kind_col(k: NodeKind): uint =
   if is_heading(k) then col_heading()

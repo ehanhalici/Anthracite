@@ -34,8 +34,7 @@ fun offset_mode_of(flags: int): ComponentOffset =
   if has(flags,2048) andalso not(has(flags,4096)) then ScaledOffset() else UnscaledOffset()
 
 fun placement_of(flags: int, arg1: int, arg2: int): ComponentPlacement =
-  if has(flags,2) then ComponentXY(arg1,arg2,offset_mode_of(flags))
-  else ComponentPoints(arg1,arg2)
+  @{points=not(has(flags,2)),first=arg1,second=arg2,mode=offset_mode_of(flags)}
 
 fun component_record(b: !Buf, span: SfntSpan, offset: int, flags: int): GlyphComponent = let
   val at = iadd(span.offset,offset)
@@ -63,11 +62,10 @@ fun matrix_product(a: GlyphMatrix, b: GlyphMatrix): GlyphMatrix =
   @{xx=a.xx*b.xx + a.xy*b.yx,xy=a.xx*b.xy + a.xy*b.yy,
     yx=a.yx*b.xx + a.yy*b.yx,yy=a.yx*b.xy + a.yy*b.yy}
 
-fun component_offset(child: GlyphComponent): @(double,double) = case+ child.placement of
-  | ComponentPoints(parent,point) => @(0.0,0.0)
-  | ComponentXY(x,y,mode) => (case+ mode of
-    | UnscaledOffset() => @(number(x),number(y))
-    | ScaledOffset() => glyph_matrix_point(child.matrix,number(x),number(y)))
+fun component_offset(child: GlyphComponent): @(double,double) = let val p=child.placement
+in if p.points then @(0.0,0.0) else case+ p.mode of
+    | UnscaledOffset() => @(number(p.first),number(p.second))
+    | ScaledOffset() => glyph_matrix_point(child.matrix,number(p.first),number(p.second)) end
 
 implement glyph_component_transform(parent,child) = let
   val @(x,y) = component_offset(child)

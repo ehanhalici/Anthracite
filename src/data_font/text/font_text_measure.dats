@@ -5,22 +5,22 @@ fun measured{b:bool}(slot: !option_vt(FontTextCache,b)): FontTextResult = case+ 
   | None_vt() => FontTextFailed(SpanShaping())
   | Some_vt(cache) => let val+ FontTextCache(key,layout,px,tail)=cache
     in FontTextValue(pixels(font_span_width(layout))) end
-fun remember(result: FontTextResult,metrics: &FontTextMetrics >> FontTextMetrics,f: !Font,b: !Buf,n: int,px: int): void =
+fun remember(result: !FontTextResult,metrics: &FontTextMetrics >> FontTextMetrics,f: !Font,b: !Buf,n: int,px: int): void =
   case+ result of | FontTextValue(value) => font_text_metrics_insert(metrics,f,b,n,px,value)
     | FontTextFailed(error) => () | FontTextInactive() => ()
 fun miss(f: !Font,assets: !NativeTextAssets,cache: &Option_vt(FontTextCache) >> _,
   metrics: &FontTextMetrics >> FontTextMetrics,b: !Buf,length: int,options: FontSpanOptions): FontTextResult = let
   val prepared=font_text_cache_prepare(cache,f,assets,b,length,options)
-  val result=case+ prepared of
-    | ~Some_vt(error) => FontTextFailed(error) | ~None_vt() => measured(cache)
+  val result=(case+ prepared of
+    | ~Some_vt(error) => FontTextFailed(error) | ~None_vt() => measured(cache)): FontTextResult
   val ()=remember(result,metrics,f,b,length,options.scale.yPpem)
 in result end
 fun active(f: !Font,session: &FontTextSession >> FontTextSession,b: !Buf,length: int): FontTextResult = let
   val+ ~FontTextSession(assets,old,primary,fallback,m)=session
   var cache: Option_vt(FontTextCache)=old var metrics: FontTextMetrics=m val px=font_get_px(f)
   val options: FontSpanOptions= @{primary=primary,fallback=fallback,scale= @{xPpem=px,yPpem=px}}
-  val result=case+ font_text_metrics_lookup(metrics,f,b,length,px) of
-    | Some(value) => FontTextValue(value) | None() => miss(f,assets,cache,metrics,b,length,options)
+  val result=(case+ font_text_metrics_lookup(metrics,f,b,length,px) of
+    | ~Some_vt(value) => FontTextValue(value) | ~None_vt() => miss(f,assets,cache,metrics,b,length,options)): FontTextResult
   val ()=session := FontTextSession(assets,cache,primary,fallback,metrics)
 in result end
 fun session_width(f: !Font,state: &Option_vt(FontTextSession) >> _,b: !Buf,length: int): FontTextResult = case+ state of

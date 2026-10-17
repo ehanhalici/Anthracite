@@ -51,14 +51,14 @@ fun rows{n:nat} .<n>. (left: int(n),b: !Buf,h: OtLayoutInfo,m: !GlyphMetadata,gl
   if left = 0 then 0 else let val errors=row(b,h,m,glyphs,o,at) val count=ot_fixture_read16(o,iadd(at,4))
   in errors+rows(left-1,b,h,m,glyphs,o,iadd(at,iadd(6,imul(count,2)))) end
 fun gdef(b: !Buf,info: SfntInfo): OtChild = case+ sfnt_table(b,info.tables,TableGdef()) of
-  | NoSfntTable() => @{kind=ChildMissing(),span= @{offset=0,length=0}} | HasSfntTable(s) => @{kind=ChildPresent(),span=s}
+  | ~NoSfntTable() => @{kind=ChildMissing(),span= @{offset=0,length=0}} | ~HasSfntTable(s) => @{kind=ChildPresent(),span=s}
 fun checked(b: !Buf,info: SfntInfo,h: OtLayoutInfo,s: string): int = case+ glyph_metadata_parse(b,gdef(b,info),3,info.glyphs) of
   | ~GlyphMetadataRejected(e) => 1 | ~GlyphMetadataAccepted(m) => let val o=ot_fixture_words(s)
     val errors=rows(airlock_nat(ot_fixture_read16(o,0)),b,h,m,info.glyphs,o,2)
     val ()=buf_free(o) and ()=glyph_metadata_dispose(m)
   in errors end
 fun face(f: !SfntFace,s: string): int = let val+ SfntFace(b,info)=f in case+ sfnt_table(b,info.tables,TableGsub()) of
-  | NoSfntTable() => 1 | HasSfntTable(span) => case+ ot_layout_header_parse(b,span) of
+  | ~NoSfntTable() => 1 | ~HasSfntTable(span) => case+ ot_layout_header_parse(b,span) of
     | ~HeaderRejected(e) => 1 | ~HeaderAccepted(h) => checked(b,info,h,s) end
 fun font(path: string,s: string): int = case+ sfnt_open(path) of | ~RejectedSfnt(e) => 1
   | ~LoadedSfnt(f) => let val errors=face(f,s) val ()=sfnt_dispose(f) in errors end

@@ -9,11 +9,11 @@ staload "data_font/sfnt/sfnt.sats"
 staload "font/resources/font_fixture.sats"
 
 fun rejects(b: !Buf): int = case+ sfnt_parse(b) of
-  | InvalidSfnt(error) => 0 | ValidSfnt(info) => 1
+  | ~InvalidSfnt(error) => 0 | ~ValidSfnt(info) => 1
 
 fun mapping(b: !Buf, supplementary: int): int = case+ sfnt_parse(b) of
-  | InvalidSfnt(error) => 1
-  | ValidSfnt(info) => let
+  | ~InvalidSfnt(error) => 1
+  | ~ValidSfnt(info) => let
       val m = sfnt_metrics(b,info,1)
       val tail = sfnt_metrics(b,info,2)
       val ok = ieq(sfnt_map(b,info,65),1) andalso ieq(sfnt_map(b,info,128512),supplementary)
@@ -79,6 +79,11 @@ fun range_mapping(): int = let
   val () = buf_free(b)
 in result end
 
+fun missing_source(): int = case+ sfnt_open("") of
+  | ~LoadedSfnt(face) => let val ()=sfnt_dispose(face) in 1 end
+  | ~RejectedSfnt(error) => (case+ error.kind of
+    | SfntReadError() => if ine(error.code,0) then 0 else 1 | _ => 1)
+
 fun run(): int = let
   val good = valid_maps()
   val malformed = invalid_cases()
@@ -86,6 +91,6 @@ fun run(): int = let
   val range = range_mapping()
   val () = println!("event=sfnt_conformance mapping_errors=",good,
     " malformed_errors=",malformed," truncation_errors=",short," range_errors=",range)
-in good + malformed + short + range end
+in good + malformed + short + range + missing_source() end
 
 implement main0() = if igt(run(),0) then exit(1) else ()

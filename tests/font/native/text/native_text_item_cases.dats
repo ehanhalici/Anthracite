@@ -10,7 +10,7 @@ in b end
 fun boundary(a: !NativeTextAnalysis,index: int): bool =
   ieq(index,native_text_analysis_count(a)) orelse native_text_analysis_grapheme(a,index)
 fun member(a: !NativeTextAnalysis,item: NativeTextItem,index: int): bool = let
-  val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes)=a
+  val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes,source_length)=a
   val script=native_text_analysis_script(a,index)
   val key=not(native_text_analysis_grapheme(a,index)) orelse
     (ieq(script.code,item.script.code) andalso ieq(native_text_analysis_level(a,index),item.level))

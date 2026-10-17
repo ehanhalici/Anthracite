@@ -17,10 +17,11 @@ in
     val pos=if target.found then target.start else ~1
   in
     if ige(pos, 0) then let
+      val () = doc_reveal(d,pos)
       val () = doc_set_caret_move(d, pos)
       val line = doc_line_of(d, pos)
       val () = doc_request_jump(d,line)
-      val () = doc_set_flash(d, line, mono_ns() + 1000000000L)
+      val () = doc_set_flash(d, line, mono_ns() + UI_NAVIGATION_FLASH_NS)
       val ly = doc_line_y(d, line)
     in
       imax(0, isub(ly, 350))

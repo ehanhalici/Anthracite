@@ -21,16 +21,16 @@ implement font_text_metrics_dispose(m) = let val+ ~FontTextMetrics(arena,table,c
 fun slot_key(k: FontTextMetricKey,i: int): FontTextMetricKey =
   @{length=k.length,px=k.px,primary=k.primary,fallback=k.fallback,primaryGeneration=k.primaryGeneration,
     fallbackGeneration=k.fallbackGeneration,bucket=i}
-fun find{n:nat} .<n>. (left: int(n),table: !Buf,arena: !Buf,b: !Buf,k: FontTextMetricKey,i: int): Option(int) =
-  if left = 0 then None() else
-    if font_text_metric_matches(table,arena,b,slot_key(k,i)) then Some(i)
+fun find{n:nat} .<n>. (left: int(n),table: !Buf,arena: !Buf,b: !Buf,k: FontTextMetricKey,i: int): Option_vt(int) =
+  if left = 0 then None_vt() else
+    if font_text_metric_matches(table,arena,b,slot_key(k,i)) then Some_vt(i)
     else find(left-1,table,arena,b,k,iadd(i,1))
 implement font_text_metrics_lookup(m,f,b,n,px) =
-  if ilt(n,0) orelse igt(n,buf_cap(b)) then None() else let
+  if ilt(n,0) orelse igt(n,buf_cap(b)) then None_vt() else let
     val+ FontTextMetrics(arena,table,cursor)=m val k=font_text_metric_key(f,b,n,px)
   in case+ find(airlock_nat(4),table,arena,b,k,imul(k.bucket,4)) of
-    | Some(i) => Some(buf_get32(table,iadd(imul(i,9),8)))
-    | None() => let val ()=trace(k) in None() end end
+    | ~Some_vt(i) => Some_vt(buf_get32(table,iadd(imul(i,9),8)))
+    | ~None_vt() => let val ()=trace(k) in None_vt() end end
 fun record(t: !Buf,k: FontTextMetricKey,offset: int,value: int): void = let val o=imul(k.bucket,9)
   val ()=buf_set32(t,iadd(o,1),offset) val ()=buf_set32(t,iadd(o,2),k.length)
   val ()=buf_set32(t,iadd(o,3),k.px) val ()=buf_set32(t,iadd(o,4),k.primaryGeneration)
@@ -44,7 +44,7 @@ fun vacant{n:nat} .<n>. (left: int(n),table: !Buf,i: int,victim: int): int =
   if left = 0 then victim else if ieq(buf_get32(table,imul(i,9)),0) then i else vacant(left-1,table,iadd(i,1),victim)
 fun admission(t: !Buf,arena: !Buf,b: !Buf,k: FontTextMetricKey,cursor: int): FontTextMetricKey = let val base=imul(k.bucket,4)
   val i=case+ find(airlock_nat(4),t,arena,b,k,base) of
-    | Some(i) => i | None() => vacant(airlock_nat(4),t,base,iadd(base,imod(cursor,4)))
+    | ~Some_vt(i) => i | ~None_vt() => vacant(airlock_nat(4),t,base,iadd(base,imod(cursor,4)))
 in slot_key(k,i) end
 fun insert(m: &FontTextMetrics >> FontTextMetrics,f: !Font,b: !Buf,n: int,px: int,value: int): void = let
   val+ ~FontTextMetrics(arena,table,cursor)=m

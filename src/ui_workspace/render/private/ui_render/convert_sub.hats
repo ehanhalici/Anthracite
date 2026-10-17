@@ -5,15 +5,7 @@ fun convert_sub(d: !Doc, p: int, en: int, out: &Buf >> _): int =
     val () = convert_sub_run_with_fuel(airlock_nat(MAX_REC_FUEL), d, iadd(p, 1), close, out)
   in
     if ilt(close, en) then iadd(close, 1) else close
-  end else let
-    val b = doc_byte(d, p)
-    val s = math_char_to_sub(b)
-    val () = if igt(c_strlen(s), 0) then buffer_append_string(out, s) else (buffer_append_string(out, "_"); buf_push(out, b))
-  in
-    iadd(p, 1)
-  end
-
-extern fun math_latex_to_buf(d: !Doc, st: int, en: int, out: &Buf >> _): void
+  end else math_script_scalar(d,p,en,out,false)
 
 fun convert_frac(d: !Doc, p: int, en: int, out: &Buf >> _): int = let
   val p0 = math_skip_sp(d, p, en)
@@ -25,9 +17,9 @@ in
     if ilt(p1, en) andalso ieq(doc_byte(d, p1), CHAR_LBRACE) then let
       val c2 = find_brace_close(d, iadd(p1, 1), en)
       val () = buffer_append_string(out, "(")
-      val () = math_latex_to_buf(d, iadd(p0, 1), c1, out)
+      val () = math_append_preview(d, iadd(p0, 1), c1, out)
       val () = buffer_append_string(out, ") / (")
-      val () = math_latex_to_buf(d, iadd(p1, 1), c2, out)
+      val () = math_append_preview(d, iadd(p1, 1), c2, out)
       val () = buffer_append_string(out, ")")
     in
       if ilt(c2, en) then iadd(c2, 1) else c2
@@ -42,7 +34,7 @@ in
   if ilt(p0, en) andalso ieq(doc_byte(d, p0), CHAR_LBRACE) then let
     val c = find_brace_close(d, iadd(p0, 1), en)
     val () = buffer_append_string(out, "(")
-    val () = math_latex_to_buf(d, iadd(p0, 1), c, out)
+    val () = math_append_preview(d, iadd(p0, 1), c, out)
     val () = buffer_append_string(out, ")")
   in
     if ilt(c, en) then iadd(c, 1) else c
@@ -78,7 +70,7 @@ in
   end else p
 end
 
-fun math_latex_to_buf_with_fuel {recfuel:nat} .<recfuel>. (
+fun math_append_preview_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int, out: &Buf >> _
 ): void =
   if recursion_fuel_available(recfuel) then (
@@ -87,19 +79,19 @@ fun math_latex_to_buf_with_fuel {recfuel:nat} .<recfuel>. (
       val b = doc_byte(d, p)
     in
       if ieq(b, 92) then
-        math_latex_to_buf_with_fuel(recfuel - 1, d, convert_cmd(d, iadd(p, 1), en, out), en, out)
+        math_append_preview_with_fuel(recfuel - 1, d, convert_cmd(d, iadd(p, 1), en, out), en, out)
       else if ieq(b, 94) then
-        math_latex_to_buf_with_fuel(recfuel - 1, d, convert_sup(d, iadd(p, 1), en, out), en, out)
+        math_append_preview_with_fuel(recfuel - 1, d, convert_sup(d, iadd(p, 1), en, out), en, out)
       else if ieq(b, 95) then
-        math_latex_to_buf_with_fuel(recfuel - 1, d, convert_sub(d, iadd(p, 1), en, out), en, out)
+        math_append_preview_with_fuel(recfuel - 1, d, convert_sub(d, iadd(p, 1), en, out), en, out)
       else if ieq(b, 123) orelse ieq(b, 125) then
-        math_latex_to_buf_with_fuel(recfuel - 1, d, iadd(p, 1), en, out)
-      else (buf_push(out, b); math_latex_to_buf_with_fuel(recfuel - 1, d, iadd(p, 1), en, out))
+        math_append_preview_with_fuel(recfuel - 1, d, iadd(p, 1), en, out)
+      else (buf_push(out, b); math_append_preview_with_fuel(recfuel - 1, d, iadd(p, 1), en, out))
     end
   ) else ()
 
-implement math_latex_to_buf(d, st, en, out) =
-  math_latex_to_buf_with_fuel(airlock_nat(MAX_REC_FUEL), d, st, en, out)
+implement math_append_preview(d, st, en, out) =
+  math_append_preview_with_fuel(airlock_nat(MAX_REC_FUEL), d, st, en, out)
 
 fun mathb_slice_bounds(d: !Doc, i: int): @(int, int) = let
   val a = doc_node_start(d, i)
@@ -118,7 +110,7 @@ fun draw_node_mathb(
   val () = pen_x := colx
   val @(st, en) = mathb_slice_bounds(d, i)
   var mb = buf_make(DRAW_NODE_MATHB_BUFFER_INITIAL_BYTES)
-  val () = math_latex_to_buf(d, st, en, mb)
+  val () = math_append_preview(d, st, en, mb)
   val mlen = buf_len(mb)
   val tw = font_width_buf(f, r, mb, mlen)
   val colw = column_w(pw)
@@ -157,7 +149,7 @@ fun draw_leaf_math_inline(
 ): void = let
   val () = seen_buf(scratch)
   var mb = buf_make(DRAW_LEAF_MATH_INLINE_BUFFER_INITIAL_BYTES)
-  val () = math_latex_to_buf(d, st, en, mb)
+  val () = math_append_preview(d, st, en, mb)
   val mlen = buf_len(mb)
   val line = doc_line_of(d, st)
   val pl_line = pen_unpack_line(pen_line)

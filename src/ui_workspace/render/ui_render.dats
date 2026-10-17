@@ -2,6 +2,7 @@
 #include "share/atspre_define.hats"
 #include "share/atspre_staload.hats"
 #include "common.hats"
+#include "data_text/utf8/utf8_encoding.hats"
 (* Initial allocation policy; capacities are measured in bytes. *)
 macdef EMBEDDED_HEIGHT_ANCHOR_INITIAL_BYTES = 8
 macdef BIND_ONE_REL_INITIAL_BYTES = 8
@@ -42,6 +43,7 @@ staload "ui_workspace/embed/embedded_doc.sats"
 staload "ui_workspace/widgets/ui_widgets.sats"
 staload "data_ast/layout/doc_visual.sats"
 staload "data_ast/layout/visual_rows.sats"
+staload "data_ast/layout/doc_geometry.sats"
 staload "data_ast/layout/layout_internal.sats"
 staload "ui_workspace/visual/visual_layout.sats"
 staload "ui_workspace/visual/visual_paint.sats"
@@ -60,8 +62,11 @@ macdef MAX_EMBED_DEPTH = 8
 
 
 (* Private implementation groups share this owner and its linear representation. *)
+#include "ui_workspace/render/private/ui_render/embed_work.hats"
 #include "ui_workspace/render/private/ui_render/anth_ui_caret_adv.hats"
 #include "ui_workspace/render/private/ui_render/doc_buf_push_slice.hats"
+#include "ui_workspace/render/private/ui_render/embed_view_cache.hats"
+#include "ui_workspace/render/private/ui_render/embed_visible_pins.hats"
 #include "ui_workspace/render/private/ui_render/embed_document_cache.hats"
 #include "ui_workspace/render/private/ui_render/image_slice_size.hats"
 #include "ui_workspace/render/private/ui_render/bind_mathb_height.hats"

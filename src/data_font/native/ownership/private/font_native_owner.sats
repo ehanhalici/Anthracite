@@ -16,9 +16,9 @@ fun font_native_current(f: !Font,face: FontGlyphFace): FontNativeToken
 fun font_native_slot_shape(slot: &Option_vt(NativeShapeCache) >> _,b: !Buf,info: SfntInfo,
   assets: !NativeTextAssets,a: !NativeTextAnalysis,contexts: !NativeTextContexts,item: NativeTextItem,
   token: FontNativeToken,language: OtShapeLanguage,masks: OtShapeMasks,scale: NativeShapeScale): FontNativeRead
-fun font_native_primary_shape(slot: &Option_vt(NativeShapeCache) >> _,b: !Buf,info: Option(SfntInfo),
+fun font_native_primary_shape(slot: &Option_vt(NativeShapeCache) >> _,b: !Buf,info: SfntMetadata,
   assets: !NativeTextAssets,a: !NativeTextAnalysis,contexts: !NativeTextContexts,item: NativeTextItem,
   token: FontNativeToken,language: OtShapeLanguage,masks: OtShapeMasks,scale: NativeShapeScale): FontNativeRead
-fun font_native_fallback_shape(slot: &Option_vt(NativeShapeCache) >> _,b: &Option_vt(Buf) >> _,info: Option(SfntInfo),
+fun font_native_fallback_shape(slot: &Option_vt(NativeShapeCache) >> _,b: &Option_vt(Buf) >> _,info: SfntMetadata,
   assets: !NativeTextAssets,a: !NativeTextAnalysis,contexts: !NativeTextContexts,item: NativeTextItem,
   token: FontNativeToken,language: OtShapeLanguage,masks: OtShapeMasks,scale: NativeShapeScale): FontNativeRead

@@ -19,8 +19,8 @@ fun active(f: !Font,r: !Rend,session: &FontTextSession >> FontTextSession,b: !Bu
   val+ ~FontTextSession(assets,old,primary,fallback,metrics)=session var cache: Option_vt(FontTextCache)=old val px=font_get_px(f)
   val options: FontSpanOptions= @{primary=primary,fallback=fallback,scale= @{xPpem=px,yPpem=px}}
   val prepared=font_text_cache_prepare(cache,f,assets,b,length,options)
-  val result=case+ prepared of
-    | ~Some_vt(error) => FontTextFailed(error) | ~None_vt() => rendered(f,r,cache,x,y,color)
+  val result=(case+ prepared of
+    | ~Some_vt(error) => FontTextFailed(error) | ~None_vt() => rendered(f,r,cache,x,y,color)): FontTextResult
   val ()=session := FontTextSession(assets,cache,primary,fallback,metrics)
 in result end
 fun session_draw(f: !Font,r: !Rend,state: &Option_vt(FontTextSession) >> _,b: !Buf,length: int,x: double,y: double,color: uint): FontTextResult =

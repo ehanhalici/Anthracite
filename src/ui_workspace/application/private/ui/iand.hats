@@ -9,6 +9,7 @@ fun plat_reply_buf(p: !Plat, ev: &event, data: !Buf, n: int): void =
 fun ev_text_buf(ev: &event, dst: !Buf, n: int): int =
   ev_text(ev, buf_ptr(dst), n)
 
+typedef SearchDocumentStamp = @{document=ptr,generation=int}
 vtypedef App_record = @{
   vault= Buf, tabs= Tabs, cache= Cache,
   active= int, righti= int, split= Toggle, focus= Toggle, side= Sidebar, fontpx= int,
@@ -19,18 +20,22 @@ vtypedef App_record = @{
   ixf= Buf, ixs= Buf, ixp= Buf, ixb= Buf, ixq= Buf, hjump= Buf,
   jump_line= int, jump_col= int, jump_fid= int,
   scope= int, hscroll= int, search_state= int, search_nfiles= int,
+  search_pattern= Option_vt(LiteralPattern), search_cursor= int, search_document= int,
+  search_source= SearchDocumentStamp,
+  search_skipped= bool, search_catalog_ready= bool, search_layout= SearchGeometry,
   sel= int, treedirty= Toggle, paste= Toggle, hitk= NodeKind, hiti= int, downx= int, downy= int,
   scratch= Buf, imgpath= Buf, viewmode= ViewMode, font_idx= int,
   fpaths= Buf, fnames= Buf, fmeta= Buf, fcnt= int, font_path= Buf,
   vault_select= Toggle, vpaths= Buf, vnames= Buf, vmeta= Buf, vcnt= int,
   hoverx= int, hovery= int, sidew= int, btnw= int, modew= int, menuw= int,
   preview_tab= int, last_tree_row= int, last_tree_time= lint,
-  tab_pane= Buf, open_dirs= Buf, flash_line= int, flash_until_ns= lint,
+  tab_pane= Buf, open_dirs= Buf, selected_search_row= int, flash_until_ns= lint,
   fsm= EditorState
 }
 datavtype App_ = APP of App_record
 (* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
 assume App = App_
+extern fun search_job_clear(s: &App_record >> _): void
 
 datatype DownZone = DownMenu | DownResize | DownTopbar | DownSidebar | DownEditor
 

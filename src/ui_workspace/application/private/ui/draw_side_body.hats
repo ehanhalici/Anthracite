@@ -1,5 +1,5 @@
 fun draw_side_body(f: !Font, r: !Rend, s: &App_record, h: int): void =
-  if is_side_search(s.side) then draw_sidebar_search(f, r, s, s.sidew)
+  if is_side_search(s.side) then draw_sidebar_search(f, r, s, s.sidew,h)
   else if is_side_files(s.side) then draw_sidebar_files(f, r, s, s.sidew, h)
   else draw_sidebar_config(f, r, s)
 
@@ -7,7 +7,7 @@ fun draw_side(f: !Font, r: !Rend, a: !App, h: int): void =
   case+ a of
   | @APP(s) => let
       val () = draw_side_frame(r, s.sidew, h)
-      val () = draw_side_title(f, r, s.side)
+      val () = if is_side_search(s.side) then () else draw_side_title(f, r, s.side)
       val () = ensure_tree_fresh(s)
       val () = draw_side_body(f, r, s, h)
       val () = rend_clip_pop(r)
@@ -164,7 +164,8 @@ fun draw_editor_panes(f: !Font, r: !Rend, s: &App_record >> _, ox: int, half: in
   val tab_x0 = topbar_tab_start_x(s.btnw)
   val ts0 = s.tabs
   val () = s.tabs := TNil()
-  val ts = apply_jump_if(ts0, s.active, s.jump_line, s.jump_col)
+  val ts = apply_jump_if(ts0, pane_of(s.focus,s.active,s.righti), s.jump_line, s.jump_col)
+  val () = if ige(s.jump_line,0) then s.flash_until_ns := mono_ns()+UI_NAVIGATION_FLASH_NS else ()
   val () = if ige(s.jump_line, 0) then (s.jump_line := ~1; s.jump_col := ~1) else ()
   val mid = iadd(ox, half)
   val bx = topbar_mode_btn_x(w, s.modew)
@@ -198,4 +199,3 @@ fun load_font_if_needed(f: !Font, s: &App_record): void =
   in
     ()
   end else ()
-

@@ -14,6 +14,10 @@ target_link_libraries(document_performance PRIVATE anthracite_host native_text_e
   ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
 add_executable(performance_counter_contracts EXCLUDE_FROM_ALL tests/performance/performance_counter_contracts.c)
 add_test(NAME performance_counter_contracts COMMAND performance_counter_contracts)
+add_test(NAME performance_summary_contracts COMMAND python3 "${CMAKE_SOURCE_DIR}/tests/performance/test_summarize.py")
+add_test(NAME font_temporary_ownership_type_error COMMAND "${CMAKE_COMMAND}"
+  "-DPATSOPT=${ANTHRACITE_OT_PATSOPT}" "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
+  -P "${CMAKE_SOURCE_DIR}/tests/contracts/expect_font_temporary_error.cmake")
 anthracite_contract_test(fold_scaling_contracts tests/performance/fold_scaling_contracts.dats)
 target_link_libraries(fold_scaling_contracts PRIVATE anthracite_host native_text_engine
   ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
@@ -22,6 +26,10 @@ anthracite_contract_test(anchor_contracts tests/workspace/anchor_contracts.dats)
 target_link_libraries(anchor_contracts PRIVATE anthracite_host native_text_engine
   ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
 add_test(NAME anchor_contracts COMMAND anchor_contracts)
+anthracite_contract_test(math_preview_contracts tests/workspace/math_preview_contracts.dats)
+target_link_libraries(math_preview_contracts PRIVATE anthracite_host native_text_engine
+  ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
+add_test(NAME math_preview_contracts COMMAND math_preview_contracts)
 
 anthracite_contract_test(selftest_memory_contracts tests/runtime/selftest_memory_contracts.dats)
 target_link_libraries(selftest_memory_contracts PRIVATE anthracite_host native_text_engine

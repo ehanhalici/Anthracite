@@ -30,6 +30,13 @@ kaydıdır; belgede yeni bir `GlyphMetric` uygulaması varmış gibi gösterilme
 denetler. Özel sahiplik sözleşmeleri ilgili grupların `private` bölümündedir.
 `Font` temsili ve özel uygulama grupları aynı çeviri biriminde kalır.
 
+GC'siz metadata/sonuç politikası: `SfntInfo` ve cmap, Font'un birincil/fallback
+slotlarında düz `SfntMetadata` kayıtlarıyla saklanır; aynı kaydı kopyalamak
+sahiplik veya tahsis üretmez. SFNT ayrıştırma/tablo, compound glif ve metin
+servisi sonuçları lineerdir ve eşleşirken tüketilir. OpenType feature parametreleri
+doğrulamadan sonra `ot_feature_params_dispose` ile bırakılır. Paint/hit/graph
+istekleri düz kayıttır; kare/glif başına GC'siz kutu biriktirmez.
+
 ## Testler
 
 [Font testleri](../tests/font) SFNT/cmap/compound glif, OpenType tabloları,

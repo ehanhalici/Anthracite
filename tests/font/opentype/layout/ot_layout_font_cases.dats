@@ -41,7 +41,7 @@ fun features{kind:int}(b: !Buf,t: !OtLayoutTable(kind,0),font: LayoutTestFont,do
   in errors end
 fun table{kind:int}(b: !Buf,info: SfntInfo,tag: SfntTable,domain: OtLayoutDomain(kind),
   caps: OtGdefCapabilities,font: LayoutTestFont): int = case+ sfnt_table(b,info.tables,tag) of
-  | NoSfntTable() => 1 | HasSfntTable(s) => case+ ot_layout_parse(b,s,domain,caps) of
+  | ~NoSfntTable() => 1 | ~HasSfntTable(s) => case+ ot_layout_parse(b,s,domain,caps) of
     | ~LayoutRejected(e) => let
       val ()=println!("event=ot_layout_font_rejected table_offset=",s.offset," error_offset=",e.offset)
     in 1 end
@@ -63,8 +63,8 @@ fun classes(b: !Buf,info: SfntInfo,h: GdefHeaderInfo,font: LayoutTestFont): int 
   case+ gdef_classes_parse(b,h,info.glyphs) of
   | ~GdefClassRejected(e) => 1 | ~GdefClassAccepted(c) => marks(b,info,h,c,font)
 fun gdef(b: !Buf,info: SfntInfo,font: LayoutTestFont): int = case+ sfnt_table(b,info.tables,TableGdef()) of
-  | NoSfntTable() => tables(b,info,@{classes=false,attachments=false,markSets=0},font)
-  | HasSfntTable(s) => case+ gdef_header_parse(b,s) of
+  | ~NoSfntTable() => tables(b,info,@{classes=false,attachments=false,markSets=0},font)
+  | ~HasSfntTable(s) => case+ gdef_header_parse(b,s) of
     | ~GdefHeaderRejected(e) => 1 | ~GdefHeaderAccepted(h) => classes(b,info,h,font)
 fun face(face: !SfntFace,font: LayoutTestFont): int = let val+ SfntFace(b,info)=face in gdef(b,info,font) end
 implement layout_test_font(path,font) = case+ sfnt_open(path) of

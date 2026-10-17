@@ -4,3 +4,5 @@ GRTAGS
 GTAGS
 fonts/*
 .idea/*
+__pycache__/
+*.py[cod]

@@ -60,7 +60,7 @@ fun reference(b: !Buf,info: OtLayoutInfo,glyphs: int): int = let
   val ()=buf_free(oracle)
 in errors end
 fun gsub(b: !Buf,info: SfntInfo): int = case+ sfnt_table(b,info.tables,TableGsub()) of
-  | NoSfntTable() => 1 | HasSfntTable(s) => case+ ot_layout_header_parse(b,s) of
+  | ~NoSfntTable() => 1 | ~HasSfntTable(s) => case+ ot_layout_header_parse(b,s) of
     | ~HeaderRejected(e) => 1 | ~HeaderAccepted(h) =>
       if not(ot_rows_fit(h.lookups,2,h.lookupCount,2)) then 1 else reference(b,h,info.glyphs)
 fun face(face: !SfntFace): int = let val+ SfntFace(b,info)=face in gsub(b,info) end

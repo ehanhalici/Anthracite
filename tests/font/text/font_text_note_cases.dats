@@ -5,13 +5,13 @@ staload "data_font/text/private/font_text_dispatch.sats"
 staload "data_text/source/text_source.sats"
 extern fun note_fuel_failed(): int = "mac#anth_die_int"
 fun drawn(result: FontTextResult,width: int): int = case+ result of
-  | FontTextValue(actual) => if ieq(actual,width) then 0 else 1
-  | FontTextInactive() => 1 | FontTextFailed(error) => 1
+  | ~FontTextValue(actual) => if ieq(actual,width) then 0 else 1
+  | ~FontTextInactive() => 1 | ~FontTextFailed(error) => 1
 fun line(f: !Font,r: !Rend,source: !Buf,start: int,finish: int,index: int): int = let
   val n=isub(finish,start) val b=font_text_slice_source(source,start,n)
   val errors: int=case+ font_text_width(f,b,n) of
-    | FontTextInactive() => 1 | FontTextFailed(error) => 1
-    | FontTextValue(width) => drawn(font_text_draw(f,r,b,n,20,300,0xFFFFFFFFu),width)
+    | ~FontTextInactive() => 1 | ~FontTextFailed(error) => 1
+    | ~FontTextValue(width) => drawn(font_text_draw(f,r,b,n,20,300,0xFFFFFFFFu),width)
   val ()=if ine(errors,0) then println!("event=native_note_line line=",iadd(index,0)," errors=",iadd(errors,0)) else ()
   val ()=buf_free(b)
 in errors end

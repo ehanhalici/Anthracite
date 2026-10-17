@@ -71,11 +71,11 @@ implement clear_atlas(f) =
 
 
 fun optional_offset(table: SfntOptional): int = case+ table of
-  | NoSfntTable() => ~1 | HasSfntTable(span) => span.offset
+  | ~NoSfntTable() => ~1 | ~HasSfntTable(span) => span.offset
 
 implement install_face_tables(f, info) = case+ f of
   | @FONT(s) => let
-      val () = s.info := Some(info)
+      val () = s.info := @{present=true,info=info}
       val () = s.cmap_off := optional_offset(sfnt_table(s.file,info.tables,TableCmap()))
       val () = s.glyf_off := info.glyf.offset
       val () = s.loca_off := info.loca.offset
@@ -139,7 +139,7 @@ implement install_fallback(f, b, info) = case+ f of
       val cmap = optional_offset(sfnt_table(b,info.tables,TableCmap()))
       val kern = optional_offset(sfnt_table(b,info.tables,TableKern()))
       val old = s.fb_file; val () = s.fb_file := Some_vt(b)
-      val () = s.fb_info := Some(info)
+      val () = s.fb_info := @{present=true,info=info}
       val () = s.fb_units := info.units
       val () = s.fb_loca_fmt := toggle_of(info.long_loca)
       val () = s.fb_cmap := cmap
@@ -173,7 +173,7 @@ implement drop_tex(f) =
 
 implement cmap_gid(f, cp) = case+ f of
   | @FONT(s) => let
-      val gid = case+ s.info of | None() => 0 | Some(info) => sfnt_map(s.file,info,cp)
+      val gid = if s.info.present then sfnt_map(s.file,s.info.info,cp) else 0
     in fold@(f); gid end
 
 implement loca_at(f, gid) = let
@@ -187,8 +187,8 @@ end
 
 implement hmtx_adv(f, gid) = case+ f of
   | @FONT(s) => let
-      val advance = case+ s.info of
-        | None() => 0 | Some(info) => let val metric = sfnt_metrics(s.file,info,gid) in metric.advance end
+      val advance = if s.info.present then let val metric = sfnt_metrics(s.file,s.info.info,gid)
+        in metric.advance end else 0
     in fold@(f); advance end
 
 
@@ -204,4 +204,3 @@ implement pt_set(f, i, x, y, on) = let
       end
 in
 end
-

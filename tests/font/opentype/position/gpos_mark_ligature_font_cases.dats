@@ -55,7 +55,7 @@ fun reference(b: !Buf,h: OtLayoutInfo,glyphs: int,which: TestFace): int = let
 in errors end
 fun face(f: !SfntFace,which: TestFace): int = let val+ SfntFace(b,info)=f in
   case+ sfnt_table(b,info.tables,TableGpos()) of
-  | NoSfntTable() => 1 | HasSfntTable(s) => case+ ot_layout_header_parse(b,s) of
+  | ~NoSfntTable() => 1 | ~HasSfntTable(s) => case+ ot_layout_header_parse(b,s) of
     | ~HeaderRejected(e) => 1 | ~HeaderAccepted(h) => reference(b,h,info.glyphs,which) end
 fun loaded(path: string,which: TestFace): int = case+ sfnt_open(path) of
   | ~RejectedSfnt(e) => 1 | ~LoadedSfnt(f) => let val errors=face(f,which) val ()=sfnt_dispose(f) in errors end

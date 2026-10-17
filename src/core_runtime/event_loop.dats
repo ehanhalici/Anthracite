@@ -70,10 +70,13 @@ in
   frame_trace(started)
 end
 
+fun frame_draw_if_needed(p: !Plat,a: !App,f: !Font,r: !Rend,dirty: Repaint): void =
+  if app_work_pending(a) then frame_present(p,a,f,r)
+  else case+ dirty of | RepaintClean() => () | RepaintNeeded() => frame_present(p,a,f,r)
 fun frame_draw(p: !Plat, a: !App, f: !Font, r: !Rend, loaded: bool,dirty: Repaint): bool = let
   val loaded2 = if not(loaded) then workspace_font_start(f) else loaded
-  val () = case+ dirty of | RepaintClean() => () | RepaintNeeded() => frame_present(p,a,f,r)
-  val () = seen_int(plat_wait(p, ~1))
+  val () = frame_draw_if_needed(p,a,f,r,dirty)
+  val () = seen_int(plat_wait(p, if app_work_pending(a) then 0 else app_idle_wait(a)))
 in
   loaded2
 end
@@ -92,7 +95,7 @@ fun frame_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, 
 fun first_frame(p: !Plat,a: !App,f: !Font,r: !Rend): void = let
   val ()=frame_present(p,a,f,r)
   val ()=println!("event=workspace_frame status=presented")
-in seen_int(plat_wait(p,~1)) end
+in seen_int(plat_wait(p,if app_work_pending(a) then 0 else app_idle_wait(a))) end
 
 implement event_loop_run(p, a, f, r, loaded) = let val initial=drain(p,a,f,r)
 in if is_off(plat_running(p)) then () else let

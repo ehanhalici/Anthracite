@@ -16,14 +16,14 @@ fun bytes(s: string): Buf = let val n=c_strlen(s) val b=buf_make(n)
   val ()=copy(airlock_nat(n),s,b,0) val ()=buf_set_len(b,n)
 in b end
 fun value(result: FontTextResult,expected: int): int = case+ result of
-  | FontTextValue(actual) => if ieq(actual,expected) then 0 else 1
-  | FontTextInactive() => 1 | FontTextFailed(error) => 1
+  | ~FontTextValue(actual) => if ieq(actual,expected) then 0 else 1
+  | ~FontTextInactive() => 1 | ~FontTextFailed(error) => 1
 fun enabled(result: FontTextEnable): bool = case+ result of
-  | FontTextEnabled() => true | FontTextAlreadyEnabled() => false | FontTextAssetsFailed(e) => false
+  | ~FontTextEnabled() => true | ~FontTextAlreadyEnabled() => false | ~FontTextAssetsFailed(e) => false
 fun repeated(result: FontTextEnable): int = case+ result of
-  | FontTextAlreadyEnabled() => 0 | FontTextEnabled() => 1 | FontTextAssetsFailed(e) => 1
+  | ~FontTextAlreadyEnabled() => 0 | ~FontTextEnabled() => 1 | ~FontTextAssetsFailed(e) => 1
 fun missing(result: FontTextEnable): int = case+ result of
-  | FontTextAssetsFailed(e) => 0 | FontTextEnabled() => 1 | FontTextAlreadyEnabled() => 1
+  | ~FontTextAssetsFailed(e) => 0 | ~FontTextEnabled() => 1 | ~FontTextAlreadyEnabled() => 1
 fun key{b:bool}(state: !option_vt(FontTextSession,b)): int = case+ state of
   | None_vt() => ~1 | Some_vt(session) => let val+ FontTextSession(assets,cache,primary,fallback,metrics)=session
     in case+ cache of | None_vt() => ~1 | Some_vt(c) => let val+ FontTextCache(source,layout,px,tail)=c
@@ -68,8 +68,8 @@ in iadd(missing(error),if font_text_active(f) then 1 else 0) end
 fun loaded(f: !Font,r: !Rend): int = let
   val primary=font_use_file(f,c_argv(3)) and fallback=font_use_fallback_file(f,c_argv(4)) val ()=font_set_px(f,16)
   val location: NativeAssetLocation= @{generated=c_argv(5),source=c_argv(6)}
-  val errors=failed(f) val ready=font_text_enable(f,location)
-in if primary andalso fallback andalso enabled(ready) then errors+shared(f,r)+changed(f)+scaled(f,r)
+  val errors=failed(f) val ready=enabled(font_text_enable(f,location))
+in if primary andalso fallback andalso ready then errors+shared(f,r)+changed(f)+scaled(f,r)
   +repeated(font_text_enable(f,location))+native_text_note_cases(f,r)+tabs(f,r)+directions(f)
   +native_text_cache_cases(f)+native_event_repaint_cases()+native_text_metrics_cases(f)+native_visual_layout_cases(f,r)
   +native_source_edit_cases(f) else errors+1 end

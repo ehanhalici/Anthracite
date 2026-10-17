@@ -310,7 +310,8 @@ fun reveal_loop_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !
       val k = doc_node_kind(d, i)
       val st = doc_node_start(d, i)
     in
-      if is_heading(k) andalso is_on(doc_node_collapsed(d, i)) andalso igt(off, st) then let
+      if is_on(doc_node_collapsed(d,i)) andalso ige(off,doc_node_fold_body_start(d,i))
+        andalso ilt(off,doc_node_fold_end(d,i)) then let
         val () = doc_toggle(d, i)
       in
         reveal_loop_with_fuel(recfuel - 1, d, iadd(i, 1), n, off)

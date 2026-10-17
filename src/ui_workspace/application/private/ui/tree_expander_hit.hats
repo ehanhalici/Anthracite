@@ -23,60 +23,67 @@ fun ensure_tree_fresh(s: &App_record >> _): void =
     s.treedirty := Off
   end else ()
 
-fun draw_search_plain_hit(f: !Font, r: !Rend, hits: !Buf, hmeta: !Buf, row: int, scroll: int): void = let
-  val vrow = isub(row, scroll)
-  val off = buf_get32(hmeta, iadd(imul(row, 4), 1))
-  val n = buf_get32(hmeta, iadd(imul(row, 4), 2))
-  val () = seen_int(hit_text(hits, off, n, f, r, 12, iadd(100, imul(vrow, 18)), col_accent()))
-in
-end
-
-fun draw_search_marked_hit(f: !Font, r: !Rend, hits: !Buf, hmeta: !Buf, row: int, scroll: int): void = let
-  val vrow = isub(row, scroll)
-  val moff = buf_get32(hmeta, imul(row, 4))
-  val off = buf_get32(hmeta, iadd(imul(row, 4), 1))
-  val n = buf_get32(hmeta, iadd(imul(row, 4), 2))
-  val ml = buf_get32(hmeta, iadd(imul(row, 4), 3))
-  val y = iadd(100, imul(vrow, 18))
-  val a1 = hit_text(hits, off, moff, f, r, 20, y, col_muted())
-  val a2 = hit_text(hits, iadd(off, moff), ml, f, r, iadd(20, a1), y, col_hightxt())
-  val () = seen_int(hit_text(hits, iadd(off, iadd(moff, ml)), isub(n, iadd(moff, ml)), f, r, iadd(20, iadd(a1, a2)), y, col_muted()))
-in
-end
-
-fun draw_search_row(f: !Font, r: !Rend, hits: !Buf, hmeta: !Buf, row: int, scroll: int): void =
-  if ilt(buf_get32(hmeta, imul(row, 4)), 0) then draw_search_plain_hit(f, r, hits, hmeta, row, scroll)
-  else draw_search_marked_hit(f, r, hits, hmeta, row, scroll)
-
-extern fun search_rows_fuel_exhausted(f: !Font, r: !Rend, s: &App_record, row: int, hn: int): void = "mac#anth_die_void"
-
-fun search_rows_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, s: &App_record, row: int, hn: int): void =
-  if recursion_fuel_available(recfuel) then (
-    if ilt(row, hn) andalso ilt(isub(row, s.hscroll), 30) then let
-      val () = if ige(row, s.hscroll) then draw_search_row(f, r, s.hits, s.hmeta, row, s.hscroll) else ()
-    in
-      search_rows_with_fuel(recfuel - 1, f, r, s, iadd(row, 1), hn)
-    end else ()
-  ) else search_rows_fuel_exhausted(f, r, s, row, hn)
+macdef SEARCH_LEFT_PIXELS = 8
+macdef SEARCH_CHILD_INDENT_PIXELS = 20
+fun search_relative_prefix{n:nat} .<n>. (left: int(n),text: !Buf,off: int,vault: !Buf,i: int): bool =
+  if left = 0 then true else ieq(buf_get(text,iadd(off,i)),buf_get(vault,i)) andalso search_relative_prefix(left-1,text,off,vault,iadd(i,1))
+fun draw_search_header(f: !Font,r: !Rend,s: &App_record,row: int,y: int): void = let
+  val at=imul(row,SEARCH_RESULT_WORDS) val off=buf_get32(s.hmeta,iadd(at,SEARCH_RESULT_TEXT))
+  val length=buf_get32(s.hmeta,iadd(at,SEARCH_RESULT_LENGTH)) val root=buf_len(s.vault)
+  val relative=igt(length,root) andalso search_relative_prefix(airlock_nat(root),s.hits,off,s.vault,0)
+  val skip=if relative then iadd(root,1) else 0 var label: Buf=buf_make(0)
+  val ()=buffer_append_range(label,s.hits,iadd(off,skip),iadd(off,length))
+  val ()=if ieq(length,0) then buffer_append_string(label,"Adsız belge") else ()
+  val expanded=if ilt(row,buf_len(s.ixq)) then ine(buf_get(s.ixq,row),1) else true
+  val g=s.search_layout
+  val ()=ui_cell(f,r,SEARCH_LEFT_PIXELS,y,isub(s.sidew,imul(2,SEARCH_LEFT_PIXELS)),g.rowHeight,0,On,
+    toggle_of(expanded),UI_ICON_FILE,buffer_c_string(label),"",Off,Off)
+in buf_free(label) end
+fun draw_search_match(f: !Font,r: !Rend,s: &App_record,row: int,y: int): void = let
+  val at=imul(row,SEARCH_RESULT_WORDS) val off=buf_get32(s.hmeta,iadd(at,SEARCH_RESULT_TEXT))
+  val length=buf_get32(s.hmeta,iadd(at,SEARCH_RESULT_LENGTH))
+  val match=imin(length,imax(0,buf_get32(s.hmeta,iadd(at,SEARCH_RESULT_MATCH))))
+  val count=imin(isub(length,match),imax(0,buf_get32(s.hmeta,iadd(at,SEARCH_RESULT_MATCH_LENGTH))))
+  val ()=if ieq(row,s.selected_search_row) then rend_rect(r,SEARCH_LEFT_PIXELS,y,
+    isub(s.sidew,imul(2,SEARCH_LEFT_PIXELS)),s.search_layout.rowHeight,col_sel()) else ()
+  val first=hit_text(s.hits,off,match,f,r,SEARCH_CHILD_INDENT_PIXELS,y,col_muted())
+  val second=hit_text(s.hits,iadd(off,match),count,f,r,iadd(SEARCH_CHILD_INDENT_PIXELS,first),y,col_hightxt())
+in seen_int(hit_text(s.hits,iadd(off,iadd(match,count)),isub(length,iadd(match,count)),f,r,
+  iadd(SEARCH_CHILD_INDENT_PIXELS,iadd(first,second)),y,col_muted())) end
+fun draw_search_row(f: !Font,r: !Rend,s: &App_record,row: int,y: int): void = let
+  val ()=rend_clip_push(r,SEARCH_LEFT_PIXELS,y,isub(s.sidew,imul(2,SEARCH_LEFT_PIXELS)),s.search_layout.rowHeight)
+  val ()=if search_row_is_header(s.hmeta,row) then draw_search_header(f,r,s,row,y) else draw_search_match(f,r,s,row,y)
+in rend_clip_pop(r) end
+fun search_rows{n:nat} .<n>. (left: int(n),f: !Font,r: !Rend,s: &App_record,index: int): void =
+  if left = 0 then () else let
+    val source=search_source_row(s.hmeta,s.ixq,iadd(s.hscroll,index))
+    val y=iadd(s.search_layout.resultsTop,imul(index,s.search_layout.rowHeight))
+    val ()=if ige(source,0) then draw_search_row(f,r,s,source,y) else ()
+  in if ilt(source,0) then () else search_rows(left-1,f,r,s,iadd(index,1)) end
 
 fun search_status_text(state: int, hn: int, qlen: int, scope: int): string =
   if ieq(qlen, 0) then ""
-  else if ieq(state, 1) then "Indeksleniyor..."
-  else if ieq(state, 2) then "Kısmi sonuç..."
-  else if ieq(hn, 0) andalso ieq(scope, 0) then "Sonuç bulunamadı"
+  else if ieq(state, SEARCH_RUNNING) then "Aranıyor..."
+  else if ieq(state, SEARCH_UNAVAILABLE) then "Arama başlatılamadı"
+  else if ieq(state, SEARCH_PARTIAL) then "Kısmi sonuç (sınır/okuma)"
+  else if ieq(hn, 0) then "Sonuç bulunamadı"
   else if ieq(scope, 1) then "Belge içi (Enter: sonraki)"
   else "Arama tamamlandı"
 
-fun draw_sidebar_search(f: !Font, r: !Rend, s: &App_record, sidew: int): void = let
+fun draw_sidebar_search(f: !Font, r: !Rend, s: &App_record, sidew: int,h: int): void = let
+  val g=search_geometry(font_document_line_height(f,font_line_h(f)),sidew,h)
+  val ()=s.search_layout := g
+  val total=search_visible_count(s.hmeta,s.ixq)
+  val ()=s.hscroll := imin(s.hscroll,imax(0,isub(total,g.rows)))
   val qn = buf_len(s.query)
-  val () = ui_button(f, r, 8, 40, 56, 22, "Kasa", Off, toggle_of(ieq(s.scope, 0)))
-  val () = ui_button(f, r, 68, 40, 56, 22, "Belge", Off, toggle_of(ieq(s.scope, 1)))
+  val () = ui_button(f, r, SEARCH_LEFT_PIXELS,g.buttonTop,g.buttonWidth,g.buttonHeight,"Kasa",Off,toggle_of(ieq(s.scope,SEARCH_SCOPE_VAULT)))
+  val () = ui_button(f, r, g.secondX,g.secondY,g.buttonWidth,g.buttonHeight,"Belge",Off,toggle_of(ieq(s.scope,SEARCH_SCOPE_DOCUMENT)))
   val ph = (if ieq(s.scope, 1) then "Belgede ara (Enter: bul)..." else "Kasada ara..."): string
-  val () = ui_line_edit_draw(f, r, 8, 68, isub(sidew, 16), 24, s.query, qn, qn, s.qfocus, ph)
+  val () = ui_line_edit_draw(f, r, SEARCH_LEFT_PIXELS,g.queryTop,isub(sidew,imul(2,SEARCH_LEFT_PIXELS)),g.queryHeight,s.query,qn,qn,s.qfocus,ph)
   val st = search_status_text(s.search_state, s.hn, qn, s.scope)
-  val () = if igt(c_strlen(st), 0) then draw_s(f, r, 12, 96, st, col_muted()) else ()
+  val () = if igt(c_strlen(st), 0) then draw_s(f,r,SEARCH_LEFT_PIXELS,g.statusTop,st,col_muted()) else ()
 in
-  search_rows_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, s, s.hscroll, s.hn)
+  search_rows(airlock_nat(g.rows),f,r,s,0)
 end
 
 fun draw_tree_row(f: !Font, r: !Rend, s: &App_record, source: int, viewrow: int, sidew: int): void = let

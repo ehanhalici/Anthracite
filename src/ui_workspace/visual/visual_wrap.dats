@@ -14,12 +14,20 @@ staload "data_ast/layout/visual_rows.sats"
 staload "data_font/resources/font.sats"
 staload "core_render/render.sats"
 staload "data_font/text/font_text.sats"
+staload "data_font/text/span/font_span.sats"
+staload "data_font/text/span/font_span_types.sats"
+staload "data_font/native/text/native_text_analysis.sats"
+staload "data_font/native/text/native_text_analysis_types.sats"
 staload "ui_workspace/visual/visual_layout.sats"
 extern fun exhausted(): int = "mac#anth_die_int"
 extern fun fill_exhausted(rows: &VisualRows >> VisualRows): void = "mac#anth_die_void"
-fun measure(f: !Font,r: !Rend,text: !Buf,a: int,b: int,scratch: &Buf >> _): int = let
-  val ()=buf_set_len(scratch,0) val ()=buf_append_at(scratch,text,a,isub(b,a))
-in if ieq(a,b) then 0 else font_width_buf(f,r,scratch,isub(b,a)) end
+extern fun row_shape_failed(): FontSpanLayout = "mac#anth_die_box"
+datavtype ExactRow = ExactRow of (int,int,FontSpanLayout)
+fun shape_line(f: !Font,analysis: !NativeTextAnalysis,start: int,finish: int): FontSpanLayout =
+  case+ font_text_line_plan(f,analysis,start,finish) of
+  | ~FontSpanAccepted(layout) => layout | ~FontSpanRejected(error) => row_shape_failed()
+fun span_pixels(layout: !FontSpanLayout): int = let val units=font_span_width(layout)
+in iadd(idiv(units,SHAPE_UNITS_PER_PIXEL),if ieq(imod(units,SHAPE_UNITS_PER_PIXEL),0) then 0 else 1) end
 fun boundary{n:nat} .<n>. (fuel: int(n),flags: !Buf,i: int,endpos: int): int =
   if fuel = 0 then exhausted() else if ige(i,endpos) orelse ine(buf_get(flags,i),0) then i
   else boundary(fuel-1,flags,iadd(i,1),endpos)
@@ -41,13 +49,13 @@ fun previous{n:nat} .<n>. (fuel: int(n),flags: !Buf,p: int,lower: int,best: int)
   else previous(fuel-1,flags,isub(p,1),lower,if ieq(best,lower) andalso igt(buf_get(flags,p),0) then p else best)
 (* Joining/kerning can change at a row edge: shape the actual row and shrink
    if needed. A single oversized cluster is allowed, ensuring forward progress. *)
-fun exact_row{n:nat} .<n>. (fuel: int(n),f: !Font,r: !Rend,text: !Buf,flags: !Buf,base: int,
-  a: int,b: int,target: int,scratch: &Buf >> _): @(int,int) =
-  if fuel = 0 then let val p=exhausted() in @(p,0) end else let
-    val width=measure(f,r,text,a,b,scratch)
-    val prev=iadd(base,previous(airlock_nat(MAX_REC_FUEL),flags,isub(isub(b,base),1),isub(a,base),isub(a,base)))
-  in if ile(width,target) orelse ile(prev,a) then @(b,width)
-    else exact_row(fuel-1,f,r,text,flags,base,a,prev,target,scratch) end
+fun exact_row{n:nat} .<n>. (fuel: int(n),f: !Font,analysis: !NativeTextAnalysis,flags: !Buf,base: int,a: int,b: int,target: int): ExactRow =
+  if fuel = 0 then let val ignored=exhausted() in ExactRow(b,0,row_shape_failed()) end else let
+    val layout=shape_line(f,analysis,isub(a,base),isub(b,base)) val width=span_pixels(layout)
+  in if ile(width,target) then ExactRow(b,width,layout) else let
+      val prev=iadd(base,previous(airlock_nat(MAX_REC_FUEL),flags,isub(isub(b,base),1),isub(a,base),isub(a,base)))
+    in if ile(prev,a) then ExactRow(b,width,layout) else let val ()=font_span_dispose(layout)
+      in exact_row(fuel-1,f,analysis,flags,base,a,prev,target) end end end
 fun is_specialized_block(k: NodeKind): bool =
   is_kind(k, KQuote) orelse is_kind(k, KCallout) orelse is_kind(k, KCode)
   orelse is_kind(k, KTable) orelse is_kind(k, KTableRow) orelse is_kind(k, KTableCell)
@@ -84,16 +92,46 @@ fun line_target_width_kind(k: NodeKind, default_w: int): int =
 fun append_known(rows: &VisualRows >> VisualRows,a: int,b: int,line: int,ordinal: int,width: int): void =
   visual_rows_append(rows,@{start=a,finish=b,width=width,line=line,ordinal=ordinal})
 
-fun line_rows{n:nat} .<n>. (fuel: int(n),f: !Font,r: !Rend,rows: &VisualRows >> VisualRows,flags: !Buf,advances: !Buf,
-  base: int,a: int,b: int,line: int,ordinal: int,target_w: int,scratch: &Buf >> _): void =
+fun line_rows{n:nat} .<n>. (fuel: int(n),f: !Font,rows: &VisualRows >> VisualRows,analysis: !NativeTextAnalysis,flags: !Buf,advances: !Buf,
+  base: int,a: int,b: int,line: int,ordinal: int,target_w: int): void =
   if fuel = 0 then fill_exhausted(rows) else if ige(a,b) then () else let
     val+ VisualRows(text,map,lines,data,count,key,plans)=rows
     val next=iadd(base,boundary(airlock_nat(MAX_REC_FUEL),flags,iadd(isub(a,base),1),isub(b,base)))
     val candidate=fit(airlock_nat(MAX_REC_FUEL),flags,advances,base,a,b,next,a,a,target_w)
-    val (endpos,width)=exact_row(airlock_nat(MAX_REC_FUEL),f,r,text,flags,base,a,candidate,target_w,scratch)
+    val+ ~ExactRow(endpos,width,layout)=exact_row(airlock_nat(MAX_REC_FUEL),f,analysis,flags,base,a,candidate,target_w)
+    val ()=visual_plans_put(plans,count,layout)
     val ()=append_known(rows,a,endpos,line,ordinal,width)
-  in line_rows(fuel-1,f,r,rows,flags,advances,base,endpos,b,line,iadd(ordinal,1),target_w,scratch) end
+  in line_rows(fuel-1,f,rows,analysis,flags,advances,base,endpos,b,line,iadd(ordinal,1),target_w) end
 
+fun mandatory_inside{n:nat} .<n>. (left: int(n),flags: !Buf,index: int): bool =
+  if left = 0 then false else ieq(buf_get(flags,index),5) orelse mandatory_inside(left-1,flags,iadd(index,1))
+fun wrap_single(f: !Font,rows: &VisualRows >> _,analysis: !NativeTextAnalysis,layout: FontSpanLayout,
+  line: int,a: int,b: int,target: int): void = let
+  val (flags,advances)=font_span_wrap_metrics(layout,isub(b,a)) val width=span_pixels(layout)
+  val simple=ile(width,target) andalso not(mandatory_inside(airlock_nat(imax(0,isub(isub(b,a),1))),flags,1))
+  val ()=if simple then let val+ VisualRows(t,m,l,data,count,key,plans)=rows
+      val ()=visual_plans_put(plans,count,layout)
+    in append_known(rows,a,b,line,0,width) end
+    else let val ()=font_span_dispose(layout)
+    in line_rows(airlock_nat(MAX_REC_FUEL),f,rows,analysis,flags,advances,a,a,b,line,0,target) end
+  val ()=buf_free(flags)
+in buf_free(advances) end
+fun wrap_analyzed(f: !Font,rows: &VisualRows >> _,analysis: NativeTextAnalysis,source: !Buf,line: int,a: int,b: int,target: int): void = let
+  val ()=case+ font_text_line_plan(f,analysis,0,isub(b,a)) of
+    | ~FontSpanAccepted(layout) => wrap_single(f,rows,analysis,layout,line,a,b,target)
+    | ~FontSpanRejected(error) => let val (flags,advances)=font_text_wrap_metrics(f,source,isub(b,a))
+        val ()=line_rows(airlock_nat(MAX_REC_FUEL),f,rows,analysis,flags,advances,a,a,b,line,0,target)
+        val ()=buf_free(flags)
+      in buf_free(advances) end
+  val+ VisualRows(t,m,l,data,count,key,plans)=rows
+  val bytes=native_text_analysis_memory_bytes(analysis)
+in visual_paragraph_put(plans,line,VisualParagraph(analysis,a,isub(b,a),bytes)) end
+fun wrap_projected_line(f: !Font,r: !Rend,rows: &VisualRows >> _,line: int,a: int,b: int,target_w: int,scratch: &Buf >> _): void = let
+  val+ VisualRows(text,map,lines,data,count,key,plans)=rows
+  val ()=buf_set_len(scratch,0) val ()=buf_append_at(scratch,text,a,isub(b,a))
+in case+ font_text_paragraph_analysis(f,scratch,isub(b,a)) of
+  | ~NativeAnalysisRejected(error) => fill_exhausted(rows)
+  | ~NativeAnalysisAccepted(analysis) => wrap_analyzed(f,rows,analysis,scratch,line,a,b,target_w) end
 fun one(f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,line: int,cur: &int >> _,scratch: &Buf >> _): void = let
   val st=doc_line_start(d,line)
   val raw=if ilt(iadd(line,1),doc_nlines(d)) then doc_line_start(d,iadd(line,1)) else doc_len(d)
@@ -104,12 +142,9 @@ fun one(f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,line: int,cur:
   val () = cur := advance_wrap_cursor(airlock_nat(MAX_REC_FUEL), d, cur, nn, st)
   val k = block_kind_at(airlock_nat(MAX_REC_FUEL), d, st, cur, nn, KNone)
   val target_w = line_target_width_kind(k, key.width)
-  val ()=buf_set_len(scratch,0) val ()=buf_append_at(scratch,text,a,isub(b,a))
-  val (flags,advances)=font_text_wrap_metrics(f,scratch,isub(b,a))
-  val ()=if ieq(a,b) then append_known(rows,a,b,line,0,0)
-    else line_rows(airlock_nat(MAX_REC_FUEL),f,r,rows,flags,advances,a,a,b,line,0,target_w,scratch)
-  val ()=buf_free(advances)
-in buf_free(flags) end
+  val in_scope=ilt(st,key.sourceFinish) andalso igt(raw,key.sourceStart)
+in if ieq(a,b) orelse not(in_scope) then append_known(rows,a,b,line,0,0)
+  else wrap_projected_line(f,r,rows,line,a,b,target_w,scratch) end
 
 fun lines{n:nat} .<n>. (left: int(n),f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,i: int,cur: &int >> _,scratch: &Buf >> _): void =
   if left = 0 then let val+ VisualRows(t,m,l,data,count,key,plans)=rows in buf_set32(l,i,count) end
@@ -120,9 +155,6 @@ implement visual_wrap_fill(f,r,d,rows) = let
   var scratch = buf_make(VISUAL_WRAP_FILL_SCRATCH_INITIAL_BYTES)
   var cur: int = 0
   val () = lines(airlock_nat(doc_nlines(d)), f, r, d, rows, 0, cur, scratch)
-  val+ ~VisualRows(text,map,line_rows,data,count,key,old_plans)=rows
-  val ()=visual_plans_dispose(old_plans)
-  val ()=rows := VisualRows(text,map,line_rows,data,count,key,visual_plans_make(count))
 in
   buf_free(scratch)
 end

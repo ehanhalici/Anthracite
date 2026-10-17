@@ -5,7 +5,7 @@ fun shaped(b: !Buf,info: SfntInfo,cache: !NativeShapeCache,plan: !NativeShapePla
   | ~NativeShapeRejected(e) => NativeItemRunError(e) | ~NativeShapeAccepted(run) => NativeItemShaped(run)
 implement native_item_shape_planned(b,info,cache,assets,a,contexts,item,plan,scale) = let
   val+ NativeTextAssets(aux,words,lines,east)=assets val+ NativeTextAux(base,s,bidi,brackets,mirrors)=aux
-  val+ NativeTextBase(data,n,mcm)=base val+ NativeTextAnalysis(source,doc,scripts,breaks,graphemes)=a
+  val+ NativeTextBase(data,n,mcm)=base val+ NativeTextAnalysis(source,doc,scripts,breaks,graphemes,source_length)=a
 in case+ native_shape_text_parse_range(b,info,plan,n,mcm,source,item.start,item.finish) of
   | ~NativeTextRejected(e) => NativeItemTextError(e)
   | ~NativeTextAccepted(text) => let

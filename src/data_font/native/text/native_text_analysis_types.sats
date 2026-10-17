@@ -6,5 +6,5 @@ staload "data_text/line_break/line_types.sats"
 staload "data_text/normalization/normalization_types.sats"
 datatype NativeAnalysisFailure = AnalysisSpan | AnalysisNormalization | AnalysisScriptCapacity
 typedef NativeAnalysisError = @{reason=NativeAnalysisFailure,detail=int}
-datavtype NativeTextAnalysis = NativeTextAnalysis of (ScalarText,BidiDocument,ScriptItems,LineBreakMap,Buf)
+datavtype NativeTextAnalysis = NativeTextAnalysis of (ScalarText,BidiDocument,ScriptItems,LineBreakMap,Buf,int)
 datavtype NativeAnalysisRead = NativeAnalysisAccepted of NativeTextAnalysis | NativeAnalysisRejected of NativeAnalysisError

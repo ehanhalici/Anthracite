@@ -1,13 +1,4 @@
-fun ensure_index_step(s: &App_record >> _): void = let
-  val () = if is_on(s.treedirty) then let
-    var trunc: int = 0
-    val () = ix_walk_vault(s.vault, s.ixf, s.ixp, trunc)
-  in
-  end else ()
-  val rem = ix_step_all(s.vault, s.ixf, s.ixs, s.ixp, s.ixb, 3000000L)
-in
-  s.search_state := (if rem > 0 then 1 else 0)
-end
+fun ensure_index_step(s: &App_record >> _): void = search_job_step(s)
 
 fun draw_drop_target(f: !Font, r: !Rend, x: int, y: int, w: int, h: int, text: string): void = let
   val () = rend_rect(r, x, y, w, h, col_side())
@@ -167,6 +158,11 @@ fun app_overlay_state(a: !App): @(Sidebar, PromptKind, MenuKind, int, int, int, 
     end
 
 implement app_draw(a, f, r, w, h) = let
+  val ()=case+ a of | @APP(s) => let
+    val ()=if s.flash_until_ns > 0L then
+      (if mono_ns() >= s.flash_until_ns then s.flash_until_ns := 0L else ()) else ()
+    val ()=cache_work_begin(s.cache)
+  in fold@(a) end
   val () = draw_panes(f, r, a, w, h)
   val @(show, prompt, menu, menux, menuy, menuw, vault_select) = app_overlay_state(a)
   val () = if not(is_side_none(show)) then draw_side(f, r, a, h) else ()
@@ -176,6 +172,14 @@ implement app_draw(a, f, r, w, h) = let
 in
   draw_vault_select(f, r, a, w, h)
 end
+implement app_work_pending(a) = case+ a of | @APP(s) => let
+  val pending=cache_work_pending(s.cache)
+  val searching=is_side_search(s.side) andalso ieq(s.search_state,SEARCH_RUNNING)
+  val expired: bool=if s.flash_until_ns > 0L then mono_ns() >= s.flash_until_ns else false
+in fold@(a); pending orelse searching orelse expired end
+implement app_idle_wait(a) = case+ a of | @APP(s) => let
+  val delay=search_flash_wait(mono_ns(),s.flash_until_ns)
+in fold@(a); delay end
 extern fun find_wiki_fuel_exhausted(doc: !Doc, caret: int, k: int): int = "mac#anth_die_int"
 
 fun find_wiki_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), doc: !Doc, caret: int, k: int): int =

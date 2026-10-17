@@ -1,5 +1,108 @@
 # Refactoring çalışma kaydı
 
+## 2026-10-18 — BUG-036 editör durum makinesinde kutu sızıntısı
+
+Tam uygulama LSan koşusunda bulunan 56 bayt/4 tahsis, `addr2line -afi` ile
+`editor_fsm_selftest`, `step_idle` ve `step_typing` kurucularına izlendi.
+Bağımsız FSM matrisinde 66 geçiş işlevsel olarak doğruyken 1.624 bayt/125
+tahsis kalıyordu. Durum ve eylemler nullary kind etiketli düz kayıtlara çevrildi;
+çağıranlar kurucu adlarını koruyor, geçişlerde GC veya suppression kullanılmıyor.
+Prompt/menü/selection/split payload'ı ve durum adı politikası değişmedi.
+
+Bağımsız test 66 geçişi 128 kez, int min/max/-1/0'dan türeyen 64 seçim
+payload üçlüsünü ve dört prompt/menü varyantının 88 geçişini denetler.
+Genişletilmiş test `detect_leaks=1` altında geçti (0,02 s). Tam uygulama dahil
+native grafik, FSM, literal arama, sonuç ağacı ve geometri sanitizer paketi
+6/6 geçti (28,06 s); arama bayrakları ve tampon dengesi de başarılıdır.
+Bu sınanan yaşam döngülerinde ASan/UBSan/LSan bulgusu yoktur, tüm girdiler
+için sızıntısızlık ispatı değildir. BUG-036 aktif listeden çıkarıldı.
+Genişletilmiş FSM dahil Release tam paket 271/271 geçti (5,79 s); kaynak/belge
+bağlantıları, yedi opak sahip, 5.601 fonksiyonun gövde sınırı ve boşluk denetimi
+başarılıdır. Son CPU sanitizer tekrarı da 4/4 geçti (0,05 s).
+Güncel FSM ve genişletilmiş test yürütücüsüyle son Debug tam paket 271/271
+geçti (181,79 s). Her iki profilde `check-build -j16` başarılıdır; hiçbir test
+devre dışı bırakılmadı. Aktif hata listesinde kayıt kalmadı.
+
+## 2026-10-17 — BUG-034 ham metin araması ve sonuç gezinmesi
+
+Panel AST indeksinden ayrıldı: Unicode 18 basit tek-scalar case eşdeğerliği ve
+KMP ile özgün UTF8 bayt konumları korunuyor. Türkçe I varyantları eşleştirilir;
+normalizasyon veya çok-scalar tam case folding uygulanmaz. Açık sekme metni
+(boş belge dahil), dolu VFS gölgesi, fiziksel dosya önceliği kullanılır.
+Sorgu değişince önceki lineer desen bırakılır; görünür panel işi dosyalar
+arasında 4 ms esnek bütçeyle sürdürür. Paralel worker/rg veya kesin süre iddiası
+yoktur. Her sorguda katalog yenilenir, sorgu değişmeyen olayda iş yeniden başlamaz.
+
+Font yüksekliğinden türeyen kapsam düğmeleri, sorgu/durum/sonuç satırları ve
+dar panelde dikey düğmeler çakışmayı önler. Dosya başlıkları açılıp kapanır;
+eşleşme özgün metinde renklendirilir. Sonuca tıklama/Enter hedef sekmeyi kullanır,
+ilgili katlamayı açar, kaynak caret'ini ve geometri sonrası kaydırmayı ayarlar.
+Bir saniyelik vurgu olay döngüsünün süreli beklemesiyle kendiliğinden temizlenir.
+
+Release 271/271 CTest geçti (3,99 s); literal, sonuç ağacı, geometri ve native
+grafik sanitizer paketi `detect_leaks=1` ile 4/4 geçti (28,94 s). Ek tam uygulama
+LSan koşusu arama işlevlerini doğruladı ancak eski editör FSM kutularında
+56 bayt/4 tahsis buldu; bu ayrı BUG-036 olarak aktif listeye alındı.
+Yeni testler Unicode kaynak haritasını, grupları, 49 font satır yüksekliği ve
+dört viewport'u, gerçek panel tıklamasını, kaydırma/vurgu, iptal, boş sonuç ve
+tampon dengesini sınar. Salt okunur gerçek kasa sorgusu yaklaşık 20,6 ms'de
+10 sonuç satırı üretti; Doc yükleme ve AST parse sayaçları sıfırdı. Bu tek
+koşuluk ölçümdür, genel performans garantisi değildir. BUG-034 aktif listeden çıkarıldı.
+Arama değişikliklerini içeren Debug tam paket de 271/271 geçti (232,35 s).
+18 Ekim'de beş ayrı süreçlik salt okunur aynı kasa sorgusunda medyan 19,171 ms
+(18,399–20,019 ms), her koşuda Doc yükleme/AST parse sayısı sıfırdı.
+OS sayfa cache'i temizlenmedi; bu soğuk disk ölçümü veya genel gecikme garantisi değildir.
+
+## 2026-10-17 — BUG-035 matematikte açılış kilidi ve UTF8
+
+Kullanıcının yeni BUG-033 kaydı, eski çözülmüş numara tekrar kullanılmasın diye
+BUG-035 olarak takip edildi. Debugger'da 500 hazırlık çağrısı sonrası aynı
+görünür layout yolu gözlendi: medya yüksekliği `lh+12`, AST hazırlığı `lh`,
+son damga 24 px yazıyordu. Üç aşama artık `doc_math_block_height` politikasını
+paylaşıyor. Üst/alt indis dönüşümü unsupported scalar'ı tek parça kopyalar;
+continuation baytları arasına `^`/`_` girmez. Tam MathJax/TeX motoru iddiası yoktur.
+
+Release 267/267 geçti (4,36 s). ASan/UBSan ve sızıntı denetimi açıkken native
+grafik + matematik CPU testleri 2/2 geçti (18,31 s). Yeni özel örnek salt okunur
+benchmark'ta ilk kareyi 60,334 ms'de, sıcak kaydırmayı p95 1,069 ms'de tamamladı;
+öncesinde tur matematik görünürken ilerlemiyordu. Bu tek süreçlik ölçümdür.
+2/3/4 bayt UTF8, kesik grup, append ve 18/24/28 px read/edit geometri testleri
+eklendi; kayıt aktif listeden çıkarıldı. Kişisel notun içeriği fixture'a alınmadı.
+
+## 2026-10-17 — BUG-032 geçici değer sahipliği
+
+GC'siz kutu sızıntıları SFNT, metin, compound glif, boyama/hit/graph ve gezinme
+yollarında giderildi. SFNT cmap/font metadata ve istekler düz kayıt; ayrıştırma,
+metin ve feature parametre sonuçları tüketilen lineer değerlerdir. Fixture
+listeleri/seçim sonucu da tüketilir. Negatif sahiplik testi altı sonuç türünün
+bırakılmasını derleme aşamasında reddeder. Aynı native grafik suite'inin LSan
+raporu 363.280 bayt/45.601 tahsisten önce 1.824/133'e indi, kalan yolların
+düzeltilmesiyle `detect_leaks=1` altında geçti (18,59 s). CPU SFNT, compound,
+analiz, anchor ve negatif sahiplik paketi 5/5 geçti. Suppression veya GC eklenmedi.
+Release tam paket 266/266 geçti (4,50 s); kaynak/belge bütünlüğü ve 5.522
+fonksiyonda 20 satır gövde sınırı doğrulandı. BUG-032 aktif listeden çıkarıldı.
+Bu sonuç sınanan yaşam döngüsüne aittir; tüm girdiler için sızıntısızlık ispatı değildir.
+
+## 2026-10-17 — Büyük belge ve gömü performansı
+
+`8ca4286` sonrasındaki çalışma AST/katlama taramalarını, paragraf/satır
+planlarını, kaynak/anchor/geometri cache'ini ve viewport hazırlığını kapsar.
+Gömü clip kesişimi, readonly seçim/kopya, iç bağlantı önceliği ve hedefe
+gezinme regresyonlarla korunur. Son beş süreçlik ölçümde ilk kare medyanları
+45,037 / 468,977 ms; sıcak kaydırma p95 değerleri 3,023 / 5,032 ms'dir.
+Koşullar ve sınırlamalar [performans raporundadır](performans_analizi.md).
+
+Release ve Debug: ayrı ayrı 265/265 CTest geçti. Debug turu 206,03 s sürdü.
+ASan/UBSan erişim denetimi 3/3, CPU LSan denetimi 2/2 geçti.
+Bu performans kabul anında grafik LSan temiz değildi; sonraki BUG-032
+düzeltmesi yukarıda kayıtlıdır. İlgili yeni metadata okumaları lineerleştirildi, küme başına
+partition kutulaması kaldırıldı. 5.520 kaynak fonksiyonunda 20 satır sınırını
+aşan gövde yoktur; import/belge bağlantıları ve yedi opak sahip denetimi geçti.
+
+Çözülen BUG-001–031 ve BUG-033, kullanıcının isteğiyle aktif hata listesinden
+çıkarıldı; kanıt ve düzeltmeler Git geçmişindedir. Yeni numaralar yeniden
+kullanılmaz. Aşağıdaki eski doğrulama bölümleri tarihsel kayıttır.
+
 Başlangıç: 2026-10-16, `188239f` (`uzun metin optimizasyonu eklendi`).
 Amaç: davranışı koruyarak okunabilir sabitler/adlar, konuya göre modüller,
 tekrarlanabilir testler ve uygulamayla eşleşen belgeler sağlamak.

@@ -10,8 +10,8 @@ staload "data_font/glyph/position/glyph_position.sats"
 staload "data_font/glyph/position/glyph_position_types.sats"
 staload "data_font/text/run/private/font_run_work.sats"
 implement font_hit_edge(query,source,x,best) = let
-  val distance=case+ query of | QueryCaret(byte) => iabs(isub(byte,source)) | QueryClick(pixel) => iabs(isub(pixel,x))
-  val value=case+ query of | QueryCaret(byte) => x | QueryClick(pixel) => source
+  val distance=iabs(isub(query.value,if query.caret then source else x))
+  val value=if query.caret then x else source
 in if ilt(distance,best.distance) then @{distance=distance,value=value} else best end
 fun edges(v: GlyphView,d: GlyphPositionDirection,offset: int,origin: FontRunPen,query: TextQuery,best: TextHit): TextHit =
   if ile(v.position.xAdvance,0) then best else let val left=iadd(offset,origin.x) val right=iadd(left,v.position.xAdvance)

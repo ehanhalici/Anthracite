@@ -51,9 +51,17 @@ See the [Turkish architecture index](docs/README.md), [development rules](docs/s
 [refactoring record](docs/refactoring_durumu.md) and [known issues](docs/olasi_hatalar.md).
 Generated C, Unicode binaries and build outputs are not edited by hand.
 
+The search panel uses case-insensitive literal matching over raw text, with
+original UTF-8 result offsets and collapsible file groups. Its Unicode 18
+simple-case map is generated from the bundled data; regex/filter syntax and
+multi-character case expansions are not applied. Vault work advances between
+frames without building an AST for every file. See the
+[search contracts and limits](docs/arama_ve_indeksleme.md).
+
 The pre-existing callout boundary and incremental AST copying bugs (BUG-008 and
 BUG-011) have been fixed without weakening their original expectations.
-Regression tests are included in `check`; details are in the known-issues document.
+Regression tests are included in `check`; resolved issue details remain in Git
+and the refactoring record. The known-issues document contains only open items.
 
 ## Verification limits
 

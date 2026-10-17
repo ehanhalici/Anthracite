@@ -1,9 +1,9 @@
 #include "font/native/ownership/font_native_test.hats"
 staload "data_font/text/font_text_metrics.sats"
 extern fun native_text_metrics_cases(f: !Font): int = "ext#native_text_metrics_cases"
-fun hit(result: Option(int),value: int): bool = case+ result of
-  | None() => false | Some(actual) => ieq(actual,value)
-fun absent(result: Option(int)): bool = case+ result of | None() => true | Some(value) => false
+fun hit(result: Option_vt(int),value: int): bool = case+ result of
+  | ~None_vt() => false | ~Some_vt(actual) => ieq(actual,value)
+fun absent(result: Option_vt(int)): bool = case+ result of | ~None_vt() => true | ~Some_vt(value) => false
 fun collision(m: &FontTextMetrics >> FontTextMetrics,f: !Font): int = let
   val a=buf_make(2) val b=buf_make(2)
   val ()=buf_set(a,0,65) val ()=buf_set(a,1,97) val ()=buf_set(b,0,66) val ()=buf_set(b,1,66)

@@ -67,6 +67,7 @@ datavtype Doc_ = DOC of @{
 , ver= int, folds= Buf
 , flash_line= int, flash_time= lint, embed_level= int
 , pending_jump= int
+, view_start= int, view_finish= int, parse_generation= int
 , regions= Buf, hidden= Buf
 }
 (* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
@@ -84,6 +85,7 @@ implement doc_open() = DOC(@{
 , ver= 0, folds= buf_make(64 * 4)
 , flash_line= ~1, flash_time= 0L, embed_level= 0
 , pending_jump= ~1
+, view_start= 0, view_finish= ~1, parse_generation= 0
 , regions= buf_make(64 * 16), hidden= buf_make(DOC_OPEN_HIDDEN_INITIAL_BYTES)
 })
 

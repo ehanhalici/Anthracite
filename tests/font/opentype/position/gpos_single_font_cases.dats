@@ -38,7 +38,7 @@ in case+ root.kind of
     | ChildMissing() => 1 | ChildInvalid() => 1 | ChildPresent() => payload(b,child.span,glyphs,a,c,d) end end
 fun face(f: !SfntFace): int = let val+ SfntFace(b,info)=f in
   case+ sfnt_table(b,info.tables,TableGpos()) of
-  | NoSfntTable() => 1 | HasSfntTable(s) => case+ ot_layout_header_parse(b,s) of
+  | ~NoSfntTable() => 1 | ~HasSfntTable(s) => case+ ot_layout_header_parse(b,s) of
     | ~HeaderRejected(e) => 1 | ~HeaderAccepted(h) =>
       lookup(b,h,info.glyphs,7,648,649,712)+lookup(b,h,info.glyphs,9,1232,1235,1248) end
 implement gpos_single_test_font(path) = case+ sfnt_open(path) of

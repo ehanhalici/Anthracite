@@ -34,23 +34,23 @@ fun child_of(b: !Buf, length: int): OtChild = let val s=ot_fixture_span(b) in
   @{kind=ChildPresent(),span= @{offset=s.offset,length=length}} end
 
 fun expect_reject(r: OtFeatureParamsRead, reason: OtErrorReason): int = case+ r of
-  | ~FeatureParamsAccepted(_) => 1
+  | ~FeatureParamsAccepted(p) => let val ()=ot_feature_params_dispose(p) in 1 end
   | ~FeatureParamsRejected(e) => if reason_is(e.reason,reason) then 0 else 1
 fun expect_opaque(r: OtFeatureParamsRead): int = case+ r of
   | ~FeatureParamsRejected(_) => 1
-  | ~FeatureParamsAccepted(p) => case+ p of | ParamsOpaque() => 0 | _ => 1
+  | ~FeatureParamsAccepted(p) => case+ p of | ~ParamsOpaque() => 0 | rest => let val ()=ot_feature_params_dispose(rest) in 1 end
 fun expect_absent(r: OtFeatureParamsRead): int = case+ r of
   | ~FeatureParamsRejected(_) => 1
-  | ~FeatureParamsAccepted(p) => case+ p of | ParamsAbsent() => 0 | _ => 1
+  | ~FeatureParamsAccepted(p) => case+ p of | ~ParamsAbsent() => 0 | rest => let val ()=ot_feature_params_dispose(rest) in 1 end
 
 fun size_valid(): int = let
   val b=ot_fixture_words("0258 0003 07D0 0005 0028")
   val e=case+ ot_feature_params_parse(b,tag_size(),child_of(b,10)) of
     | ~FeatureParamsRejected(_) => 1
     | ~FeatureParamsAccepted(p) => case+ p of
-      | ParamsSize(v) => if ieq(v.design,600) andalso ieq(v.subfamily,3)
+      | ~ParamsSize(v) => if ieq(v.design,600) andalso ieq(v.subfamily,3)
         andalso ieq(v.name,2000) andalso ieq(v.rangeStart,5) andalso ieq(v.rangeEnd,40) then 0 else 1
-      | _ => 1
+      | rest => let val ()=ot_feature_params_dispose(rest) in 1 end
   val ()=buf_free(b)
 in e end
 
@@ -59,8 +59,8 @@ fun size_no_subfamily(): int = let
   val e=case+ ot_feature_params_parse(b,tag_size(),child_of(b,10)) of
     | ~FeatureParamsRejected(_) => 1
     | ~FeatureParamsAccepted(p) => case+ p of
-      | ParamsSize(v) => if ieq(v.design,600) andalso ieq(v.subfamily,0) then 0 else 1
-      | _ => 1
+      | ~ParamsSize(v) => if ieq(v.design,600) andalso ieq(v.subfamily,0) then 0 else 1
+      | rest => let val ()=ot_feature_params_dispose(rest) in 1 end
   val ()=buf_free(b)
 in e end
 
@@ -84,8 +84,8 @@ fun stylistic_valid(): int = let
   val e=case+ ot_feature_params_parse(b,tag_ss01(),child_of(b,4)) of
     | ~FeatureParamsRejected(_) => 1
     | ~FeatureParamsAccepted(p) => case+ p of
-      | ParamsStylistic(v) => if ieq(v.version,0) andalso ieq(v.name,1249) then 0 else 1
-      | _ => 1
+      | ~ParamsStylistic(v) => if ieq(v.version,0) andalso ieq(v.name,1249) then 0 else 1
+      | rest => let val ()=ot_feature_params_dispose(rest) in 1 end
   val ()=buf_free(b)
 in e end
 
@@ -94,8 +94,8 @@ fun stylistic_minor(): int = let
   val e=case+ ot_feature_params_parse(b,tag_ss20(),child_of(b,4)) of
     | ~FeatureParamsRejected(_) => 1
     | ~FeatureParamsAccepted(p) => case+ p of
-      | ParamsStylistic(v) => if ieq(v.version,2) andalso ieq(v.name,1249) then 0 else 1
-      | _ => 1
+      | ~ParamsStylistic(v) => if ieq(v.version,2) andalso ieq(v.name,1249) then 0 else 1
+      | rest => let val ()=ot_feature_params_dispose(rest) in 1 end
   val ()=buf_free(b)
 in e end
 
@@ -112,10 +112,10 @@ fun variant_valid(): int = let
   val e=case+ ot_feature_params_parse(b,tag_cv01(),child_of(b,20)) of
     | ~FeatureParamsRejected(_) => 1
     | ~FeatureParamsAccepted(p) => case+ p of
-      | ParamsVariant(v) => if ieq(v.label,1249) andalso ieq(v.tooltip,1250)
+      | ~ParamsVariant(v) => if ieq(v.label,1249) andalso ieq(v.tooltip,1250)
         andalso ieq(v.sample,1251) andalso ieq(v.named,2) andalso ieq(v.first,1252)
         andalso ieq(v.charCount,2) then 0 else 1
-      | _ => 1
+      | rest => let val ()=ot_feature_params_dispose(rest) in 1 end
   val ()=buf_free(b)
 in e end
 
@@ -137,9 +137,9 @@ in iadd(iadd(e1,e2),iadd(e3,e4)) end
 (* Every truncation of a valid 20-byte cv01 table: only the full length parses. *)
 fun cut_one(b: !Buf, length: int): int =
   if ieq(length,20) then let val r=ot_feature_params_parse(b,tag_cv01(),child_of(b,length)) in
-    case+ r of | ~FeatureParamsAccepted(_) => 0 | ~FeatureParamsRejected(_) => 1 end
+    case+ r of | ~FeatureParamsAccepted(p) => let val ()=ot_feature_params_dispose(p) in 0 end | ~FeatureParamsRejected(_) => 1 end
   else let val r=ot_feature_params_parse(b,tag_cv01(),child_of(b,length)) in
-    case+ r of | ~FeatureParamsAccepted(_) => 1 | ~FeatureParamsRejected(_) => 0 end
+    case+ r of | ~FeatureParamsAccepted(p) => let val ()=ot_feature_params_dispose(p) in 1 end | ~FeatureParamsRejected(_) => 0 end
 fun sweep {n:nat} .<n>. (n: int(n), b: !Buf): int =
   if n = 0 then 0 else iadd(cut_one(b,n-1),sweep(n-1,b))
 fun truncations(): int = let

@@ -2,6 +2,7 @@ staload "mem.sats"
 staload "data_font/resources/font.sats"
 staload "data_font/text/font_text_types.sats"
 staload "data_font/text/span/font_span_types.sats"
+staload "data_font/native/text/native_text_analysis_types.sats"
 staload "data_font/native/text/native_text_assets_types.sats"
 staload "core_render/render.sats"
 (* Initialization shell only. On success the session allocates its own unique
@@ -17,3 +18,5 @@ fun font_text_boundaries(f: !Font,b: !Buf,length: int): Buf
 fun font_text_wrap_metrics(f: !Font,b: !Buf,length: int): @(Buf,Buf)
 (* Transfer a measured cache plan, or shape once on a miss. Caller owns it. *)
 fun font_text_row_plan(f: !Font,b: !Buf,length: int): FontSpanRead
+fun font_text_paragraph_analysis(f: !Font,b: !Buf,length: int): NativeAnalysisRead
+fun font_text_line_plan(f: !Font,paragraph: !NativeTextAnalysis,start: int,finish: int): FontSpanRead

@@ -11,6 +11,9 @@ staload "data_font/opentype/features/ot_feature_params_kind.sats"
 staload "data_font/opentype/features/ot_feature_params.sats"
 
 fun accept(p: OtFeatureParams): OtFeatureParamsRead = FeatureParamsAccepted(p)
+implement ot_feature_params_dispose(p) = case+ p of
+  | ~ParamsSize(value) => () | ~ParamsStylistic(value) => () | ~ParamsVariant(value) => ()
+  | ~ParamsOpaque() => () | ~ParamsAbsent() => ()
 fun reject(reason: OtErrorReason, s: OtSpan): OtFeatureParamsRead = FeatureParamsRejected(ot_error(reason,s))
 
 (* 'size': a nonzero subfamily identifier requires a name ID in 256..32767. *)

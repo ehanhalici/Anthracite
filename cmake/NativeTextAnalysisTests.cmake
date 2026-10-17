@@ -12,7 +12,7 @@ add_custom_command(OUTPUT "${NATIVE_ANALYSIS_TEST_C}"
     -d "${CMAKE_SOURCE_DIR}/tests/font/native/text/native_text_analysis_conformance.dats"
   COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"
     -o "${NATIVE_ANALYSIS_TEST_C}" -d "${CMAKE_SOURCE_DIR}/tests/font/native/text/native_text_analysis_conformance.dats"
-  DEPENDS tests/font/native/text/native_text_analysis_conformance.dats tests/font/native/text/native_text_item_cases.sats ${ATS_INTERFACES})
+  DEPENDS tests/font/native/text/native_text_analysis_conformance.dats tests/font/native/text/native_analysis_window_cases.hats tests/font/native/text/native_text_item_cases.sats ${ATS_INTERFACES})
 set(NATIVE_ITEM_TEST_C "${CMAKE_CURRENT_BINARY_DIR}/native_text_item_cases_dats.c")
 add_custom_command(OUTPUT "${NATIVE_ITEM_TEST_C}"
   COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests"

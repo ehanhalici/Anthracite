@@ -153,21 +153,19 @@ in
   if is_file then tree_open_file(s, ts, row, is_double) else ts
 end
 
-fun handle_search_click(s: &App_record >> _, ts: Tabs, x: int, y: int): Tabs =
-  if ige(y, 40) andalso ilt(y, 64) then let
-    val new_scope = if ilt(x, 68) then 0 else 1
-    val () = if ine(s.scope, new_scope) then (s.scope := new_scope; run_query_refresh(s)) else ()
-  in
-    ts
-  end else let
-    val vrow = if ige(y, 100) then idiv(isub(y, 100), UI_SEARCH_ROW_HEIGHT) else ~1
-    val srow = if ige(vrow, 0) then iadd(vrow, s.hscroll) else ~1
-    val hit = ige(srow, 0) andalso ilt(srow, s.hn)
-    val result = open_hit(s, ts, srow, toggle_of(hit))
-    val () = if not(hit) then s.qfocus := On else ()
-  in
-    result
-  end
+fun search_result_click(s: &App_record >> _,ts: Tabs,row: int): Tabs =
+  if ilt(row,0) orelse ige(row,s.hn) then ts else if search_row_is_header(s.hmeta,row) then let
+    val toggled=search_toggle_group(s.hmeta,s.ixq,row)
+  in ts end else let val ()=s.qfocus := Off in open_hit(s,ts,row,On) end
+fun handle_search_click(s: &App_record >> _, ts: Tabs, x: int, y: int): Tabs = let
+  val scope=search_scope_hit(s.search_layout,x,y)
+in if ige(scope,0) then let
+    val ()=if ine(s.scope,scope) then (s.scope := scope; run_query_refresh(s)) else ()
+  in ts end else if ige(y,s.search_layout.queryTop) andalso ilt(y,iadd(s.search_layout.queryTop,s.search_layout.queryHeight)) then
+    let val ()=s.qfocus := On in ts end
+  else let val visible=search_visible_hit(s.search_layout,y,s.hscroll)
+    val row=search_source_row(s.hmeta,s.ixq,visible)
+  in search_result_click(s,ts,row) end end
 
 fun handle_config_click(s: &App_record >> _, f: !Font, ts: Tabs, x: int, y: int): Tabs = let
   val () = handle_sidebar_config_action(s, f, x, y)
@@ -182,7 +180,7 @@ fun handle_down_sidebar_click(
       (case+ s.side of
        | SideNone() => ts
        | SideFiles() => (if is_btn(hit.button, BtnLeft) then handle_tree_click(s, ts, hit.x, hit.y) else ts)
-       | SideSearch() => handle_search_click(s, ts, hit.x, hit.y)
+       | SideSearch() => (if is_btn(hit.button,BtnLeft) then handle_search_click(s,ts,hit.x,hit.y) else ts)
        | SideConfig() => handle_config_click(s, f, ts, hit.x, hit.y))
   | DownMenu() => ts | DownResize() => ts
   | DownTopbar() => ts | DownEditor() => ts

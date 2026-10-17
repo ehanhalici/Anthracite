@@ -24,7 +24,7 @@ fun fixed_row(f: !Font,r: !Rend,d: !Doc,rows: !VisualRows,i: int,range: TextRang
   val row=visual_rows_at(rows,i) val+ VisualRows(text,map,lines,data,count,key,plans)=rows
   val a=imax(range.start,row.start) val b=imin(range.finish,row.finish)
   val selected: TextRange= @{start=isub(a,row.start),finish=isub(b,row.start)}
-  val operation=case+ paint of | PaintGlyphs(request) => PaintGlyphs(selected) | PaintSelection(request,h) => PaintSelection(selected,h)
+  val operation: TextPaint= @{selection=paint.selection,range=selected,height=paint.height}
   val y=isub(iadd(oy,iadd(doc_line_y(d,row.line),imul(row.ordinal,key.height))),scroll)
 in if ilt(a,b) then visual_plan_paint(f,r,rows,i,operation,colx,y,c,scratch) else 0 end
 fun row_paint(f: !Font,r: !Rend,d: !Doc,rows: !VisualRows,i: int,range: TextRange,paint: TextPaint,

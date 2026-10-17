@@ -3,16 +3,15 @@ staload "data_font/resources/font_paint.sats"
 staload "data_font/glyph/position/glyph_position_types.sats"
 fun paint_slot{b:bool}(slot: !option_vt(FontNativeRun,b),f: !Font,r: !Rend,paint: TextPaint,x: double,y: double,c: uint): FontRunStatus =
   case+ slot of | None_vt() => FontRunGraph() | Some_vt(run) => let val+ FontNativeRun(p,token)=run
-  in case+ paint of | PaintGlyphs(range) => font_position_paint(f,r,p,token,range,x,y,c)
-    | PaintSelection(range,h) => let val ()=font_position_select(r,p,range,x,y,h,c) in FontRunReady() end end
+  in if paint.selection then let val ()=font_position_select(r,p,paint.range,x,y,paint.height,c)
+    in FontRunReady() end else font_position_paint(f,r,p,token,paint.range,x,y,c) end
 fun slot(runs: !FontSpanRuns,i: int,f: !Font,r: !Rend,paint: TextPaint,x: double,y: double,c: uint): FontRunStatus = let
   val+ @FontSpanRuns(pf,gc | p,n)=runs val (at,restore | cell)=array_ptr_takeout(pf | p,i2sz(airlock_below(i,n)))
   val result=paint_slot(!cell,f,r,paint,x,y,c) prval ()=pf := restore(at) prval ()=fold@(runs)
 in result end
-fun tab(r: !Rend,part: FontSpanPart,paint: TextPaint,x: double,y: double,c: uint): void = case+ paint of
-  | PaintGlyphs(range) => () | PaintSelection(range,h) =>
-    if igt(part.sourceEnd,range.start) andalso ilt(part.sourceStart,range.finish) then
-      rend_quad_pixels(r,u_zero(),ShadeSolid(),x+n_i2d(part.x)/64.0,y,n_i2d(part.width)/64.0,n_i2d(h),0.0,0.0,0.0,0.0,c) else ()
+fun tab(r: !Rend,part: FontSpanPart,paint: TextPaint,x: double,y: double,c: uint): void =
+    if paint.selection andalso igt(part.sourceEnd,paint.range.start) andalso ilt(part.sourceStart,paint.range.finish) then
+      rend_quad_pixels(r,u_zero(),ShadeSolid(),x+n_i2d(part.x)/64.0,y,n_i2d(part.width)/64.0,n_i2d(paint.height),0.0,0.0,0.0,0.0,c) else ()
 fun part(f: !Font,r: !Rend,runs: !FontSpanRuns,i: int,p: FontSpanPart,paint: TextPaint,x: double,y: double,c: uint): FontRunStatus =
   case+ p.kind of | SpanLineEndPart() => FontRunReady()
     | SpanSkipPart() => FontRunReady()
