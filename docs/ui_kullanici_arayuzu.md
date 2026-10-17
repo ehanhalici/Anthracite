@@ -33,6 +33,13 @@ tutar. Embed alındığında sahiplik cache'ten çıkar, çizim/ölçümden sonr
 konur. İsimli kapasite sınırında eski girdiler bırakılır; kapanışta bütün
 belge/doku sahipleri serbest bırakılır. Tazelik kontrolü mtime üzerinden yapılır.
 Cache isabeti dosyayı yeniden okumamalıdır; kaçırma/geçersizleştirme yükleme yapabilir.
+Ölçüm ve çizim aynı belge cache'ini paylaşır; global path→yükseklik tablosu
+yoktur. Blok yüksekliği ilgili hedef aralığının görsel satırlarından türetilir.
+Doc'un sürümlü seyrek medya indeksi sıcak karede bütün AST taramasını önler;
+görsel düğüm indeksi yalnız yerleşim yenilendiğinde kurulur.
+
+Çocuk çizimleri `rend_clip_push/pop` ile ebeveyn clip'ine kesiştirilir;
+embed, widget veya sekme kendi sınırını genişletip üst UI alanını boyayamaz.
 
 ## Görsel koordinatlar
 

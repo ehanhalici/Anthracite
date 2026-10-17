@@ -11,6 +11,11 @@ fun visual_current{b:bool}(slot: !option_vt(VisualRows,b),version: int): bool = 
 implement doc_visual_active(d) = case+ d of | @DOC(s) => let
   val active=visual_current(s.visual,s.ver) prval ()=fold@(d)
 in active end
+fun visual_width{b:bool}(slot: !option_vt(VisualRows,b)): int = case+ slot of
+  | None_vt() => 0 | Some_vt(rows) => let val+ VisualRows(t,m,l,data,n,key)=rows in key.width end
+implement doc_visual_width(d) = case+ d of | @DOC(s) => let
+  val width=visual_width(s.visual) prval ()=fold@(d)
+in width end
 fun visual_count{b:bool}(slot: !option_vt(VisualRows,b),version: int,line: int): int = case+ slot of
   | None_vt() => 0 | Some_vt(rows) => let val+ VisualRows(t,m,l,data,n,k)=rows
   in if ieq(k.version,version) then visual_rows_count(rows,line) else 0 end

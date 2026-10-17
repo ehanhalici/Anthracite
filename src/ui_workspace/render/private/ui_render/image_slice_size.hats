@@ -67,7 +67,7 @@ fun embed_scope(d: !Doc, i: int): EmbedScope =
 fun embed_child_width(parent_colw: int): int = imax(1, isub(parent_colw, UI_GUTTER_WIDTH))
 
 fun embed_text_width(f: !Font,r: !Rend,parent: int): int =
-  if font_text_active(f) then imax(1,isub(parent,editor_colx(f,r,0,iadd(parent,16))))
+  if font_text_active(f) then imax(1,isub(parent,iadd(editor_colx(f,r,0,parent),16)))
   else embed_child_width(parent)
 
 fun embed_box_width(ox: int, pw: int, box_x: int): int =
@@ -121,51 +121,31 @@ in
   else imax(lh, doc_line_step(d, line))
 end
 
-fun measure_embedded_height(f: !Font,child: Doc, c: &Cache >> _, r: !Rend, vault: !Buf, shown: !Buf, anchor: !Buf, scope: EmbedScope, level: int, lh: int, colw: int): int = let
-in
-  if igt(level, MAX_EMBED_DEPTH) then let
-    val () = doc_free(child)
-  in
-    iadd(lh, 8)
-  end
-  else if embedded_doc_load(child, buf_cstr(shown), level) then let
+fun measure_embedded_height(f: !Font,c: &Cache >> _,r: !Rend,vault: !Buf,shown: !Buf,
+  anchor: !Buf,scope: EmbedScope,level: int,lh: int,colw: int): int =
+  if igt(level,MAX_EMBED_DEPTH) then iadd(lh,8) else let
+    val mtime=fs_mtime(buf_cstr(shown))
+    val (child,loaded)=obtain_embed_doc(c,shown,buf_cstr(shown),mtime,level)
+  in if loaded then let
     val height = prepare_document_layout(f,child, c, r, vault, lh, embed_text_width(f,r,colw), ViewRead)
     val content_height = embedded_content_height(child, scope, anchor, lh, height)
-    val () = doc_free(child)
-  in
-    iadd(imax(lh, content_height), 8)
-  end else let
-    val () = doc_free(child)
-  in
-    lh
-  end
-end
+    val ()=save_embed_cache(c,shown,mtime,child,colw,lh)
+  in iadd(imax(lh,content_height),8) end
+  else let val ()=doc_free(child) in iadd(lh,8) end end
 
 fun embedded_height(f: !Font,d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault: !Buf, shown: !Buf, lh: int, colw: int): int = let
   var anchor = buf_make(EMBEDDED_HEIGHT_ANCHOR_INITIAL_BYTES)
   val () = take_anchor(d, i, anchor)
   val scope = embed_scope(d, i)
   val level = iadd(doc_embed_level(d), 1)
-  val height = measure_embedded_height(f,doc_open(), c, r, vault, shown, anchor, scope, level, lh, colw)
+  val height = measure_embedded_height(f,c,r,vault,shown,anchor,scope,level,lh,colw)
   val () = buf_free(anchor)
 in
   height
 end
 
 fun resolve_embed_height(f: !Font, d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault: !Buf, shown: !Buf, lh: int, width: int): int = let
-  val p_str = buf_cstr(shown)
-  var ch: int = 0
-  val st = embed_fsm_query(p_str, width, lh, ch)
-in
-  if ieq(st, EMBED_STATE_CACHED) then ch
-  else if ieq(st, EMBED_STATE_FAILED) then iadd(lh, 8)
-  else let
-    val h = embedded_height(f, d, i, c, r, vault, shown, lh, width)
-    val () = if igt(h, 0) then embed_fsm_store(p_str, width, lh, h) else embed_fsm_fail(p_str, width, lh)
-  in
-    h
-  end
-end
+in embedded_height(f,d,i,c,r,vault,shown,lh,width) end
 
 fun bind_embed_height(f: !Font, d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault: !Buf, shown: !Buf, lh: int, colw: int): void = let
   val width = isub(colw, imul(doc_node_depth(d, i), 20))

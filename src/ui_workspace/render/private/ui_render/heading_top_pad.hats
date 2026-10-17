@@ -126,27 +126,6 @@ in
   ()
 end
 
-fun obtain_embed_doc(c: &Cache >> _, shown: !Buf, p_str: string, mt: int, level: int): @(Doc, bool) = let
-  val @(opt_child, c2) = cache_take_embed(c, shown, mt)
-  val () = c := c2
-in
-  case+ opt_child of
-  | ~Some_vt(d) => @(d, true)
-  | ~None_vt() => let
-      val d = doc_open()
-      val ok = embedded_doc_load(d, p_str, level)
-    in
-      @(d, ok)
-    end
-end
-
-fun save_embed_cache(c: &Cache >> _, shown: !Buf, mt: int, child: Doc, cw: int, lh: int): void = let
-  var p_copy = buf_make(buf_len(shown))
-  val () = buffer_append_range(p_copy, shown, 0, buf_len(shown))
-in
-  c := cache_put_embed(c, p_copy, mt, child, cw, lh)
-end
-
 fun draw_embedded_path(shown: !Buf, anchor: !Buf, scope: EmbedScope, level: int, child_colw: int, f: !Font, r: !Rend, x: int, y: int, w: int, h: int,
                        vx: int, vy: int, vw: int, vh: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _): void =
   if igt(level, MAX_EMBED_DEPTH) then draw_missing_embed(f, r, x, y)
@@ -196,7 +175,8 @@ fun draw_node_embed(f: !Font, r: !Rend, d: !Doc, i: int, ox: int, oy: int, pw: i
   val @(shown,rel,full,anchor)=resolve_embed_paths(d,i,vault)
   val level = iadd(doc_embed_level(d), 1)
   val scope = embed_scope(d, i)
-  val box_w = embed_box_width(ox, pw, box_x)
+  val box_w = if font_text_active(f) then imax(1,isub(doc_visual_width(d),imul(dp,20)))
+    else embed_box_width(ox,pw,box_x)
   val child_colw = if font_text_active(f) then box_w else embed_child_width(column_w(pw))
   val () = draw_embedded_path(shown, anchor, scope, level, child_colw, f, r, box_x, box_y, box_w, box_h, ox, oy, pw, ph, lh, vault, c, scratch)
   val ()=release_embed_paths(shown,rel,full,anchor)

@@ -16,6 +16,7 @@ staload "ui_workspace/render/ui_render.sats"
 staload "font/resources/font_gl_airlock.sats"
 staload "core_render/gl.sats"
 staload "core_runtime/performance.sats"
+staload "os/selftest_fixture.sats"
 extern fun native_visual_layout_cases(f: !Font,r: !Rend): int = "ext#native_visual_layout_cases"
 fun bytes(s: string): Buf = let val n=c_strlen(s) val b=buf_make(n)
   fun copy{k:nat} .<k>. (left: int(k),s: string,b: !Buf,i: int): void =
@@ -188,12 +189,56 @@ fun warm_layout(f: !Font,r: !Rend): int = let
   val ()=performance_enable(0) val ()=buf_free(source) val ()=buf_free(vault)
   val ()=cache_free(cache) val ()=doc_free(d)
 in if hit andalso invalidated then 0 else 1 end
+fun embed_fixture_fill{n:nat} .<n>. (left: int(n),child: &Buf >> _,parent: &Buf >> _,i: int): void =
+  if left = 0 then () else let
+    val ()=repeat_words(airlock_nat(imul(iadd(i,1),4)),child)
+    val ()=buffer_append_string(child," ^") val ()=buf_push(child,iadd(CHAR_LOWER_A,i))
+    val ()=buffer_append_string(child,"\n\n")
+    val ()=buffer_append_string(parent,"![[child#^") val ()=buf_push(parent,iadd(CHAR_LOWER_A,i))
+    val ()=buffer_append_string(parent,"]]\n")
+  in embed_fixture_fill(left-1,child,parent,iadd(i,1)) end
+fun embed_heights{n:nat} .<n>. (left: int(n),d: !Doc,i: int,small: &int >> _,large: &int >> _): int =
+  if left = 0 then 0 else let val embedded=is_kind(doc_node_kind(d,i),KEmbed)
+    val height=doc_node_height(d,i)
+    val ()=if embedded then (small := imin(small,height); large := imax(large,height)) else ()
+  in iadd(if embedded then 1 else 0,embed_heights(left-1,d,iadd(i,1),small,large)) end
+fun embed_file_cache{n:nat} .<n>. (fuel: int(n),cache: !Cache): int =
+  if fuel = 0 then 0 else case+ cache of | CNil() => 0
+  | CCons(p,t,w,h,rest) => embed_file_cache(fuel-1,rest)
+  | CEmbed(p,mtime,d,w,h,rest) => iadd(1,embed_file_cache(fuel-1,rest))
+fun embed_fixture_test(f: !Font,r: !Rend,root: !Buf,path: !Buf): int = let
+  var child=buf_make(256) var parent=buf_make(256)
+  val ()=embed_fixture_fill(7,child,parent,0) val child_length=buf_len(child)
+  val written=fs_write_buf(buf_cstr(path),child,child_length)
+  val d=doc_open() val length=buf_len(parent) val ()=doc_insert_buf(d,parent,length)
+  var cache: Cache=CNil() val ()=performance_enable(1) val ()=performance_reset()
+  val total=prepare_document_layout(f,d,cache,r,root,24,300,ViewRead)
+  val loaded=performance_value(PERF_DOCUMENT_LOADS)=1ULL andalso performance_value(PERF_AST_PARSES)=1ULL
+  var small: int=SIGNED_INT_MAX_VALUE var large: int=0
+  val count=embed_heights(airlock_nat(doc_nnodes(d)),d,0,small,large)
+  val files=embed_file_cache(128,cache)
+  val ranged=ieq(count,7) andalso igt(large,small) andalso ieq(files,1)
+  val ()=performance_reset() val warm=prepare_document_layout(f,d,cache,r,root,24,300,ViewRead)
+  val reused=performance_value(PERF_DOCUMENT_LOADS)=0ULL andalso ieq(total,warm)
+  val ()=performance_enable(0) val ()=cache_free(cache) val ()=doc_free(d)
+  val ()=buf_free(child) val ()=buf_free(parent)
+  val ()=println!("event=embed_cache loaded=",loaded," ranged=",ranged," reused=",reused)
+in if ieq(written,1) andalso loaded andalso ranged andalso reused then 0 else 1 end
+fun embedded_documents(f: !Font,r: !Rend): int = let var root=buf_make(512)
+  val created=selftest_fixture_open(root)
+in if not(created) then let val ()=buf_free(root) in 1 end else let
+    val path=selftest_fixture_path(buf_cstr(root),"child.md")
+    val errors=embed_fixture_test(f,r,root,path)
+    val removed=fs_unlink(buf_cstr(path)) val closed=fs_rmdir(buf_cstr(root))
+    val ()=buf_free(path) val ()=buf_free(root)
+  in iadd(errors,if ieq(removed,0) andalso ieq(closed,0) then 0 else 1) end end
 implement native_visual_layout_cases(f,r) = let val before=mem_live() val d=doc_open()
   val body=test(f,r,d) val markup=markdown(f,r) val hard=hard_lines(f,r)
   val nav=navigation(f,r) val fold=folding_and_task(f,r)
   val errors=body+markup+hard+nav+fold val ()=doc_free(d) val delta=isub(mem_live(),before)
   val scale=iadd(wrap_scale(f,r,64),iadd(wrap_scale(f,r,256),wrap_scale(f,r,1024)))
   val clipping=iadd(nested_clips(r),warm_layout(f,r))
+  val embedded=embedded_documents(f,r)
   val ()=println!("event=native_visual_layout errors=",errors," retained_font_source_bytes=",delta)
   val ()=println!("event=visual_cases body=",body," markdown=",markup," hard=",hard," navigation=",nav," fold=",fold)
-in iadd(clipping,iadd(errors,scale)) end
+in iadd(embedded,iadd(clipping,iadd(errors,scale))) end

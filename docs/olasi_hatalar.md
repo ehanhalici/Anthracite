@@ -276,15 +276,26 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-017 — Embed ölçümü ve çizimi aynı belgeyi paylaşmıyor
 
-- Durum: doğrulandı (kaynak incelemesi); düzeltme sürüyor.
+- Durum: çözüldü; ölçüm ve çizim aynı sahipli belge cache'ini kullanır.
 - Kanıt: `measure_embedded_height` belgeyi yükleyip serbest bırakır; çizim
   yolunun ayrı `CEmbed` cache'i vardır. İlk ölçüm çizimde tekrar kullanılamaz.
+- Çözüm: ortak obtain/save yolu hit'te belgeyi ödünç alıp geri koyar; derinlik
+  yeniden kullanımda güncellenir. Ölçülen belge atılmaz. Cache 48 belgeyle sınırlıdır.
+- Doğrulama: yedi farklı blok için tek Doc yükleme/AST parse, tek cache girdisi
+  ve sıcak hazırlıkta sıfır yükleme; native grafik suite'i geçti. Kişisel örneğin
+  ilk karesinde 38 yerine 31 çocuk belge yüklemesi ölçüldü.
 
 ## BUG-018 — Embed yükseklik anahtarı hedef bloğu içermiyor
 
-- Durum: doğrulandı (kaynak incelemesi); düzeltme sürüyor.
+- Durum: çözüldü; hatalı global yükseklik tablosu kaldırıldı.
 - Kanıt: C yükseklik tablosu yalnız path/width/lh kullanır; aynı dosyanın
   farklı `#^blok` referansları aynı yüksekliği paylaşır. Font sürümü eksiktir.
+- Çözüm: yükseklik ilgili blok aralığının güncel Doc görsel geometrisinden
+  alınır. Font/ölçek/sürüm ve genişlik VisualKey tarafından denetlenir;
+  farklı bloklar artık aynı path tablosu yüksekliğini paylaşmaz. Ölçüm/çizim
+  aynı çocuk metin genişliği hesabını kullanır.
+- Doğrulama: tek dosyadaki yedi farklı uzunluktaki blok aynı belgeyi paylaşırken
+  farklı yükseklikler üretir; sıcak yükseklik ve bellek sahipliği testi geçti.
 
 ## BUG-019 — Çocuk clip'i ebeveynin görünür sınırını genişletebiliyor
 
