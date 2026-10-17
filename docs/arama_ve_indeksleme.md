@@ -33,7 +33,8 @@ case ilişkileri sınanır. Bu sözleşme tam Unicode full-case-fold olarak adla
 
 Sonuç metni katlanmış kopya değildir. Başlangıç/bitiş ve kolon özgün UTF8 byte
 ofsetleridir; `İ` gibi uzunluğu değişen eşlemede de doğru kalır. Snippet en fazla
-80 byte öncesinden 240 byte sonrasına uzanır; kenarlar scalar sınırına hizalanır.
+80 byte öncesinden 240 byte sonrasına uzanır; bitişi scalar sınırına hizalamak
+en fazla üç ek byte gerektirebilir.
 Sorgunun aynı satırdaki bütün ve çakışan eşleşmeleri korunur, sonuç sınırı uygulanır.
 
 ## Kapsam, çalışma ve sınırlar

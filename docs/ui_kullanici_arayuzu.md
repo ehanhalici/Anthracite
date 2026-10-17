@@ -22,8 +22,14 @@ esintisi tasarım bağlamıdır; bağımlılık veya birebir API uyumluluğu de�
 ## Durum ve sahiplik
 
 `EditorState` idle, typing, selecting, prompt, menu ve split-drag varyantlarına
-sahiptir. `editor_fsm_contracts` altı durum ve on bir eylemin 66 geçişini bağımsız
-tabloyla, yük verileri ve editing/modal bayraklarıyla karşılaştırır.
+sahiptir. Durum ve eylemler, tahsis yapmayan nullary kind etiketli düz kayıtlardır;
+yalnız etikete ait payload alanları anlamlıdır. Geçişler GC gerektiren kutular
+bırakmaz. `editor_fsm_contracts` altı durum ve on bir eylemin 66 geçişini bağımsız
+tabloyla 128 kez, yük verileri ve editing/modal bayraklarıyla karşılaştırır.
+Ayrıca signed int min/max, -1 ve 0'dan türeyen 64 seçim payload üçlüsünü ve
+split konumunun korunmasını sınar; aynı yürütücü LSan altında da çalıştırılır.
+Ayrı 88 geçiş prompt/menü payload'larının dört varyantını her eylemle karşılaştırır;
+durum adları da bağımsız beklentiyle korunur.
 `editor_fsm_is_modal` prompt ve menü durumlarında true döndürür. Menü FSM'si
 kapatma/Escape dışındaki arka plan eylemlerini zaten yok sayar; modal bilgisi
 bu geçiş politikasıyla uyumludur (BUG-002 çözüldü).

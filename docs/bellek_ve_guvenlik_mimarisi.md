@@ -57,3 +57,9 @@ kayıtları tahsissizdir. Tek kullanımlı metrik ve gezinme sonuçları `Option
 olarak tüketilir. Test fixture'larının listeleri de sızıntı denetiminde kapsam
 içindedir. `font_temporary_ownership_type_error` altı sonuç türünü bırakma
 girişimini reddeder; bunun yanında gerçek yaşam döngüsü LSan ile sınanır.
+
+`EditorState` ve `EditorAction` da nullary etiket + düz payload kaydıdır;
+geçiş başına sahipliği belirsiz kutu üretilmez. FSM'nin bağımsız matris testi
+ve tam uygulama `graphics_selftest` koşusu sızıntı denetimine birlikte alınır.
+İşlevsel geçiş tablosunun ve `mem_live` dengesinin tek başına başarılı olması,
+önceki kutulu temsildeki sızıntıyı yakalamıyordu (BUG-036).

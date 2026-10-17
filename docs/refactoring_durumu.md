@@ -1,5 +1,25 @@
 # Refactoring çalışma kaydı
 
+## 2026-10-18 — BUG-036 editör durum makinesinde kutu sızıntısı
+
+Tam uygulama LSan koşusunda bulunan 56 bayt/4 tahsis, `addr2line -afi` ile
+`editor_fsm_selftest`, `step_idle` ve `step_typing` kurucularına izlendi.
+Bağımsız FSM matrisinde 66 geçiş işlevsel olarak doğruyken 1.624 bayt/125
+tahsis kalıyordu. Durum ve eylemler nullary kind etiketli düz kayıtlara çevrildi;
+çağıranlar kurucu adlarını koruyor, geçişlerde GC veya suppression kullanılmıyor.
+Prompt/menü/selection/split payload'ı ve durum adı politikası değişmedi.
+
+Bağımsız test 66 geçişi 128 kez, int min/max/-1/0'dan türeyen 64 seçim
+payload üçlüsünü ve dört prompt/menü varyantının 88 geçişini denetler.
+Genişletilmiş test `detect_leaks=1` altında geçti (0,02 s). Tam uygulama dahil
+native grafik, FSM, literal arama, sonuç ağacı ve geometri sanitizer paketi
+6/6 geçti (28,06 s); arama bayrakları ve tampon dengesi de başarılıdır.
+Bu sınanan yaşam döngülerinde ASan/UBSan/LSan bulgusu yoktur, tüm girdiler
+için sızıntısızlık ispatı değildir. BUG-036 aktif listeden çıkarıldı.
+Genişletilmiş FSM dahil Release tam paket 271/271 geçti (5,79 s); kaynak/belge
+bağlantıları, yedi opak sahip, 5.601 fonksiyonun gövde sınırı ve boşluk denetimi
+başarılıdır. Son CPU sanitizer tekrarı da 4/4 geçti (0,05 s).
+
 ## 2026-10-17 — BUG-034 ham metin araması ve sonuç gezinmesi
 
 Panel AST indeksinden ayrıldı: Unicode 18 basit tek-scalar case eşdeğerliği ve
@@ -25,6 +45,10 @@ dört viewport'u, gerçek panel tıklamasını, kaydırma/vurgu, iptal, boş son
 tampon dengesini sınar. Salt okunur gerçek kasa sorgusu yaklaşık 20,6 ms'de
 10 sonuç satırı üretti; Doc yükleme ve AST parse sayaçları sıfırdı. Bu tek
 koşuluk ölçümdür, genel performans garantisi değildir. BUG-034 aktif listeden çıkarıldı.
+Arama değişikliklerini içeren Debug tam paket de 271/271 geçti (232,35 s).
+18 Ekim'de beş ayrı süreçlik salt okunur aynı kasa sorgusunda medyan 19,171 ms
+(18,399–20,019 ms), her koşuda Doc yükleme/AST parse sayısı sıfırdı.
+OS sayfa cache'i temizlenmedi; bu soğuk disk ölçümü veya genel gecikme garantisi değildir.
 
 ## 2026-10-17 — BUG-035 matematikte açılış kilidi ve UTF8
 
