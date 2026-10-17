@@ -77,6 +77,16 @@ uzak kaynakların yüklenmemesi, kaydırma anchor'ı ve iç içe hedef önceliğ
 
 ## Görsel koordinatlar
 
+Matematik bloklarının yüksekliği medya bağlama, AST görünürlük hazırlığı ve
+yerleşim boyunca `doc_math_block_height` ile aynı hesaplanır; damgalama bu
+ölçümü sabit 24 px'e çevirmez. Aksi halde görünür hazırlık sabit noktaya ulaşamaz.
+Matematik önizlemesi sınırlı bir Unicode metin dönüşümüdür, tam TeX/MathJax veya
+iki boyutlu denklem yerleşimi değildir. `math_append_preview` mevcut tampona
+ekler; üst/alt indis fallback'i desteklenmeyen scalar'ın UTF8 baytlarını birlikte
+taşır. `math_preview_contracts` çok baytlı karakterleri, kesik grupları ve
+append sözleşmesini; grafik testler font boyutu/mod değişimi ve sıcak karede
+yeniden sarma/yerleşim olmamasını denetler.
+
 Kaynak bayt ofseti, fiziksel satır, görsel sarma satırı ve piksel koordinatı
 ayrı kavramlardır. Çizim, caret, fare hit-test ve dikey hareket aynı görsel satır
 verisini kullanır. Önce katlama görünürlüğü, sonra görsel izdüşüm/yerleşim hazırlanır.

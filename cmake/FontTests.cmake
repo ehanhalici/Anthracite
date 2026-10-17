@@ -19,7 +19,7 @@ foreach(MODULE font_glyph_id_fixture font_glyph_id_primary font_glyph_id_fallbac
     COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tests" -o "${OUTPUT}" -d "${ANTHRACITE_TEST_${MODULE}}"
     DEPENDS "${ANTHRACITE_TEST_${MODULE}}" tests/font/atlas/font_glyph_id_contracts.sats tests/font/resources/font_gl_airlock.sats tests/font/text/run/font_run_render_contracts.sats
       tests/font/native/ownership/font_native_contracts.sats tests/font/native/ownership/font_native_test.hats tests/font/native/text/native_pipeline_contracts.sats tests/font/native/text/native_pipeline_test.hats
-      tests/font/text/font_text_abi_airlock.sats tests/workspace/embed_scheduler_cases.hats tests/workspace/embed_navigation_cases.hats ${ATS_INTERFACES})
+      tests/font/text/font_text_abi_airlock.sats tests/workspace/embed_scheduler_cases.hats tests/workspace/embed_navigation_cases.hats tests/workspace/math_geometry_cases.hats ${ATS_INTERFACES})
   list(APPEND FONT_GLYPH_ID_TEST_C_SOURCES "${OUTPUT}")
 endforeach()
 add_executable(sfnt_conformance EXCLUDE_FROM_ALL

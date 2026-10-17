@@ -168,17 +168,24 @@ fun find_brace_close_with_fuel {recfuel:nat} .<recfuel>. (
 fun find_brace_close(d: !Doc, p: int, en: int): int =
   find_brace_close_with_fuel(airlock_nat(MAX_REC_FUEL), d, p, en, 1)
 
+fun math_script_scalar(d: !Doc,p: int,en: int,out: &Buf >> _,superscript: bool): int = let
+  val finish=doc_advance_cps(d,p,en,1)
+  val byte=doc_byte(d,p)
+  val symbol=if superscript then math_char_to_sup(byte) else math_char_to_sub(byte)
+  val ()=if igt(c_strlen(symbol),0) then buffer_append_string(out,symbol) else let
+    val ()=buf_push(out,if superscript then CHAR_CARET else CHAR_UNDERSCORE)
+  in doc_buf_push_slice_with_fuel(airlock_nat(iadd(UTF8_MAX_SEQUENCE_BYTES,1)),d,p,finish,p,out) end
+in finish end
+
 fun convert_sup_run_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int, out: &Buf >> _
 ): void =
   if recursion_fuel_available(recfuel) then (
     if ige(p, en) then ()
     else let
-      val b = doc_byte(d, p)
-      val s = math_char_to_sup(b)
-      val () = if igt(c_strlen(s), 0) then buffer_append_string(out, s) else (buffer_append_string(out, "^"); buf_push(out, b))
+      val next = math_script_scalar(d,p,en,out,true)
     in
-      convert_sup_run_with_fuel(recfuel - 1, d, iadd(p, 1), en, out)
+      convert_sup_run_with_fuel(recfuel - 1, d, next, en, out)
     end
   ) else ()
 
@@ -189,13 +196,7 @@ fun convert_sup(d: !Doc, p: int, en: int, out: &Buf >> _): int =
     val () = convert_sup_run_with_fuel(airlock_nat(MAX_REC_FUEL), d, iadd(p, 1), close, out)
   in
     if ilt(close, en) then iadd(close, 1) else close
-  end else let
-    val b = doc_byte(d, p)
-    val s = math_char_to_sup(b)
-    val () = if igt(c_strlen(s), 0) then buffer_append_string(out, s) else (buffer_append_string(out, "^"); buf_push(out, b))
-  in
-    iadd(p, 1)
-  end
+  end else math_script_scalar(d,p,en,out,true)
 
 fun convert_sub_run_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, p: int, en: int, out: &Buf >> _
@@ -203,10 +204,8 @@ fun convert_sub_run_with_fuel {recfuel:nat} .<recfuel>. (
   if recursion_fuel_available(recfuel) then (
     if ige(p, en) then ()
     else let
-      val b = doc_byte(d, p)
-      val s = math_char_to_sub(b)
-      val () = if igt(c_strlen(s), 0) then buffer_append_string(out, s) else (buffer_append_string(out, "_"); buf_push(out, b))
+      val next = math_script_scalar(d,p,en,out,false)
     in
-      convert_sub_run_with_fuel(recfuel - 1, d, iadd(p, 1), en, out)
+      convert_sub_run_with_fuel(recfuel - 1, d, next, en, out)
     end
   ) else ()

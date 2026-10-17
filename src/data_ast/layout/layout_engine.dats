@@ -9,6 +9,8 @@ staload "flag.sats"
 staload "data_ast/document/doc.sats"
 staload "data_ast/layout/layout_internal.sats"
 staload "data_ast/layout/doc_visual.sats"
+macdef MATH_BLOCK_PADDING_PIXELS = 12
+implement doc_math_block_height(lh) = iadd(lh,MATH_BLOCK_PADDING_PIXELS)
 
 extern fun assign_lines_fuel_exhausted(d: !Doc, lh: int, line: int, y: int, is_read: int, wc: int): int = "mac#anth_die_int"
 
@@ -53,7 +55,7 @@ fun line_scan_extras {recfuel:nat} .<recfuel>. (
         val k = doc_node_kind(d, i)
         val h = doc_node_height(d, i)
         val is_widget = is_kind(k, KImage) orelse is_kind(k, KEmbed) orelse is_kind(k, KMathb)
-        val wh = if is_kind(k, KMathb) andalso ieq(h, 0) then 24 else h
+        val wh = if is_kind(k, KMathb) andalso ieq(h, 0) then doc_math_block_height(lh) else h
         val use_w = if is_off(doc_node_hidden(d, i)) andalso is_widget andalso igt(wh, acc_w) then wh else acc_w
         val ex = if ieq(is_read, 1) then line_heading_extra(k, lh) else 0
         val use_h = imax(acc_h, ex)
@@ -103,8 +105,8 @@ end
 extern fun stamp_nodes_fuel_exhausted(d: !Doc, lh: int, is_read: int, wc: int, i: int): void = "mac#anth_die_void"
 
 fun stamp_height(d: !Doc,i: int,k: NodeKind): void =
-  if not(doc_visual_active(d)) orelse is_inline(k) orelse is_kind(k,KImage) orelse is_kind(k,KEmbed) then ()
-  else if is_kind(k,KMathb) then doc_set(d,i,NF_HEIGHT,24)
+  if not(doc_visual_active(d)) orelse is_inline(k) orelse is_kind(k,KImage) orelse is_kind(k,KEmbed)
+    orelse is_kind(k,KMathb) then ()
   else let
     val first=doc_line_of(d,doc_node_start(d,i))
     val finish=doc_line_of(d,imax(doc_node_start(d,i),isub(doc_node_end(d,i),1)))

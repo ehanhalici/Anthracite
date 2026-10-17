@@ -434,6 +434,7 @@ fun remove_depth_chain{n:nat} .<n>. (left: int(n),root: !Buf,index: int): int =
   in iadd(if ieq(removed,0) then 0 else 1,remove_depth_chain(left-1,root,iadd(index,1))) end
 #include "workspace/embed_scheduler_cases.hats"
 #include "workspace/embed_navigation_cases.hats"
+#include "workspace/math_geometry_cases.hats"
 fun nested_embeds(f: !Font,r: !Rend,root: !Buf): int = let
   val first=write_note(root,"cycle-a.md","![[cycle-b]]\n") val second=write_note(root,"cycle-b.md","![[cycle-a]]\n")
   val cycle=nested_embed_case(f,r,root,"![[cycle-a]]\n",2)
@@ -455,7 +456,7 @@ in if not(created) then let val ()=buf_free(root) in 1 end else let
   in iadd(nesting,iadd(errors,if ieq(removed,0) andalso ieq(closed,0) then 0 else 1)) end end
 implement native_visual_layout_cases(f,r) = let val before=mem_live() val d=doc_open()
   val body=test(f,r,d) val markup=markdown(f,r) val hard=hard_lines(f,r)
-  val nav=navigation(f,r) val fold=folding_and_task(f,r)
+  val nav=navigation(f,r) val fold=iadd(folding_and_task(f,r),math_geometry(f,r))
   val errors=body+markup+hard+nav+fold val ()=doc_free(d) val delta=isub(mem_live(),before)
   val scale=iadd(wrap_scale(f,r,64),iadd(wrap_scale(f,r,256),wrap_scale(f,r,1024)))
   val clipping=iadd(paragraph_bidi_rows(f,r),iadd(owned_row_plans(f,r),iadd(nested_clips(r),warm_layout(f,r))))

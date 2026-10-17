@@ -26,6 +26,10 @@ anthracite_contract_test(anchor_contracts tests/workspace/anchor_contracts.dats)
 target_link_libraries(anchor_contracts PRIVATE anthracite_host native_text_engine
   ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
 add_test(NAME anchor_contracts COMMAND anchor_contracts)
+anthracite_contract_test(math_preview_contracts tests/workspace/math_preview_contracts.dats)
+target_link_libraries(math_preview_contracts PRIVATE anthracite_host native_text_engine
+  ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
+add_test(NAME math_preview_contracts COMMAND math_preview_contracts)
 
 anthracite_contract_test(selftest_memory_contracts tests/runtime/selftest_memory_contracts.dats)
 target_link_libraries(selftest_memory_contracts PRIVATE anthracite_host native_text_engine

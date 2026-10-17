@@ -29,6 +29,8 @@ datavtype Cache =
 
 fun cache_work_begin(cache: &Cache >> _): void
 fun cache_work_pending(cache: !Cache): bool
+(* Limited Unicode math preview, not a full TeX/MathJax layout engine. Appends. *)
+fun math_append_preview(d: !Doc,start: int,finish: int,destination: &Buf >> _): void
 
 fun cache_clear_embed_selection(cache: &Cache >> _): void
 fun cache_copy_embed_selection(cache: !Cache,destination: &Buf >> _): bool

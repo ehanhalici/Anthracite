@@ -1,4 +1,5 @@
 staload "data_ast/document/doc.sats"
+fun doc_math_block_height(line_height: int): int
 
 fun doc_layout_ast_prepare(d: !Doc, line_height: int): void
 fun doc_layout_line_hidden(d: !Doc, start: int, stop: int, node_count: int): int

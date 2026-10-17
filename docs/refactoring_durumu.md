@@ -1,5 +1,21 @@
 # Refactoring çalışma kaydı
 
+## 2026-10-17 — BUG-035 matematikte açılış kilidi ve UTF8
+
+Kullanıcının yeni BUG-033 kaydı, eski çözülmüş numara tekrar kullanılmasın diye
+BUG-035 olarak takip edildi. Debugger'da 500 hazırlık çağrısı sonrası aynı
+görünür layout yolu gözlendi: medya yüksekliği `lh+12`, AST hazırlığı `lh`,
+son damga 24 px yazıyordu. Üç aşama artık `doc_math_block_height` politikasını
+paylaşıyor. Üst/alt indis dönüşümü unsupported scalar'ı tek parça kopyalar;
+continuation baytları arasına `^`/`_` girmez. Tam MathJax/TeX motoru iddiası yoktur.
+
+Release 267/267 geçti (4,36 s). ASan/UBSan ve sızıntı denetimi açıkken native
+grafik + matematik CPU testleri 2/2 geçti (18,31 s). Yeni özel örnek salt okunur
+benchmark'ta ilk kareyi 60,334 ms'de, sıcak kaydırmayı p95 1,069 ms'de tamamladı;
+öncesinde tur matematik görünürken ilerlemiyordu. Bu tek süreçlik ölçümdür.
+2/3/4 bayt UTF8, kesik grup, append ve 18/24/28 px read/edit geometri testleri
+eklendi; kayıt aktif listeden çıkarıldı. Kişisel notun içeriği fixture'a alınmadı.
+
 ## 2026-10-17 — BUG-032 geçici değer sahipliği
 
 GC'siz kutu sızıntıları SFNT, metin, compound glif, boyama/hit/graph ve gezinme

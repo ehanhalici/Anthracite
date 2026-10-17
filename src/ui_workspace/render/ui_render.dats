@@ -2,6 +2,7 @@
 #include "share/atspre_define.hats"
 #include "share/atspre_staload.hats"
 #include "common.hats"
+#include "data_text/utf8/utf8_encoding.hats"
 (* Initial allocation policy; capacities are measured in bytes. *)
 macdef EMBEDDED_HEIGHT_ANCHOR_INITIAL_BYTES = 8
 macdef BIND_ONE_REL_INITIAL_BYTES = 8
