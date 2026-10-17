@@ -23,9 +23,8 @@ fun read_component(b: !Buf, size: int): ComponentRead =
 fun unsigned_points(): int = let
   val b = component_bytes(1,40000,60000)
   val ok = case+ read_component(b,8) of
-    | InvalidComponent() => false
-    | ParsedComponent(c) => (case+ c.placement of
-      | ComponentXY(x,y,mode) => false | ComponentPoints(a,p) => ieq(a,40000) andalso ieq(p,60000))
+    | ~InvalidComponent() => false
+    | ~ParsedComponent(c) => c.placement.points andalso ieq(c.placement.first,40000) andalso ieq(c.placement.second,60000)
   val () = buf_free(b)
 in if ok then 0 else 1 end
 
@@ -34,9 +33,8 @@ fun unsigned_bytes(): int = let
   val () = buf_set(b,4,200)
   val () = buf_set(b,5,250)
   val ok = case+ read_component(b,6) of
-    | InvalidComponent() => false
-    | ParsedComponent(c) => (case+ c.placement of
-      | ComponentXY(x,y,mode) => false | ComponentPoints(a,p) => ieq(a,200) andalso ieq(p,250))
+    | ~InvalidComponent() => false
+    | ~ParsedComponent(c) => c.placement.points andalso ieq(c.placement.first,200) andalso ieq(c.placement.second,250)
   val () = buf_free(b)
 in if ok then 0 else 1 end
 
@@ -45,9 +43,8 @@ fun signed_bytes(): int = let
   val () = buf_set(b,4,200)
   val () = buf_set(b,5,250)
   val ok = case+ read_component(b,6) of
-    | InvalidComponent() => false
-    | ParsedComponent(c) => (case+ c.placement of
-      | ComponentPoints(a,p) => false | ComponentXY(x,y,mode) => ieq(x,~56) andalso ieq(y,~6))
+    | ~InvalidComponent() => false
+    | ~ParsedComponent(c) => if c.placement.points then false else ieq(c.placement.first,~56) andalso ieq(c.placement.second,~6)
   val () = buf_free(b)
 in if ok then 0 else 1 end
 
@@ -55,8 +52,8 @@ fun transformed_offset(flags: int, dx: double, dy: double): int = let
   val b = component_bytes(flags,100,200)
   val () = fixture_put16(b,8,8192)
   val ok = case+ read_component(b,10) of
-    | InvalidComponent() => false
-    | ParsedComponent(c) => let
+    | ~InvalidComponent() => false
+    | ~ParsedComponent(c) => let
         val parent = @{matrix= @{xx=0.0,xy= ~1.0,yx=1.0,yy=0.0},dx=10.0,dy=20.0}
         val placed = glyph_component_transform(parent,c)
       in placed.dx = dx andalso placed.dy = dy end
@@ -70,15 +67,15 @@ fun off_diagonal(): int = let
   val () = fixture_put16(b,12,61440)
   val () = fixture_put16(b,14,24576)
   val ok = case+ read_component(b,16) of
-    | InvalidComponent() => false
-    | ParsedComponent(c) => let val @(x,y) = glyph_matrix_point(c.matrix,2.0,4.0)
+    | ~InvalidComponent() => false
+    | ~ParsedComponent(c) => let val @(x,y) = glyph_matrix_point(c.matrix,2.0,4.0)
       in x = 0.0 andalso y = 7.0 end
   val () = buf_free(b)
 in if ok then 0 else 1 end
 
 fun invalid_component(flags: int, size: int): int = let
   val b = component_bytes(flags,0,0)
-  val ok = case+ read_component(b,size) of | InvalidComponent() => true | ParsedComponent(c) => false
+  val ok = case+ read_component(b,size) of | ~InvalidComponent() => true | ~ParsedComponent(c) => false
   val () = buf_free(b)
 in if ok then 0 else 1 end
 

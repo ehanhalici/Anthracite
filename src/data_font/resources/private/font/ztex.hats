@@ -19,7 +19,7 @@ in
 end
 
 implement font_open() = FONT(@{
-  file= buf_make(FONT_OPEN_FILE_INITIAL_BYTES), fb_file= None_vt(), info= None(), fb_info= None()
+  file= buf_make(FONT_OPEN_FILE_INITIAL_BYTES), fb_file= None_vt(), info= sfnt_metadata_empty(), fb_info= sfnt_metadata_empty()
 , atlas= buf_make(FONT_ATLAS_WIDTH_PIXELS * FONT_ATLAS_HEIGHT_PIXELS), cache= buf_make(1024 * 12 * 4)
 , xs= buf_make(8192 * 4), ys= buf_make(8192 * 4), fl= buf_make(FONT_OPEN_BUFFER_INITIAL_BYTES)
 , ends= buf_make(512 * 4), edges= buf_make(FONT_MAX_EDGES * 4 * 4), cov= buf_make(256 * 256)
@@ -198,4 +198,3 @@ implement font_line_h(f) = case+ f of
 
 implement font_asc(f) = case+ f of
   | @FONT(s) => let val value = s.asc_px in fold@(f); value end
-

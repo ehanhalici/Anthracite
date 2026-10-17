@@ -17,7 +17,7 @@ implement glyph_position_finish(p,d) = let
   val cache=glyph_position_cache_make(count) and graph=glyph_position_graph_make(count)
   val ()=glyph_position_cache_copy(s,cache,meta.used)
   val preflight=glyph_position_graph_prefix(s,meta,cache,graph,d)
-  val status=if glyph_position_ready(preflight) then glyph_position_graph_resolve(s,meta,cache,graph,PositionFinal(d)) else preflight
+  val status=if glyph_position_ready(preflight) then glyph_position_graph_resolve(s,meta,cache,graph,@{final=true,direction=d}) else preflight
   val ()=if glyph_position_ready(status) then glyph_position_cache_commit(cache,s,meta.used) else ()
   val ()=glyph_position_cache_dispose(cache) and ()=glyph_position_graph_dispose(graph)
 in if glyph_position_ready(status) then PositionFinished(PositionFrozen(glyph_run_freeze(GlyphRun(phase,meta,s)),scale,d))

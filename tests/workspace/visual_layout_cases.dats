@@ -6,6 +6,7 @@ staload "data_ast/layout/visual_rows.sats"
 staload "data_font/resources/font_document_metrics.sats"
 staload "data_font/resources/font_hit.sats"
 staload "data_font/text/font_text.sats"
+staload "data_font/text/font_text_types.sats"
 staload "data_font/text/span/font_span.sats"
 staload "data_font/text/span/font_span_types.sats"
 staload "data_font/resources/private/font_storage.sats"
@@ -199,7 +200,10 @@ fun evict_font_cache{n:nat} .<n>. (left: int(n),f: !Font,i: int): void =
   if left = 0 then () else let var source=buf_make(32)
     val ()=buffer_append_string(source,"eviction ")
     val ()=buf_push(source,iadd(CHAR_UPPER_A,idiv(i,16))) val ()=buf_push(source,iadd(CHAR_UPPER_A,imod(i,16)))
-    val length=buf_len(source) val width=font_text_width(f,source,length) val ()=buf_free(source)
+    val length=buf_len(source)
+    val width=case+ font_text_width(f,source,length) of
+      | ~FontTextValue(value) => value | ~FontTextInactive() => ~1 | ~FontTextFailed(error) => ~1
+    val ()=buf_free(source)
   in evict_font_cache(left-1,f,iadd(i,1)) end
 fun owned_row_plans(f: !Font,r: !Rend): int = let
   val d=doc_open() val source=bytes("Türkçe **metin** بسم الله الرحمن الرحيم\nikinci satır\n")
@@ -346,8 +350,8 @@ fun selection_ink(f: !Font,r: !Rend,tabs: !Tabs,root: !Buf,cache: &Cache >> _,sc
   val errors=selection_pixels(307200,pixels,0,isub(bottom,4),found,0)
   val ()=buf_free(pixels)
 in iadd(errors,if igt(found,0) then 0 else 1) end
-fun selected_info{n:nat} .<n>. (left: int(n),cache: !Cache): Option(EmbeddedSelection) =
-  if left = 0 then None() else case+ cache of | CNil() => None() | CSelection(info,path,rest) => Some(info)
+fun selected_info{n:nat} .<n>. (left: int(n),cache: !Cache): Option_vt(EmbeddedSelection) =
+  if left = 0 then None_vt() else case+ cache of | CNil() => None_vt() | CSelection(info,path,rest) => Some_vt(info)
   | CWork(state,pins,rest) => selected_info(left-1,rest)
   | CCons(p,t,w,h,rest) => selected_info(left-1,rest) | CEmbed(p,s,d,w,h,rest) => selected_info(left-1,rest)
   | CView(p,s,state,rest) => selected_info(left-1,rest)
@@ -363,7 +367,7 @@ fun selected_view_exists{n:nat} .<n>. (left: int(n),cache: !Cache,info: Embedded
 fun selected_view_pin(f: !Font,r: !Rend,tabs: !Tabs,root: !Buf,cache: &Cache >> _): int = let
   val ()=case+ tabs of | TNil() => () | TCons(d,p,t,s,rest) => populate_views(140,f,r,d,cache,root,0)
   val info=selected_info(512,cache)
-  val found=case+ info of | None() => false | Some(selection) => selected_view_exists(512,cache,selection)
+  val found=case+ info of | ~None_vt() => false | ~Some_vt(selection) => selected_view_exists(512,cache,selection)
   val stats=cache_embed_stats(cache)
 in if found andalso ieq(stats.views,128) andalso stats.viewBytes <= 67108864LL then 0 else 1 end
 fun selection_drag(f: !Font,r: !Rend,tabs: !Tabs,root: !Buf,cache: &Cache >> _,scratch: &Buf >> _): int = let

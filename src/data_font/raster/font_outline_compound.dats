@@ -36,12 +36,10 @@ fun translate_points {n:nat} .<n>. (
   in translate_points(n-1,f,iadd(i,1),dx,dy) end
 
 fun align_component(f: !Font, placement: ComponentPlacement, parent: int, child: int): void =
-  case+ placement of
-  | ComponentXY(x,y,mode) => ()
-  | ComponentPoints(a,b) => let
+  if not(placement.points) then () else let
       val finish = font_get_point_count(f)
-      val pa = iadd(parent,a)
-      val pb = iadd(child,b)
+      val pa = iadd(parent,placement.first)
+      val pb = iadd(child,placement.second)
     in if ilt(pa,parent) orelse ige(pa,child) orelse ilt(pb,child) orelse ige(pb,finish)
       then outline_exhausted()
       else translate_points(airlock_nat(isub(finish,child)),f,child,
@@ -69,8 +67,8 @@ and comp_loop {fuel:nat} .<fuel>. (
   xf: GlyphTransform, depth: int, parent: int
 ): void =
   if fuel = 0 then outline_exhausted() else case+ component_at(f,span,p) of
-  | InvalidComponent() => outline_exhausted()
-  | ParsedComponent(child) => let
+  | ~InvalidComponent() => outline_exhausted()
+  | ~ParsedComponent(child) => let
       val () = comp_place(fuel-1,f,child,xf,depth,parent)
     in if child.more then comp_loop(fuel-1,f,span,child.next,xf,depth,parent) else () end
 

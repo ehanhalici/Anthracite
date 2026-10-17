@@ -31,15 +31,16 @@ fun cluster{fuel:nat} .<fuel>. (fuel: int(fuel),f: !Font,d: !Doc,b: !Buf,
     val ()=doc_set_caret_move(d,i) val ()=edit(f,d,SourceRight(),scratch) val right=caret(d,stop,stop)
   in errors+left+right+cluster(fuel-1,f,d,b,start,stop,iadd(i,1),scratch) end
 fun steps{fuel:nat} .<fuel>. (fuel: int(fuel),f: !Font,d: !Doc,b: !Buf,
-  positions: List0(int),start: int,scratch: &Buf >> _): int =
-  if fuel = 0 then failed() else case+ positions of | list_nil() => 0 | list_cons(stop,tail) => let
+  positions: List0_vt(int),start: int,scratch: &Buf >> _): int =
+  if fuel = 0 then let val ()=list_vt_free(positions) in failed() end
+  else case+ positions of | ~list_vt_nil() => 0 | ~list_vt_cons(stop,tail) => let
     val ()=doc_set_caret_move(d,start) val ()=edit(f,d,SourceRight(),scratch) val right=caret(d,stop,stop)
     val ()=edit(f,d,SourceLeft(),scratch) val left=caret(d,start,start)
     val ()=edit(f,d,SourceSelectRight(),scratch) val shifted=caret(d,stop,start)
     val ()=edit(f,d,SourceSelectLeft(),scratch) val reversed=caret(d,start,start)
     val inside=cluster(airlock_nat(MAX_REC_FUEL),f,d,b,start,stop,iadd(start,1),scratch)
   in right+left+shifted+reversed+inside+steps(fuel-1,f,d,b,tail,stop,scratch) end
-fun sample(f: !Font,s: string,positions: List0(int)): int = let
+fun sample(f: !Font,s: string,positions: List0_vt(int)): int = let
   val b=bytes(s) val d=doc_open() var scratch=buf_make(1) val ()=doc_insert_buf(d,b,buf_len(b))
   val errors=steps(airlock_nat(MAX_REC_FUEL),f,d,b,positions,0,scratch)
   val ()=doc_set_caret_move(d,0) val ()=edit(f,d,SourceLeft(),scratch) val first=caret(d,0,0)
@@ -47,9 +48,9 @@ fun sample(f: !Font,s: string,positions: List0(int)): int = let
   val ()=buf_free(scratch) val ()=doc_free(d) val ()=buf_free(b)
 in errors+first+last end
 fun samples(f: !Font): int =
-  sample(f,"İŞ",$list{int}(3,6))+sample(f,"بَّت",$list{int}(6,8))
-  +sample(f,"👩🏽‍💻X",$list{int}(15,16))+sample(f,"🇹🇷🇦🇧🇨",$list{int}(8,16,20))
-  +sample(f,"a\r\nb\n",$list{int}(1,3,4,5))+sample(f,"",list_nil())
+  sample(f,"İŞ",$list_vt{int}(3,6))+sample(f,"بَّت",$list_vt{int}(6,8))
+  +sample(f,"👩🏽‍💻X",$list_vt{int}(15,16))+sample(f,"🇹🇷🇦🇧🇨",$list_vt{int}(8,16,20))
+  +sample(f,"a\r\nb\n",$list_vt{int}(1,3,4,5))+sample(f,"",list_vt_nil())
 fun erased(f: !Font,s: string,at: int,e: SourceEdit,start: int,stop: int): int = let
   val b=bytes(s) val d=doc_open() var scratch=buf_make(1) val ()=doc_insert_buf(d,b,buf_len(b))
   val ()=doc_set_caret_move(d,at) val ()=edit(f,d,e,scratch)
@@ -84,7 +85,7 @@ fun malformed(f: !Font): int = let
   val b=buf_make(4) val ()=buf_set(b,0,226) val ()=buf_set(b,1,130)
   val ()=buf_set(b,2,65) val ()=buf_set(b,3,128) val ()=buf_set_len(b,4)
   val d=doc_open() var scratch=buf_make(1) val ()=doc_insert_buf(d,b,4)
-  val errors=steps(airlock_nat(MAX_REC_FUEL),f,d,b,$list{int}(2,3,4),0,scratch)
+  val errors=steps(airlock_nat(MAX_REC_FUEL),f,d,b,$list_vt{int}(2,3,4),0,scratch)
   val ()=doc_set_caret_move(d,1) val ()=edit(f,d,SourceDelete(),scratch)
   val intact: int=if ieq(doc_len(d),2) andalso ieq(doc_byte(d,0),65) andalso ieq(doc_byte(d,1),128) then 0 else 1
   val ()=buf_free(scratch) val ()=doc_free(d) val ()=buf_free(b)
@@ -93,7 +94,7 @@ fun relocated(f: !Font): int = let
   val b=bytes("İبَّZ") val space=bytes(" ") val d=doc_open() var scratch=buf_make(1)
   val ()=doc_insert_buf(d,b,10) val ()=doc_set_caret_move(d,2) val ()=doc_insert_buf(d,space,1)
   val ()=doc_delete_range(d,2,3)
-  val errors=steps(airlock_nat(MAX_REC_FUEL),f,d,b,$list{int}(3,9,10),0,scratch)
+  val errors=steps(airlock_nat(MAX_REC_FUEL),f,d,b,$list_vt{int}(3,9,10),0,scratch)
   val ()=buf_free(scratch) val ()=doc_free(d) val ()=buf_free(space) val ()=buf_free(b)
 in errors end
 fun marks{n:nat} .<n>. (left: int(n),b: !Buf,i: int): void =
@@ -140,7 +141,7 @@ implement native_source_edit_cpu(generated,source) = let
   val before=mem_live() val f=font_open()
   val enabled=font_text_enable(f,@{generated=generated,source=source})
   val errors: int=case+ enabled of
-    | FontTextEnabled() => native_source_edit_cases(f)
-    | FontTextAlreadyEnabled() => 1 | FontTextAssetsFailed(e) => 1
+    | ~FontTextEnabled() => native_source_edit_cases(f)
+    | ~FontTextAlreadyEnabled() => 1 | ~FontTextAssetsFailed(e) => 1
   val ()=font_free(f)
 in iadd(errors,score(ieq(before,mem_live()))) end

@@ -62,11 +62,11 @@ fun oracle(b: !Buf,info: OtLayoutInfo,metadata: !GlyphMetadata,glyphs: int,font:
 in errors end
 fun table(b: !Buf,info: SfntInfo,metadata: !GlyphMetadata,font: SingleTestFont): int =
   case+ sfnt_table(b,info.tables,TableGsub()) of
-  | NoSfntTable() => 1 | HasSfntTable(s) => case+ ot_layout_header_parse(b,s) of
+  | ~NoSfntTable() => 1 | ~HasSfntTable(s) => case+ ot_layout_header_parse(b,s) of
     | ~HeaderRejected(e) => 1 | ~HeaderAccepted(layout) => oracle(b,layout,metadata,info.glyphs,font)
 fun gdef(b: !Buf,info: SfntInfo): OtChild = case+ sfnt_table(b,info.tables,TableGdef()) of
-  | NoSfntTable() => @{kind=ChildMissing(),span= @{offset=0,length=0}}
-  | HasSfntTable(s) => @{kind=ChildPresent(),span=s}
+  | ~NoSfntTable() => @{kind=ChildMissing(),span= @{offset=0,length=0}}
+  | ~HasSfntTable(s) => @{kind=ChildPresent(),span=s}
 fun face(f: !SfntFace,font: SingleTestFont): int = let val+ SfntFace(b,info)=f in
   case+ glyph_metadata_parse(b,gdef(b,info),3,info.glyphs) of
   | ~GlyphMetadataRejected(e) => 1 | ~GlyphMetadataAccepted(metadata) => let

@@ -35,7 +35,7 @@ staload "data_font/resources/font_registry.sats"
 #define FONT_MAX_EDGES 10000
 
 datavtype Font_ = FONT of @{
-  file= Buf, fb_file= Option_vt(Buf), info= Option(SfntInfo), fb_info= Option(SfntInfo), atlas= Buf, cache= Buf
+  file= Buf, fb_file= Option_vt(Buf), info= SfntMetadata, fb_info= SfntMetadata, atlas= Buf, cache= Buf
 , xs= Buf, ys= Buf, fl= Buf, ends= Buf, edges= Buf, cov= Buf
 , px= int, units= int, asc= int, desc= int, lgap= int
 , num_h= int, nglyph= int, loca_fmt= Toggle

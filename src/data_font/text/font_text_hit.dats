@@ -11,13 +11,12 @@ fun click_offset(layout: !FontSpanLayout,source: int,length: int): int = let
   val+ FontSpanLayout(a,items,runs,parts,order,n,width,direction)=layout
 in snap(airlock_nat(native_text_analysis_count(a)),a,source,length,0) end
 fun rounded(value: int): int = iadd(idiv(value,64),if ige(imod(value,64),32) then 1 else if ile(imod(value,64),~32) then ~1 else 0)
-fun bounded(layout: !FontSpanLayout,query: TextQuery,length: int): TextQuery = case+ query of
-  | QueryCaret(byte) => QueryCaret(imin(length,imax(0,byte)))
-  | QueryClick(pixel) => QueryClick(imin(font_span_width(layout),imax(0,pixel)))
+fun bounded(layout: !FontSpanLayout,query: TextQuery,length: int): TextQuery =
+  @{caret=query.caret,value=imin(if query.caret then length else font_span_width(layout),imax(0,query.value))}
 implement font_span_text_hit(layout,query,length) = let
   val raw=font_span_hit(layout,bounded(layout,query,length))
-in case+ query of | QueryCaret(byte) => rounded(raw)
-  | QueryClick(pixel) => click_offset(layout,imin(length,imax(0,raw)),length) end
+in if query.caret then rounded(raw)
+  else click_offset(layout,imin(length,imax(0,raw)),length) end
 fun queried{b:bool}(slot: !option_vt(FontTextCache,b),n: int,query: TextQuery): FontTextResult = case+ slot of
   | None_vt() => FontTextFailed(SpanShaping()) | Some_vt(cache) => let val+ FontTextCache(key,layout,px,tail)=cache
     val value=font_span_text_hit(layout,query,n)
@@ -25,8 +24,8 @@ fun queried{b:bool}(slot: !option_vt(FontTextCache,b),n: int,query: TextQuery): 
 fun active(f: !Font,session: &FontTextSession >> FontTextSession,b: !Buf,n: int,query: TextQuery): FontTextResult = let
   val+ ~FontTextSession(assets,old,p,a,m)=session var cache: Option_vt(FontTextCache)=old val px=font_get_px(f)
   val options: FontSpanOptions= @{primary=p,fallback=a,scale= @{xPpem=px,yPpem=px}}
-  val result=case+ font_text_cache_prepare(cache,f,assets,b,n,options) of
-    | ~Some_vt(e) => FontTextFailed(e) | ~None_vt() => queried(cache,n,query)
+  val result=(case+ font_text_cache_prepare(cache,f,assets,b,n,options) of
+    | ~Some_vt(e) => FontTextFailed(e) | ~None_vt() => queried(cache,n,query)): FontTextResult
   val ()=session := FontTextSession(assets,cache,p,a,m)
 in result end
 fun dispatch{b:bool}(state: &option_vt(FontTextSession,b) >> option_vt(FontTextSession,b),f: !Font,

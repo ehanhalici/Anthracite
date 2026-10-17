@@ -40,8 +40,8 @@ fun graph_table(b: !Buf,span: OtSpan,m: !GlyphMetadata,glyphs: int): OtSubstitut
     val result=ot_substitution_graph_parse(b,t,3,glyphs) val ()=ot_layout_dispose(t)
   in case+ result of | ~SubstitutionGraphRejected(e) => nominal_graph_failed() | ~SubstitutionGraphAccepted(g) => g end
 fun graph(b: !Buf,info: SfntInfo,m: !GlyphMetadata): OtSubstitutionGraph =
-  case+ sfnt_table(b,info.tables,TableGsub()) of | NoSfntTable() => nominal_graph_failed()
-    | HasSfntTable(span) => graph_table(b,span,m,info.glyphs)
+  case+ sfnt_table(b,info.tables,TableGsub()) of | ~NoSfntTable() => nominal_graph_failed()
+    | ~HasSfntTable(span) => graph_table(b,span,m,info.glyphs)
 fun rows{n:nat} .<n>. (left: int(n),run: !GlyphRun(1),expected: !Buf,node: int,previous: int,i: int): int =
   if left = 0 then (if ieq(node,~1) then 0 else 1) else let
     val v=glyph_run_query(run,node) and at=imul(i,10)

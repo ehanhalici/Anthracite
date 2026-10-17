@@ -37,7 +37,7 @@ fun lookup(b: !Buf,h: OtLayoutInfo,glyphs: int): int = let val root=ot_lookup_sp
     | ChildMissing() => 1 | ChildInvalid() => 1 | ChildPresent() => payload(b,child.span,glyphs) end end
 fun face(f: !SfntFace): int = let val+ SfntFace(b,info)=f in
   case+ sfnt_table(b,info.tables,TableGpos()) of
-  | NoSfntTable() => 1 | HasSfntTable(s) => case+ ot_layout_header_parse(b,s) of
+  | ~NoSfntTable() => 1 | ~HasSfntTable(s) => case+ ot_layout_header_parse(b,s) of
     | ~HeaderRejected(e) => 1 | ~HeaderAccepted(h) => lookup(b,h,info.glyphs) end
 implement gpos_pair_test_font(path) = case+ sfnt_open(path) of
   | ~RejectedSfnt(e) => 1 | ~LoadedSfnt(f) => let val errors=face(f) val ()=sfnt_dispose(f) in errors end

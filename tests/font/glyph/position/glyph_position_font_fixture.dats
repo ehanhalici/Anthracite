@@ -34,8 +34,8 @@ fun lookup(b: !Buf,info: SfntInfo,h: OtLayoutInfo,index: int): PositionFontTable
   | ChildPresent() => (case+ ot_lookup_header_parse(b,child.span,OtPositioning()) of
     | ~LookupHeaderRejected(e) => position_font_table_failed() | ~LookupHeaderAccepted(h) => payload(b,info,h)) end
 implement position_font_table(b,info,index) = case+ sfnt_table(b,info.tables,TableGpos()) of
-  | NoSfntTable() => position_font_table_failed()
-  | HasSfntTable(s) => (case+ ot_layout_header_parse(b,s) of
+  | ~NoSfntTable() => position_font_table_failed()
+  | ~HasSfntTable(s) => (case+ ot_layout_header_parse(b,s) of
     | ~HeaderRejected(e) => position_font_table_failed() | ~HeaderAccepted(h) => lookup(b,info,h,index))
 implement position_font_initialized(face,run,ppem) = case+ glyph_position_initialize(face,run,ppem,ppem) of
   | ~PositionInitialized(p) => p
@@ -45,6 +45,6 @@ fun cached(b: !Buf,info: SfntInfo,h: OtLayoutInfo,index: int): OtPositionLookup 
   | ChildPresent() => (case+ ot_position_lookup_parse(b,child.span,info.glyphs) of
     | ~PositionLookupRejected(e) => position_font_lookup_failed() | ~PositionLookupAccepted(t) => t) end
 implement position_font_lookup(b,info,index) = case+ sfnt_table(b,info.tables,TableGpos()) of
-  | NoSfntTable() => position_font_lookup_failed()
-  | HasSfntTable(s) => (case+ ot_layout_header_parse(b,s) of
+  | ~NoSfntTable() => position_font_lookup_failed()
+  | ~HasSfntTable(s) => (case+ ot_layout_header_parse(b,s) of
     | ~HeaderRejected(e) => position_font_lookup_failed() | ~HeaderAccepted(h) => cached(b,info,h,index))

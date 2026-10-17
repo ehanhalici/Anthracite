@@ -1,7 +1,7 @@
 #include "data_font/native/shape/native_shape_internal.hats"
 fun gdef(b: !Buf,info: SfntInfo): OtChild = case+ sfnt_table(b,info.tables,TableGdef()) of
-  | NoSfntTable() => @{kind=ChildMissing(),span= @{offset=0,length=0}}
-  | HasSfntTable(span) => @{kind=ChildPresent(),span=span}
+  | ~NoSfntTable() => @{kind=ChildMissing(),span= @{offset=0,length=0}}
+  | ~HasSfntTable(span) => @{kind=ChildPresent(),span=span}
 fun positions(b: !Buf,info: SfntInfo,font: int,m: GlyphMetadata,sub: NativeSubstitution): NativeShapeCacheRead =
   case+ native_shape_pos_cache(b,info,m,font) of
   | ~NativePosRejected(e) => let val ()=native_shape_sub_dispose(sub) and ()=glyph_metadata_dispose(m)

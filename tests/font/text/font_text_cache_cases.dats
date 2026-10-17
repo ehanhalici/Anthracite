@@ -18,7 +18,9 @@ fun entries(f: !Font): int = let val state=font_text_take(f)
 in total end
 fun fill{n:nat} .<n>. (left: int(n),f: !Font,b: !Buf,i: int): void =
   if left > 0 then let val ()=buf_set(b,0,iadd(65,imod(i,26)))
-    val ()=buf_set(b,1,iadd(65,idiv(i,26))) val result=font_text_width(f,b,2)
+    val ()=buf_set(b,1,iadd(65,idiv(i,26)))
+    val width=case+ font_text_width(f,b,2) of
+      | ~FontTextValue(value) => value | ~FontTextInactive() => exhausted() | ~FontTextFailed(error) => exhausted()
   in fill(left-1,f,b,iadd(i,1)) end else ()
 implement native_text_cache_cases(f) = let val before=entries(f) val b=buf_make(2)
   val ()=fill(airlock_nat(3),f,b,0) val warm=entries(f)

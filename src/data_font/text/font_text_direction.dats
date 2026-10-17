@@ -6,7 +6,7 @@ fun active(f: !Font,session: &FontTextSession >> FontTextSession,b: !Buf,length:
   val+ ~FontTextSession(assets,old,primary,fallback,metrics)=session var cache: Option_vt(FontTextCache)=old val px=font_get_px(f)
   val options: FontSpanOptions= @{primary=primary,fallback=fallback,scale= @{xPpem=px,yPpem=px}}
   val prepared=font_text_cache_prepare(cache,f,assets,b,length,options)
-  val result=case+ prepared of | ~Some_vt(error) => FontTextFailed(error) | ~None_vt() => resolved(cache)
+  val result=(case+ prepared of | ~Some_vt(error) => FontTextFailed(error) | ~None_vt() => resolved(cache)): FontTextResult
   val ()=session := FontTextSession(assets,cache,primary,fallback,metrics)
 in result end
 fun direction(f: !Font,state: &Option_vt(FontTextSession) >> _,b: !Buf,length: int): FontTextResult = case+ state of

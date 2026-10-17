@@ -24,7 +24,7 @@ fun indices_valid {n:nat} .<n>. (n: int(n),b: !Buf,f: OtFeatureInfo,i: int,looku
 fun feature_params_check(b: !Buf,tag: OtTag,f: OtFeatureInfo): Option_vt(OtError) =
   case+ ot_feature_params_parse(b,tag,f.parameters) of
   | ~FeatureParamsRejected(e) => Some_vt(e)
-  | ~FeatureParamsAccepted(_) => None_vt()
+  | ~FeatureParamsAccepted(params) => let val ()=ot_feature_params_dispose(params) in None_vt() end
 
 fun feature_validate(b: !Buf,tag: OtTag,s: OtSpan,lookups: int,remaining: &int >> _): Option_vt(OtError) =
   if ilt(s.length,4) then Some_vt(ot_error(OtBounds(),s)) else let

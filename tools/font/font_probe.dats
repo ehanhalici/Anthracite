@@ -22,10 +22,10 @@ fun probes(face: !SfntFace): void = let
   val () = probe(face,64830)
 in probe(face,64831) end
 
-fun error_code(error: SfntError): string = case+ error of
-  | SfntIo(code) => "io" | SfntDirectory() => "directory" | SfntContainer() => "container"
-  | SfntOutline() => "outline" | SfntVariable() => "variable"
-  | SfntMetrics() => "metrics" | SfntCharacterMap() => "cmap" | SfntLocations() => "loca"
+fun error_code(error: SfntError): string = case+ error.kind of
+  | SfntReadError() => "io" | SfntDirectoryError() => "directory" | SfntContainerError() => "container"
+  | SfntOutlineError() => "outline" | SfntVariableError() => "variable"
+  | SfntMetricsError() => "metrics" | SfntCharacterMapError() => "cmap" | SfntLocationsError() => "loca"
 
 fun run(path: string): int = case+ sfnt_open(path) of
   | ~RejectedSfnt(error) => let

@@ -10,7 +10,7 @@ staload "data_font/glyph/position/glyph_position_graph.sats"
 staload "data_font/glyph/position/glyph_position_graph_work.sats"
 implement glyph_position_graph_parent(mode,p) = case+ p.attachment of
   | AttachmentNone() => ~1 | AttachmentCursive() => p.parent
-  | AttachmentMark() => (case+ mode of | PositionCross() => ~1 | PositionFinal(d) => p.parent)
+  | AttachmentMark() => if mode.final then p.parent else ~1
 fun origin_delta(d: GlyphPositionDirection,own: GlyphPositionOrigin,base: GlyphPositionOrigin): GlyphPositionOrigin =
   case+ d of | PositionLTR() => @{x=base.x-own.x,y=base.y-own.y}
   | PositionRTL() => @{x=own.x-base.x,y=own.y-base.y}
@@ -28,5 +28,5 @@ implement glyph_position_graph_change(g,mode,node,p,parent) = case+ p.attachment
   | AttachmentCursive() => glyph_position_change(@{status=PositionReady(),value=p.xAdvance},
     @{status=PositionReady(),value=p.yAdvance},@{status=PositionReady(),value=p.xOffset},
     glyph_position_sum(p.yOffset,parent.yOffset),p)
-  | AttachmentMark() => (case+ mode of | PositionCross() => @{status=PositionReady(),value=p}
-    | PositionFinal(d) => mark(g,d,node,p,parent))
+  | AttachmentMark() => if mode.final then mark(g,mode.direction,node,p,parent)
+    else @{status=PositionReady(),value=p}

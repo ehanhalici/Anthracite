@@ -43,7 +43,7 @@ fun base_x(layout: !FontSpanLayout,row: VisualRow,width: int,colx: int): int =
 fun painted(f: !Font,r: !Rend,rows: !VisualRows,index: int,layout: FontSpanLayout,paint: TextPaint,colx: int,y: int,color: uint): int = let
   val+ VisualRows(text,map,lines,data,count,key,plans)=rows val row=visual_rows_at(rows,index)
   val x=base_x(layout,row,key.width,colx)
-  val baseline=case+ paint of | PaintGlyphs(range) => iadd(y,key.ascent) | PaintSelection(range,height) => y
+  val baseline=if paint.selection then y else iadd(y,key.ascent)
   val status=font_span_paint(f,r,layout,paint,n_i2d(x),n_i2d(baseline),color)
   val units=font_span_width(layout)
   val pixels=iadd(idiv(units,SHAPE_UNITS_PER_PIXEL),if ieq(imod(units,SHAPE_UNITS_PER_PIXEL),0) then 0 else 1)
@@ -55,8 +55,8 @@ implement visual_plan_paint(f,r,rows,index,paint,colx,y,color,scratch) =
 fun queried(rows: !VisualRows,index: int,layout: FontSpanLayout,colx: int,query: TextQuery): @{base=int,value=int} = let
   val+ VisualRows(text,map,lines,data,count,key,plans)=rows val row=visual_rows_at(rows,index)
   val base=base_x(layout,row,key.width,colx)
-  val local_query=case+ query of | QueryCaret(byte) => QueryCaret(byte)
-    | QueryClick(pixel) => QueryClick(imul(imin(MAX_QUERY_PIXELS,imax(0,isub(pixel,base))),SHAPE_UNITS_PER_PIXEL))
+  val local_query: TextQuery=if query.caret then query
+    else QueryClick(imul(imin(MAX_QUERY_PIXELS,imax(0,isub(query.value,base))),SHAPE_UNITS_PER_PIXEL))
   val value=font_span_text_hit(layout,local_query,isub(row.finish,row.start))
   val ()=visual_plans_put(plans,index,layout)
 in @{base=base,value=value} end

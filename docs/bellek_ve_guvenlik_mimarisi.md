@@ -49,3 +49,11 @@ gözlenen `1530113` bayt, bazı sahipler açıkken alınan tarihsel referanstır
 Grafik selftest ayrıca platform açıkken renderer öncesi ve renderer kapandıktan
 sonraki sayacı karşılaştırır; `memory_ok=1` izlenen tamponların bu sınırda
 başlangıç değerine döndüğünü gösterir, tüm sistem tahsisleri için ispat değildir.
+
+`ATS_MEMALLOC_LIBC` yapısında payload'lı nonlinear `datatype` ve `Option`
+kutuları otomatik bırakılmaz. Geçici metin/SFNT/compound/feature sonuçları
+lineerleştirildi; salt cmap, font metadata, paint/hit ve konumlandırma modu
+kayıtları tahsissizdir. Tek kullanımlı metrik ve gezinme sonuçları `Option_vt`
+olarak tüketilir. Test fixture'larının listeleri de sızıntı denetiminde kapsam
+içindedir. `font_temporary_ownership_type_error` altı sonuç türünü bırakma
+girişimini reddeder; bunun yanında gerçek yaşam döngüsü LSan ile sınanır.

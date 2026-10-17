@@ -47,4 +47,4 @@ fun table(b: !Buf,info: SfntInfo,span: OtSpan,m: !GlyphMetadata,p: GlyphPosition
   | ~LayoutRejected(e) => rejected(p) | ~LayoutAccepted(t) => let
     val result=cached(b,info,t,m,p,errors) val ()=ot_layout_dispose(t) in result end
 implement position_font_scheduled(b,info,m,p,errors) = case+ sfnt_table(b,info.tables,TableGpos()) of
-  | NoSfntTable() => rejected(p) | HasSfntTable(span) => table(b,info,span,m,p,errors)
+  | ~NoSfntTable() => rejected(p) | ~HasSfntTable(span) => table(b,info,span,m,p,errors)

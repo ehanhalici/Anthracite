@@ -1,5 +1,19 @@
 # Refactoring çalışma kaydı
 
+## 2026-10-17 — BUG-032 geçici değer sahipliği
+
+GC'siz kutu sızıntıları SFNT, metin, compound glif, boyama/hit/graph ve gezinme
+yollarında giderildi. SFNT cmap/font metadata ve istekler düz kayıt; ayrıştırma,
+metin ve feature parametre sonuçları tüketilen lineer değerlerdir. Fixture
+listeleri/seçim sonucu da tüketilir. Negatif sahiplik testi altı sonuç türünün
+bırakılmasını derleme aşamasında reddeder. Aynı native grafik suite'inin LSan
+raporu 363.280 bayt/45.601 tahsisten önce 1.824/133'e indi, kalan yolların
+düzeltilmesiyle `detect_leaks=1` altında geçti (18,59 s). CPU SFNT, compound,
+analiz, anchor ve negatif sahiplik paketi 5/5 geçti. Suppression veya GC eklenmedi.
+Release tam paket 266/266 geçti (4,50 s); kaynak/belge bütünlüğü ve 5.522
+fonksiyonda 20 satır gövde sınırı doğrulandı. BUG-032 aktif listeden çıkarıldı.
+Bu sonuç sınanan yaşam döngüsüne aittir; tüm girdiler için sızıntısızlık ispatı değildir.
+
 ## 2026-10-17 — Büyük belge ve gömü performansı
 
 `8ca4286` sonrasındaki çalışma AST/katlama taramalarını, paragraf/satır
@@ -11,8 +25,8 @@ Koşullar ve sınırlamalar [performans raporundadır](performans_analizi.md).
 
 Release ve Debug: ayrı ayrı 265/265 CTest geçti. Debug turu 206,03 s sürdü.
 ASan/UBSan erişim denetimi 3/3, CPU LSan denetimi 2/2 geçti.
-Grafik LSan temiz değildir; eski boxed font/OpenType yardımcıları BUG-032'de
-açık tutulur. İlgili yeni metadata okumaları lineerleştirildi, küme başına
+Bu performans kabul anında grafik LSan temiz değildi; sonraki BUG-032
+düzeltmesi yukarıda kayıtlıdır. İlgili yeni metadata okumaları lineerleştirildi, küme başına
 partition kutulaması kaldırıldı. 5.520 kaynak fonksiyonunda 20 satır sınırını
 aşan gövde yoktur; import/belge bağlantıları ve yedi opak sahip denetimi geçti.
 

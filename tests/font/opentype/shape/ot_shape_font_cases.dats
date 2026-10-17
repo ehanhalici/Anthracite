@@ -5,8 +5,8 @@ staload "data_text/arabic/joining/arabic_join_types.sats"
 staload "data_text/utf8/utf8.sats"
 extern fun shape_font_table_failed(): OtLayoutTable(1,0) = "mac#anth_die_box"
 fun table(b: !Buf,info: SfntInfo,m: !GlyphMetadata): OtLayoutTable(1,0) =
-  case+ sfnt_table(b,info.tables,TableGsub()) of | NoSfntTable() => shape_font_table_failed()
-  | HasSfntTable(span) => (case+ ot_layout_parse(b,span,OtSubstitution(),glyph_metadata_capabilities(m)) of
+  case+ sfnt_table(b,info.tables,TableGsub()) of | ~NoSfntTable() => shape_font_table_failed()
+  | ~HasSfntTable(span) => (case+ ot_layout_parse(b,span,OtSubstitution(),glyph_metadata_capabilities(m)) of
     | ~LayoutRejected(e) => shape_font_table_failed() | ~LayoutAccepted(t) => t)
 fun rows{n:nat} .<n>. (left: int(n),r: !GlyphRun(1),o: !Buf,node: int,index: int,acc: int): int =
   if left = 0 then iadd(acc,if ieq(node,~1) then 0 else 1) else let val row=glyph_run_query(r,node)

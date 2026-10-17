@@ -164,10 +164,12 @@ profil karşılaştırmasında GLX ortamı değiştirilmez.
 
 `ASAN_OPTIONS=detect_leaks=1` ile CPU analiz/anchor testleri ve grafik suite'i
 ayrı çalıştırılır. Grafik suite'inde LSan, `mem_live` dışında kalan boxed
-yardımcı tahsislerini görünür yaptı: [BUG-032](olasi_hatalar.md). Partition'ın
-küme başına kutulanması kaldırıldı; geometri anahtarı, görsel alt sınır ve
-seçim/koruma okumaları tüketilen `Option_vt` oldu. Kalan eski yardımcılar açık
-TODO'dur. `detect_leaks=0` yalnız erişim/UB testi için kullanılabilir; bu koşunun
+yardımcı tahsislerini görünür yaptı (BUG-032). Partition, paint/hit/graph,
+cmap ve font metadata kutulaması kaldırıldı; geçici metin, SFNT, compound ve
+feature sonuçları lineerleştirildi. Metrik/gezinme sonuçları ve fixture
+listeleri de tüketilir. Son BUG-032 grafik doğrulaması sızıntı denetimi açıkken
+geçti; ayrıntılar [çalışma kaydındadır](refactoring_durumu.md).
+`detect_leaks=0` yalnız erişim/UB testi için kullanılabilir; bu koşunun
 başarısı sızıntısızlık olarak raporlanmaz. Hiçbir toplu LSan suppression eklenmedi.
 
 Grafik oracle aynı 640×480 piksel uzayını kuyruk özyinelemeli tarar; Debug'ta
@@ -208,6 +210,7 @@ Doğrulama: Release ve Debug profillerinde ayrı ayrı 265/265 CTest geçti.
 ASan+UBSan erişim/UB denetimi
 grafik/Unicode analiz/anchor paketlerinde 3/3 geçti (`detect_leaks=0`). CPU
 analiz/anchor paketleri ayrıca sızıntı denetimi açıkken 2/2 geçti. Grafik
-LSan hâlâ [BUG-032](olasi_hatalar.md) nedeniyle kırmızıdır; son genişletilmiş
-suite 45.601 tahsiste 363.280 bayt kayıp raporlar. Bastırma eklenmedi.
+Bu performans kabul anında grafik LSan BUG-032 nedeniyle kırmızıydı:
+45.601 tahsiste 363.280 bayt kayıp raporladı. Sonraki BUG-032 düzeltmesinde
+aynı grafik suite'i `detect_leaks=1` ile geçti; bastırma eklenmedi.
 Ayrıntılı doğrulama geçmişi [çalışma kaydında](refactoring_durumu.md) tutulur.

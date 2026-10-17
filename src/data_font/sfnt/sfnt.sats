@@ -8,12 +8,21 @@ datatype SfntTable =
   | TableHead | TableHhea | TableMaxp | TableCmap | TableLoca | TableGlyf
   | TableHmtx | TableKern | TableGsub | TableGpos | TableGdef | TableFvar
 
-datatype SfntOptional = NoSfntTable | HasSfntTable of SfntSpan
-datatype SfntCmap = Cmap4 of (SfntSpan, int) | Cmap12 of (SfntSpan, int)
+datavtype SfntOptional = NoSfntTable | HasSfntTable of SfntSpan
+datatype SfntCmapKind = CmapSegmented | CmapGrouped
+typedef SfntCmap = @{kind=SfntCmapKind,span=SfntSpan,count=int}
 
-datatype SfntError =
-  | SfntIo of int | SfntDirectory | SfntContainer | SfntOutline
-  | SfntVariable | SfntMetrics | SfntCharacterMap | SfntLocations
+datatype SfntErrorKind = SfntReadError | SfntDirectoryError | SfntContainerError
+  | SfntOutlineError | SfntVariableError | SfntMetricsError | SfntCharacterMapError | SfntLocationsError
+typedef SfntError = @{kind=SfntErrorKind,code=int}
+macdef SfntIo(code) = @{kind=SfntReadError(),code=,(code)}
+macdef SfntDirectory() = @{kind=SfntDirectoryError(),code=0}
+macdef SfntContainer() = @{kind=SfntContainerError(),code=0}
+macdef SfntOutline() = @{kind=SfntOutlineError(),code=0}
+macdef SfntVariable() = @{kind=SfntVariableError(),code=0}
+macdef SfntMetrics() = @{kind=SfntMetricsError(),code=0}
+macdef SfntCharacterMap() = @{kind=SfntCharacterMapError(),code=0}
+macdef SfntLocations() = @{kind=SfntLocationsError(),code=0}
 
 typedef SfntInfo = @{
   tables=int, units=int, ascender=int, descender=int, line_gap=int,
@@ -21,7 +30,9 @@ typedef SfntInfo = @{
   glyf=SfntSpan, loca=SfntSpan, hmtx=SfntSpan, cmap=SfntCmap
 }
 
-datatype SfntParsed = ValidSfnt of SfntInfo | InvalidSfnt of SfntError
+datavtype SfntParsed = ValidSfnt of SfntInfo | InvalidSfnt of SfntError
+typedef SfntMetadata = @{present=bool,info=SfntInfo}
+fun sfnt_metadata_empty(): SfntMetadata
 datavtype SfntFace = SfntFace of (Buf, SfntInfo)
 datavtype SfntLoaded = LoadedSfnt of SfntFace | RejectedSfnt of SfntError
 

@@ -9,7 +9,7 @@ fun layout(b: !Buf,span: OtSpan,glyphs: int): int =
       val ()=ot_layout_dispose(t) in error end
 fun face(f: !SfntFace): int = let val+ SfntFace(b,info)=f
 in case+ sfnt_table(b,info.tables,TableGsub()) of
-  | NoSfntTable() => 1 | HasSfntTable(span) => layout(b,span,info.glyphs) end
+  | ~NoSfntTable() => 1 | ~HasSfntTable(span) => layout(b,span,info.glyphs) end
 fun font(path: string): int = case+ sfnt_open(path) of
   | ~RejectedSfnt(e) => 1 | ~LoadedSfnt(f) => let
     val error=face(f) val ()=sfnt_dispose(f)

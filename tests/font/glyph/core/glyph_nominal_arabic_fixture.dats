@@ -29,7 +29,7 @@ extern fun nominal_table_failed(): OtSequenceLookup(2) = "mac#anth_die_box"
 extern fun nominal_metadata_failed(): GlyphMetadata = "mac#anth_die_box"
 extern fun nominal_mask_failed(): ArabicMaskPlan = "mac#anth_die_box"
 fun gsub(b: !Buf,info: SfntInfo): OtSpan = case+ sfnt_table(b,info.tables,TableGsub()) of
-  | HasSfntTable(s) => s | NoSfntTable() => let val failed=nominal_header_failed() in @{offset=failed,length=0} end
+  | ~HasSfntTable(s) => s | ~NoSfntTable() => let val failed=nominal_header_failed() in @{offset=failed,length=0} end
 implement nominal_test_table(b,info,index) = case+ ot_layout_header_parse(b,gsub(b,info)) of
   | ~HeaderRejected(e) => nominal_table_failed()
   | ~HeaderAccepted(h) => let val child=ot_lookup_span(b,h,index) in case+ child.kind of
@@ -38,8 +38,8 @@ implement nominal_test_table(b,info,index) = case+ ot_layout_header_parse(b,gsub
       | ~SequenceLookupRejected(e) => nominal_table_failed() | ~SequenceLookupAccepted(t) => t) end
 implement nominal_test_metadata(b,info) = let
   val child: OtChild=case+ sfnt_table(b,info.tables,TableGdef()) of
-    | NoSfntTable() => @{kind=ChildMissing(),span= @{offset=0,length=0}}
-    | HasSfntTable(s) => @{kind=ChildPresent(),span=s}
+    | ~NoSfntTable() => @{kind=ChildMissing(),span= @{offset=0,length=0}}
+    | ~HasSfntTable(s) => @{kind=ChildPresent(),span=s}
 in case+ glyph_metadata_parse(b,child,3,info.glyphs) of
   | ~GlyphMetadataRejected(e) => nominal_metadata_failed() | ~GlyphMetadataAccepted(m) => m end
 implement nominal_test_mask() = case+ arabic_mask_plan(@{initial=1u,medial=2u,final=4u,isolated=8u}) of
