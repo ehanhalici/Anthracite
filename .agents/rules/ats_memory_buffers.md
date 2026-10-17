@@ -21,3 +21,11 @@ When using 32-bit word operations on `Buf` in Anthracite:
 - Provide self-descriptive helper functions (`*_is_empty`, `*_count`, `*_base_word`) rather than repeating ad-hoc offset calculations.
 - Derive record byte sizes from word counts. Keep imported constants and code
   generation bindings synchronized when moving a storage module.
+
+## 3. Temporary boxed results without GC
+- Production builds use `ATS_MEMALLOC_LIBC`. Payload-bearing nonlinear
+  `datatype`/`Option` constructors can allocate boxes without automatic release.
+- Prefer flat temporary records or consumed `Option_vt` results; borrow indexed
+  `!option_vt(T,b)` when a result is inspected repeatedly, then dispose it once.
+- `mem_live` tracks buffer payload, not every ATS constructor or GPU allocation.
+  Keep LeakSanitizer findings distinct from balanced tracked-buffer tests (BUG-032).

@@ -70,10 +70,10 @@ fun cache_view_restore(f: !Font,doc: !Doc,cache: &Cache >> _,path: !Buf,width: i
 in case+ geometry of | ~None_vt() => false | ~Some_vt(snapshot) => (doc_geometry_put(doc,snapshot); true) end
 fun view_charge(path: !Buf,geometry: !DocGeometry): llint =
   doc_geometry_bytes(geometry)+g0int2int_int_llint(buf_cap(path))+EMBED_VIEW_OBJECT_ALLOWANCE_BYTES
-fun view_pin_matches(path: !Buf,stamp: EmbedSourceStamp,key: VisualKey,pinned: !Buf,selection: Option(EmbeddedSelection)): bool =
-  case+ selection of | None() => false | Some(info) =>
+fun view_pin_matches{b:bool}(path: !Buf,stamp: EmbedSourceStamp,key: VisualKey,pinned: !Buf,selection: !option_vt(EmbeddedSelection,b)): bool =
+  case+ selection of | None_vt() => false | Some_vt(info) =>
     buffer_equal_from(path,pinned,0) andalso embedded_source_equal(stamp,info.source) andalso visual_key_context_matches(key,info.view)
-fun view_pin_charge{n:nat} .<n>. (fuel: int(n),cache: !Cache,pinned: !Buf,selection: Option(EmbeddedSelection)): llint =
+fun view_pin_charge{n:nat}{b:bool} .<n>. (fuel: int(n),cache: !Cache,pinned: !Buf,selection: !option_vt(EmbeddedSelection,b)): llint =
   if not(recursion_fuel_available(fuel)) then 0LL else case+ cache of
   | CNil() => 0LL | CCons(p,t,w,h,rest) => view_pin_charge(fuel-1,rest,pinned,selection)
   | CWork(state,pins,rest) => view_pin_charge(fuel-1,rest,pinned,selection)
@@ -83,8 +83,8 @@ fun view_pin_charge{n:nat} .<n>. (fuel: int(n),cache: !Cache,pinned: !Buf,select
     val charge: llint=case+ state of | EmbedViewPending() => 0LL
       | EmbedViewReady(key,geometry) => if view_pin_matches(p,s,key,pinned,selection) then view_charge(p,geometry) else 0LL
     in if g0int_gt_llint(charge,0LL) andalso g0int_lte_llint(charge,MAX_EMBED_VIEW_BYTES) then charge else view_pin_charge(fuel-1,rest,pinned,selection) end
-fun cache_view_trim{n:nat} .<n,1>. (fuel: int(n),cache: Cache,count: &int >> _,bytes: &llint >> _,
-  pinned: !Buf,selection: Option(EmbeddedSelection),reserved: &bool >> _): Cache =
+fun cache_view_trim{n:nat}{b:bool} .<n,1>. (fuel: int(n),cache: Cache,count: &int >> _,bytes: &llint >> _,
+  pinned: !Buf,selection: !option_vt(EmbeddedSelection,b),reserved: &bool >> _): Cache =
   if not(recursion_fuel_available(fuel)) then cache else case+ cache of
   | ~CNil() => CNil()
   | ~CWork(state,pins,rest) => CWork(state,pins,cache_view_trim(fuel-1,rest,count,bytes,pinned,selection,reserved))
@@ -92,8 +92,8 @@ fun cache_view_trim{n:nat} .<n,1>. (fuel: int(n),cache: Cache,count: &int >> _,b
   | ~CEmbed(p,s,d,w,h,rest) => CEmbed(p,s,d,w,h,cache_view_trim(fuel-1,rest,count,bytes,pinned,selection,reserved))
   | ~CSelection(s,p,rest) => CSelection(s,p,cache_view_trim(fuel-1,rest,count,bytes,pinned,selection,reserved))
   | ~CView(p,s,state,rest) => cache_view_trim_entry(fuel,p,s,state,rest,count,bytes,pinned,selection,reserved)
-and cache_view_trim_entry{n:pos} .<n,0>. (fuel: int(n),path: Buf,stamp: EmbedSourceStamp,state: EmbedViewState,
-  rest: Cache,count: &int >> _,bytes: &llint >> _,pinned: !Buf,selection: Option(EmbeddedSelection),reserved: &bool >> _): Cache = case+ state of
+and cache_view_trim_entry{n:pos}{b:bool} .<n,0>. (fuel: int(n),path: Buf,stamp: EmbedSourceStamp,state: EmbedViewState,
+  rest: Cache,count: &int >> _,bytes: &llint >> _,pinned: !Buf,selection: !option_vt(EmbeddedSelection,b),reserved: &bool >> _): Cache = case+ state of
   | ~EmbedViewPending() => CView(path,stamp,EmbedViewPending(),cache_view_trim(fuel-1,rest,count,bytes,pinned,selection,reserved))
   | ~EmbedViewReady(key,geometry) => let
     val charge=view_charge(path,geometry)
@@ -105,21 +105,25 @@ and cache_view_trim_entry{n:pos} .<n,0>. (fuel: int(n),path: Buf,stamp: EmbedSou
     else let val ()=buf_free(path) val ()=doc_geometry_dispose(geometry)
       in cache_view_trim(fuel-1,rest,count,bytes,pinned,selection,reserved) end end
 extern fun work_promote_views(cache: &Cache >> _): void
-fun cache_trim_views_overflow(cache: &Cache >> _): void = let
-  val ()=work_promote_views(cache)
-  var pinned: Buf=buf_make(0) val ()=cache_pin_path(cache,pinned) val selection=cache_pin_info(cache)
+fun trim_selected_views{b:bool}(cache: &Cache >> _,pinned: Buf,selection: option_vt(EmbeddedSelection,b)): void = let
   val reserve: llint=if igt(buf_len(pinned),0) then view_pin_charge(airlock_nat(MAX_REC_FUEL),cache,pinned,selection) else 0LL
   var bytes: llint=reserve var reserved: bool=g0int_gt_llint(reserve,0LL) var count: int=if reserved then 1 else 0
   val ()=cache := cache_view_trim(airlock_nat(MAX_REC_FUEL),cache,count,bytes,pinned,selection,reserved)
+  val ()=selection_info_dispose(selection)
 in buf_free(pinned) end
+fun cache_trim_views_overflow(cache: &Cache >> _): void = let
+  val ()=work_promote_views(cache)
+  var pinned: Buf=buf_make(0) val ()=cache_pin_path(cache,pinned)
+  val selection=cache_pin_info(cache)
+in trim_selected_views(cache,pinned,selection) end
 fun cache_trim_views(cache: &Cache >> _): void = let val stats=cache_embed_stats(cache)
 in if igt(stats.views,MAX_EMBED_VIEW_ENTRIES) orelse stats.viewBytes > MAX_EMBED_VIEW_BYTES
   then cache_trim_views_overflow(cache) else () end
 fun cache_view_store(cache: &Cache >> _,path: !Buf,stamp: EmbedSourceStamp,doc: !Doc): void = let
   val geometry=doc_geometry_take(doc)
   val key=doc_geometry_key(geometry)
-in case+ key of | None() => doc_geometry_put(doc,geometry)
-  | Some(context) => let
+in case+ key of | ~None_vt() => doc_geometry_put(doc,geometry)
+  | ~Some_vt(context) => let
       val ()=work_pin_add(airlock_nat(MAX_REC_FUEL),cache,path,stamp,context)
       val ()=cache := CView(view_path_copy(path),stamp,EmbedViewReady(context,geometry),cache)
     in cache_trim_views(cache) end end

@@ -24,7 +24,7 @@ implement doc_geometry_dispose(geometry) = let val+ ~DocGeometry(layout,visual,s
   val ()=layout_dispose(layout) val ()=visual_release(visual)
 in buf_free(snapshot) end
 implement doc_geometry_key(geometry) = let val+ DocGeometry(layout,visual,snapshot,version)=geometry
-in case+ visual of | None_vt() => None() | Some_vt(rows) => let val+ VisualRows(t,m,l,data,n,key,plans)=rows in Some(key) end end
+in case+ visual of | None_vt() => None_vt() | Some_vt(rows) => let val+ VisualRows(t,m,l,data,n,key,plans)=rows in Some_vt(key) end end
 fun visual_geometry_bytes{b:bool}(visual: !option_vt(VisualRows,b)): llint = case+ visual of
   | None_vt() => 0LL | Some_vt(rows) => let val+ VisualRows(t,m,l,data,n,key,plans)=rows
   in g0int2int_int_llint(buf_cap(t))+g0int2int_int_llint(buf_cap(m))

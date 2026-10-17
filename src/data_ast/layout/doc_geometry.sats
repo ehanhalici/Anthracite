@@ -7,7 +7,7 @@ datavtype DocGeometry = DocGeometry of (Buf,Option_vt(VisualRows),Buf,int)
 fun doc_geometry_take(d: !Doc): DocGeometry
 fun doc_geometry_put(d: !Doc,geometry: DocGeometry): void
 fun doc_geometry_dispose(geometry: DocGeometry): void
-fun doc_geometry_key(geometry: !DocGeometry): Option(VisualKey)
+fun doc_geometry_key(geometry: !DocGeometry): Option_vt(VisualKey)
 fun doc_geometry_bytes(geometry: !DocGeometry): llint
 fun doc_set_view_range(d: !Doc,start: int,finish: int): void
 fun doc_view_range(d: !Doc): @{start=int,finish=int}

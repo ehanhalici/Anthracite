@@ -1,14 +1,15 @@
-fun selection_info{n:nat} .<n>. (fuel: int(n),cache: !Cache): Option(EmbeddedSelection) =
-  if not(recursion_fuel_available(fuel)) then None() else case+ cache of
-  | CNil() => None() | CSelection(info,path,rest) => Some(info)
+fun selection_info{n:nat} .<n>. (fuel: int(n),cache: !Cache): Option_vt(EmbeddedSelection) =
+  if not(recursion_fuel_available(fuel)) then None_vt() else case+ cache of
+  | CNil() => None_vt() | CSelection(info,path,rest) => Some_vt(info)
   | CWork(state,pins,rest) => selection_info(fuel-1,rest)
   | CView(path,stamp,state,rest) => selection_info(fuel-1,rest)
   | CCons(path,tex,w,h,rest) => selection_info(fuel-1,rest)
   | CEmbed(path,stamp,doc,w,h,rest) => selection_info(fuel-1,rest)
 implement cache_embed_selection_active(cache) = case+ selection_info(airlock_nat(MAX_REC_FUEL),cache) of
-  | None() => false | Some(info) => true
+  | ~None_vt() => false | ~Some_vt(info) => true
 implement cache_embed_selection_dragged(cache) = case+ selection_info(airlock_nat(MAX_REC_FUEL),cache) of
-  | None() => false | Some(info) => info.dragged
+  | ~None_vt() => false | ~Some_vt(info) => info.dragged
+implement selection_info_dispose(info) = case+ info of | ~None_vt() => () | ~Some_vt(value) => ()
 fun selection_remove{n:nat} .<n>. (fuel: int(n),cache: Cache): Cache =
   if not(recursion_fuel_available(fuel)) then cache else case+ cache of
   | ~CNil() => CNil()
@@ -24,18 +25,19 @@ fun selection_same(a: EmbeddedSelection,b: EmbeddedSelection): bool =
   andalso embedded_source_equal(a.source,b.source)
 fun selection_install(cache: &Cache >> _,info: EmbeddedSelection,path: !Buf,extend: bool): bool = let
   val old=selection_info(airlock_nat(MAX_REC_FUEL),cache)
-  val allowed: bool=case+ old of | None() => not(extend) | Some(previous) => not(extend) orelse selection_same(previous,info)
+  val allowed: bool=case+ old of | None_vt() => not(extend) | Some_vt(previous) => not(extend) orelse selection_same(previous,info)
 in if allowed then let
     var updated: EmbeddedSelection=info
-    val anchor: int=case+ old of | None() => info.anchor | Some(previous) => if extend then previous.anchor else info.anchor
+    val anchor: int=case+ old of | None_vt() => info.anchor | Some_vt(previous) => if extend then previous.anchor else info.anchor
     val ()=updated.anchor := anchor
     val ()=updated.dragged := extend
     var copy: Buf=buf_make(buf_len(path)) val ()=buffer_append_range(copy,path,0,buf_len(path))
     val ()=cache_clear_embed_selection(cache) val ()=cache := CSelection(updated,copy,cache)
-  in true end else false end
+    val ()=selection_info_dispose(old)
+  in true end else let val ()=selection_info_dispose(old) in false end end
 fun selection_node(cache: !Cache,parent: !Doc,fallback: int,extend: bool): int =
   if not(extend) then fallback else case+ selection_info(airlock_nat(MAX_REC_FUEL),cache) of
-  | None() => ~1 | Some(info) => if info.parent = doc_identity(parent) andalso ieq(info.parentVersion,doc_parse_generation(parent)) then info.node else ~1
+  | ~None_vt() => ~1 | ~Some_vt(info) => if info.parent = doc_identity(parent) andalso ieq(info.parentVersion,doc_parse_generation(parent)) then info.node else ~1
 typedef EmbedHitBox = @{x=int,y=int,width=int,scroll=int,lh=int}
 #include "ui_workspace/render/private/ui_render/embed_navigation.hats"
 fun select_child(f: !Font,r: !Rend,parent: !Doc,node: int,child: !Doc,anchor: !Buf,path: !Buf,
@@ -85,7 +87,7 @@ implement tabs_embed_select(f,r,tabs,index,x,y,ox,width,lh,vault,cache,scratch,e
   select_tab(airlock_nat(MAX_REC_FUEL),f,r,tabs,index,x,y,ox,width,
     if font_text_active(f) then font_document_line_height(f,lh) else lh,vault,cache,scratch,extend)
 implement draw_embed_selection(f,r,cache,parent,node,child,colx,oy,scroll,lh,ph,scratch) =
-  case+ selection_info(airlock_nat(MAX_REC_FUEL),cache) of | None() => () | Some(info) =>
+  case+ selection_info(airlock_nat(MAX_REC_FUEL),cache) of | ~None_vt() => () | ~Some_vt(info) =>
     if info.parent <> doc_identity(parent) orelse ine(info.parentVersion,doc_parse_generation(parent)) orelse ine(info.node,node)
       orelse info.child <> doc_identity(child) orelse ine(info.childVersion,doc_parse_generation(child))
       orelse not(cache_view_source_active(airlock_nat(MAX_REC_FUEL),cache,info.source)) then ()
@@ -109,24 +111,24 @@ fun copy_document{n:nat} .<n>. (fuel: int(n),cache: !Cache,path: !Buf,info: Embe
     if buffer_equal_from(path,saved,0) then
       if embedded_source_equal(stamp,info.source) andalso embedded_source_equal(stamp,embedded_source_stamp(buf_cstr(path))) then copy_projected(doc,info,destination) else false
     else copy_document(fuel-1,rest,path,info,destination)
-fun selection_path{n:nat} .<n>. (fuel: int(n),cache: !Cache,destination: &Buf >> _): Option(EmbeddedSelection) =
-  if not(recursion_fuel_available(fuel)) then None() else case+ cache of
-  | CNil() => None() | CSelection(info,path,rest) => let
+fun selection_path{n:nat} .<n>. (fuel: int(n),cache: !Cache,destination: &Buf >> _): Option_vt(EmbeddedSelection) =
+  if not(recursion_fuel_available(fuel)) then None_vt() else case+ cache of
+  | CNil() => None_vt() | CSelection(info,path,rest) => let
       val ()=buffer_append_range(destination,path,0,buf_len(path))
-    in Some(info) end
+    in Some_vt(info) end
   | CWork(state,pins,rest) => selection_path(fuel-1,rest,destination)
   | CView(path,stamp,state,rest) => selection_path(fuel-1,rest,destination)
   | CCons(path,tex,w,h,rest) => selection_path(fuel-1,rest,destination)
   | CEmbed(path,stamp,doc,w,h,rest) => selection_path(fuel-1,rest,destination)
 implement cache_copy_embed_selection(cache,destination) = let var path: Buf=buf_make(0)
   val selection=selection_path(airlock_nat(MAX_REC_FUEL),cache,path)
-  val copied: bool=case+ selection of | None() => false
-    | Some(info) => copy_document(airlock_nat(MAX_REC_FUEL),cache,path,info,destination)
+  val copied: bool=case+ selection of | ~None_vt() => false
+    | ~Some_vt(info) => copy_document(airlock_nat(MAX_REC_FUEL),cache,path,info,destination)
   val ()=buf_free(path)
 in copied end
-implement cache_pin_path(cache,path) = let val selection=selection_path(airlock_nat(MAX_REC_FUEL),cache,path) in () end
+implement cache_pin_path(cache,path) = let val selection=selection_path(airlock_nat(MAX_REC_FUEL),cache,path) in selection_info_dispose(selection) end
 implement cache_pin_info(cache) = selection_info(airlock_nat(MAX_REC_FUEL),cache)
 implement cache_embed_navigation(cache,vault,path,anchor) = case+ selection_info(airlock_nat(MAX_REC_FUEL),cache) of
-  | None() => EmbedNavigationNone() | Some(info) => if info.dragged then EmbedNavigationNone()
+  | ~None_vt() => EmbedNavigationNone() | ~Some_vt(info) => if info.dragged then EmbedNavigationNone()
     else if ilt(info.link.node,0) then EmbedNavigationNone()
       else embed_link_resolve(airlock_nat(MAX_REC_FUEL),cache,info.link,vault,path,anchor)

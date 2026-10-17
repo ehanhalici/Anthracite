@@ -46,7 +46,7 @@ fun find_first_vis_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d
       val mid = iadd(lo, idiv(isub(hi, lo), 2))
       val y = doc_node_y(d, mid)
       val h = doc_node_height(d, mid)
-      val bottom=case+ doc_visual_node_bottom(d,mid) of | None() => iadd(y,h) | Some(value) => value
+      val bottom=case+ doc_visual_node_bottom(d,mid) of | ~None_vt() => iadd(y,h) | ~Some_vt(value) => value
     in
       if ilt(bottom, target_y) then
         find_first_vis_with_fuel(recfuel - 1, d, iadd(mid, 1), hi, target_y)

@@ -179,7 +179,8 @@ fun trim_embeds_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: C
   ) else c
 
 extern fun cache_pin_path(cache: !Cache,path: &Buf >> _): void
-extern fun cache_pin_info(cache: !Cache): Option(EmbeddedSelection)
+extern fun cache_pin_info(cache: !Cache): Option_vt(EmbeddedSelection)
+extern fun selection_info_dispose(info: Option_vt(EmbeddedSelection)): void
 fun cache_put_embed_trimmed(c: Cache, path: Buf, mt: EmbedSourceStamp, doc: Doc, cw: int, lh: int): Cache = let
   val n = count_embeds_with_fuel(airlock_nat(MAX_REC_FUEL), c, 0)
 in
