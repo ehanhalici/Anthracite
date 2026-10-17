@@ -26,29 +26,37 @@ staload "search/ix_fold.sats"
 staload "search/ix_query.sats"
 staload "search/ix_build.sats"
 staload "search/ix_match.sats"
+staload "search/literal/literal_search.sats"
+staload "search/results/search_results.sats"
+staload "core_runtime/text_engine_startup.sats"
+
+implement literal_pattern_open_default(query) = let
+  val location=workspace_text_location() var path=buf_make(0)
+  val ()=buffer_append_string(path,location.generated)
+  val ()=buffer_append_string(path,"/search-case-map.bin")
+  val result=literal_pattern_open(query,buffer_c_string(path)) val ()=buf_free(path)
+in result end
 
 
 
-fun init_and_step_index(vault: !Buf, ixf: &Buf >> _, ixp: &Buf >> _, ixs: &Buf >> _, ixb: &Buf >> _): void = let
-  var trunc: int = 0
-  val () = ix_walk_vault(vault, ixf, ixp, trunc)
-  val () = seen_int(ix_step_all(vault, ixf, ixs, ixp, ixb, 5000000000L))
-in
-end
-
-implement refresh_search(vault, q, hits, hmeta, hn) = let
-  val () = buffer_clear(hits); val () = buffer_clear(hmeta); val () = hn := 0
-  var ixf = buf_make(REFRESH_SEARCH_IXF_INITIAL_BYTES); var ixs = buf_make(REFRESH_SEARCH_IXS_INITIAL_BYTES); var ixp = buf_make(REFRESH_SEARCH_IXP_INITIAL_BYTES)
-  var ixb = buf_make(REFRESH_SEARCH_IXB_INITIAL_BYTES); var hjump = buf_make(REFRESH_SEARCH_HJUMP_INITIAL_BYTES)
-  val () = init_and_step_index(vault, ixf, ixp, ixs, ixb)
-  var nfiles_hit: int = 0; var is_partial: int = 0
-  val dummy_tabs = TNil()
-  val () = ix_match_search(q, vault, dummy_tabs, ixf, ixs, ixp, ixb, hits, hmeta, hjump, hn, nfiles_hit, is_partial)
-  val () = tabs_free(dummy_tabs)
-  val () = buf_free(ixf); val () = buf_free(ixs); val () = buf_free(ixp)
-  val () = buf_free(ixb); val () = buf_free(hjump)
-in
-end
+fun refresh_files{n:nat} .<n>. (left: int(n),files: !Buf,paths: !Buf,pattern: !LiteralPattern,tabs: !Tabs,
+  file: int,hits: &Buf >> _,meta: &Buf >> _,jumps: &Buf >> _,rows: &int >> _): void =
+  if left = 0 then () else if ige(rows,SEARCH_RESULT_LIMIT) then () else let
+    val off=ix_file_get(files,file,IX_F_PATHOFF) val length=ix_file_get(files,file,IX_F_PATHLEN)
+    var path=buf_make(length) val ()=buffer_append_range(path,paths,off,iadd(off,length))
+    val result=search_append_file(path,tabs,pattern,file,hits,meta,jumps,rows) val ()=buf_free(path)
+  in refresh_files(left-1,files,paths,pattern,tabs,iadd(file,1),hits,meta,jumps,rows) end
+fun refresh_pattern(pattern: LiteralPattern,vault: !Buf,hits: &Buf >> _,meta: &Buf >> _,rows: &int >> _): void = let
+  var files=buf_make(0) var paths=buf_make(0) var jumps=buf_make(0) var truncated: int=0
+  val ()=ix_walk_vault(vault,files,paths,truncated) val tabs=TNil()
+  val ()=refresh_files(airlock_nat(ix_file_count(files)),files,paths,pattern,tabs,0,hits,meta,jumps,rows)
+  val ()=tabs_free(tabs) val ()=literal_pattern_free(pattern)
+  val ()=buf_free(files) val ()=buf_free(paths)
+in buf_free(jumps) end
+implement refresh_search(vault,q,hits,meta,rows) = let
+  val ()=buffer_clear(hits) val ()=buffer_clear(meta) val ()=rows := 0
+in if ieq(buf_len(q),0) then () else case+ literal_pattern_open_default(q) of
+  | ~None_vt() => () | ~Some_vt(pattern) => refresh_pattern(pattern,vault,hits,meta,rows) end
 
 implement search_dir(path, q, hits, hmeta, hn, depth) =
   refresh_search(path, q, hits, hmeta, hn)

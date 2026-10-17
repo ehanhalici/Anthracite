@@ -1,5 +1,31 @@
 # Refactoring çalışma kaydı
 
+## 2026-10-17 — BUG-034 ham metin araması ve sonuç gezinmesi
+
+Panel AST indeksinden ayrıldı: Unicode 18 basit tek-scalar case eşdeğerliği ve
+KMP ile özgün UTF8 bayt konumları korunuyor. Türkçe I varyantları eşleştirilir;
+normalizasyon veya çok-scalar tam case folding uygulanmaz. Açık sekme metni
+(boş belge dahil), dolu VFS gölgesi, fiziksel dosya önceliği kullanılır.
+Sorgu değişince önceki lineer desen bırakılır; görünür panel işi dosyalar
+arasında 4 ms esnek bütçeyle sürdürür. Paralel worker/rg veya kesin süre iddiası
+yoktur. Her sorguda katalog yenilenir, sorgu değişmeyen olayda iş yeniden başlamaz.
+
+Font yüksekliğinden türeyen kapsam düğmeleri, sorgu/durum/sonuç satırları ve
+dar panelde dikey düğmeler çakışmayı önler. Dosya başlıkları açılıp kapanır;
+eşleşme özgün metinde renklendirilir. Sonuca tıklama/Enter hedef sekmeyi kullanır,
+ilgili katlamayı açar, kaynak caret'ini ve geometri sonrası kaydırmayı ayarlar.
+Bir saniyelik vurgu olay döngüsünün süreli beklemesiyle kendiliğinden temizlenir.
+
+Release 271/271 CTest geçti (3,99 s); literal, sonuç ağacı, geometri ve native
+grafik sanitizer paketi `detect_leaks=1` ile 4/4 geçti (28,94 s). Ek tam uygulama
+LSan koşusu arama işlevlerini doğruladı ancak eski editör FSM kutularında
+56 bayt/4 tahsis buldu; bu ayrı BUG-036 olarak aktif listeye alındı.
+Yeni testler Unicode kaynak haritasını, grupları, 49 font satır yüksekliği ve
+dört viewport'u, gerçek panel tıklamasını, kaydırma/vurgu, iptal, boş sonuç ve
+tampon dengesini sınar. Salt okunur gerçek kasa sorgusu yaklaşık 20,6 ms'de
+10 sonuç satırı üretti; Doc yükleme ve AST parse sayaçları sıfırdı. Bu tek
+koşuluk ölçümdür, genel performans garantisi değildir. BUG-034 aktif listeden çıkarıldı.
+
 ## 2026-10-17 — BUG-035 matematikte açılış kilidi ve UTF8
 
 Kullanıcının yeni BUG-033 kaydı, eski çözülmüş numara tekrar kullanılmasın diye

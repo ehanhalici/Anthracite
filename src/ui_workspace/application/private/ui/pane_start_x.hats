@@ -181,7 +181,7 @@ fun move_dragged_file(s: &App_record >> _, row: int): void = let
   val () = child_path(dstp, name, final)
   val rn = fs_rename(buffer_c_string(srcp), buffer_c_string(final))
   val () = report_move_failure(rn, srcp)
-  val () = s.treedirty := On
+  val () = (s.treedirty := On; s.search_catalog_ready := false)
   val () = buf_free(srcp)
   val () = buf_free(dstp)
   val () = buf_free(name)

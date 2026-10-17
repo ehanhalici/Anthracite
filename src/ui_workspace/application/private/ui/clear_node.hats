@@ -35,13 +35,13 @@ fun toggle_task_go(ts: Tabs, idx: int, ni: int, go: Toggle): Tabs =
   end else ts
 
 fun open_hit_jump(s: &App_record >> _, srow: int): void = let
-  val nwords = idiv(buf_len(s.hjump), 4)
-  val base = imul(srow, 3)
+  val nwords = idiv(buf_len(s.hjump), WORD32_BYTES)
+  val base = imul(srow, SEARCH_JUMP_WORDS)
 in
   if ilt(iadd(base, 2), nwords) then let
-    val () = s.jump_fid := buf_get32(s.hjump, base)
-    val () = s.jump_line := buf_get32(s.hjump, iadd(base, 1))
-    val () = s.jump_col := buf_get32(s.hjump, iadd(base, 2))
+    val () = s.jump_fid := buf_get32(s.hjump, iadd(base,SEARCH_JUMP_FILE))
+    val () = s.jump_line := buf_get32(s.hjump, iadd(base,SEARCH_JUMP_LINE))
+    val () = s.jump_col := buf_get32(s.hjump, iadd(base,SEARCH_JUMP_COLUMN))
   in
   end else let
     val () = s.jump_fid := ~1
@@ -63,13 +63,17 @@ in
   end
 end
 
+fun open_hit_target(ts: Tabs,path: !Buf,scope: int,active: &int >> _): Tabs =
+  if ieq(scope,SEARCH_SCOPE_DOCUMENT) then ts else open_hit_file(ts,path,active)
 fun open_hit(s: &App_record >> _, ts: Tabs, srow: int, go: Toggle): Tabs =
   if is_on(go) then let
     var hitfile = buf_make(OPEN_HIT_HITFILE_INITIAL_BYTES)
     val () = find_hit_file(s.hmeta, s.hits, srow, hitfile)
-    val ts2 = open_hit_file(ts, hitfile, s.active)
+    val ts2 = open_hit_target(ts,hitfile,s.scope,s.active)
+    val () = if ieq(s.scope,SEARCH_SCOPE_VAULT) then s.focus := Off else ()
     val () = buf_free(hitfile)
     val () = open_hit_jump(s, srow)
+    val () = s.selected_search_row := srow
   in
     ts2
   end else ts
@@ -142,7 +146,7 @@ fun handle_prompt_submission(s: &App_record >> _, pr: EditResult): void =
     val () = s.prompt := PromptNone
     val () = app_fsm_step(s, ActDismissPrompt())
     val () = buffer_clear(s.promptb)
-    val () = s.treedirty := On
+    val () = (s.treedirty := On; s.search_catalog_ready := false)
     val () = buf_free(dir)
   in
     buf_free(cur)
@@ -153,9 +157,8 @@ fun open_search_panel(s: &App_record >> _, sc: int): void = let
   val () = s.side := SideSearch
   val () = s.qfocus := On
   val () = s.scope := sc
-in
-  buffer_clear(s.query)
-end
+  val ()=buffer_clear(s.query)
+in search_job_begin(s) end
 
 fun begin_prompt(s: &App_record >> _, kind: PromptKind): void = let
   val () = s.prompt := kind

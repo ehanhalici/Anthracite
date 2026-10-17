@@ -2,6 +2,7 @@ fun topbar_toggle_search(s: &App_record >> _): void = let
   val () = s.side := (if is_side_search(s.side) then SideNone else SideSearch)
   val () = s.qfocus := toggle_of(is_side_search(s.side))
   val () = if is_side_search(s.side) then s.scope := 0 else ()
+  val () = if is_side_search(s.side) then search_job_begin(s) else search_job_clear(s)
 in
   save_app_session(s)
 end
@@ -66,6 +67,7 @@ in
 end
 
 fun editor_wiki_focus_act(s: &App_record >> _, cur_len: int, target_act: int): void = let
+  val () = s.flash_until_ns := mono_ns()+UI_NAVIGATION_FLASH_NS
   val () = sync_open_dirs_from_tree(s)
   val () = sync_tab_pane(s.tab_pane, cur_len, s.split, s.righti)
   val pane = if ilt(target_act, buf_len(s.tab_pane)) then buf_get(s.tab_pane, target_act) else 0

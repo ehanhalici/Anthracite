@@ -104,7 +104,8 @@ end
 implement app_selftest(r, root) = let
   var d1 = buf_make(32)
   val () = buffer_append_string(d1, root)
-  val search_ok = if ieq(selftest_search(d1), 1) andalso ieq(ix_selftest(root), 1) then 1 else 0
+  val search_ok = if ieq(selftest_search(d1),1) andalso ieq(ix_selftest(root),1)
+    andalso ieq(selftest_search_ui(r,root),1) then 1 else 0
   val @(flow_ok, ih, doc, cache, vault, scratch) = selftest_flow(r, root)
   val chrome_ok = selftest_tabs(d1)
   val files_ok = if ieq(selftest_files(root),1) andalso ieq(editor_fsm_selftest(),1)

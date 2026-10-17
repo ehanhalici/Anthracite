@@ -56,6 +56,7 @@ implement app_free(a) = let
       fold@(app_val)
     end
   val+ ~APP(s) = app_val
+  val ()=literal_pattern_release(s.search_pattern)
   val ts2 = tabs_ensure_paths(s.tabs, s.vault)
   val side_open = (if is_side_none(s.side) then 0 else 1)
   val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.righti, side_open, s.sidew, s.tab_pane, s.open_dirs, ts2)

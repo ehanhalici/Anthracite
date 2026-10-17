@@ -164,6 +164,7 @@ include(cmake/NativeTextAnalysisTests.cmake)
 include(cmake/NativeTextEngine.cmake)
 include(cmake/NativeTextShapeTests.cmake)
 include(cmake/InfrastructureTests.cmake)
+include(cmake/SearchTests.cmake)
 include(cmake/ATSGenerated.cmake)
 include(cmake/Check.cmake)
 

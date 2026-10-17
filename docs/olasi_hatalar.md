@@ -2,11 +2,18 @@
 
 Bu listede yalnız açık sorunlar tutulur. Çözülen maddeler listeden çıkarılır;
 kanıtları, düzeltmeleri ve test kayıtları Git geçmişinden erişilebilir.
-Yeni bulgular mevcut en yüksek BUG numarasından devam eder; numaralar yeniden kullanılmaz.
+Son kullanılan kimlik BUG-036'dır; yeni bulgular BUG-037'den devam eder.
+Listeden çıkarılmış numaralar yeniden kullanılmaz.
 
-## BUG-034 — Arama bolumu duzgun calismiyor
-- Durumu: acik
-- Kasa/belge de ara bolumu birbiri icine girmis, buton mantigi buraya da gelmeli
-- arama yerine bir kelime yazilinca birbirine girmis sonuclar cikiyor, ! ile gosterilen alt agac mantigi buraya da gelmeli
-- bulunan bir veriye tikladigimda duz o sayfa aciliyor, ama internal link gibi o sayfa acilmali, o aranan kelimenin oldugu yere kaymali ve 1 sn boyunca mor ile vurgulanmali
-- bulunan sonuclar, kelime eslemesi olarak bulunmuyor, burda ast kullaniliyor olabilir ama rg tarzi paralel cpu kullanan ve belgede/kasada arama yapan bir yapiya gecilebilri, regex destegine gerek yok, sadece birebir metin eslemesine baksa yeterli. buyuk/kucuk harfe duyarsiz olmali
+## BUG-036 — Editör durum makinesinde GC'siz kutu sızıntısı
+
+- Durumu: açık
+- Yeniden üretme: sanitizer derlemesinde geçerli X11/GLX ekranıyla
+  `ASAN_OPTIONS=detect_leaks=1 ctest --test-dir build/refactor-asan -R '^graphics_selftest$' -V`.
+- Kanıt: işlevsel selftest bayrakları başarılı olsa da LeakSanitizer 4 tahsiste
+  56 bayt sızıntı buluyor. `addr2line -afi` çerçeveleri `editor_fsm_selftest`,
+  `step_idle` ve `step_typing` içindeki payload taşıyan `EditorState` ve
+  `EditorAction` kurucularına karşılık geliyor.
+- `mem_live` dengesi bu ATS kutularını ölçmüyor. GC/suppression eklemek yerine
+  durum ve eylemlerin sahipliği veya düz değer temsili düzeltilmeli; 66 geçişlik
+  mevcut matrisin davranışı korunmalı.

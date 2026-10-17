@@ -35,6 +35,8 @@ in
 end
 
 fun reset_index_state(s: &App_record >> _): void = let
+  val ()=search_job_clear(s) val ()=s.search_catalog_ready := false
+  val ()=buffer_clear(s.query) val ()=buffer_clear(s.hits) val ()=buffer_clear(s.hmeta) val ()=s.hn := 0
   val () = buffer_clear(s.ixf); val () = buffer_clear(s.ixs); val () = buffer_clear(s.ixp)
   val () = buffer_clear(s.ixb); val () = buffer_clear(s.ixq); val () = buffer_clear(s.hjump)
   val () = s.jump_line := ~1; val () = s.jump_col := ~1; val () = s.jump_fid := ~1
@@ -58,7 +60,7 @@ fun vault_switch_finish(
   val () = s.righti := righti
   val () = s.side := (if ieq(side_open, 1) then SideFiles else SideNone)
   val () = s.sidew := sidew
-  val () = s.treedirty := On
+  val () = (s.treedirty := On; s.search_catalog_ready := false)
   val () = buffer_clear(s.promptb)
   val () = s.vault_select := Off
   val () = reset_index_state(s)
@@ -179,13 +181,17 @@ fun app_record_make(
   tree= buf_make(APP_RECORD_MAKE_TREE_INITIAL_BYTES), tmeta= buf_make(APP_RECORD_MAKE_TMETA_INITIAL_BYTES), topen= buf_make(APP_RECORD_MAKE_TOPEN_INITIAL_BYTES), tn= 0, treescroll= 0, hits= buf_make(APP_RECORD_MAKE_HITS_INITIAL_BYTES),
   hmeta= buf_make(APP_RECORD_MAKE_HMETA_INITIAL_BYTES), hn= 0, ixf= buf_make(APP_RECORD_MAKE_IXF_INITIAL_BYTES), ixs= buf_make(APP_RECORD_MAKE_IXS_INITIAL_BYTES), ixp= buf_make(APP_RECORD_MAKE_IXP_INITIAL_BYTES), ixb= buf_make(APP_RECORD_MAKE_IXB_INITIAL_BYTES),
   ixq= buf_make(APP_RECORD_MAKE_IXQ_INITIAL_BYTES), hjump= buf_make(APP_RECORD_MAKE_HJUMP_INITIAL_BYTES), jump_line= ~1, jump_col= ~1, jump_fid= ~1, scope= 0,
-  hscroll= 0, search_state= 0, search_nfiles= 0, sel= ~1, treedirty= On, paste= Off, hitk= KNone,
+  hscroll= 0, search_state= 0, search_nfiles= 0,
+  search_pattern= None_vt(), search_cursor= 0, search_document= 0,
+  search_source= @{document=the_null_ptr,generation= ~1},
+  search_skipped= false, search_catalog_ready= false, search_layout= search_geometry(18,UI_SIDEBAR_WIDTH,0),
+  sel= ~1, treedirty= On, paste= Off, hitk= KNone,
   hiti= ~1, downx= ~1, downy= ~1, scratch= buf_make(APP_RECORD_MAKE_SCRATCH_INITIAL_BYTES), imgpath= buf_make(APP_RECORD_MAKE_IMGPATH_INITIAL_BYTES),
   viewmode= view_mode_of_code(vmode), font_idx= 0, fpaths= fpaths, fnames= fnames, fmeta= fmeta,
   fcnt= fcnt, font_path= fpath, vault_select= toggle_of(ieq(f_vsel, 1)), vpaths= vpaths, vnames= vnames,
   vmeta= vmeta, vcnt= vcnt, hoverx= ~1, hovery= ~1, sidew= (if igt(sidew, 0) then sidew else UI_SIDEBAR_WIDTH), btnw= 0, modew= 0,
   menuw= 0, preview_tab= ~1, last_tree_row= ~1, last_tree_time= 0L, tab_pane= tab_pane,
-  open_dirs= open_dirs, flash_line= ~1, flash_until_ns= 0L,
+  open_dirs= open_dirs, selected_search_row= ~1, flash_until_ns= 0L,
   fsm= StateIdle()
 }
 
@@ -213,4 +219,3 @@ implement app_open(vault) = let
 in
   APP(r)
 end
-

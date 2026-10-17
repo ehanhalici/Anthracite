@@ -37,7 +37,8 @@ in
 end
 
 fun scroll_search(s: &App_record >> _, delta: int, h: int): void = let
-  val max_scroll = imax(0, isub(s.hn, 5))
+  val total=search_visible_count(s.hmeta,s.ixq)
+  val max_scroll = imax(0, isub(total, s.search_layout.rows))
   val () = seen_int(h)
 in
   s.hscroll := imax(0, imin(max_scroll, iadd(s.hscroll, delta)))

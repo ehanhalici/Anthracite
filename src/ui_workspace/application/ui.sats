@@ -10,6 +10,7 @@ fun app_open(vault: string): App
 fun app_free(a: App): void
 fun app_draw(a: !App, f: !Font, r: !Rend, w: int, h: int): void
 fun app_work_pending(a: !App): bool
+fun app_idle_wait(a: !App): int
 fun app_event(a: !App, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int, h: int): void
 fun app_motion_changes(a: !App,ev: &event): bool
 fun app_selftest(r: !Rend, fixture_root: string): int

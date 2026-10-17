@@ -28,34 +28,17 @@ fun handle_tab_nav_cmd(s: &App_record >> _, cmd: Cmd, ts_inter: !Tabs): void =
   else if is_cmd(cmd, CMD_PREV_TAB) then tab_cycle_prev(s, ts_inter)
   else ()
 
-fun run_vault_search(s: &App_record >> _): void = let
-  var is_partial: int = 0
-  val () = s.hscroll := 0
-  val () = ix_match_search(s.query, s.vault, s.tabs, s.ixf, s.ixs, s.ixp, s.ixb, s.hits, s.hmeta, s.hjump, s.hn, s.search_nfiles, is_partial)
-  val () = s.search_state := (if is_partial > 0 then 2 else 0)
-in
-end
-
-fun run_query_refresh(s: &App_record >> _): void =
-  if ieq(s.scope, 0) then run_vault_search(s)
-  else let
-    val () = buffer_clear(s.hits)
-    val () = buffer_clear(s.hmeta)
-    val () = buffer_clear(s.hjump)
-    val () = s.hn := 0
-    val () = s.hscroll := 0
-  in
-  end
+fun run_query_refresh(s: &App_record >> _): void = search_job_begin(s)
 
 fun search_query_edit(s: &App_record >> _, qr: EditResult): void = let
-  val changed = is_on(s.qfocus) andalso (is_edit_changed(qr) orelse is_edit_none(qr))
+  val changed = is_on(s.qfocus) andalso is_edit_changed(qr)
   val () = if changed then run_query_refresh(s) else ()
   val () = if is_on(s.qfocus) andalso is_edit_cancel(qr) then s.qfocus := Off else ()
 in
 end
 
 fun search_hit_focus(s: &App_record >> _): void = let
-  val () = s.qfocus := Off
+  val () = if ieq(s.scope,SEARCH_SCOPE_VAULT) then s.qfocus := Off else ()
 in
   save_app_session(s)
 end
@@ -80,10 +63,9 @@ in
 end
 
 fun resolve_search_enter(s: &App_record >> _, ts0: Tabs, qr: EditResult, hit_go: Toggle, ev: &event): Tabs =
-  if ieq(s.scope, 1) andalso is_on(s.qfocus) andalso is_edit_submit(qr) then
-    run_doc_find(ts0, s.active, s.query, toggle_of(shift_on(ev)))
-  else
-    hit_open_if(s, ts0, s.hn, toggle_of(is_on(hit_go)), EditSubmit)
+  if is_on(hit_go) then let
+    val row=search_next_result(s.hmeta,s.selected_search_row,if shift_on(ev) then ~1 else 1)
+  in open_hit(s,ts0,row,toggle_of(ige(row,0))) end else ts0
 
 fun embedded_key_command(s: &App_record >> _,p: !Plat,cmd: Cmd): Cmd =
   if is_cmd(cmd,CMD_COPY) then let val copied=cache_copy_embed_selection(s.cache,s.clip)
@@ -127,7 +109,7 @@ fun key_editor_step(s: &App_record >> _, p: !Plat, f: !Font,r: !Rend, ev: &event
   val () = handle_sidebar_shortcut_cmd(s, cmd, ev)
   val () = key_tabs_step(s, p,f,r, ev, cmd, toggle_of(hit_go), qr)
   val () = if is_cmd(cmd, CMD_SAVE) then let
-      val () = s.treedirty := On
+      val () = (s.treedirty := On; s.search_catalog_ready := false)
       val () = save_app_session(s)
     in
     end else ()
@@ -193,7 +175,7 @@ fun handle_context_menu_action(s: &App_record >> _, inside: Toggle, item: int): 
       var cur = buf_make(HANDLE_CONTEXT_MENU_ACTION_CUR_INITIAL_BYTES)
       val () = row_path(s.tree, s.tmeta, s.sel, cur)
       val () = do_delete(cur)
-      val () = s.treedirty := On
+      val () = (s.treedirty := On; s.search_catalog_ready := false)
     in
       buf_free(cur)
     end else ()

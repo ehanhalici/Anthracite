@@ -24,6 +24,9 @@ Uygulanmış davranış, tasarım hedefi ve ölçüm sonucu birbirinin yerine ku
 [Büyük belge performans raporu](performans_analizi.md) baseline, ölçüm yöntemi,
 gömü/metin yerleşimi değişiklikleri ve kabul sonuçlarını tutar.
 `.agents/rules` belirli bellek, sahiplik, önbellek ve karmaşıklık kurallarını taşır.
+[Arama rehberi](arama_ve_indeksleme.md) literal sorgu/case politikası, ham metin
+ömrü, kareler arası iş, gruplama ve sonuç sınırlarını açıklar; eski AST indeks
+API'leri ile panelin varsayılan yolu birbirine karıştırılmamalıdır.
 
 ## Doğrulama
 
