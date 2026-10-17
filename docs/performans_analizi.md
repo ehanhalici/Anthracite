@@ -66,11 +66,16 @@ geçersiz font token'ı ve görünüm kapanışı eski planı serbest bırakır.
 font cache'i tahliye edilse de görünüm planı geçerliliğini korur; testte yeni
 shaping sayısı sıfırdır. Offscreen satır planları yalnız ihtiyaçta oluşturulur.
 
-Benchmark artık ilk kare ve iki sıcak sabit kare sonrasında 60 kaydırma
-karesi ölçer: belge boyunca eşit aralıklı 30 konum, iki geçiş. Bu gerçek içerik
+Benchmark ilk kareyi ayrı ölçer. Yakın bekleyen işler bitirildikten sonra iki
+sıcak sabit kare alınır; belge boyunca 30 konumluk ön-ısıtma turu yapılır.
+Ön-ısıtmada maksimum kaydırma yeni gerçek yükseklikten tekrar hesaplanır ve
+ertelenen işler konum başına tamamlanır. Ardından 60 sıcak kaydırma karesi
+ölçülür: gerçek belge yüksekliğinde eşit aralıklı 30 konum, iki geçiş. Bu gerçek içerik
 çizimidir; yalnız yer tutucu/boş kare ölçümü değildir. `tools/performance/summarize.py`
 loglardan medyan ve nearest-rank p95 çıkarır. İlk görünüm medyanı için birden
 çok ayrı süreç logu verilmelidir. Dosya yüklenemezse benchmark başarısız döner.
+`prewarm_scroll` örnekleri sıcak p95'e karıştırılmaz. Geometri satırı gerçek
+belge yüksekliğini, kanonik cache sayısını ve bekleyen iş durumunu da raporlar.
 
 ## Kaynak / anchor / görünüm ayrımı
 
@@ -96,6 +101,40 @@ isabeti; 140'tan fazla farklı bağlamda 128 giriş/64 MiB sınırı; tahliyede 
 görünümünün korunması; döngüler, eksik dosya ve dokuz seviyeli zincir. Native
 grafik, anchor ve uygulama selftest paketleri geçti.
 
+## Görünür alan ve aşamalı gömü hazırlığı
+
+Uygulama karesi başında tek `CWork` kaydı sıfırlanır; bölünmüş paneller aynı
+iş bütçesini paylaşır. Önce görünür gerçek içerik hazırlanır. Bir viewport üst
+ve alt taşma payındaki cache miss'leri ilk arka plan işiyle başlayan 4 ms esnek
+bütçeye tabidir. Bir atomik dosya okuma/parse/shape/driver işi bu süreyi aşabilir;
+denetim işler arasındadır, sert gerçek zaman garantisi değildir.
+
+Süresi dolmuş miss ertelenir, cache isabeti yeniden kullanılabilir. Uzak
+kaynaklar yüklenmez ve bekleyen iş olarak işaretlenmez. Olay döngüsü yalnız
+yakın iş kaldığında tekrar kare çizer; bitince bloke olay beklemesine döner.
+Kanonik belgeyi almış fakat görünümü hazırlayamamış yol da aktif-path guard'ını
+kapatıp kaynağı cache'e bırakır; döngü koruması ve sahiplik dengesi bozulmaz.
+
+Yeni gömü ilk etapta dört satır + çerçeve payı ile tahmin edilir. Görünür
+yükseklikler geldikçe görünür küme sabitlenene kadar tekrar değerlendirilir.
+Kaydırma, üst kaynak satırı ve satır içi piksel ofsetiyle düzeltilir. Katlanmış
+düğümler tahmine dahil edilmez; aksi halde sıfır yükseklik her kareyi kirletirdi.
+Seçili kaynaktan/görünümden sonra bütçeye sığan görünür girdiler tahliyede
+öne alınır; fazla/bütçeden büyük görünüm geçicidir, sert cache sınırını aşmaz.
+
+Geometri değiştikçe yakın küme de yeniden taranır (BUG-033). Tek taşma taraması,
+bir gömü kısaldığında yeni yakına giren sonraki işi kaçırabiliyordu. Yeni tur
+geometri sabitlenene veya miss iş bütçesini doldurana kadar sürer; bütçede
+kalan iş olay döngüsüne bildirilir. Beş kısa gömü fixture'ında ilk kare yalnız
+dört yakın kaynağı hazırlar, beşinci uzak kalır; sonraki sabit karede yükleme,
+sarma ve layout kurma sayaçları sıfır, belge yüksekliği değişmez.
+
+Tıklama gerçek cache geometrisini geri yükler; tahmini satır Y'si hit için
+kullanılmaz. En içteki wiki/Markdown bağlantısı dış gömü hedefinden önceliklidir.
+Tıklanan kaynak kimliği/generation/stamp'i gezinme öncesi doğrulanır; sürükleme
+gezinmeyi iptal eder. Regresyonlar iç içe hedef, aynı-dosya anchor'ı ve dış URL
+çözümlemesini URL'yi gerçekten açmadan sınar.
+
 ## Paragraf analizinin satırlar arasında paylaşılması
 
 VisualRows, yalnız görünüm kapsamındaki fiziksel satırların normalize Unicode
@@ -112,3 +151,26 @@ tahliye sonrası aynı paragraf analizinden yeniden üretilir.
 
 Ara ölçüm: uzun örnekte ilk kare 478 ms, 60 kaydırma karesinde p95 5,58 ms.
 Bu tek koşu sonucudur; son kabul medyanı ve profil testleri ayrıca raporlanır.
+
+## Sanitizer sınırı ve tekrar çalıştırma
+
+`cmake -S . -B build/refactor-asan -DCMAKE_BUILD_TYPE=RelWithDebInfo -DANTHRACITE_SANITIZERS=ON`
+ile ASan+UBSan etkinleştirilir. `font_render_conformance`,
+`native_text_analysis_conformance` ve `anchor_contracts` hedefleri ayrıca derlenir.
+Grafik test için geçerli X11/GLX ve DejaVu Sans Mono gerekir; bu Nix ortamında
+GLX yükleyicisi `LD_LIBRARY_PATH=/run/opengl-driver/lib` gerektirebilir.
+Son ölçüm ve testlerde bu sürücü yolu bütün profillere açıkça verilir;
+profil karşılaştırmasında GLX ortamı değiştirilmez.
+
+`ASAN_OPTIONS=detect_leaks=1` ile CPU analiz/anchor testleri ve grafik suite'i
+ayrı çalıştırılır. Grafik suite'inde LSan, `mem_live` dışında kalan boxed
+yardımcı tahsislerini görünür yaptı: [BUG-032](olasi_hatalar.md). Partition'ın
+küme başına kutulanması kaldırıldı; geometri anahtarı, görsel alt sınır ve
+seçim/koruma okumaları tüketilen `Option_vt` oldu. Kalan eski yardımcılar açık
+TODO'dur. `detect_leaks=0` yalnız erişim/UB testi için kullanılabilir; bu koşunun
+başarısı sızıntısızlık olarak raporlanmaz. Hiçbir toplu LSan suppression eklenmedi.
+
+Grafik oracle aynı 640×480 piksel uzayını kuyruk özyinelemeli tarar; Debug'ta
+yığın taşmasına yol açan dönüşte toplama kaldırıldı (BUG-031). Genişletilmiş
+suite için Debug/sanitizer zaman aşımı 600 s, Release 100 s'dir. Bu test süre
+sınırı, uygulamanın Release ilk görünüm/kaydırma kabul hedefi değildir.

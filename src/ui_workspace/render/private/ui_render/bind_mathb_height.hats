@@ -92,18 +92,26 @@ fun prepare_visible{n:nat} .<n>. (fuel: int(n),f: !Font,d: !Doc,cache: &Cache >>
     val ()=bind_media(f,d,cache,r,vault,lh,width,0)
     val height=prepare_layout_geometry(f,r,d,lh,width,mode)
   in if ieq(version,doc_layout_version(d)) then height else prepare_visible(fuel-1,f,d,cache,r,vault,lh,width,mode) end
-fun prepare_scheduled(f: !Font,d: !Doc,cache: &Cache >> _,r: !Rend,vault: !Buf,
-  lh: int,width: int,mode: ViewMode): int = let
+extern fun prepare_nearby_exhausted(): int = "mac#anth_die_int"
+fun prepare_nearby{n:nat} .<n>. (fuel: int(n),f: !Font,d: !Doc,cache: &Cache >> _,r: !Rend,vault: !Buf,
+  lh: int,width: int,mode: ViewMode): int =
+  if not(recursion_fuel_available(fuel)) then prepare_nearby_exhausted() else let
   val previous=work_scope(cache)
-  val ()=seed_media(d,lh)
-  val initial=prepare_layout_geometry(f,r,d,lh,width,mode)
+  val version=doc_layout_version(d)
   val visible=prepare_visible(airlock_nat(MAX_REC_FUEL),f,d,cache,r,vault,lh,width,mode)
   var overscan: EmbedWorkScope=previous val ()=overscan.band := EmbedWorkOverscan()
   val ()=work_set_scope(cache,overscan)
   val ()=bind_media(f,d,cache,r,vault,lh,width,0)
   val background=prepare_layout_geometry(f,r,d,lh,width,mode)
   val ()=work_set_scope(cache,previous)
-in prepare_visible(airlock_nat(MAX_REC_FUEL),f,d,cache,r,vault,lh,width,mode) end
+  val height=prepare_visible(airlock_nat(MAX_REC_FUEL),f,d,cache,r,vault,lh,width,mode)
+in if ieq(version,doc_layout_version(d)) orelse cache_work_pending(cache) then height
+  else prepare_nearby(fuel-1,f,d,cache,r,vault,lh,width,mode) end
+fun prepare_scheduled(f: !Font,d: !Doc,cache: &Cache >> _,r: !Rend,vault: !Buf,
+  lh: int,width: int,mode: ViewMode): int = let
+  val ()=seed_media(d,lh)
+  val initial=prepare_layout_geometry(f,r,d,lh,width,mode)
+in prepare_nearby(airlock_nat(MAX_REC_FUEL),f,d,cache,r,vault,lh,width,mode) end
 implement prepare_document_layout(f,d,cache,r,vault,lh,width,mode) = let
   val scope=work_scope(cache)
 in if scope.active andalso scope.document = doc_identity(d) then prepare_scheduled(f,d,cache,r,vault,lh,width,mode)

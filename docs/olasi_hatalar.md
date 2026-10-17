@@ -26,15 +26,3 @@ Yeni bulgular mevcut en yüksek BUG numarasından devam eder; numaralar yeniden 
 - Sınır: ASan/UBSan'ın erişim/UB kontrolü ile LSan'ın sızıntı sonucu ayrı
   raporlanır. Grafik LSan koşusu temiz sayılmıyor; toplu suppression veya yeni
   bir GC bağımlılığı bu maddeyi çözmüş kabul edilmez.
-
-## BUG-033 — Küçülen gömü sonrası yeni yakın işler kaçırılıyor
-
-- Durum: doğrulanıyor; yakın görünüm sabitlenene veya bütçe dolana kadar yeniden taranıyor.
-- Kanıt: görünür hazırlık sonrası taşma payı yalnız bir kez taranıyordu.
-  Bir gömü kısalınca alttaki başka gömü taşma payına girse de tarama bittiği
-  için bekleyen iş bayrağı false kalabiliyordu. İlk ölçümde sonraki sabit
-  karelerde yükleme olmadan üç/iki yeni layout ve azalan belge yüksekliği görüldü.
-- Çözüm: geometri değiştiğinde görünür + yakın hazırlığı tekrar edilir;
-  yeni miss bütçeyi aşarsa bekleyen iş işaretlenir ve olay döngüsü devam eder.
-- Doğrulama: kısa gömülerle tahmin küçülmesinin yeni yakın kaynakları açması
-  ve sonraki sabit karede sıfır layout/wrap kurması kontrol edilecek.
