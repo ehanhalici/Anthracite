@@ -197,19 +197,24 @@ implement draw_focus(f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, vi
 
 extern fun node_covering_impl_fuel_exhausted(d: !Doc, y: int, oy: int, scroll: int, i: int, best: int): int = "mac#anth_die_int"
 
+fun task_hit_height(d: !Doc,i: int): int = let
+  val line=doc_line_of(d,doc_node_start(d,i))
+in idiv(doc_line_step(d,line),imax(1,doc_visual_line_rows(d,line))) end
+
 fun node_covering_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, y: int, oy: int, scroll: int, i: int, best: int): int =
   if recursion_fuel_available(recfuel) then (
     if ige(i, doc_nnodes(d)) then best
     else let
       val k = doc_node_kind(d, i)
     in
-      if is_inline(k) then node_covering_impl_with_fuel(recfuel - 1, d, y, oy, scroll, iadd(i, 1), best)
+      if is_on(doc_node_hidden(d,i)) orelse is_inline(k) then node_covering_impl_with_fuel(recfuel - 1, d, y, oy, scroll, iadd(i, 1), best)
       else let
         val sy = isub(iadd(oy, doc_node_y(d, i)), scroll)
-        val h = doc_node_height(d, i)
+        val h = if is_kind(k,KTask) then task_hit_height(d,i) else doc_node_height(d, i)
         val best2 = if igt(h, 0) andalso ige(y, sy) andalso ilt(y, iadd(sy, h)) then i else best
       in
-        node_covering_impl_with_fuel(recfuel - 1, d, y, oy, scroll, iadd(i, 1), best2)
+        if is_kind(k,KTask) andalso ieq(best2,i) then i else
+          node_covering_impl_with_fuel(recfuel - 1, d, y, oy, scroll, iadd(i, 1), best2)
       end
     end
   ) else node_covering_impl_fuel_exhausted(d, y, oy, scroll, i, best)

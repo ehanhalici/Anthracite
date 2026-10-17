@@ -327,9 +327,14 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-024 — Görev kutusu dikey hit-test'te atlanıyor
 
-- Durum: doğrulandı; grafik regresyonu genişletilirken bulundu.
-- Kanıt: `node_covering_impl_with_fuel` bütün inline düğümleri atlar;
-  `KTask` inline olduğu için liste satırında KLi döner. Mevcut
-  `folding_and_task` grafik testi görev düğümünü/toggle'ını bulamıyor.
+- Durum: çözüldü; grafik regresyonu genişletilirken bulundu.
+- Kanıt: `node_covering_impl_with_fuel` aynı Y'yi kapsayan son düğümü
+  seçer; KTask sonrasındaki paragraf görev hit'ini ezer. Mevcut
+  `folding_and_task` grafik testi görev düğümünü bulamıyor; ayrıca test,
+  durum baytını KTask başlangıcı +3 yerine kaynak satırı +3'ten okumalıdır.
 - Beklenen: görev kutusunun ilk görsel satırındaki hit-test'in görev
   düğümünü döndürmesi; katlama ve görev değiştirme regresyonunun geçmesi.
+- Çözüm: görünür görev kutusunun ilk görsel satırındaki hit, sonraki
+  paragraf tarafından ezilmez. Test durum baytını kaynak satırından okur.
+- Doğrulama: Release/Xvfb native font/görsel yerleşim/görev suite'i geçti;
+  `visual_fold` başlık/katlama/açma/görev hit/görev toggle değerleri true.
