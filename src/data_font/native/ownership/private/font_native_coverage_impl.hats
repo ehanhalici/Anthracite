@@ -10,7 +10,7 @@ fun covered_file(b: !Buf,info: Option(SfntInfo),assets: !NativeTextAssets,
     val+ NativeTextAux(base,scripts,bidi,brackets,mirrors)=aux
     val+ NativeTextBase(data,norm,mcm)=base
     val+ NativeShapeData(db,category,ignorable,joining)=data
-    val+ NativeTextAnalysis(text,doc,items,breaks,graphemes)=a
+    val+ NativeTextAnalysis(text,doc,items,breaks,graphemes,source_length)=a
   in native_text_range_covered(b,info,ignorable,text,item.start,item.finish) end
 fun covered_fallback(b: &Option_vt(Buf) >> _,info: Option(SfntInfo),assets: !NativeTextAssets,
   a: !NativeTextAnalysis,item: NativeTextItem): bool = case+ b of

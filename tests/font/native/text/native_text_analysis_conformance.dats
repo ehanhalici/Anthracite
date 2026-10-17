@@ -20,7 +20,7 @@ in errors end
 fun normalized(assets: !NativeTextAssets): int = let val source=bytes("Ş İ")
   val errors=case+ native_text_analyze(assets,source,buf_len(source),AutoLtr()) of
     | ~NativeAnalysisRejected(e) => 1 | ~NativeAnalysisAccepted(a) => let
-      val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes)=a
+      val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes,source_length)=a
       val ok=ieq(scalar_count(text),3) andalso ieq(scalar_value(text,0),350)
         andalso ieq(scalar_start(text,0),0) andalso ieq(scalar_end(text,0),3)
         andalso ieq(scalar_value(text,2),304) andalso ieq(scalar_start(text,2),4) andalso ieq(scalar_end(text,2),7)
@@ -38,9 +38,10 @@ fun invalid(assets: !NativeTextAssets): int = let val source=buf_make(1)
     | ~NativeAnalysisRejected(e) => 0 | ~NativeAnalysisAccepted(a) => let val ()=native_text_analysis_dispose(a) in 1 end
   val ()=buf_free(source)
 in errors end
+#include "font/native/text/native_analysis_window_cases.hats"
 fun cases(): int = if ine(c_argc(),3) then 1 else
   case+ native_text_assets_load(@{generated=c_argv(1),source=c_argv(2)}) of | ~NativeAssetsRejected(e) => 1
-    | ~NativeAssetsAccepted(assets) => let val errors=mixed(assets)+normalized(assets)+empty(assets)+invalid(assets)+native_text_item_cases(assets)
+    | ~NativeAssetsAccepted(assets) => let val errors=mixed(assets)+normalized(assets)+empty(assets)+invalid(assets)+native_text_item_cases(assets)+native_analysis_window_cases(assets)
       val ()=native_text_assets_dispose(assets) in errors end
 fun ownership(before: int): int = if ieq(before,mem_live()) then 0 else 1
 implement main0() = let val before=mem_live() val errors=cases() val owned=ownership(before)

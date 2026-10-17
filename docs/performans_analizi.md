@@ -95,3 +95,20 @@ Regresyonlar: yedi anchor/tek parse; 240/480/300 px dönüşünde çocuk sarma c
 isabeti; 140'tan fazla farklı bağlamda 128 giriş/64 MiB sınırı; tahliyede seçim
 görünümünün korunması; döngüler, eksik dosya ve dokuz seviyeli zincir. Native
 grafik, anchor ve uygulama selftest paketleri geçti.
+
+## Paragraf analizinin satırlar arasında paylaşılması
+
+VisualRows, yalnız görünüm kapsamındaki fiziksel satırların normalize Unicode
+analizini tutar. Sarılmış satır, EGC hizalı kaynak penceresinden yerel ofsetli
+bir analiz görünümü üretir; NFC/script/bidi çözümlemesi tekrarlanmaz. Paragrafın
+çözülmüş seviyeleri ve tabanı korunur, satırda mevcut L1/reset ve görsel sıra
+motoru kullanılır. Bu ayrım [UAX #9, bölüm 3.4](https://www.unicode.org/reports/tr9/#Reordering_Resolved_Levels)
+satır düzenleme modeline dayanır; satırı bağımsız AutoLtr paragraf saymak değildir.
+
+Paragraf ve satır planları ayrı lineer sahiplidir; pencere verisi kopyalanır,
+sahip alias'ı oluşturulmaz. Kapasite ücretleri cache bütçesine dahildir ve
+toplamlar O(1) saklanır. Kesin satır planı ölçümden boyamaya doğrudan geçer;
+tahliye sonrası aynı paragraf analizinden yeniden üretilir.
+
+Ara ölçüm: uzun örnekte ilk kare 478 ms, 60 kaydırma karesinde p95 5,58 ms.
+Bu tek koşu sonucudur; son kabul medyanı ve profil testleri ayrıca raporlanır.

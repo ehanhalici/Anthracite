@@ -408,3 +408,22 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
   kod çiti, düzenleme sonrası yeniden indeksleme ve bellek dengesini denetler.
   Release ve native grafik suite'i geçti. Çocuk çizimi viewport kesişiminden
   başlar; üstteki görünmez düğümler tekrar boyanmaz.
+
+## BUG-027 — Sarılmış satır paragrafın bidi bağlamını yeniden analiz ediyor
+
+- Durum: çözüldü; paragraf analizi görünümde saklanır ve satıra aktarılır.
+- Kanıt: paragraf sarması bir analiz üretse de kesin satır ölçümü/yeniden
+  boyama `font_span_make` ile satır parçasını AutoLtr olarak yeniden analiz
+  eder. Nötr veya sayıyla başlayan RTL devam satırında paragraf tabanı ve
+  satır dışındaki çözümlenmiş bidi bağlamı kaybolabilir.
+- Çözüm: EGC hizalı tek-paragraf penceresi normalize scalar'ları, kaynak
+  ofsetlerini, çözülmüş bidi seviyelerini/tabanını ve script'leri devralır.
+  Mevcut bidi satır motoru L1 ve yeniden sıralamayı uygular; joining gerçek
+  satır kenarında hesaplanır. Unicode analizi satır başına tekrarlanmaz.
+  Orijinal bayt uzunluğu ayrıca tutulur; yeniden sıralanmış son combining
+  mark'ın `sourceEnd` değeri dosya/paragraf sonu kabul edilmez.
+- Doğrulama: pencere seviyeleri/script'leri ve L1 sırası orijinal paragraf
+  penceresiyle karşılaştırılır; RTL sayılar, embedding/izolat, trailing space,
+  NFC yeniden sıralama, hatalı UTF8, EGC içi ve çapraz-paragraf reddi sınanır.
+  Grafik testi, nötr/sayıyla başlayan RTL devam satırlarının sağa hizalandığını
+  doğrular. Native analiz, grafik ve selftest paketleri geçti.

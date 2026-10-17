@@ -3,7 +3,7 @@ staload "core_runtime/performance.sats"
 staload "data_font/text/span/private/font_span_partition.sats"
 fun allocated(f: !Font,assets: !NativeTextAssets,a: NativeTextAnalysis,contexts: !NativeTextContexts,
   items: NativeTextItems,options: FontSpanOptions): FontSpanRead = let
-  val n=airlock_nat(native_text_items_count(items)) val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes)=a
+  val n=airlock_nat(native_text_items_count(items)) val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes,source_length)=a
   val base=if ieq(scalar_count(text),0) then 0 else bidi_document_base(bidi,0)
   val empty: FontSpanPart= @{kind=SpanTextPart(),start=0,finish=0,sourceStart=0,sourceEnd=0,level=0,width=0,x=0}
   val layout=FontSpanLayout(a,items,font_span_runs_make(n),arrayptr_make_elt<FontSpanPart>(i2sz(n),empty),
@@ -26,7 +26,7 @@ fun contextual(f: !Font,assets: !NativeTextAssets,a: NativeTextAnalysis,options:
   | ~NativeContextAccepted(contexts) => let val result=itemized(f,assets,a,contexts,options)
     val ()=native_text_context_dispose(contexts) in result end
 fun paragraph(f: !Font,assets: !NativeTextAssets,a: NativeTextAnalysis,options: FontSpanOptions): FontSpanRead = let
-  val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes)=a val n=scalar_count(text)
+  val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes,source_length)=a val n=scalar_count(text)
   val single=ieq(n,0) orelse ieq(bidi_document_paragraph_end(bidi,0),n)
 in if single then contextual(f,assets,a,options) else let val ()=native_text_analysis_dispose(a)
   in FontSpanRejected(SpanParagraph()) end end
@@ -37,3 +37,6 @@ in case+ native_text_analyze(assets,source,length,AutoLtr()) of
   | ~NativeAnalysisRejected(e) => FontSpanRejected(SpanAnalysis())
   | ~NativeAnalysisAccepted(a) => paragraph(f,assets,a,options)
 end
+implement font_span_from_analysis(f,assets,analysis,length,options) = let
+  val ()=performance_note(PERF_SHAPE_CALLS,1) val ()=performance_note(PERF_SHAPED_BYTES,length)
+in paragraph(f,assets,analysis,options) end

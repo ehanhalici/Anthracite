@@ -4,12 +4,16 @@ staload "data_ast/layout/doc_visual.sats"
 staload "data_ast/layout/layout_internal.sats"
 staload "data_ast/layout/visual_rows.sats"
 staload "data_font/resources/font_document_metrics.sats"
+staload "data_font/resources/font_hit.sats"
 staload "data_font/text/font_text.sats"
+staload "data_font/text/span/font_span.sats"
+staload "data_font/text/span/font_span_types.sats"
 staload "data_font/resources/private/font_storage.sats"
 staload "ui_workspace/common/ui_common.sats"
 staload "ui_workspace/visual/visual_layout.sats"
 staload "ui_workspace/visual/visual_paint.sats"
 staload "ui_workspace/visual/visual_query.sats"
+staload "ui_workspace/visual/visual_plan.sats"
 staload "ui_workspace/visual/visual_navigation.sats"
 staload "ui_workspace/tabs/ui_tab.sats"
 staload "ui_workspace/commands/ui_cmd.sats"
@@ -213,6 +217,25 @@ fun owned_row_plans(f: !Font,r: !Rend): int = let
   val ()=println!("event=owned_row_plans first=",first," second=",second," shapes=",calls)
   val ()=performance_enable(0) val ()=buf_free(scratch) val ()=doc_free(d)
 in if shared then 0 else 1 end
+fun rtl_row_plans{n:nat} .<n>. (left: int(n),f: !Font,rows: !VisualRows,index: int,scratch: &Buf >> _): int =
+  if left = 0 then 0 else let val row=visual_rows_at(rows,index)
+    val+ VisualRows(t,m,l,data,count,key,plans)=rows
+    val hit=visual_plan_query(f,rows,index,20,QueryCaret(0),scratch)
+    val layout=visual_plans_take(plans,index)
+    val errors=case+ layout of | ~None_vt() => 1 | ~Some_vt(layout) => let
+        val correct=ieq(row.line,1) orelse (ieq(font_span_direction(layout),1) andalso ieq(hit.base,iadd(20,isub(key.width,row.width))))
+        val ()=visual_plans_put(plans,index,layout)
+      in if correct then 0 else 1 end
+  in iadd(errors,rtl_row_plans(left-1,f,rows,iadd(index,1),scratch)) end
+fun paragraph_bidi_rows(f: !Font,r: !Rend): int = let
+  val d=doc_open() val source=bytes("ببب 123 456 789 123\n") val length=buf_len(source)
+  val ()=doc_insert_buf(d,source,length) val ()=buf_free(source) var scratch: Buf=buf_make(256)
+  val ()=visual_layout_prepare(f,r,d,40,ViewRead) val state=doc_visual_take(d)
+  val errors=case+ state of | None_vt() => 1 | Some_vt(rows) => let
+    val+ VisualRows(t,m,l,data,count,key,plans)=rows
+  in iadd(if count > 2 then 0 else 1,rtl_row_plans(airlock_nat(count),f,rows,0,scratch)) end
+  val ()=doc_visual_put(d,state) val ()=doc_free(d) val ()=buf_free(scratch)
+in errors end
 fun embed_fixture_fill{n:nat} .<n>. (left: int(n),child: &Buf >> _,parent: &Buf >> _,i: int): void =
   if left = 0 then () else let
     val ()=repeat_words(airlock_nat(imul(iadd(i,1),4)),child)
@@ -425,7 +448,7 @@ implement native_visual_layout_cases(f,r) = let val before=mem_live() val d=doc_
   val nav=navigation(f,r) val fold=folding_and_task(f,r)
   val errors=body+markup+hard+nav+fold val ()=doc_free(d) val delta=isub(mem_live(),before)
   val scale=iadd(wrap_scale(f,r,64),iadd(wrap_scale(f,r,256),wrap_scale(f,r,1024)))
-  val clipping=iadd(owned_row_plans(f,r),iadd(nested_clips(r),warm_layout(f,r)))
+  val clipping=iadd(paragraph_bidi_rows(f,r),iadd(owned_row_plans(f,r),iadd(nested_clips(r),warm_layout(f,r))))
   val embedded=embedded_documents(f,r)
   val ()=println!("event=native_visual_layout errors=",errors," retained_font_source_bytes=",delta)
   val ()=println!("event=visual_cases body=",body," markdown=",markup," hard=",hard," navigation=",nav," fold=",fold)

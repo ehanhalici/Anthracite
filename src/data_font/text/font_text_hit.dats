@@ -4,7 +4,7 @@ staload "data_font/native/text/native_text_analysis.sats"
 staload "data_font/native/text/native_text_analysis_types.sats"
 staload "data_text/utf8/utf8.sats"
 fun snap{n:nat} .<n>. (left: int(n),a: !NativeTextAnalysis,source: int,length: int,i: int): int =
-  if left = 0 then length else let val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes)=a
+  if left = 0 then length else let val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes,source_length)=a
     val start=scalar_start(text,i)
   in if native_text_analysis_grapheme(a,i) andalso ige(start,source) then start else snap(left-1,a,source,length,iadd(i,1)) end
 fun click_offset(layout: !FontSpanLayout,source: int,length: int): int = let

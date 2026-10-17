@@ -17,10 +17,21 @@ staload "core_render/gl.sats"
 staload "ui_workspace/visual/visual_plan.sats"
 macdef SHAPE_UNITS_PER_PIXEL = 64
 macdef MAX_QUERY_PIXELS = 33554431
-fun fresh(f: !Font,rows: !VisualRows,index: int,scratch: &Buf >> _): FontSpanRead = let
+fun fallback(f: !Font,rows: !VisualRows,index: int,scratch: &Buf >> _): FontSpanRead = let
   val row=visual_rows_at(rows,index) val+ VisualRows(text,map,lines,data,count,key,plans)=rows
   val ()=buf_set_len(scratch,0) val ()=buf_append_at(scratch,text,row.start,isub(row.finish,row.start))
 in font_text_row_plan(f,scratch,isub(row.finish,row.start)) end
+fun from_paragraph(f: !Font,rows: !VisualRows,index: int,paragraph: VisualParagraph): FontSpanRead = let
+  val row=visual_rows_at(rows,index) val+ VisualParagraph(analysis,base,length,bytes)=paragraph
+  val result=font_text_line_plan(f,analysis,isub(row.start,base),isub(row.finish,base))
+  val+ VisualRows(text,map,lines,data,count,key,plans)=rows
+  val ()=visual_paragraph_put(plans,row.line,paragraph)
+in result end
+fun fresh(f: !Font,rows: !VisualRows,index: int,scratch: &Buf >> _): FontSpanRead = let
+  val row=visual_rows_at(rows,index) val+ VisualRows(text,map,lines,data,count,key,plans)=rows
+  val paragraph=visual_paragraph_take(plans,row.line)
+in case+ paragraph of | ~None_vt() => fallback(f,rows,index,scratch)
+  | ~Some_vt(analysis) => from_paragraph(f,rows,index,analysis) end
 fun ready(status: FontRunStatus): bool = case+ status of | FontRunReady() => true | _ => false
 fun acquire(f: !Font,rows: !VisualRows,index: int,scratch: &Buf >> _): FontSpanRead = let
   val+ VisualRows(text,map,lines,data,count,key,plans)=rows val cached=visual_plans_take(plans,index)

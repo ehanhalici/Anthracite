@@ -5,7 +5,7 @@ fun allocated(assets: !NativeTextAssets,a: !NativeTextAnalysis,count: int): Nati
     arrayptr_make_elt<ArabicBoundary>(i2sz(n),BoundaryNone()),n)
   val+ NativeTextAssets(aux,words,lines,east)=assets val+ NativeTextAux(base,s,b,br,mirrors)=aux
   val+ NativeTextBase(shape,norm,mcm)=base val+ NativeShapeData(db,c,i,j)=shape
-  val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes)=a
+  val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes,source_length)=a
   val ()=native_context_before(j,text,bidi,contexts) and ()=native_context_after(j,text,bidi,contexts)
 in NativeContextAccepted(contexts) end
 implement native_text_context_make(assets,a) = let val count=native_text_analysis_count(a)

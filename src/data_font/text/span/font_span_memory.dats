@@ -6,14 +6,6 @@ macdef SPAN_RUN_OBJECT_ALLOWANCE_BYTES = 1024LL
 fun buffer_bytes(buffer: !Buf): llint = g0int2int_int_llint(buf_cap(buffer))+SPAN_ALLOCATION_ALLOWANCE_BYTES
 fun array_bytes(count: int,element: size_t): llint =
   g0int2int_int_llint(count)*g0int2int_int_llint(g0uint2int_size_int(element))+SPAN_ALLOCATION_ALLOWANCE_BYTES
-fun analysis_bytes(analysis: !NativeTextAnalysis): llint = let
-  val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes)=analysis
-  val+ ScalarText(values,starts,ends,count,errors)=text
-  val+ BidiDocument(levels,paragraphs,directions,n)=bidi
-  val+ ScriptItems(items,ni)=scripts val+ LineBreakMap(flags,nf)=breaks
-in buffer_bytes(values)+buffer_bytes(starts)+buffer_bytes(ends)+buffer_bytes(levels)
-  +buffer_bytes(paragraphs)+buffer_bytes(directions)+buffer_bytes(items)+buffer_bytes(flags)+buffer_bytes(graphemes)
-  +SPAN_RUN_OBJECT_ALLOWANCE_BYTES end
 fun native_run_bytes(run: !FontNativeRun): llint = let
   val+ FontNativeRun(positioned,token)=run val+ PositionFrozen(glyphs,scale,direction)=positioned
   val+ GlyphRun(phase,meta,storage)=glyphs val+ GlyphStorage(capacity,cores,links,positions)=storage
@@ -29,5 +21,5 @@ fun runs_bytes{n:nat} .<n>. (left: int(n),runs: !FontSpanRuns,i: int): llint =
 implement font_span_memory_bytes(layout) = let
   val+ FontSpanLayout(analysis,items,runs,parts,order,n,width,direction)=layout
   val+ NativeTextItems(item_rows,ni)=items val+ FontSpanRuns(pf,gc | p,nr)=runs
-in analysis_bytes(analysis)+array_bytes(ni,sizeof<NativeTextItem>)+array_bytes(n,sizeof<FontSpanPart>)
+in native_text_analysis_memory_bytes(analysis)+array_bytes(ni,sizeof<NativeTextItem>)+array_bytes(n,sizeof<FontSpanPart>)
   +buffer_bytes(order)+array_bytes(nr,sizeof<FontSpanSlot>)+runs_bytes(nr,runs,0)+SPAN_RUN_OBJECT_ALLOWANCE_BYTES end
