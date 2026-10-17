@@ -56,12 +56,19 @@ if(ANTHRACITE_FC_MATCH)
     OUTPUT_VARIABLE ANTHRACITE_NATIVE_TEST_FONT OUTPUT_STRIP_TRAILING_WHITESPACE)
   if(ANTHRACITE_NATIVE_TEST_FONT MATCHES "^DejaVu Sans Mono\n(.+)$")
     set(ANTHRACITE_NATIVE_TEST_FONT_PATH "${CMAKE_MATCH_1}")
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR ANTHRACITE_SANITIZERS)
+      set(native_graphics_timeout 600)
+    else()
+      set(native_graphics_timeout 100)
+    endif()
+    math(EXPR native_graphics_wrapper_timeout "${native_graphics_timeout} + 20")
     add_test(NAME native_graphics_contracts COMMAND "${CMAKE_COMMAND}"
       "-DEXECUTABLE=$<TARGET_FILE:font_render_conformance>"
       "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}" "-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}"
       "-DLATIN_FONT=${ANTHRACITE_NATIVE_TEST_FONT_PATH}" "-DUNICODE_SOURCE=${UCD_SOURCE}"
+      "-DTEST_TIMEOUT_SECONDS=${native_graphics_timeout}"
       -P "${CMAKE_SOURCE_DIR}/tests/runtime/verify_native_graphics.cmake")
-    set_tests_properties(native_graphics_contracts PROPERTIES LABELS graphics RUN_SERIAL TRUE TIMEOUT 120)
+    set_tests_properties(native_graphics_contracts PROPERTIES LABELS graphics RUN_SERIAL TRUE TIMEOUT "${native_graphics_wrapper_timeout}")
   else()
     message(WARNING "native_graphics_contracts unavailable: DejaVu Sans Mono fixture is missing")
   endif()

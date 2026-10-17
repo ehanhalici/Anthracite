@@ -470,3 +470,15 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
   Katlama görünürlüğü görsel izdüşüm öncesinde eşzamanlı hazır tutulur.
 - Doğrulama: başlığı katlanmış gömünün ikinci zamanlayıcılı karesinde belge
   yükleme, sarma ve yerleşim kurma sayaçlarının üçü de sıfır olmalıdır.
+
+## BUG-031 — Grafik seçim testi Debug profilinde yığın taşıyor
+
+- Durum: çözüldü; piksel oracle'ı kuyruk özyinelemeli birikim kullanır.
+- Kanıt: 640×480 ekranın 307.200 pikselinde `iadd(error, recursive_call)`
+  zinciri Debug (-O0) profilinde 8 MiB yığını aşıyor. Çekirdek dökümündeki
+  tekrar eden `selection_pixels` kareleri test yardımcısını gösterir; Release
+  optimizasyonunun çağrıyı dönüştürmesi bu test hatasını gizliyordu.
+- Çözüm: hata sayısı birikimli argümanla taşınır; her piksel aynı koşulla
+  denetlenir, oracle'ın kapsamı veya beklenen renk/sınırlar değişmez. Debug ve
+  sanitizer profillerinin genişletilmiş grafik suite'i için süre sınırı 600 s,
+  Release için 100 s'dir; zaman aşımı hâlâ başarısızlık sayılır.

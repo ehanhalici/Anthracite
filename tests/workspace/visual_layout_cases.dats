@@ -332,18 +332,18 @@ fun selection_x(f: !Font,r: !Rend,tabs: !Tabs): int = case+ tabs of
   | TNil() => 0 | TCons(d,p,t,s,rest) => let val node=first_embed(airlock_nat(doc_nnodes(d)),d,0)
     val indent=imul(doc_node_depth(d,node),20) val x=iadd(editor_colx(f,r,0,640),indent)
   in editor_colx(f,r,x,isub(doc_visual_width(d),indent)) end
-fun selection_pixels{n:nat} .<n>. (left: int(n),pixels: !Buf,i: int,bottom: int,found: &int >> _): int =
-  if left = 0 then 0 else let val at=imul(i,4)
+fun selection_pixels{n:nat} .<n>. (left: int(n),pixels: !Buf,i: int,bottom: int,found: &int >> _,errors: int): int =
+  if left = 0 then errors else let val at=imul(i,4)
     val selected=ieq(buf_get(pixels,at),58) andalso ieq(buf_get(pixels,iadd(at,1)),74) andalso ieq(buf_get(pixels,iadd(at,2)),92)
     val y=isub(479,idiv(i,640)) val ()=if selected then found := iadd(found,1) else ()
     val error=if selected andalso ige(y,bottom) then 1 else 0
-  in iadd(error,selection_pixels(left-1,pixels,iadd(i,1),bottom,found)) end
+  in selection_pixels(left-1,pixels,iadd(i,1),bottom,found,iadd(errors,error)) end
 fun selection_ink(f: !Font,r: !Rend,tabs: !Tabs,root: !Buf,cache: &Cache >> _,scratch: &Buf >> _): int = let
   val ()=selection_parent_draw(f,r,tabs,root,cache,scratch)
   val pixels=buf_make(imul(imul(640,480),4))
   val ()=font_gl_read_raw(0,0,640,480,GL_RGBA,GL_UNSIGNED_BYTE,buf_ptr(pixels))
   val bottom=selection_top(tabs,1) var found: int=0
-  val errors=selection_pixels(307200,pixels,0,isub(bottom,4),found)
+  val errors=selection_pixels(307200,pixels,0,isub(bottom,4),found,0)
   val ()=buf_free(pixels)
 in iadd(errors,if igt(found,0) then 0 else 1) end
 fun selected_info{n:nat} .<n>. (left: int(n),cache: !Cache): Option(EmbeddedSelection) =
