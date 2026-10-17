@@ -18,5 +18,13 @@
    - The embed cache holds ownership of cached `Doc` instances.
    - Eviction and shutdown must call `doc_free(child)` and release the path buffer.
      `mem_live` before/after checks cover tracked buffers, not all C/GPU resources.
+   - Canonical Doc/AST ownership is separate from `DocGeometry` view ownership.
+     Native view keys include exact source range, width, font IDs/generations,
+     metrics and projection. Never clone a Doc/AST merely for another width.
+   - View cache policy is 128 entries / 64 MiB of conservatively charged owned
+     payload. Keep the selected source and fitting selected view pinned. Release
+     the view's row plans on eviction; their spans must not be aliased.
+   - `EmbedViewPending` is an active-path guard, not a cached height or failed
+     Doc. End every successful obtain/save pair, including measure and hit paths.
 
 Implementation: `src/ui_workspace/render/ui_render.dats` and its private groups.

@@ -6,19 +6,25 @@ staload "data_font/resources/font.sats"
 staload "data_ast/document/doc.sats"
 staload "ui_workspace/tabs/ui_tab.sats"
 staload "ui_workspace/embed/embedded_doc.sats"
+staload "data_ast/layout/doc_geometry.sats"
+staload "data_ast/layout/visual_rows.sats"
 typedef EmbeddedSelection = @{parent=ptr,parentVersion=int,node=int,child=ptr,childVersion=int,
-  anchor=int,caret=int,start=int,finish=int,dragged=bool}
+  anchor=int,caret=int,start=int,finish=int,dragged=bool,source=EmbedSourceStamp,view=VisualKey}
+datavtype EmbedViewState = EmbedViewPending | EmbedViewReady of (VisualKey,DocGeometry)
 
 datavtype Cache =
   | CNil of ()
   | CCons of (Buf, uint, int, int, Cache)
   | CEmbed of (Buf, EmbedSourceStamp, Doc, int, int, Cache)
   | CSelection of (EmbeddedSelection,Buf,Cache)
+  | CView of (Buf,EmbedSourceStamp,EmbedViewState,Cache)
 
 fun cache_clear_embed_selection(cache: &Cache >> _): void
 fun cache_copy_embed_selection(cache: !Cache,destination: &Buf >> _): bool
 fun cache_embed_selection_active(cache: !Cache): bool
 fun cache_embed_selection_dragged(cache: !Cache): bool
+typedef EmbedCacheStats = @{documents=int,views=int,pending=int,viewBytes=llint}
+fun cache_embed_stats(cache: !Cache): EmbedCacheStats
 fun tabs_embed_select(f: !Font,r: !Rend,tabs: !Tabs,index: int,x: int,y: int,ox: int,width: int,
   lh: int,vault: !Buf,cache: &Cache >> _,scratch: &Buf >> _,extend: bool): bool
 

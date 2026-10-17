@@ -84,6 +84,12 @@ fun embedded_target_height(d: !Doc,target: AnchorTarget,lh: int): int =
 fun embedded_content_height(d: !Doc, scope: EmbedScope, anchor: !Buf, lh: int, full_height: int): int = let
   val target=embedded_target(d,scope,anchor)
 in embedded_target_height(d,target,lh) end
+fun prepare_embedded_view(f: !Font,doc: !Doc,cache: &Cache >> _,r: !Rend,vault: !Buf,
+  path: !Buf,lh: int,width: int,scope: EmbedScope,anchor: !Buf): int = let
+  val target=embedded_target(doc,scope,anchor)
+  val ()=doc_set_view_range(doc,target.start,target.finish)
+  val ()=if font_text_active(f) then cache_view_restore(f,doc,cache,path,width) else ()
+in prepare_document_layout(f,doc,cache,r,vault,lh,width,ViewRead) end
 
 fun measure_embedded_height(f: !Font,c: &Cache >> _,r: !Rend,vault: !Buf,shown: !Buf,
   anchor: !Buf,scope: EmbedScope,level: int,lh: int,colw: int): int =
@@ -92,7 +98,7 @@ fun measure_embedded_height(f: !Font,c: &Cache >> _,r: !Rend,vault: !Buf,shown: 
   in if not(mtime.file.exists) then iadd(lh,8) else let
     val (child,loaded)=obtain_embed_doc(c,shown,buf_cstr(shown),mtime,level)
   in if loaded then let
-    val height = prepare_document_layout(f,child, c, r, vault, lh, embed_text_width(f,r,colw), ViewRead)
+    val height=prepare_embedded_view(f,child,c,r,vault,shown,lh,embed_text_width(f,r,colw),scope,anchor)
     val content_height = embedded_content_height(child, scope, anchor, lh, height)
     val ()=save_embed_cache(c,shown,mtime,child,colw,lh)
   in iadd(imax(lh,content_height),8) end

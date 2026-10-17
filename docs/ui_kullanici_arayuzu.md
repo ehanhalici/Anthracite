@@ -38,6 +38,10 @@ Cache isabeti dosyayı yeniden okumamalıdır; kaçırma/geçersizleştirme yük
 yoktur. Blok yüksekliği ilgili hedef aralığının görsel satırlarından türetilir.
 Doc'un sürümlü seyrek medya indeksi sıcak karede bütün AST taramasını önler;
 görsel düğüm indeksi yalnız yerleşim yenilendiğinde kurulur.
+Kanonik dosya/AST cache'i (48 Doc) ile görünüm geometrisi cache'i (128 giriş,
+64 MiB) ayrıdır. Anchor aralığı, genişlik ve tam font bağlamı görünüm anahtarına
+dahildir. Kaynak aynıysa farklı blok veya bölme genişliği AST'yi çoğaltmaz.
+Aktif yola dönen embed döngüsü durdurulur; diğer zincirler derinlik 8 ile sınırlıdır.
 
 Çocuk çizimleri `rend_clip_push/pop` ile ebeveyn clip'ine kesiştirilir;
 embed, widget veya sekme kendi sınırını genişletip üst UI alanını boyayamaz.

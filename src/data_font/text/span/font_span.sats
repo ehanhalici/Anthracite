@@ -17,3 +17,6 @@ fun font_span_check(f: !Font,layout: !FontSpanLayout): FontRunStatus
 (* Byte-indexed EGC/break flags and logical prefix advances in 26.6 units.
    Interior ligature boundaries are excluded; actual rows are shaped separately. *)
 fun font_span_wrap_metrics(layout: !FontSpanLayout,length: int): @(Buf,Buf)
+(* Owned payload capacities plus a conservative allowance for allocation /
+   constructor headers. Shared font/Unicode assets are not charged per view. *)
+fun font_span_memory_bytes(layout: !FontSpanLayout): llint

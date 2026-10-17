@@ -71,3 +71,27 @@ karesi ölçer: belge boyunca eşit aralıklı 30 konum, iki geçiş. Bu gerçek
 çizimidir; yalnız yer tutucu/boş kare ölçümü değildir. `tools/performance/summarize.py`
 loglardan medyan ve nearest-rank p95 çıkarır. İlk görünüm medyanı için birden
 çok ayrı süreç logu verilmelidir. Dosya yüklenemezse benchmark başarısız döner.
+
+## Kaynak / anchor / görünüm ayrımı
+
+Dosya cache'i 48 kanonik Doc ile sınırlıdır. Kaynak ve AST, anchor indeksi ve
+parse-generation'a bağlı seyrek medya indeksi bu belgeye aittir. Layout ve
+VisualRows ise ayrı `DocGeometry` sahipleridir; aynı dosya farklı anchor,
+genişlik ve font bağlamları için yeniden ayrıştırılmaz. Geometri Y/yükseklik
+tablosunu, görsel satırları/planlarını ve medya aux alanlarını taşır; AST kopyalanmaz.
+
+128 görünüm ve 64 MiB geometri cache sınırı vardır. Ücretlendirme tampon
+kapasiteleri, native analiz/item/glyph dizi kapasiteleri ve tahsis/kurucu başlıkları
+için muhafazakâr pay içerir; paylaşılan font/Unicode varlıkları görünüm başına
+tekrar sayılmaz. Seçili kaynak Doc'u ve sığan tam seçim görünümü tahliyede
+korunur. Tek başına bütçeyi aşan geometri saklanmaz; geçici hesap maliyeti ayrı
+olabilir. Kopyalama geometri cache'inden bağımsız kaynak izdüşümüyle çalışır.
+
+Anchor görünümü dışında kalan satırlar şekillendirilmez ve medya çözülmez;
+hedefin gerçek satır geometrisi kullanılır. Aktif kaynak yolları tipli pending
+kayıtlarıyla tutulur; A→B→A ve A→A tekrar yüklemeye girmez. Derinlik sınırı 8'dir.
+
+Regresyonlar: yedi anchor/tek parse; 240/480/300 px dönüşünde çocuk sarma cache
+isabeti; 140'tan fazla farklı bağlamda 128 giriş/64 MiB sınırı; tahliyede seçim
+görünümünün korunması; döngüler, eksik dosya ve dokuz seviyeli zincir. Native
+grafik, anchor ve uygulama selftest paketleri geçti.

@@ -116,12 +116,12 @@ in if ile(bottom,top) then () else if not(target.found) then draw_missing_embed(
   else draw_plain_doc(f,r,child,colx,top,width,isub(bottom,top),scroll,lh,scratch)
 end
 
-fun draw_embedded_doc(f: !Font, r: !Rend, parent: !Doc,node: int,child: !Doc, anchor: !Buf, scope: EmbedScope, child_colw: int, x: int, y: int, w: int, h: int,
+fun draw_embedded_doc(f: !Font, r: !Rend, parent: !Doc,node: int,child: !Doc,path: !Buf,anchor: !Buf, scope: EmbedScope, child_colw: int, x: int, y: int, w: int, h: int,
                       viewport_x: int, viewport_y: int, viewport_w: int, viewport_h: int,
                       lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _): void = let
   val colx = editor_colx(f, r, x, child_colw)
   val width=if font_text_active(f) then imax(1,isub(iadd(x,w),iadd(colx,16))) else child_colw
-  val height = prepare_document_layout(f,child, c, r, vault, lh, width, ViewRead)
+  val height=prepare_embedded_view(f,child,c,r,vault,path,lh,width,scope,anchor)
   val target=embedded_target(child,scope,anchor)
   val content_height=embedded_target_height(child,target,lh)
   val content_y = iadd(y, 4)
@@ -148,7 +148,7 @@ fun draw_embedded_path(parent: !Doc,node: int,shown: !Buf, anchor: !Buf, scope: 
       val @(child, is_loaded) = obtain_embed_doc(c, shown, p_str, mt, level)
     in
       if is_loaded then let
-        val () = draw_embedded_doc(f,r,parent,node,child,anchor,scope,child_colw,x,y,w,h,vx,vy,vw,vh,lh,vault,c,scratch)
+        val () = draw_embedded_doc(f,r,parent,node,child,shown,anchor,scope,child_colw,x,y,w,h,vx,vy,vw,vh,lh,vault,c,scratch)
         val () = save_embed_cache(c, shown, mt, child, child_colw, lh)
       in
         ()

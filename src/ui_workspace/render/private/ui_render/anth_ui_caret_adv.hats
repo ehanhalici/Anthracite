@@ -28,11 +28,15 @@ in
 end
 
 extern fun cache_free_fuel_exhausted(c: Cache): void = "mac#anth_die_void"
+fun cache_view_release(state: EmbedViewState): void = case+ state of
+  | ~EmbedViewPending() => () | ~EmbedViewReady(key,geometry) => doc_geometry_dispose(geometry)
 
 fun cache_free_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: Cache): void =
   if recursion_fuel_available(recfuel) then (
     case+ c of
     | ~CNil() => ()
+    | ~CView(path,stamp,state,rest) => let val ()=buf_free(path) val ()=cache_view_release(state)
+      in cache_free_with_fuel(recfuel-1,rest) end
     | ~CSelection(_,path,rest) => let val ()=buf_free(path)
       in cache_free_with_fuel(recfuel-1,rest) end
     | ~CCons(p, t, _, _, rest) => let
@@ -62,7 +66,7 @@ in
   CCons(p, t, iw, ih, rest)
 end
 
-fun cache_lookup_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: Cache, path: !Buf, tex: &uint >> _, w: &int >> _, h: &int >> _, hit: &Toggle >> _): Cache =
+fun cache_lookup_with_fuel {recfuel:nat} .<recfuel,1>. (recfuel: int(recfuel), c: Cache, path: !Buf, tex: &uint >> _, w: &int >> _, h: &int >> _, hit: &Toggle >> _): Cache =
   if recursion_fuel_available(recfuel) then (
     case+ c of
     | ~CNil() => let
@@ -72,16 +76,16 @@ fun cache_lookup_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: 
       end
     | ~CSelection(selection,saved,rest) =>
         CSelection(selection,saved,cache_lookup_with_fuel(recfuel-1,rest,path,tex,w,h,hit))
-    | ~CCons(p, t, iw, ih, rest) =>
-        if buffer_equal_from(p, path, 0) then cache_accept(p, t, iw, ih, rest, tex, w, h, hit)
-        else let
-          val rest2 = cache_lookup_with_fuel(recfuel - 1, rest, path, tex, w, h, hit)
-        in
-          CCons(p, t, iw, ih, rest2)
-        end
+    | ~CView(saved,stamp,state,rest) =>
+        CView(saved,stamp,state,cache_lookup_with_fuel(recfuel-1,rest,path,tex,w,h,hit))
+    | ~CCons(p,t,iw,ih,rest) => cache_lookup_texture(recfuel,p,t,iw,ih,rest,path,tex,w,h,hit)
     | ~CEmbed(p,mt,doc,cw,lh,rest) =>
         CEmbed(p,mt,doc,cw,lh,cache_lookup_with_fuel(recfuel-1,rest,path,tex,w,h,hit))
   ) else cache_lookup_fuel_exhausted(c, path, tex, w, h, hit)
+and cache_lookup_texture {fuel:pos} .<fuel,0>. (fuel: int(fuel),p: Buf,t: uint,iw: int,ih: int,rest: Cache,
+  path: !Buf,tex: &uint >> _,w: &int >> _,h: &int >> _,hit: &Toggle >> _): Cache =
+  if buffer_equal_from(p,path,0) then cache_accept(p,t,iw,ih,rest,tex,w,h,hit)
+  else CCons(p,t,iw,ih,cache_lookup_with_fuel(fuel-1,rest,path,tex,w,h,hit))
 
 fun cache_lookup(c: Cache, path: !Buf, tex: &uint >> _, w: &int >> _, h: &int >> _, hit: &Toggle >> _): Cache = cache_lookup_with_fuel(airlock_nat(MAX_REC_FUEL), c, path, tex, w, h, hit)
 
@@ -100,6 +104,9 @@ fun restore_embed_entry(path: Buf,stamp: EmbedSourceStamp,child: Doc,width: int,
   result: @(Option_vt(Doc),Cache)): @(Option_vt(Doc),Cache) = let
   val (document,rest)=result
 in @(document,CEmbed(path,stamp,child,width,height,rest)) end
+fun restore_view_entry(path: Buf,stamp: EmbedSourceStamp,state: EmbedViewState,
+  result: @(Option_vt(Doc),Cache)): @(Option_vt(Doc),Cache) = let val (document,rest)=result
+in @(document,CView(path,stamp,state,rest)) end
 
 fun cache_take_embed_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), c: Cache, path: !Buf, cur_mt: EmbedSourceStamp
@@ -107,6 +114,8 @@ fun cache_take_embed_with_fuel {recfuel:nat} .<recfuel>. (
   if recursion_fuel_available(recfuel) then (
     case+ c of
     | ~CNil() => @(None_vt(), CNil())
+    | ~CView(saved,stamp,state,rest) =>
+        restore_view_entry(saved,stamp,state,cache_take_embed_with_fuel(recfuel-1,rest,path,cur_mt))
     | ~CSelection(selection,saved,rest) =>
         restore_selection_entry(selection,saved,cache_take_embed_with_fuel(recfuel-1,rest,path,cur_mt))
     | ~CCons(p, t, iw, ih, rest) =>
@@ -129,24 +138,28 @@ fun count_embeds_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: 
   if recursion_fuel_available(recfuel) then (
     case+ c of
     | CNil() => acc
+    | CView(_,_,_,rest) => count_embeds_with_fuel(recfuel-1,rest,acc)
     | CSelection(_,_,rest) => count_embeds_with_fuel(recfuel-1,rest,acc)
     | CCons(_, _, _, _, rest) => count_embeds_with_fuel(recfuel - 1, rest, acc)
     | CEmbed(_, _, _, _, _, rest) => count_embeds_with_fuel(recfuel - 1, rest, iadd(acc, 1))
   ) else acc
 
+fun retain_embed_position(path: !Buf,pinned: !Buf,keep: int,position: &int >> _): bool =
+  if igt(buf_len(pinned),0) andalso buffer_equal_from(path,pinned,0) then true else let
+    val retain=ilt(position,keep) val ()=position := iadd(position,1)
+  in retain end
 fun trim_embeds_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: Cache, keep: int, pinned: !Buf,cur: &int >> _): Cache =
   if recursion_fuel_available(recfuel) then (
     case+ c of
     | ~CNil() => CNil()
+    | ~CView(path,stamp,state,rest) => CView(path,stamp,state,trim_embeds_with_fuel(recfuel-1,rest,keep,pinned,cur))
     | ~CSelection(selection,path,rest) => CSelection(selection,path,trim_embeds_with_fuel(recfuel-1,rest,keep,pinned,cur))
     | ~CCons(p, t, iw, ih, rest) =>
         CCons(p,t,iw,ih,trim_embeds_with_fuel(recfuel-1,rest,keep,pinned,cur))
     | ~CEmbed(p, mt, doc, cw, lh, rest) => let
-        val idx = cur
-        val selected=igt(buf_len(pinned),0) andalso buffer_equal_from(p,pinned,0)
-        val () = if selected then () else cur := iadd(cur,1)
+        val retain=retain_embed_position(p,pinned,keep,cur)
       in
-        if selected orelse ilt(idx,keep) then
+        if retain then
           CEmbed(p,mt,doc,cw,lh,trim_embeds_with_fuel(recfuel-1,rest,keep,pinned,cur))
         else let
           val () = (buf_free(p); doc_free(doc))
@@ -157,6 +170,7 @@ fun trim_embeds_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: C
   ) else c
 
 extern fun cache_pin_path(cache: !Cache,path: &Buf >> _): void
+extern fun cache_pin_info(cache: !Cache): Option(EmbeddedSelection)
 fun cache_put_embed(c: Cache, path: Buf, mt: EmbedSourceStamp, doc: Doc, cw: int, lh: int): Cache = let
   val n = count_embeds_with_fuel(airlock_nat(MAX_REC_FUEL), c, 0)
 in

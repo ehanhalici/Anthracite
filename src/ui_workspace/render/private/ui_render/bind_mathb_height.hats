@@ -13,7 +13,10 @@ fun bind_one_kind(f: !Font,d: !Doc, i: int, k: NodeKind, c: &Cache >> _, r: !Ren
   else if is_kind(k, KMathb) then bind_mathb_height(d, i, lh)
   else ()
 
-fun bind_one(f: !Font,d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int): void = let
+fun media_in_view(d: !Doc,i: int): bool = let val range=doc_view_range(d)
+in ilt(doc_node_start(d,i),range.finish) andalso igt(doc_node_end(d,i),range.start) end
+fun bind_one(f: !Font,d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int): void =
+  if not(media_in_view(d,i)) then () else let
   val k = doc_node_kind(d, i)
 in
   if is_kind(k, KImage) orelse is_kind(k, KEmbed) then let
@@ -43,7 +46,7 @@ fun media_index_fill{n:nat} .<n>. (left: int(n),d: !Doc,index: &Buf >> _,i: int)
     val ()=if is_kind(k,KImage) orelse is_kind(k,KEmbed) orelse is_kind(k,KMathb) then media_index_append(index,i) else ()
   in media_index_fill(left-1,d,index,iadd(i,1)) end
 fun media_index_prepare(d: !Doc,index: &Buf >> _): void =
-  if ige(buf_len(index),WORD32_BYTES) andalso ieq(buf_get32(index,0),doc_layout_version(d)) then () else let
+  if ige(buf_len(index),WORD32_BYTES) andalso ieq(buf_get32(index,0),doc_parse_generation(d)) then () else let
     val ()=performance_note(PERF_MEDIA_INDEX_BUILDS,1)
     val ()=buf_ensure(index,WORD32_BYTES) val ()=buf_set_len(index,WORD32_BYTES)
   in media_index_fill(airlock_nat(doc_nnodes(d)),d,index,0) end
@@ -54,7 +57,7 @@ fun bind_media_index{n:nat} .<n>. (left: int(n),f: !Font,d: !Doc,c: &Cache >> _,
 fun bind_media(f: !Font,d: !Doc,c: &Cache >> _,r: !Rend,vault: !Buf,lh: int,colw: int,i: int): void = let
   var index=doc_media_take(d) val ()=media_index_prepare(d,index)
   val ()=bind_media_index(airlock_nat(isub(idiv(buf_len(index),WORD32_BYTES),1)),f,d,c,r,vault,lh,colw,index,1)
-  val ()=buf_set32(index,0,doc_layout_version(d))
+  val ()=buf_set32(index,0,doc_parse_generation(d))
 in doc_media_put(d,index) end
 
 implement prepare_document_layout(f,d, c, r, vault, lh, colw, viewmode) = let
