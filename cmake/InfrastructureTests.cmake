@@ -18,6 +18,10 @@ anthracite_contract_test(fold_scaling_contracts tests/performance/fold_scaling_c
 target_link_libraries(fold_scaling_contracts PRIVATE anthracite_host native_text_engine
   ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
 add_test(NAME fold_scaling_contracts COMMAND fold_scaling_contracts)
+anthracite_contract_test(anchor_contracts tests/workspace/anchor_contracts.dats)
+target_link_libraries(anchor_contracts PRIVATE anthracite_host native_text_engine
+  ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
+add_test(NAME anchor_contracts COMMAND anchor_contracts)
 
 anthracite_contract_test(selftest_memory_contracts tests/runtime/selftest_memory_contracts.dats)
 target_link_libraries(selftest_memory_contracts PRIVATE anthracite_host native_text_engine

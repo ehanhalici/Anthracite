@@ -313,6 +313,10 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 - Durum: doğrulandı (kaynak incelemesi); düzeltme sürüyor.
 - Kanıt: hit-test embed'i tek nesne sayıp parent caret'ini başına koyar;
   hedef açma yolu yalnız KWiki/KLink arar, KEmbed kabul etmez.
+- İlerleme: embed kutusu hit-test ve wiki hedef açma yoluna alındı;
+  kaynak/salt-okunur moddaki kutuya düz tıklama hedefe gider. Ctrl ile mousedown
+  açıldıysa mouseup ikinci kez açmaz. Hedef çözümü ortak tam anchor indeksini
+  kullanır. Gömülü metin seçimi/kopyalama tamamlanana kadar madde açıktır.
 
 ## BUG-021 — Sarma çok sayıda örtüşen metin parçasını yeniden şekillendiriyor
 
@@ -373,3 +377,18 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 - Doğrulama: yedi referans paylaşılırken aynı boyutta fiziksel dosya değişimi,
   dolu VFS gölgesi oluşturma ve silerek fiziksel kaynağa dönüş her seferinde
   tek yeniden yükleme ve doğru ilk kaynak baytı üretir. Native grafik suite'i geçti.
+
+## BUG-026 — Blok/başlık referansları yanlış kaynak aralığını gösterebiliyor
+
+- Durum: çözüldü; anchor kapsamları incelenirken bulundu.
+- Kanıt: blok embed yalnız işaretin bulunduğu fiziksel satırı gösteriyordu;
+  bağımsız `^id` önceki paragrafı değil işaret satırını seçiyordu. Başlık embed'i
+  bütün dosyaya düşüyor, navigasyon ise ilk alt dize eşleşmesini kullanıyordu.
+- Çözüm: Doc sahipli, yeniden ayrıştırmada geçersizleşen ortak anchor indeksi;
+  tam blok kimliği veya başlık adı eşleştirmesi, çok satırlı paragraf/liste
+  kapsamı, bağımsız işaretin önceki blokla eşleştirilmesi ve başlık bölümü.
+  Kod çiti içindeki işaretler hedef olmaz. Eksik hedef tüm dosyaya düşmez.
+- Doğrulama: `anchor_contracts` kapsam, prefix çakışması, yanlış ilk alt dize,
+  kod çiti, düzenleme sonrası yeniden indeksleme ve bellek dengesini denetler.
+  Release ve native grafik suite'i geçti. Çocuk çizimi viewport kesişiminden
+  başlar; üstteki görünmez düğümler tekrar boyanmaz.

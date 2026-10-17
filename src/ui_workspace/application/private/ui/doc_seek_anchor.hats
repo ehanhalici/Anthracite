@@ -13,7 +13,8 @@ fun doc_jump_anchor(d: !Doc, anchor: &Buf >> _, cur_sc: int): int = let
   val alen = buf_len(anchor)
 in
   if igt(alen, 0) then let
-    val pos = doc_seek_anchor_with_fuel(airlock_nat(MAX_REC_FUEL), d, doc_len(d), anchor, alen, 0)
+    val target=doc_resolve_anchor(d,anchor)
+    val pos=if target.found then target.start else ~1
   in
     if ige(pos, 0) then let
       val () = doc_set_caret_move(d, pos)

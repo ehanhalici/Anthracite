@@ -181,7 +181,8 @@ extern fun find_wiki_fuel_exhausted(doc: !Doc, caret: int, k: int): int = "mac#a
 fun find_wiki_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), doc: !Doc, caret: int, k: int): int =
   if recursion_fuel_available(recfuel) then (
     if ige(k, doc_nnodes(doc)) then ~1
-    else if ile(doc_node_start(doc, k), caret) andalso ilt(caret, doc_node_end(doc, k)) andalso is_kind(doc_node_kind(doc, k), KWiki) then k
+    else if ile(doc_node_start(doc,k),caret) andalso ilt(caret,doc_node_end(doc,k)) andalso
+      (is_kind(doc_node_kind(doc,k),KWiki) orelse is_kind(doc_node_kind(doc,k),KEmbed)) then k
     else find_wiki_with_fuel(recfuel - 1, doc, caret, iadd(k, 1))
   ) else find_wiki_fuel_exhausted(doc, caret, k)
 

@@ -59,10 +59,10 @@ in
   doc_set(d, i, NF_AUX, dh)
 end
 
-datatype EmbedScope = EmbedWhole | EmbedBlock
+datatype EmbedScope = EmbedWhole | EmbedAnchored
 
 fun embed_scope(d: !Doc, i: int): EmbedScope =
-  if ige(doc_find_child(d, i, KWikiBlock), 0) then EmbedBlock else EmbedWhole
+  if ige(doc_find_child(d,i,KWikiBlock),0) orelse ige(doc_find_child(d,i,KWikiHeading),0) then EmbedAnchored else EmbedWhole
 
 fun embed_child_width(parent_colw: int): int = imax(1, isub(parent_colw, UI_GUTTER_WIDTH))
 
@@ -73,53 +73,17 @@ fun embed_text_width(f: !Font,r: !Rend,parent: int): int =
 fun embed_box_width(ox: int, pw: int, box_x: int): int =
   imax(1, imin(column_w(pw), isub(iadd(ox, pw), box_x)))
 
-fun embed_anchor_offset(anchor: !Buf): int =
-  if igt(buf_len(anchor), 0) andalso ieq(buf_get(anchor, 0), CHAR_CARET) then 1 else 0
-
-extern fun block_id_match_fuel_exhausted(d: !Doc, anchor: !Buf, p: int, a: int): bool = "mac#anth_die_bool"
-
-fun block_id_match_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, anchor: !Buf, p: int, a: int): bool =
-  if recursion_fuel_available(recfuel) then (
-    if ige(a, buf_len(anchor)) then true
-    else if ige(p, doc_len(d)) then false
-    else if ieq(doc_byte(d, p), buf_get(anchor, a)) then block_id_match_with_fuel(recfuel - 1, d, anchor, iadd(p, 1), iadd(a, 1))
-    else false
-  ) else block_id_match_fuel_exhausted(d, anchor, p, a)
-
-extern fun block_marker_find_fuel_exhausted(d: !Doc, anchor: !Buf, p: int): int = "mac#anth_die_int"
-
-fun block_marker_boundary(d: !Doc, anchor: !Buf, p: int): bool = let
-  val before = if igt(p, 0) then doc_byte(d, isub(p, 1)) else 10
-  val before_ok = ieq(before, 10) orelse ieq(before, 32) orelse ieq(before, 9)
-  val after = iadd(p, iadd(isub(buf_len(anchor), embed_anchor_offset(anchor)), 1))
-  val after_byte = if ilt(after, doc_len(d)) then doc_byte(d, after) else 10
-  val after_ok = ieq(after_byte, 10) orelse ieq(after_byte, 32) orelse ieq(after_byte, 9)
-in
-  before_ok andalso after_ok
-end
-
-fun block_marker_find_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, anchor: !Buf, p: int): int =
-  if recursion_fuel_available(recfuel) then (
-    if ige(p, doc_len(d)) then ~1
-    else if ieq(doc_byte(d, p), CHAR_CARET) andalso block_marker_boundary(d, anchor, p) andalso block_id_match_with_fuel(airlock_nat(MAX_REC_FUEL), d, anchor, iadd(p, 1), embed_anchor_offset(anchor)) then p
-    else block_marker_find_with_fuel(recfuel - 1, d, anchor, iadd(p, 1))
-  ) else block_marker_find_fuel_exhausted(d, anchor, p)
-
-fun embed_block_line(d: !Doc, scope: EmbedScope, anchor: !Buf): int =
-  case+ scope of
-  | EmbedWhole() => ~1
-  | EmbedBlock() => let
-      val marker = block_marker_find_with_fuel(airlock_nat(MAX_REC_FUEL), d, anchor, 0)
-    in
-      if ige(marker, 0) then doc_line_of(d, marker) else ~1
-    end
-
+fun embedded_target(d: !Doc,scope: EmbedScope,anchor: !Buf): AnchorTarget = case+ scope of
+  | EmbedWhole() => @{found=true,start=0,finish=doc_len(d),marker=0}
+  | EmbedAnchored() => doc_resolve_anchor(d,anchor)
+fun embedded_target_height(d: !Doc,target: AnchorTarget,lh: int): int =
+  if not(target.found) then lh else let
+    val first=doc_line_of(d,target.start)
+    val last=doc_line_of(d,imax(target.start,isub(target.finish,1)))
+  in imax(lh,isub(iadd(doc_line_y(d,last),doc_line_step(d,last)),doc_line_y(d,first))) end
 fun embedded_content_height(d: !Doc, scope: EmbedScope, anchor: !Buf, lh: int, full_height: int): int = let
-  val line = embed_block_line(d, scope, anchor)
-in
-  if ilt(line, 0) then full_height
-  else imax(lh, doc_line_step(d, line))
-end
+  val target=embedded_target(d,scope,anchor)
+in embedded_target_height(d,target,lh) end
 
 fun measure_embedded_height(f: !Font,c: &Cache >> _,r: !Rend,vault: !Buf,shown: !Buf,
   anchor: !Buf,scope: EmbedScope,level: int,lh: int,colw: int): int =

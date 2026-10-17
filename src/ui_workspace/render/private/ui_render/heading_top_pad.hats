@@ -102,25 +102,32 @@ in
   draw_s(f, r, iadd(x, 8), iadd(y, 4), "[Icerik bulunamadi]", col_muted())
 end
 
+extern fun first_vis_node(d: !Doc,scroll: int): int
+fun draw_embed_contents(f: !Font,r: !Rend,child: !Doc,target: AnchorTarget,x: int,y: int,width: int,height: int,
+  viewport_y: int,viewport_h: int,lh: int,vault: !Buf,c: &Cache >> _,scratch: &Buf >> _): void = let
+  val top=imax(y,viewport_y) val bottom=imin(iadd(y,height),iadd(viewport_y,viewport_h))
+  val scroll=iadd(doc_line_y(child,doc_line_of(child,target.start)),isub(top,y))
+  val colx=editor_colx(f,r,x,width) var previous_y: int=top var previous_offset: int=target.start
+in if ile(bottom,top) then () else if not(target.found) then draw_missing_embed(f,r,x,y)
+  else if igt(doc_nnodes(child),0) then
+    draw_nodes(f,r,child,x,top,width,isub(bottom,top),scroll,lh,vault,c,scratch,first_vis_node(child,scroll),previous_y,previous_offset,ViewRead)
+  else draw_plain_doc(f,r,child,colx,top,width,isub(bottom,top),scroll,lh,scratch)
+end
+
 fun draw_embedded_doc(f: !Font, r: !Rend, child: !Doc, anchor: !Buf, scope: EmbedScope, child_colw: int, x: int, y: int, w: int, h: int,
                       viewport_x: int, viewport_y: int, viewport_w: int, viewport_h: int,
                       lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _): void = let
   val colx = editor_colx(f, r, x, child_colw)
   val width=if font_text_active(f) then imax(1,isub(iadd(x,w),iadd(colx,16))) else child_colw
   val height = prepare_document_layout(f,child, c, r, vault, lh, width, ViewRead)
-  val line = embed_block_line(child, scope, anchor)
-  val line_scroll = if ige(line, 0) then doc_line_y(child, line) else 0
-  val content_height = if ige(line, 0) then imax(lh, doc_line_step(child, line)) else height
+  val target=embedded_target(child,scope,anchor)
+  val content_height=embedded_target_height(child,target,lh)
   val content_y = iadd(y, 4)
   val content_h = imax(lh, isub(h, 8))
-  var py: int = y
-  var pa: int = 0
   val () = rend_rect(r, x, y, w, h, col_side())
   val () = ui_draw_border(r, x, y, w, h, 1, col_line())
   val () = rend_clip_push(r, x, content_y, w, content_h)
-  val () = if igt(doc_nnodes(child), 0) then
-    draw_nodes(f, r, child, x, content_y, child_colw, imin(content_h, content_height), line_scroll, lh, vault, c, scratch, 0, py, pa, ViewRead)
-  else draw_plain_doc(f, r, child, colx, content_y, child_colw, imin(content_h, content_height), line_scroll, lh, scratch)
+  val ()=draw_embed_contents(f,r,child,target,x,content_y,child_colw,imin(content_h,content_height),viewport_y,viewport_h,lh,vault,c,scratch)
   val () = rend_clip_pop(r)
 in
   ()

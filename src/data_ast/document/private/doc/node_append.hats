@@ -113,6 +113,7 @@ implement doc_layout_cached_wrap(d) =
 implement doc_clear_nodes(d) =
   case+ d of
   | @DOC(s) => let
+      val () = buf_set_len(s.anchors,0)
       val b = s.nodes
       val () = buf_set_len(b, 0)
       val () = s.nodes := b

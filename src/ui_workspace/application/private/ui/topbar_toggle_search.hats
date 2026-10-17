@@ -130,6 +130,7 @@ fun handle_editor_click(s: &App_record >> _, f: !Font, r: !Rend, ts: Tabs, ev: &
   val ts4 = editor_click_hit(f, r, s, ts, ev, hit.x, hit.y, ox, half, idx2, toggle_of(editor))
   val gowiki = editor andalso ctrl_on(ev)
   val res = editor_post_click(s, ts4, idx, idx2, imgdel, clear, gowiki)
+  val () = if gowiki then s.downx := ~1 else ()
   val () = if editor then s.qfocus := Off else ()
 in
   res

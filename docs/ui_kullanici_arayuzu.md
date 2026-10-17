@@ -42,6 +42,12 @@ görsel düğüm indeksi yalnız yerleşim yenilendiğinde kurulur.
 Çocuk çizimleri `rend_clip_push/pop` ile ebeveyn clip'ine kesiştirilir;
 embed, widget veya sekme kendi sınırını genişletip üst UI alanını boyayamaz.
 
+`doc_resolve_anchor` boş hedefte bütün dosyayı, `^id` için tam blok kimliğini,
+diğer hedeflerde tam başlık adını çözer. Çok satırlı paragraf, liste maddesi,
+önceki bloğa bağlı bağımsız işaret ve başlık bölümü kaynak aralığı döndürür.
+Kod çiti içindeki işaretler hedef değildir. Mevcut başlık eşleştirmesi kaynak
+başlık metnine duyarlıdır; biçimlendirme/harf normalleştirmesi iddia edilmez.
+
 ## Görsel koordinatlar
 
 Kaynak bayt ofseti, fiziksel satır, görsel sarma satırı ve piksel koordinatı

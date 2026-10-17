@@ -207,13 +207,13 @@ fun node_covering_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel
     else let
       val k = doc_node_kind(d, i)
     in
-      if is_on(doc_node_hidden(d,i)) orelse is_inline(k) then node_covering_impl_with_fuel(recfuel - 1, d, y, oy, scroll, iadd(i, 1), best)
+      if is_on(doc_node_hidden(d,i)) orelse (is_inline(k) andalso not(is_kind(k,KEmbed))) then node_covering_impl_with_fuel(recfuel - 1, d, y, oy, scroll, iadd(i, 1), best)
       else let
-        val sy = isub(iadd(oy, doc_node_y(d, i)), scroll)
+        val sy = isub(isub(iadd(oy,doc_node_y(d,i)),scroll),if is_kind(k,KEmbed) then 4 else 0)
         val h = if is_kind(k,KTask) then task_hit_height(d,i) else doc_node_height(d, i)
         val best2 = if igt(h, 0) andalso ige(y, sy) andalso ilt(y, iadd(sy, h)) then i else best
       in
-        if is_kind(k,KTask) andalso ieq(best2,i) then i else
+        if (is_kind(k,KTask) orelse is_kind(k,KEmbed)) andalso ieq(best2,i) then i else
           node_covering_impl_with_fuel(recfuel - 1, d, y, oy, scroll, iadd(i, 1), best2)
       end
     end

@@ -68,7 +68,7 @@ fun rewind_line_start_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel)
     end
   ) else idx
 
-fun first_vis_node(d: !Doc, scroll: int): int = let
+implement first_vis_node(d,scroll) = let
   val n = doc_nnodes(d)
 in
   if ile(n, 0) then 0

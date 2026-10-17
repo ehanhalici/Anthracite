@@ -197,8 +197,8 @@ end
 fun on_up_editor(s: &App_record >> _, x: int, y: int): void = let
   val dx = iabs(isub(x, s.downx))
   val dy = iabs(isub(y, s.downy))
-  val clicked_no_drag = ilt(dx, 5) andalso ilt(dy, 5)
-  val is_read = is_view_read(s.viewmode)
+  val clicked_no_drag = ige(s.downx,0) andalso ilt(dx,5) andalso ilt(dy,5)
+  val is_read = is_view_read(s.viewmode) orelse is_kind(s.hitk,KEmbed)
 in
   if clicked_no_drag andalso is_read then let
     val idx = pane_of(s.focus, s.active, s.righti)

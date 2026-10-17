@@ -1,10 +1,19 @@
 fun visual_release(slot: Option_vt(VisualRows)): void = case+ slot of
   | ~None_vt() => () | ~Some_vt(rows) => visual_rows_dispose(rows)
+implement doc_identity(d) = case+ d of | @DOC(s) => let
+  val identity=buf_ptr(s.gap) prval ()=fold@(d)
+in identity end
 implement doc_visual_take(d) = case+ d of | @DOC(s) => let
   val rows=s.visual val ()=s.visual := None_vt() prval ()=fold@(d)
 in rows end
 implement doc_visual_put(d,rows) = case+ d of | @DOC(s) => let
   val old=s.visual val ()=s.visual := rows val ()=visual_release(old) prval ()=fold@(d)
+in () end
+implement doc_anchor_index_take(d) = case+ d of | @DOC(s) => let
+  val index=s.anchors val ()=s.anchors := buf_make(0) prval ()=fold@(d)
+in index end
+implement doc_anchor_index_put(d,index) = case+ d of | @DOC(s) => let
+  val old=s.anchors val ()=s.anchors := index val ()=buf_free(old) prval ()=fold@(d)
 in () end
 fun visual_current{b:bool}(slot: !option_vt(VisualRows,b),version: int): bool = case+ slot of
   | None_vt() => false | Some_vt(rows) => let val+ VisualRows(t,m,l,data,n,k)=rows in ieq(k.version,version) end
