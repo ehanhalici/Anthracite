@@ -63,6 +63,19 @@ static inline int anth_mtime(const char *p) {
   if (stat(p, &st) != 0) return -1;
   return (int)st.st_mtime;
 }
+/* OS metadata only: the ATS caller owns comparison and cache policy. */
+static inline int anth_stat_stamp(const char *path, long *seconds, int *nanoseconds,
+                                 long *length, unsigned long long *device,
+                                 unsigned long long *inode) {
+  struct stat value;
+  if (stat(path, &value) != 0) return 0;
+  *seconds = (long)value.st_mtim.tv_sec;
+  *nanoseconds = (int)value.st_mtim.tv_nsec;
+  *length = (long)value.st_size;
+  *device = (unsigned long long)value.st_dev;
+  *inode = (unsigned long long)value.st_ino;
+  return 1;
+}
 static inline int anth_isdir(const char *p) {
   struct stat st;
   if (stat(p, &st) != 0) return 0;

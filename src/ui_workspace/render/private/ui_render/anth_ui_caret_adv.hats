@@ -94,7 +94,7 @@ fun restore_texture_entry(p: Buf,t: uint,w: int,h: int,result: @(Option_vt(Doc),
 in @(document,CCons(p,t,w,h,rest)) end
 
 fun cache_take_embed_with_fuel {recfuel:nat} .<recfuel>. (
-  recfuel: int(recfuel), c: Cache, path: !Buf, cur_mt: int
+  recfuel: int(recfuel), c: Cache, path: !Buf, cur_mt: EmbedSourceStamp
 ): @(Option_vt(Doc), Cache) =
   if recursion_fuel_available(recfuel) then (
     case+ c of
@@ -103,7 +103,7 @@ fun cache_take_embed_with_fuel {recfuel:nat} .<recfuel>. (
         restore_texture_entry(p,t,iw,ih,cache_take_embed_with_fuel(recfuel - 1,rest,path,cur_mt))
     | ~CEmbed(p, mt, doc, cw, lh, rest) =>
         if buffer_equal_from(p, path, 0) then
-          if ieq(mt, cur_mt) then (buf_free(p); @(Some_vt(doc), rest))
+          if embedded_source_equal(mt,cur_mt) then (buf_free(p); @(Some_vt(doc), rest))
           else let
             val () = (buf_free(p); doc_free(doc))
           in
@@ -116,7 +116,7 @@ fun cache_take_embed_with_fuel {recfuel:nat} .<recfuel>. (
         end
   ) else @(None_vt(), c)
 
-fun cache_take_embed(c: Cache, path: !Buf, cur_mt: int): @(Option_vt(Doc), Cache) =
+fun cache_take_embed(c: Cache, path: !Buf, cur_mt: EmbedSourceStamp): @(Option_vt(Doc), Cache) =
   cache_take_embed_with_fuel(airlock_nat(MAX_REC_FUEL), c, path, cur_mt)
 
 fun count_embeds_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: !Cache, acc: int): int =
@@ -147,7 +147,7 @@ fun trim_embeds_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: C
       end
   ) else c
 
-fun cache_put_embed(c: Cache, path: Buf, mt: int, doc: Doc, cw: int, lh: int): Cache = let
+fun cache_put_embed(c: Cache, path: Buf, mt: EmbedSourceStamp, doc: Doc, cw: int, lh: int): Cache = let
   val n = count_embeds_with_fuel(airlock_nat(MAX_REC_FUEL), c, 0)
 in
   if ige(n, MAX_EMBED_CACHE_ENTRIES) then let

@@ -1,4 +1,4 @@
-fun obtain_embed_doc(c: &Cache >> _,shown: !Buf,path: string,mtime: int,level: int): @(Doc,bool) = let
+fun obtain_embed_doc(c: &Cache >> _,shown: !Buf,path: string,mtime: EmbedSourceStamp,level: int): @(Doc,bool) = let
   val (cached,remaining)=cache_take_embed(c,shown,mtime)
   val ()=c := remaining
 in case+ cached of
@@ -9,7 +9,7 @@ in case+ cached of
       val child=doc_open() val loaded=embedded_doc_load(child,path,level)
     in @(child,loaded) end
 end
-fun save_embed_cache(c: &Cache >> _,shown: !Buf,mtime: int,child: Doc,width: int,height: int): void = let
+fun save_embed_cache(c: &Cache >> _,shown: !Buf,mtime: EmbedSourceStamp,child: Doc,width: int,height: int): void = let
   var path=buf_make(buf_len(shown))
   val ()=buffer_append_range(path,shown,0,buf_len(shown))
 in c := cache_put_embed(c,path,mtime,child,width,height) end

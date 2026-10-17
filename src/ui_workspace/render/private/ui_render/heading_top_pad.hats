@@ -131,9 +131,9 @@ fun draw_embedded_path(shown: !Buf, anchor: !Buf, scope: EmbedScope, level: int,
   if igt(level, MAX_EMBED_DEPTH) then draw_missing_embed(f, r, x, y)
   else let
     val p_str = buf_cstr(shown)
-    val mt = fs_mtime(p_str)
+    val mt = embedded_source_stamp(p_str)
   in
-    if ieq(mt, 0) then draw_missing_embed(f, r, x, y)
+    if not(mt.file.exists) then draw_missing_embed(f, r, x, y)
     else let
       val @(child, is_loaded) = obtain_embed_doc(c, shown, p_str, mt, level)
     in

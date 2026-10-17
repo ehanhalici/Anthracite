@@ -206,6 +206,27 @@ fun embed_file_cache{n:nat} .<n>. (fuel: int(n),cache: !Cache): int =
   if fuel = 0 then 0 else case+ cache of | CNil() => 0
   | CCons(p,t,w,h,rest) => embed_file_cache(fuel-1,rest)
   | CEmbed(p,mtime,d,w,h,rest) => iadd(1,embed_file_cache(fuel-1,rest))
+fun cached_first_byte{n:nat} .<n>. (fuel: int(n),cache: !Cache): int =
+  if fuel = 0 then ~1 else case+ cache of | CNil() => ~1
+  | CCons(p,t,w,h,rest) => cached_first_byte(fuel-1,rest)
+  | CEmbed(p,mtime,d,w,h,rest) => doc_byte(d,0)
+fun embed_reload(f: !Font,r: !Rend,d: !Doc,cache: &Cache >> _,root: !Buf,expected: int): int = let
+  val ()=performance_reset()
+  val height=prepare_document_layout(f,d,cache,r,root,24,300,ViewRead)
+  val first=cached_first_byte(128,cache)
+in if performance_value(PERF_DOCUMENT_LOADS)=1ULL andalso ieq(first,expected) then 0 else 1 end
+fun embed_refresh(f: !Font,r: !Rend,d: !Doc,cache: &Cache >> _,root: !Buf,path: !Buf,source: !Buf): int = let
+  val length=buf_len(source) val ()=buf_set(source,0,CHAR_UPPER_A)
+  val wrote=fs_write_buf(buf_cstr(path),source,length)
+  val physical=embed_reload(f,r,d,cache,root,CHAR_UPPER_A)
+  val shadow=buf_make(512) val ()=fs_vfs_buf(buf_cstr(path),shadow,511)
+  val ()=buf_set(source,0,CHAR_UPPER_A+1)
+  val wrote_shadow=fs_write_buf(buf_cstr(shadow),source,length)
+  val redirected=embed_reload(f,r,d,cache,root,CHAR_UPPER_A+1)
+  val removed=fs_unlink(buf_cstr(shadow))
+  val restored=embed_reload(f,r,d,cache,root,CHAR_UPPER_A)
+  val ()=buf_free(shadow)
+in iadd(physical+redirected+restored,if ieq(wrote,1) andalso ieq(wrote_shadow,1) andalso ieq(removed,0) then 0 else 1) end
 fun embed_fixture_test(f: !Font,r: !Rend,root: !Buf,path: !Buf): int = let
   var child=buf_make(256) var parent=buf_make(256)
   val ()=embed_fixture_fill(7,child,parent,0) val child_length=buf_len(child)
@@ -220,10 +241,11 @@ fun embed_fixture_test(f: !Font,r: !Rend,root: !Buf,path: !Buf): int = let
   val ranged=ieq(count,7) andalso igt(large,small) andalso ieq(files,1)
   val ()=performance_reset() val warm=prepare_document_layout(f,d,cache,r,root,24,300,ViewRead)
   val reused=performance_value(PERF_DOCUMENT_LOADS)=0ULL andalso ieq(total,warm)
+  val refresh=embed_refresh(f,r,d,cache,root,path,child)
   val ()=performance_enable(0) val ()=cache_free(cache) val ()=doc_free(d)
   val ()=buf_free(child) val ()=buf_free(parent)
   val ()=println!("event=embed_cache loaded=",loaded," ranged=",ranged," reused=",reused)
-in if ieq(written,1) andalso loaded andalso ranged andalso reused then 0 else 1 end
+in iadd(refresh,if ieq(written,1) andalso loaded andalso ranged andalso reused then 0 else 1) end
 fun embedded_documents(f: !Font,r: !Rend): int = let var root=buf_make(512)
   val created=selftest_fixture_open(root)
 in if not(created) then let val ()=buf_free(root) in 1 end else let

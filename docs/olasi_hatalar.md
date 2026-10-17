@@ -360,3 +360,16 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
   paragraf tarafından ezilmez. Test durum baytını kaynak satırından okur.
 - Doğrulama: Release/Xvfb native font/görsel yerleşim/görev suite'i geçti;
   `visual_fold` başlık/katlama/açma/görev hit/görev toggle değerleri true.
+
+## BUG-025 — Embed tazeliği aynı saniyedeki değişimi ve VFS kaynağını kaçırıyor
+
+- Durum: çözüldü; cache genişletilirken bulundu ve regresyon eklendi.
+- Kanıt: CEmbed yalnız fiziksel yolun tamsayı saniye mtime değerini
+  karşılaştırıyordu; Doc yükleme ise varsa dolu VFS gölgesini okur. Aynı
+  saniyede değişen içerik veya yeni/silinen gölge eski belgeyi gösterebilirdi.
+- Çözüm: etkin kaynak seçimi Doc yükleme politikasıyla aynıdır. Gölge/gerçek
+  kaynak bayrağı ve stat saniye/nanosaniye/boyut/cihaz/inode kaydı tam karşılaştırılır.
+  Eksik kaynak için kare başına başarısız Doc yükleme yapılmaz.
+- Doğrulama: yedi referans paylaşılırken aynı boyutta fiziksel dosya değişimi,
+  dolu VFS gölgesi oluşturma ve silerek fiziksel kaynağa dönüş her seferinde
+  tek yeniden yükleme ve doğru ilk kaynak baytı üretir. Native grafik suite'i geçti.

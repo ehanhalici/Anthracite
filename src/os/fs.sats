@@ -8,6 +8,11 @@ fun fs_atomic_write(path: string, buf: ptr, n: int): int = "mac#anth_atomic_writ
 fun fs_close(fd: int): void = "mac#anth_close"
 fun fs_size(path: string): int = "mac#anth_size"
 fun fs_mtime(path: string): int = "mac#anth_mtime"
+typedef FileStamp = @{exists=bool,seconds=lint,nanoseconds=int,length=lint,device=ullint,inode=ullint}
+fun fs_stat_stamp_raw(path: string,seconds: &lint >> _,nanoseconds: &int >> _,length: &lint >> _,
+  device: &ullint >> _,inode: &ullint >> _): int = "mac#anth_stat_stamp"
+fun fs_file_stamp(path: string): FileStamp
+fun fs_file_stamp_equal(a: FileStamp,b: FileStamp): bool
 fun fs_isdir(path: string): int = "mac#anth_isdir"
 fun fs_exists(path: string): int = "mac#anth_exists"
 fun fs_mkdir(path: string): int = "mac#anth_mkdir"

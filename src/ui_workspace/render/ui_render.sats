@@ -5,11 +5,12 @@ staload "core_render/render.sats"
 staload "data_font/resources/font.sats"
 staload "data_ast/document/doc.sats"
 staload "ui_workspace/tabs/ui_tab.sats"
+staload "ui_workspace/embed/embedded_doc.sats"
 
 datavtype Cache =
   | CNil of ()
   | CCons of (Buf, uint, int, int, Cache)
-  | CEmbed of (Buf, int, Doc, int, int, Cache)
+  | CEmbed of (Buf, EmbedSourceStamp, Doc, int, int, Cache)
 
 fun cache_free(c: Cache): void
 fun draw_doc(f: !Font, r: !Rend, d: !Doc, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, viewmode: ViewMode): void

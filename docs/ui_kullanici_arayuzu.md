@@ -31,7 +31,8 @@ bu geçiş politikasıyla uyumludur (BUG-002 çözüldü).
 `Cache`, görsel dokuları ve sahipliği kendisinde olan gömülü `Doc` nesnelerini
 tutar. Embed alındığında sahiplik cache'ten çıkar, çizim/ölçümden sonra geri
 konur. İsimli kapasite sınırında eski girdiler bırakılır; kapanışta bütün
-belge/doku sahipleri serbest bırakılır. Tazelik kontrolü mtime üzerinden yapılır.
+belge/doku sahipleri serbest bırakılır. Embed tazeliği etkin fiziksel/VFS kaynağın
+saniye/nanosaniye, boyut, cihaz ve inode bilgileri üzerinden denetlenir.
 Cache isabeti dosyayı yeniden okumamalıdır; kaçırma/geçersizleştirme yükleme yapabilir.
 Ölçüm ve çizim aynı belge cache'ini paylaşır; global path→yükseklik tablosu
 yoktur. Blok yüksekliği ilgili hedef aralığının görsel satırlarından türetilir.

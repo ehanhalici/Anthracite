@@ -8,8 +8,11 @@
 2. **Cache Invalidation & Freshness**:
    - Keys use the resolved path produced by the media/path helpers. Do not claim
      canonical `realpath` normalization unless the implementation provides it.
-   - Cache hit validation checks `fs_mtime`. Reuse avoids loading/parsing;
-     path comparison and freshness checking still have a cost.
+   - Cache hit validation uses `embedded_source_stamp`: the same nonempty VFS
+     shadow policy as Doc loading, otherwise the physical file. Compare source
+     kind and stat seconds/nanoseconds/size/device/inode, not integer-second mtime.
+     Reuse avoids loading/parsing; metadata checks still have a cost. Never
+     restore the removed global path-only embed height table.
 
 3. **Memory Ownership & Leak Prevention**:
    - The embed cache holds ownership of cached `Doc` instances.

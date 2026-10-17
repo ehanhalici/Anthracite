@@ -124,14 +124,15 @@ end
 fun measure_embedded_height(f: !Font,c: &Cache >> _,r: !Rend,vault: !Buf,shown: !Buf,
   anchor: !Buf,scope: EmbedScope,level: int,lh: int,colw: int): int =
   if igt(level,MAX_EMBED_DEPTH) then iadd(lh,8) else let
-    val mtime=fs_mtime(buf_cstr(shown))
+    val mtime=embedded_source_stamp(buf_cstr(shown))
+  in if not(mtime.file.exists) then iadd(lh,8) else let
     val (child,loaded)=obtain_embed_doc(c,shown,buf_cstr(shown),mtime,level)
   in if loaded then let
     val height = prepare_document_layout(f,child, c, r, vault, lh, embed_text_width(f,r,colw), ViewRead)
     val content_height = embedded_content_height(child, scope, anchor, lh, height)
     val ()=save_embed_cache(c,shown,mtime,child,colw,lh)
   in iadd(imax(lh,content_height),8) end
-  else let val ()=doc_free(child) in iadd(lh,8) end end
+  else let val ()=doc_free(child) in iadd(lh,8) end end end
 
 fun embedded_height(f: !Font,d: !Doc, i: int, c: &Cache >> _, r: !Rend, vault: !Buf, shown: !Buf, lh: int, colw: int): int = let
   var anchor = buf_make(EMBEDDED_HEIGHT_ANCHOR_INITIAL_BYTES)
