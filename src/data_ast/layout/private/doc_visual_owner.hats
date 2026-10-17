@@ -17,3 +17,9 @@ fun visual_count{b:bool}(slot: !option_vt(VisualRows,b),version: int,line: int):
 implement doc_visual_line_rows(d,line) = case+ d of | @DOC(s) => let
   val count=visual_count(s.visual,s.ver,line) prval ()=fold@(d)
 in count end
+implement doc_media_take(d) = case+ d of | @DOC(s) => let
+  val index=s.media val ()=s.media := buf_make(0) prval ()=fold@(d)
+in index end
+implement doc_media_put(d,index) = case+ d of | @DOC(s) => let
+  val old=s.media val ()=s.media := index val ()=buf_free(old) prval ()=fold@(d)
+in () end

@@ -326,9 +326,15 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-023 — Sıcak yerleşim çağrısı yine tam hazırlama işi yapıyor
 
-- Durum: doğrulandı (kaynak incelemesi); düzeltme sürüyor.
+- Durum: çözüldü; seyrek medya indeksi ve yerleşim-miss indeksleme kullanılıyor.
 - Kanıt: `prepare_document_layout` cache isabetinde bile medya taramasını
   ve `doc_visual_index` üzerinden tam düğüm indeksi kurulumunu çalıştırır.
+- Çözüm: Doc'un sürümlü medya indeksi yalnız image/embed/math düğümlerini
+  tutar. Sıcak çağrı bütün AST'yi dolaşmaz; medya kaynaklarının tazelik denetimi
+  korunur. Görsel düğüm indeksi yalnız gerçek yerleşim yenilendiğinde kurulur.
+- Doğrulama: native grafik suite'i sıcak çağrıda sıfır wrap/layout/medya-indeks/
+  görsel-indeks hazırlığı ve metin değişiminde indeks yenilenmesini denetler.
+  Uzun kişisel belgede sıcak karede görsel indeks sayacı 1'den 0'a indi.
 
 ## BUG-024 — Görev kutusu dikey hit-test'te atlanıyor
 

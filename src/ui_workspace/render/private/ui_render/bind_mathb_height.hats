@@ -34,26 +34,34 @@ in
   end else ()
 end
 
-extern fun bind_media_fuel_exhausted(f: !Font,d: !Doc, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int, i: int): void = "mac#anth_die_void"
-
-fun bind_media_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font,d: !Doc, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int, i: int): void =
-  if recursion_fuel_available(recfuel) then (
-    if ige(i, doc_nnodes(d)) then ()
-    else let
-      val () = bind_one(f,d, i, c, r, vault, lh, colw)
-    in
-      bind_media_with_fuel(recfuel - 1, f,d, c, r, vault, lh, colw, iadd(i, 1))
-    end
-  ) else bind_media_fuel_exhausted(f,d, c, r, vault, lh, colw, i)
-
-fun bind_media(f: !Font,d: !Doc, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int, i: int): void = bind_media_with_fuel(airlock_nat(MAX_REC_FUEL), f,d, c, r, vault, lh, colw, i)
+fun media_index_append(index: &Buf >> _,node: int): void = let
+  val length=buf_len(index) val ()=buf_ensure(index,iadd(length,WORD32_BYTES))
+  val ()=buf_set32(index,idiv(length,WORD32_BYTES),node)
+in buf_set_len(index,iadd(length,WORD32_BYTES)) end
+fun media_index_fill{n:nat} .<n>. (left: int(n),d: !Doc,index: &Buf >> _,i: int): void =
+  if left = 0 then () else let val k=doc_node_kind(d,i)
+    val ()=if is_kind(k,KImage) orelse is_kind(k,KEmbed) orelse is_kind(k,KMathb) then media_index_append(index,i) else ()
+  in media_index_fill(left-1,d,index,iadd(i,1)) end
+fun media_index_prepare(d: !Doc,index: &Buf >> _): void =
+  if ige(buf_len(index),WORD32_BYTES) andalso ieq(buf_get32(index,0),doc_layout_version(d)) then () else let
+    val ()=performance_note(PERF_MEDIA_INDEX_BUILDS,1)
+    val ()=buf_ensure(index,WORD32_BYTES) val ()=buf_set_len(index,WORD32_BYTES)
+  in media_index_fill(airlock_nat(doc_nnodes(d)),d,index,0) end
+fun bind_media_index{n:nat} .<n>. (left: int(n),f: !Font,d: !Doc,c: &Cache >> _,r: !Rend,
+  vault: !Buf,lh: int,colw: int,index: !Buf,i: int): void =
+  if left = 0 then () else let val ()=bind_one(f,d,buf_get32(index,i),c,r,vault,lh,colw)
+  in bind_media_index(left-1,f,d,c,r,vault,lh,colw,index,iadd(i,1)) end
+fun bind_media(f: !Font,d: !Doc,c: &Cache >> _,r: !Rend,vault: !Buf,lh: int,colw: int,i: int): void = let
+  var index=doc_media_take(d) val ()=media_index_prepare(d,index)
+  val ()=bind_media_index(airlock_nat(isub(idiv(buf_len(index),WORD32_BYTES),1)),f,d,c,r,vault,lh,colw,index,1)
+  val ()=buf_set32(index,0,doc_layout_version(d))
+in doc_media_put(d,index) end
 
 implement prepare_document_layout(f,d, c, r, vault, lh, colw, viewmode) = let
   val () = bind_media(f,d, c, r, vault, lh, colw, 0)
   val ()=visual_layout_prepare(f,r,d,colw,viewmode)
   val is_read = (if is_view_read(viewmode) then 1 else 0)
   val height=doc_layout_mode(d,lh,is_read,colw)
-  val ()=doc_visual_index(d)
 in height
 end
 

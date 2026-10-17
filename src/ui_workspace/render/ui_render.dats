@@ -23,6 +23,7 @@ macdef TAB_HIT_TEST_EMPTY_B_INITIAL_BYTES = 0
 
 
 staload "mem.sats"
+staload "core_runtime/performance.sats"
 staload "airlock.sats"
 staload "flag.sats"
 staload "os/fs.sats"
@@ -40,6 +41,7 @@ staload "ui_workspace/embed/embedded_doc.sats"
 staload "ui_workspace/embed/embed_fsm.sats"
 staload "ui_workspace/widgets/ui_widgets.sats"
 staload "data_ast/layout/doc_visual.sats"
+staload "data_ast/layout/layout_internal.sats"
 staload "ui_workspace/visual/visual_layout.sats"
 staload "ui_workspace/visual/visual_paint.sats"
 staload "ui_workspace/visual/visual_query.sats"

@@ -191,6 +191,7 @@ in
   else let
     val () = performance_note(PERF_LAYOUT_BUILDS, 1)
     val height = doc_layout_calc(d, lh, doc_nnodes(d), is_read, colw)
+    val () = doc_visual_index(d)
     val () = doc_layout_cache_store(d, version, key, height, is_read, wrap)
   in
     height

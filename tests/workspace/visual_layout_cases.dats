@@ -172,12 +172,28 @@ fun nested_clips(r: !Rend): int = let
     andalso ieq(buf_get(pixels,iadd(imul(imul(127,128),4),1)),255)
   val ()=buf_free(pixels)
 in iadd(errors,if restored then 0 else 1) end
+fun warm_layout(f: !Font,r: !Rend): int = let
+  val d=doc_open() val source=bytes("plain text\n") val length=buf_len(source)
+  val ()=doc_insert_buf(d,source,length) var cache=CNil() val vault=buf_make(0)
+  val first=prepare_document_layout(f,d,cache,r,vault,24,240,ViewRead)
+  val ()=performance_enable(1) val ()=performance_reset()
+  val second=prepare_document_layout(f,d,cache,r,vault,24,240,ViewRead)
+  val hit=ieq(first,second) andalso performance_value(PERF_MEDIA_INDEX_BUILDS)=0ULL
+    andalso performance_value(PERF_VISUAL_INDEX_BUILDS)=0ULL
+    andalso performance_value(PERF_LAYOUT_BUILDS)=0ULL andalso performance_value(PERF_WRAP_BUILDS)=0ULL
+  val ()=doc_insert_buf(d,source,length) val ()=performance_reset()
+  val changed=prepare_document_layout(f,d,cache,r,vault,24,240,ViewRead)
+  val invalidated=performance_value(PERF_MEDIA_INDEX_BUILDS)=1ULL
+    andalso performance_value(PERF_VISUAL_INDEX_BUILDS)=1ULL
+  val ()=performance_enable(0) val ()=buf_free(source) val ()=buf_free(vault)
+  val ()=cache_free(cache) val ()=doc_free(d)
+in if hit andalso invalidated then 0 else 1 end
 implement native_visual_layout_cases(f,r) = let val before=mem_live() val d=doc_open()
   val body=test(f,r,d) val markup=markdown(f,r) val hard=hard_lines(f,r)
   val nav=navigation(f,r) val fold=folding_and_task(f,r)
   val errors=body+markup+hard+nav+fold val ()=doc_free(d) val delta=isub(mem_live(),before)
   val scale=iadd(wrap_scale(f,r,64),iadd(wrap_scale(f,r,256),wrap_scale(f,r,1024)))
-  val clipping=nested_clips(r)
+  val clipping=iadd(nested_clips(r),warm_layout(f,r))
   val ()=println!("event=native_visual_layout errors=",errors," retained_font_source_bytes=",delta)
   val ()=println!("event=visual_cases body=",body," markdown=",markup," hard=",hard," navigation=",nav," fold=",fold)
 in iadd(clipping,iadd(errors,scale)) end

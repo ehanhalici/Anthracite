@@ -58,7 +58,7 @@ fun op_code(k: EditOp): int = case+ k of
 fun is_op(a: EditOp, b: EditOp): bool = ieq(op_code(a), op_code(b))
 
 datavtype Doc_ = DOC of @{
-  gap= Buf, lines= Buf, nodes= Buf, lay= Buf, visual= Option_vt(VisualRows)
+  gap= Buf, lines= Buf, nodes= Buf, lay= Buf, visual= Option_vt(VisualRows), media= Buf
 , uhist= Hist, rhist= Hist
 , lo= int, hi= int, len= int
 , caret= int, anchor= int
@@ -74,7 +74,7 @@ assume Doc = Doc_
 #include "data_ast/layout/private/doc_visual_index_impl.hats"
 
 implement doc_open() = DOC(@{
-  gap= buf_make(DOC_OPEN_GAP_INITIAL_BYTES), lines= buf_make(64 * 4), nodes= buf_make(64 * AST_NODE_WORDS * 4), lay= layout_open(), visual= None_vt()
+  gap= buf_make(DOC_OPEN_GAP_INITIAL_BYTES), lines= buf_make(64 * 4), nodes= buf_make(64 * AST_NODE_WORDS * 4), lay= layout_open(), visual= None_vt(), media= buf_make(0)
 , uhist= HNil(), rhist= HNil()
 , lo= 0, hi= 256, len= 0
 , caret= 0, anchor= 0
@@ -137,6 +137,7 @@ implement doc_set_embed_level(d, level) =
 implement doc_free(d) = let
   val+~DOC(s) = d
   val () = visual_release(s.visual)
+  val () = buf_free(s.media)
   val () = buf_free(s.gap)
   val () = buf_free(s.lines)
   val () = layout_dispose(s.lay)
