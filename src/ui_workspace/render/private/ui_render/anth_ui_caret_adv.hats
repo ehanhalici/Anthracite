@@ -33,6 +33,8 @@ fun cache_free_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: Ca
   if recursion_fuel_available(recfuel) then (
     case+ c of
     | ~CNil() => ()
+    | ~CSelection(_,path,rest) => let val ()=buf_free(path)
+      in cache_free_with_fuel(recfuel-1,rest) end
     | ~CCons(p, t, _, _, rest) => let
         val () = buf_free(p)
         val () = rend_tex_free(t)
@@ -68,6 +70,8 @@ fun cache_lookup_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: 
       in
         CNil()
       end
+    | ~CSelection(selection,saved,rest) =>
+        CSelection(selection,saved,cache_lookup_with_fuel(recfuel-1,rest,path,tex,w,h,hit))
     | ~CCons(p, t, iw, ih, rest) =>
         if buffer_equal_from(p, path, 0) then cache_accept(p, t, iw, ih, rest, tex, w, h, hit)
         else let
@@ -75,11 +79,8 @@ fun cache_lookup_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: 
         in
           CCons(p, t, iw, ih, rest2)
         end
-    | ~CEmbed(p, mt, doc, cw, lh, rest) => let
-        val rest2 = cache_lookup_with_fuel(recfuel - 1, rest, path, tex, w, h, hit)
-      in
-        CEmbed(p, mt, doc, cw, lh, rest2)
-      end
+    | ~CEmbed(p,mt,doc,cw,lh,rest) =>
+        CEmbed(p,mt,doc,cw,lh,cache_lookup_with_fuel(recfuel-1,rest,path,tex,w,h,hit))
   ) else cache_lookup_fuel_exhausted(c, path, tex, w, h, hit)
 
 fun cache_lookup(c: Cache, path: !Buf, tex: &uint >> _, w: &int >> _, h: &int >> _, hit: &Toggle >> _): Cache = cache_lookup_with_fuel(airlock_nat(MAX_REC_FUEL), c, path, tex, w, h, hit)
@@ -92,6 +93,13 @@ fun cache_put(c: Cache, path: Buf, tex: uint, w: int, h: int): Cache =
 fun restore_texture_entry(p: Buf,t: uint,w: int,h: int,result: @(Option_vt(Doc),Cache)): @(Option_vt(Doc),Cache) = let
   val @(document,rest)=result
 in @(document,CCons(p,t,w,h,rest)) end
+fun restore_selection_entry(selection: EmbeddedSelection,path: Buf,result: @(Option_vt(Doc),Cache)): @(Option_vt(Doc),Cache) = let
+  val (document,rest)=result
+in @(document,CSelection(selection,path,rest)) end
+fun restore_embed_entry(path: Buf,stamp: EmbedSourceStamp,child: Doc,width: int,height: int,
+  result: @(Option_vt(Doc),Cache)): @(Option_vt(Doc),Cache) = let
+  val (document,rest)=result
+in @(document,CEmbed(path,stamp,child,width,height,rest)) end
 
 fun cache_take_embed_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), c: Cache, path: !Buf, cur_mt: EmbedSourceStamp
@@ -99,6 +107,8 @@ fun cache_take_embed_with_fuel {recfuel:nat} .<recfuel>. (
   if recursion_fuel_available(recfuel) then (
     case+ c of
     | ~CNil() => @(None_vt(), CNil())
+    | ~CSelection(selection,saved,rest) =>
+        restore_selection_entry(selection,saved,cache_take_embed_with_fuel(recfuel-1,rest,path,cur_mt))
     | ~CCons(p, t, iw, ih, rest) =>
         restore_texture_entry(p,t,iw,ih,cache_take_embed_with_fuel(recfuel - 1,rest,path,cur_mt))
     | ~CEmbed(p, mt, doc, cw, lh, rest) =>
@@ -109,11 +119,7 @@ fun cache_take_embed_with_fuel {recfuel:nat} .<recfuel>. (
           in
             cache_take_embed_with_fuel(recfuel - 1, rest, path, cur_mt)
           end
-        else let
-          val @(opt, rest2) = cache_take_embed_with_fuel(recfuel - 1, rest, path, cur_mt)
-        in
-          @(opt, CEmbed(p, mt, doc, cw, lh, rest2))
-        end
+        else restore_embed_entry(p,mt,doc,cw,lh,cache_take_embed_with_fuel(recfuel-1,rest,path,cur_mt))
   ) else @(None_vt(), c)
 
 fun cache_take_embed(c: Cache, path: !Buf, cur_mt: EmbedSourceStamp): @(Option_vt(Doc), Cache) =
@@ -123,36 +129,43 @@ fun count_embeds_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: 
   if recursion_fuel_available(recfuel) then (
     case+ c of
     | CNil() => acc
+    | CSelection(_,_,rest) => count_embeds_with_fuel(recfuel-1,rest,acc)
     | CCons(_, _, _, _, rest) => count_embeds_with_fuel(recfuel - 1, rest, acc)
     | CEmbed(_, _, _, _, _, rest) => count_embeds_with_fuel(recfuel - 1, rest, iadd(acc, 1))
   ) else acc
 
-fun trim_embeds_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: Cache, keep: int, cur: &int >> _): Cache =
+fun trim_embeds_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), c: Cache, keep: int, pinned: !Buf,cur: &int >> _): Cache =
   if recursion_fuel_available(recfuel) then (
     case+ c of
     | ~CNil() => CNil()
+    | ~CSelection(selection,path,rest) => CSelection(selection,path,trim_embeds_with_fuel(recfuel-1,rest,keep,pinned,cur))
     | ~CCons(p, t, iw, ih, rest) =>
-        CCons(p,t,iw,ih,trim_embeds_with_fuel(recfuel - 1,rest,keep,cur))
+        CCons(p,t,iw,ih,trim_embeds_with_fuel(recfuel-1,rest,keep,pinned,cur))
     | ~CEmbed(p, mt, doc, cw, lh, rest) => let
         val idx = cur
-        val () = cur := iadd(cur, 1)
+        val selected=igt(buf_len(pinned),0) andalso buffer_equal_from(p,pinned,0)
+        val () = if selected then () else cur := iadd(cur,1)
       in
-        if ilt(idx, keep) then
-          CEmbed(p, mt, doc, cw, lh, trim_embeds_with_fuel(recfuel - 1, rest, keep, cur))
+        if selected orelse ilt(idx,keep) then
+          CEmbed(p,mt,doc,cw,lh,trim_embeds_with_fuel(recfuel-1,rest,keep,pinned,cur))
         else let
           val () = (buf_free(p); doc_free(doc))
         in
-          trim_embeds_with_fuel(recfuel - 1, rest, keep, cur)
+          trim_embeds_with_fuel(recfuel-1,rest,keep,pinned,cur)
         end
       end
   ) else c
 
+extern fun cache_pin_path(cache: !Cache,path: &Buf >> _): void
 fun cache_put_embed(c: Cache, path: Buf, mt: EmbedSourceStamp, doc: Doc, cw: int, lh: int): Cache = let
   val n = count_embeds_with_fuel(airlock_nat(MAX_REC_FUEL), c, 0)
 in
   if ige(n, MAX_EMBED_CACHE_ENTRIES) then let
     var cur: int = 0
-    val c2 = trim_embeds_with_fuel(airlock_nat(MAX_REC_FUEL), c, isub(MAX_EMBED_CACHE_ENTRIES, 1), cur)
+    var pinned: Buf=buf_make(0) val ()=cache_pin_path(c,pinned)
+    val keep=isub(isub(MAX_EMBED_CACHE_ENTRIES,1),if igt(buf_len(pinned),0) then 1 else 0)
+    val c2 = trim_embeds_with_fuel(airlock_nat(MAX_REC_FUEL),c,keep,pinned,cur)
+    val ()=buf_free(pinned)
   in
     CEmbed(path, mt, doc, cw, lh, c2)
   end else

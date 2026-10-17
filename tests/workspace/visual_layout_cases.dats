@@ -205,10 +205,12 @@ fun embed_heights{n:nat} .<n>. (left: int(n),d: !Doc,i: int,small: &int >> _,lar
 fun embed_file_cache{n:nat} .<n>. (fuel: int(n),cache: !Cache): int =
   if fuel = 0 then 0 else case+ cache of | CNil() => 0
   | CCons(p,t,w,h,rest) => embed_file_cache(fuel-1,rest)
+  | CSelection(info,path,rest) => embed_file_cache(fuel-1,rest)
   | CEmbed(p,mtime,d,w,h,rest) => iadd(1,embed_file_cache(fuel-1,rest))
 fun cached_first_byte{n:nat} .<n>. (fuel: int(n),cache: !Cache): int =
   if fuel = 0 then ~1 else case+ cache of | CNil() => ~1
   | CCons(p,t,w,h,rest) => cached_first_byte(fuel-1,rest)
+  | CSelection(info,path,rest) => cached_first_byte(fuel-1,rest)
   | CEmbed(p,mtime,d,w,h,rest) => doc_byte(d,0)
 fun embed_reload(f: !Font,r: !Rend,d: !Doc,cache: &Cache >> _,root: !Buf,expected: int): int = let
   val ()=performance_reset()
@@ -246,11 +248,67 @@ fun embed_fixture_test(f: !Font,r: !Rend,root: !Buf,path: !Buf): int = let
   val ()=buf_free(child) val ()=buf_free(parent)
   val ()=println!("event=embed_cache loaded=",loaded," ranged=",ranged," reused=",reused)
 in iadd(refresh,if ieq(written,1) andalso loaded andalso ranged andalso reused then 0 else 1) end
+fun selection_parent_draw(f: !Font,r: !Rend,tabs: !Tabs,root: !Buf,cache: &Cache >> _,scratch: &Buf >> _): void =
+  case+ tabs of | TNil() => () | TCons(d,path,title,scroll,rest) => let
+    val ()=rend_begin(r,640,480)
+    val ()=draw_doc(f,r,d,0,36,640,444,0,font_line_h(f),root,cache,scratch,ViewRead)
+  in rend_flush(r) end
+fun embed_top{n:nat} .<n>. (left: int(n),d: !Doc,wanted: int,i: int): int =
+  if left = 0 then ~1 else let val embedded=is_kind(doc_node_kind(d,i),KEmbed)
+  in if embedded andalso ieq(wanted,0) then iadd(36,doc_node_y(d,i))
+    else embed_top(left-1,d,if embedded then isub(wanted,1) else wanted,iadd(i,1)) end
+fun selection_top(tabs: !Tabs,wanted: int): int = case+ tabs of
+  | TNil() => ~1 | TCons(d,p,t,s,rest) => embed_top(airlock_nat(doc_nnodes(d)),d,wanted,0)
+fun first_embed{n:nat} .<n>. (left: int(n),d: !Doc,i: int): int =
+  if left = 0 then ~1 else if is_kind(doc_node_kind(d,i),KEmbed) then i else first_embed(left-1,d,iadd(i,1))
+fun selection_x(f: !Font,r: !Rend,tabs: !Tabs): int = case+ tabs of
+  | TNil() => 0 | TCons(d,p,t,s,rest) => let val node=first_embed(airlock_nat(doc_nnodes(d)),d,0)
+    val indent=imul(doc_node_depth(d,node),20) val x=iadd(editor_colx(f,r,0,640),indent)
+  in editor_colx(f,r,x,isub(doc_visual_width(d),indent)) end
+fun selection_pixels{n:nat} .<n>. (left: int(n),pixels: !Buf,i: int,bottom: int,found: &int >> _): int =
+  if left = 0 then 0 else let val at=imul(i,4)
+    val selected=ieq(buf_get(pixels,at),58) andalso ieq(buf_get(pixels,iadd(at,1)),74) andalso ieq(buf_get(pixels,iadd(at,2)),92)
+    val y=isub(479,idiv(i,640)) val ()=if selected then found := iadd(found,1) else ()
+    val error=if selected andalso ige(y,bottom) then 1 else 0
+  in iadd(error,selection_pixels(left-1,pixels,iadd(i,1),bottom,found)) end
+fun selection_ink(f: !Font,r: !Rend,tabs: !Tabs,root: !Buf,cache: &Cache >> _,scratch: &Buf >> _): int = let
+  val ()=selection_parent_draw(f,r,tabs,root,cache,scratch)
+  val pixels=buf_make(imul(imul(640,480),4))
+  val ()=font_gl_read_raw(0,0,640,480,GL_RGBA,GL_UNSIGNED_BYTE,buf_ptr(pixels))
+  val bottom=selection_top(tabs,1) var found: int=0
+  val errors=selection_pixels(307200,pixels,0,isub(bottom,4),found)
+  val ()=buf_free(pixels)
+in iadd(errors,if igt(found,0) then 0 else 1) end
+fun selection_drag(f: !Font,r: !Rend,tabs: !Tabs,root: !Buf,cache: &Cache >> _,scratch: &Buf >> _): int = let
+  val top=selection_top(tabs,0) val x=selection_x(f,r,tabs)
+  val word=bytes("alpha") val width=font_width_buf(f,r,word,5) val ()=buf_free(word)
+  val began=tabs_embed_select(f,r,tabs,0,x,iadd(top,1),0,640,font_line_h(f),root,cache,scratch,false)
+  val candidate=not(cache_embed_selection_dragged(cache))
+  val extended=tabs_embed_select(f,r,tabs,0,iadd(x,width),iadd(top,1),0,640,font_line_h(f),root,cache,scratch,true)
+  var clipboard: Buf=buf_make(0) val copied=cache_copy_embed_selection(cache,clipboard)
+  val content=ieq(buf_len(clipboard),5) andalso equal(5,clipboard,"alpha",0)
+  val dragged=cache_embed_selection_dragged(cache) val ink=selection_ink(f,r,tabs,root,cache,scratch)
+  val returned=tabs_embed_select(f,r,tabs,0,x,iadd(top,1),0,640,font_line_h(f),root,cache,scratch,true)
+  val no_navigation=cache_embed_selection_dragged(cache)
+  val ()=cache_clear_embed_selection(cache) val cleared=not(cache_copy_embed_selection(cache,clipboard))
+  val ()=buf_free(clipboard)
+  val ()=println!("event=embed_selection began=",began," extended=",extended," copy=",content," ink=",ink," cancel=",no_navigation)
+in iadd(ink,if began andalso candidate andalso extended andalso copied andalso content andalso dragged andalso returned andalso no_navigation andalso cleared then 0 else 1) end
+fun embed_selection_fixture(f: !Font,r: !Rend,root: !Buf,path: !Buf): int = let
+  val child=bytes("alpha beta gamma ^a\n") val length=buf_len(child)
+  val written=fs_write_buf(buf_cstr(path),child,length) val ()=buf_free(child)
+  val parent=bytes("![[child#^a]]\n![[child#^a]]\n") val length=buf_len(parent)
+  val document=doc_open() val ()=doc_insert_buf(document,parent,length) val ()=buf_free(parent)
+  val tabs=TCons(document,buf_make(0),buf_make(0),0,TNil()) var cache: Cache=CNil() var scratch=buf_make(256)
+  val ()=selection_parent_draw(f,r,tabs,root,cache,scratch)
+  val errors=selection_drag(f,r,tabs,root,cache,scratch)
+  val ()=tabs_free(tabs) val ()=cache_free(cache) val ()=buf_free(scratch)
+in iadd(errors,if ieq(written,1) then 0 else 1) end
 fun embedded_documents(f: !Font,r: !Rend): int = let var root=buf_make(512)
   val created=selftest_fixture_open(root)
 in if not(created) then let val ()=buf_free(root) in 1 end else let
     val path=selftest_fixture_path(buf_cstr(root),"child.md")
-    val errors=embed_fixture_test(f,r,root,path)
+    val errors=iadd(embed_fixture_test(f,r,root,path),embed_selection_fixture(f,r,root,path))
     val removed=fs_unlink(buf_cstr(path)) val closed=fs_rmdir(buf_cstr(root))
     val ()=buf_free(path) val ()=buf_free(root)
   in iadd(errors,if ieq(removed,0) andalso ieq(closed,0) then 0 else 1) end end

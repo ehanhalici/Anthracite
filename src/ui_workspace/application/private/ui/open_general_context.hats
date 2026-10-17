@@ -137,6 +137,7 @@ fun on_down(a: !App, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int, h: int): 
       in
         fold@(a)
       end else let
+        val () = cache_clear_embed_selection(s.cache)
         val () = on_down_panes(s, p, f, r, ev, w)
       in
         fold@(a)

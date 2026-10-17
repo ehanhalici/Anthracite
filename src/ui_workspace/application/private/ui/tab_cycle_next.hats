@@ -85,7 +85,15 @@ fun resolve_search_enter(s: &App_record >> _, ts0: Tabs, qr: EditResult, hit_go:
   else
     hit_open_if(s, ts0, s.hn, toggle_of(is_on(hit_go)), EditSubmit)
 
-fun key_tabs_step(s: &App_record >> _, p: !Plat,f: !Font,r: !Rend, ev: &event, cmd: Cmd, hit_go: Toggle, qr: EditResult): void = let
+fun embedded_key_command(s: &App_record >> _,p: !Plat,cmd: Cmd): Cmd =
+  if is_cmd(cmd,CMD_COPY) then let val copied=cache_copy_embed_selection(s.cache,s.clip)
+    val ()=if copied then (plat_own(p,false); plat_own(p,true)) else ()
+  in if copied then CMD_NONE else cmd end
+  else if cache_embed_selection_active(s.cache) andalso (is_modifying_cmd(cmd) orelse is_cmd(cmd,CMD_TEXT_INPUT)) then CMD_NONE
+  else let val ()=if not(is_cmd(cmd,CMD_NONE)) then cache_clear_embed_selection(s.cache) else () in cmd end
+
+fun key_tabs_step(s: &App_record >> _, p: !Plat,f: !Font,r: !Rend, ev: &event, requested: Cmd, hit_go: Toggle, qr: EditResult): void = let
+  val cmd=embedded_key_command(s,p,requested)
   val ()=font_set_px(f,s.fontpx)
   val ts0 = s.tabs
   val () = s.tabs := TNil()
@@ -203,4 +211,3 @@ fun topbar_toggle_files(s: &App_record >> _): void = let
 in
   save_app_session(s)
 end
-

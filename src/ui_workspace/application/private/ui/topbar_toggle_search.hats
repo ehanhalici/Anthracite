@@ -118,6 +118,12 @@ end
 
 fun is_zone_editor(z: DownZone): bool = case+ z of | DownEditor() => true | _ => false
 
+fun begin_embedded_selection(s: &App_record >> _,f: !Font,r: !Rend,tabs: !Tabs,index: int,
+  hit: DownHit,ox: int,width: int,editor: bool,control: bool): void =
+  if editor andalso not(control) then let
+    val selected=tabs_embed_select(f,r,tabs,index,hit.x,hit.y,ox,width,font_line_h(f),s.vault,s.cache,s.scratch,false)
+  in () end else ()
+
 fun handle_editor_click(s: &App_record >> _, f: !Font, r: !Rend, ts: Tabs, ev: &event,
                         w: int, hit: DownHit, idx: int, imgdel: Toggle, clear: Toggle): Tabs = let
   val editor = is_zone_editor(hit.zone) andalso is_btn(hit.button, BtnLeft)
@@ -128,6 +134,7 @@ fun handle_editor_click(s: &App_record >> _, f: !Font, r: !Rend, ts: Tabs, ev: &
   val ox = if is_on(s.focus) then iadd(hit.sidew, half) else hit.sidew
   val idx2 = pane_of(s.focus, s.active, s.righti)
   val ts4 = editor_click_hit(f, r, s, ts, ev, hit.x, hit.y, ox, half, idx2, toggle_of(editor))
+  val ()=begin_embedded_selection(s,f,r,ts4,idx2,hit,ox,half,editor,ctrl_on(ev))
   val gowiki = editor andalso ctrl_on(ev)
   val res = editor_post_click(s, ts4, idx, idx2, imgdel, clear, gowiki)
   val () = if gowiki then s.downx := ~1 else ()

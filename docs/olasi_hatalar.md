@@ -310,13 +310,23 @@ kanıtını da kapsar; çalışma zamanı yeniden üretimi ayrıca belirtilir.
 
 ## BUG-020 — Gömülü metinde seçim ve hedefe gitme eksik
 
-- Durum: doğrulandı (kaynak incelemesi); düzeltme sürüyor.
+- Durum: çözüldü; kutu hit-test/navigasyon ve salt-okunur seçim eklendi.
 - Kanıt: hit-test embed'i tek nesne sayıp parent caret'ini başına koyar;
   hedef açma yolu yalnız KWiki/KLink arar, KEmbed kabul etmez.
 - İlerleme: embed kutusu hit-test ve wiki hedef açma yoluna alındı;
   kaynak/salt-okunur moddaki kutuya düz tıklama hedefe gider. Ctrl ile mousedown
   açıldıysa mouseup ikinci kez açmaz. Hedef çözümü ortak tam anchor indeksini
-  kullanır. Gömülü metin seçimi/kopyalama tamamlanana kadar madde açıktır.
+  kullanır. Yeni sekmenin hedef kaydırması gerçek yerleşim hazırlandıktan sonra
+  uygulanır; henüz hesaplanmamış satır Y'sinden kaydırma üretilmez.
+- Çözüm: seçim cache'te ebeveyn belge/kutu ve çocuk kaynak sürümüne bağlıdır;
+  paylaşılan çocuk Doc'un caret/anchor'ını değiştirmez. ≥5 px sürükleme bir
+  kez başladıktan sonra başlangıca dönülse de navigasyonu iptal eder. Seçim
+  aynı embed aralığına sınırlandırılır; Ctrl+C mantıksal izdüşüm metnini kopyalar.
+  Bu odakta düzenleme komutları engellenir; seçili dosya cache tahliyesinde korunur.
+- Doğrulama: iki kutu aynı dosyayı paylaşırken yalnız ilki GPU'da seçili boyanır;
+  tıklama adayı, sürükleme, kopyalanan metin ve geri dönmüş sürüklemenin iptali
+  sınanır. App selftest yeni hedef sekmesini ve ikinci açışta sekme yeniden
+  kullanımını denetler. CTest'e eklenen native grafik sözleşmesi ve selftest geçti.
 
 ## BUG-021 — Sarma çok sayıda örtüşen metin parçasını yeniden şekillendiriyor
 

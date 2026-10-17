@@ -47,3 +47,22 @@ target_compile_definitions(font_render_conformance PRIVATE ATS_MEMALLOC_LIBC
 target_link_libraries(font_render_conformance m ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
 add_test(NAME source_edit_conformance COMMAND font_render_conformance
   "${CMAKE_CURRENT_BINARY_DIR}" "${UCD_SOURCE}")
+
+# These native rendering oracles use DejaVu Sans Mono's exact advances, not the
+# application's selectable primary font. Missing this fixture is explicit.
+find_program(ANTHRACITE_FC_MATCH fc-match)
+if(ANTHRACITE_FC_MATCH)
+  execute_process(COMMAND "${ANTHRACITE_FC_MATCH}" -f "%{family}\n%{file}" "DejaVu Sans Mono"
+    OUTPUT_VARIABLE ANTHRACITE_NATIVE_TEST_FONT OUTPUT_STRIP_TRAILING_WHITESPACE)
+  if(ANTHRACITE_NATIVE_TEST_FONT MATCHES "^DejaVu Sans Mono\n(.+)$")
+    set(ANTHRACITE_NATIVE_TEST_FONT_PATH "${CMAKE_MATCH_1}")
+    add_test(NAME native_graphics_contracts COMMAND "${CMAKE_COMMAND}"
+      "-DEXECUTABLE=$<TARGET_FILE:font_render_conformance>"
+      "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}" "-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}"
+      "-DLATIN_FONT=${ANTHRACITE_NATIVE_TEST_FONT_PATH}" "-DUNICODE_SOURCE=${UCD_SOURCE}"
+      -P "${CMAKE_SOURCE_DIR}/tests/runtime/verify_native_graphics.cmake")
+    set_tests_properties(native_graphics_contracts PROPERTIES LABELS graphics RUN_SERIAL TRUE TIMEOUT 120)
+  else()
+    message(WARNING "native_graphics_contracts unavailable: DejaVu Sans Mono fixture is missing")
+  endif()
+endif()

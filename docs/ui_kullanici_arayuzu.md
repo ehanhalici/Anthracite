@@ -48,6 +48,20 @@ diğer hedeflerde tam başlık adını çözer. Çok satırlı paragraf, liste m
 Kod çiti içindeki işaretler hedef değildir. Mevcut başlık eşleştirmesi kaynak
 başlık metnine duyarlıdır; biçimlendirme/harf normalleştirmesi iddia edilmez.
 
+Embed kutusunda düz tıklama hedef sekmesini açar/yeniden kullanır. 5 px'lik
+sürükleme metin seçer ve hedef açmayı iptal eder; seçim tek kutunun hedef
+aralığına sınırlandırılır. Seçim çocuk Doc caret'inden bağımsızdır; aynı dosyayı
+gösteren diğer kutu vurgulanmaz. Ctrl+C görünür izdüşüm metnini mantıksal sırada
+kopyalar; embed seçimi etkinken kesme/yazma/silme uygulanmaz. Sekme/ebeveyn
+değiştiren kullanıcı girdisi seçim ömrünü sonlandırır. Yeni hedefe kaydırma
+yerleşim hesaplandıktan sonra yapılır.
+
+`native_graphics_contracts` DejaVu Sans Mono'nun sabit metriklerini ve depodaki
+Noto Naskh Arabic fixture'ını kullanır; uygulamanın seçilebilir fontu değildir.
+CTest için ekran gerekir; DejaVu fixture bulunamazsa yapılandırmada açık uyarı
+verilir. Test gömülü dosya/anchor/cache, kaynak tazeliği, sarma, clip pikselleri
+ve seçim izolasyonunu da çalıştırır.
+
 ## Görsel koordinatlar
 
 Kaynak bayt ofseti, fiziksel satır, görsel sarma satırı ve piksel koordinatı

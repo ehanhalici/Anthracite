@@ -6,11 +6,21 @@ staload "data_font/resources/font.sats"
 staload "data_ast/document/doc.sats"
 staload "ui_workspace/tabs/ui_tab.sats"
 staload "ui_workspace/embed/embedded_doc.sats"
+typedef EmbeddedSelection = @{parent=ptr,parentVersion=int,node=int,child=ptr,childVersion=int,
+  anchor=int,caret=int,start=int,finish=int,dragged=bool}
 
 datavtype Cache =
   | CNil of ()
   | CCons of (Buf, uint, int, int, Cache)
   | CEmbed of (Buf, EmbedSourceStamp, Doc, int, int, Cache)
+  | CSelection of (EmbeddedSelection,Buf,Cache)
+
+fun cache_clear_embed_selection(cache: &Cache >> _): void
+fun cache_copy_embed_selection(cache: !Cache,destination: &Buf >> _): bool
+fun cache_embed_selection_active(cache: !Cache): bool
+fun cache_embed_selection_dragged(cache: !Cache): bool
+fun tabs_embed_select(f: !Font,r: !Rend,tabs: !Tabs,index: int,x: int,y: int,ox: int,width: int,
+  lh: int,vault: !Buf,cache: &Cache >> _,scratch: &Buf >> _,extend: bool): bool
 
 fun cache_free(c: Cache): void
 fun draw_doc(f: !Font, r: !Rend, d: !Doc, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, viewmode: ViewMode): void

@@ -3,6 +3,12 @@ fun visual_release(slot: Option_vt(VisualRows)): void = case+ slot of
 implement doc_identity(d) = case+ d of | @DOC(s) => let
   val identity=buf_ptr(s.gap) prval ()=fold@(d)
 in identity end
+implement doc_request_jump(d,line) = case+ d of | @DOC(s) => let
+  val ()=s.pending_jump := line
+in fold@(d) end
+implement doc_take_jump(d) = case+ d of | @DOC(s) => let
+  val line=s.pending_jump val ()=s.pending_jump := ~1 prval ()=fold@(d)
+in line end
 implement doc_visual_take(d) = case+ d of | @DOC(s) => let
   val rows=s.visual val ()=s.visual := None_vt() prval ()=fold@(d)
 in rows end

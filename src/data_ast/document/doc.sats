@@ -83,6 +83,8 @@ fun doc_clear_nodes(d: !Doc): void
 fun doc_open(): Doc
 (* Comparison-only token; never dereference it. Text edits invalidate it. *)
 fun doc_identity(d: !Doc): ptr
+fun doc_request_jump(d: !Doc,line: int): void
+fun doc_take_jump(d: !Doc): int
 fun doc_is_md(d: !Doc): Toggle
 fun doc_set_md(d: !Doc, is_md: Toggle): void
 fun doc_embed_level(d: !Doc): int

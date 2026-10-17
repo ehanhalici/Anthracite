@@ -31,9 +31,11 @@ fun motion_editor_drag(s: &App_record >> _, f: !Font, r: !Rend, x: int, y: int, 
   val lh = font_line_h(f)
   var hitk: NodeKind = KNone
   var hiti: int = ~1
-  val ts = tabs_click(f, r, s.tabs, idx, x, y, ox, half, 0, lh, s.scratch, On, hitk, hiti, 0)
+  val embedded=cache_embed_selection_active(s.cache)
+  val moved=ige(iabs(isub(x,s.downx)),5) orelse ige(iabs(isub(y,s.downy)),5)
+  val selected=if embedded andalso moved then tabs_embed_select(f,r,s.tabs,idx,x,y,ox,half,lh,s.vault,s.cache,s.scratch,true) else false
 in
-  s.tabs := ts
+  if embedded then () else s.tabs := tabs_click(f,r,s.tabs,idx,x,y,ox,half,0,lh,s.scratch,On,hitk,hiti,0)
 end
 
 fun motion_drag(s: &App_record >> _, f: !Font, r: !Rend, x: int, y: int, w: int): void =
@@ -198,9 +200,11 @@ fun on_up_editor(s: &App_record >> _, x: int, y: int): void = let
   val dx = iabs(isub(x, s.downx))
   val dy = iabs(isub(y, s.downy))
   val clicked_no_drag = ige(s.downx,0) andalso ilt(dx,5) andalso ilt(dy,5)
+    andalso not(cache_embed_selection_dragged(s.cache))
   val is_read = is_view_read(s.viewmode) orelse is_kind(s.hitk,KEmbed)
 in
   if clicked_no_drag andalso is_read then let
+    val ()=cache_clear_embed_selection(s.cache)
     val idx = pane_of(s.focus, s.active, s.righti)
     var target_act: int = ~1
     val ts2 = app_wiki_open(s.tabs, idx, s.vault, target_act)

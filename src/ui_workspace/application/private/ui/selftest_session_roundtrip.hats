@@ -107,7 +107,8 @@ implement app_selftest(r, root) = let
   val search_ok = if ieq(selftest_search(d1), 1) andalso ieq(ix_selftest(root), 1) then 1 else 0
   val @(flow_ok, ih, doc, cache, vault, scratch) = selftest_flow(r, root)
   val chrome_ok = selftest_tabs(d1)
-  val files_ok = if ieq(selftest_files(root), 1) andalso ieq(editor_fsm_selftest(), 1) then 1 else 0
+  val files_ok = if ieq(selftest_files(root),1) andalso ieq(editor_fsm_selftest(),1)
+    andalso ieq(selftest_embed_navigation(root),1) then 1 else 0
   val () = selftest_draw(r, doc, cache, vault, scratch)
   val () = buf_free(d1)
 in
