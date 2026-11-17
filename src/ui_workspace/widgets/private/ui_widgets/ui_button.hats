@@ -41,23 +41,32 @@ implement ui_expander(f, r, x, y, is_expanded, is_hover) = let
 in
 end
 
+fun scroll_thumb_draw_v(
+  r: !Rend, x: int, y: int, w: int, thumb_off: int, thumb_len: int,
+  thumb_col: uint, wide: Toggle
+): void = let
+  val tw = if is_on(wide) then imin(w, UI_SCROLLBAR_DRAW_WIDTH) else imin(w, UI_SCROLLBAR_IDLE_WIDTH)
+  val tx = isub(iadd(x, w), iadd(tw, 1))
+in
+  rend_rect(r, tx, iadd(y, thumb_off), tw, thumb_len, thumb_col)
+end
+
 implement ui_scroll_bar(r, x, y, w, h, is_vert, total_len, visible_len, scroll_pos, is_hover, is_dragging) = let
-  val () = rend_rect(r, x, y, w, h, col_bar())
+  val active = is_on(is_hover) orelse is_on(is_dragging)
+  val () = if active then rend_rect(r, x, y, w, h, col_bar()) else ()
   val () = if igt(total_len, visible_len) andalso igt(visible_len, 0) then let
     val travel = if is_vertical(is_vert) then h else w
-    val min_thumb = SCROLLBAR_MIN_THUMB
-    val thumb_len = imax(min_thumb, idiv(imul(travel, visible_len), total_len))
+    val thumb_len = imax(SCROLLBAR_MIN_THUMB, idiv(imul(travel, visible_len), total_len))
     val max_scroll = isub(total_len, visible_len)
-    val max_travel = isub(travel, thumb_len)
+    val max_travel = imax(0, isub(travel, thumb_len))
     val thumb_off = idiv(imul(imax(0, imin(scroll_pos, max_scroll)), max_travel), max_scroll)
     val thumb_col =
       if is_on(is_dragging) then col_accent()
       else if is_on(is_hover) then col_muted()
-      else col_line()
-    val () =
-      if is_vertical(is_vert) then rend_rect(r, iadd(x, 1), iadd(y, thumb_off), isub(w, 2), thumb_len, thumb_col)
-      else rend_rect(r, iadd(x, thumb_off), iadd(y, 1), thumb_len, isub(h, 2), thumb_col)
+      else col_scroll_thumb()
   in
+    if is_vertical(is_vert) then scroll_thumb_draw_v(r, x, y, w, thumb_off, thumb_len, thumb_col, toggle_of(active))
+    else rend_rect(r, iadd(x, thumb_off), iadd(y, 1), thumb_len, isub(h, 2), thumb_col)
   end else ()
 in
 end

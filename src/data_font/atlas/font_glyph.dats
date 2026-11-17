@@ -4,6 +4,7 @@
 #include "common.hats"
 
 staload "mem.sats"
+staload "core_runtime/performance.sats"
 staload "airlock.sats"
 staload "flag.sats"
 staload "os/fs.sats"
@@ -55,7 +56,9 @@ fun raster(f: !Font, r: !Rend, cp: int, g: &gmet >> _): void =
 implement font_glyph(f, r, cp, g) =
   if cache_get(f, cp, g) = 1 then ()
   else let
+    val t0 = performance_now_ns()
     val () = raster(f, r, cp, g)
+    val () = cache_put(f, cp, g)
   in
-    cache_put(f, cp, g)
+    performance_phase_end(PERF_PHASE_FONT_GLYPH, t0)
   end

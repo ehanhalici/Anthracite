@@ -111,6 +111,94 @@ in
   ast_style_with_fuel(airlock_nat(MAX_REC_FUEL), d, doc_node_parent(d, i), init_err)
 end
 
+implement doc_heading_scale_of(k) =
+  if is_kind(k, KH1) then @(7, 4)
+  else if is_kind(k, KH2) then @(3, 2)
+  else if is_kind(k, KH3) then @(5, 4)
+  else if is_kind(k, KH4) then @(23, 20)
+  else if is_kind(k, KH5) then @(11, 10)
+  else @(1, 1)
+
+implement doc_heading_top_pad_of(k) =
+  if is_kind(k, KH1) then 14
+  else if is_kind(k, KH2) then 10
+  else if is_kind(k, KH3) then 8
+  else if is_kind(k, KH4) then 6
+  else if is_kind(k, KH5) then 4
+  else 0
+
+implement doc_heading_bottom_pad_of(k) =
+  if is_kind(k, KH1) then 10
+  else if is_kind(k, KH2) then 8
+  else if is_kind(k, KH3) then 6
+  else if is_kind(k, KH4) then 6
+  else if is_kind(k, KH5) then 4
+  else 0
+
+implement doc_raw_lines(d, is_read) =
+  if ieq(is_read, 1) orelse not(doc_cursor_active(d)) then @(~1, ~2)
+  else let
+    val c = doc_caret(d)
+    val a = doc_anchor(d)
+    val l0 = doc_line_of(d, imin(c, a))
+    val l1 = doc_line_of(d, imax(c, a))
+  in
+    @(l0, l1)
+  end
+
+implement doc_line_is_preview(d, is_read, line) = let
+  val @(l0, l1) = doc_raw_lines(d, is_read)
+in
+  ilt(line, l0) orelse igt(line, l1)
+end
+
+fun find_line_heading_scan {recfuel:nat} .<recfuel>. (
+  fuel: int(recfuel), d: !Doc, i: int, nn: int, st: int, en: int
+): NodeKind =
+  if recursion_fuel_available(fuel) then (
+    if ige(i, nn) then KNone
+    else let
+      val ns = doc_node_start(d, i)
+    in
+      if ige(ns, en) then KNone
+      else let
+        val k = doc_node_kind(d, i)
+      in
+        if ige(ns, st) andalso is_heading(k) then k
+        else find_line_heading_scan(fuel - 1, d, iadd(i, 1), nn, st, en)
+      end
+    end
+  ) else KNone
+
+fun find_line_first_node {recfuel:nat} .<recfuel>. (
+  fuel: int(recfuel), d: !Doc, lo: int, hi: int, st: int
+): int =
+  if recursion_fuel_available(fuel) then (
+    if ige(lo, hi) then lo
+    else let
+      val mid = iadd(lo, idiv(isub(hi, lo), 2))
+    in
+      if ilt(doc_node_start(d, mid), st) then
+        find_line_first_node(fuel - 1, d, iadd(mid, 1), hi, st)
+      else
+        find_line_first_node(fuel - 1, d, lo, mid, st)
+    end
+  ) else lo
+
+implement doc_line_heading_kind(d, line) = let
+  val nn = doc_nnodes(d)
+  val nlines = doc_nlines(d)
+in
+  if ile(nn, 0) orelse ilt(line, 0) orelse ige(line, nlines) then KNone
+  else let
+    val st = doc_line_start(d, line)
+    val en = if ilt(iadd(line, 1), nlines) then doc_line_start(d, iadd(line, 1)) else doc_len(d)
+    val i0 = find_line_first_node(airlock_nat(32), d, 0, nn, st)
+  in
+    find_line_heading_scan(airlock_nat(MAX_REC_FUEL), d, i0, nn, st, en)
+  end
+end
+
 implement doc_node_kind(d, i) = kind_of(node_field_get(d, i, NF_KIND))
 implement doc_node_start(d, i) = node_field_get(d, i, NF_START)
 implement doc_node_end(d, i) = node_field_get(d, i, NF_END)

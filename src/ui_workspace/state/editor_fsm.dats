@@ -20,51 +20,98 @@ implement editor_fsm_name(st) = case+ st.kind of
   | EditorSplitDrag() => "SPLIT_DRAG"
 
 implement editor_fsm_is_editing(st) = case+ st.kind of
+  | EditorIdle() => false
   | EditorTyping() => true
   | EditorSelecting() => true
-  | _ => false
+  | EditorPrompt() => false
+  | EditorMenu() => false
+  | EditorSplitDrag() => false
 
 implement editor_fsm_is_modal(st) = case+ st.kind of
+  | EditorIdle() => false
+  | EditorTyping() => false
+  | EditorSelecting() => false
   | EditorPrompt() => true
   | EditorMenu() => true
-  | _ => false
+  | EditorSplitDrag() => false
 
 fun step_idle(act: EditorAction): EditorState = case+ act.kind of
+  | EditorNoAction() => StateIdle()
   | EditorTypeKey() => StateTyping()
   | EditorFocusPrompt() => StatePrompt(act.prompt)
-  | EditorOpenMenu() => StateMenu(act.menu)
-  | EditorStartSelect() => StateSelecting(act.anchor,act.focus)
-  | EditorStartSplitDrag() => StateSplitDrag(act.splitPosition)
-  | _ => StateIdle()
-
-fun step_typing(act: EditorAction): EditorState = case+ act.kind of
-  | EditorTypeKey() => StateTyping()
-  | EditorStartSelect() => StateSelecting(act.anchor,act.focus)
-  | EditorFocusPrompt() => StatePrompt(act.prompt)
-  | EditorOpenMenu() => StateMenu(act.menu)
-  | EditorEscape() => StateIdle()
-  | _ => StateTyping()
-
-fun step_selecting(a: int, f: int, act: EditorAction): EditorState = case+ act.kind of
-  | EditorUpdateSelect() => StateSelecting(a, act.focus)
-  | EditorTypeKey() => StateTyping()
-  | EditorEscape() => StateIdle()
-  | _ => StateSelecting(a, f)
-
-fun step_prompt(p: PromptKind, act: EditorAction): EditorState = case+ act.kind of
   | EditorDismissPrompt() => StateIdle()
-  | EditorEscape() => StateIdle()
-  | _ => StatePrompt(p)
-
-fun step_menu(m: MenuKind, act: EditorAction): EditorState = case+ act.kind of
+  | EditorOpenMenu() => StateMenu(act.menu)
   | EditorDismissMenu() => StateIdle()
-  | EditorEscape() => StateIdle()
-  | _ => StateMenu(m)
-
-fun step_drag(x: int, act: EditorAction): EditorState = case+ act.kind of
+  | EditorStartSelect() => StateSelecting(act.anchor, act.focus)
+  | EditorUpdateSelect() => StateIdle()
+  | EditorStartSplitDrag() => StateSplitDrag(act.splitPosition)
   | EditorEndSplitDrag() => StateIdle()
   | EditorEscape() => StateIdle()
-  | _ => StateSplitDrag(x)
+
+fun step_typing(act: EditorAction): EditorState = case+ act.kind of
+  | EditorNoAction() => StateTyping()
+  | EditorTypeKey() => StateTyping()
+  | EditorFocusPrompt() => StatePrompt(act.prompt)
+  | EditorDismissPrompt() => StateTyping()
+  | EditorOpenMenu() => StateMenu(act.menu)
+  | EditorDismissMenu() => StateTyping()
+  | EditorStartSelect() => StateSelecting(act.anchor, act.focus)
+  | EditorUpdateSelect() => StateTyping()
+  | EditorStartSplitDrag() => StateTyping()
+  | EditorEndSplitDrag() => StateTyping()
+  | EditorEscape() => StateIdle()
+
+fun step_selecting(a: int, f: int, act: EditorAction): EditorState = case+ act.kind of
+  | EditorNoAction() => StateSelecting(a, f)
+  | EditorTypeKey() => StateTyping()
+  | EditorFocusPrompt() => StateSelecting(a, f)
+  | EditorDismissPrompt() => StateSelecting(a, f)
+  | EditorOpenMenu() => StateSelecting(a, f)
+  | EditorDismissMenu() => StateSelecting(a, f)
+  | EditorStartSelect() => StateSelecting(a, f)
+  | EditorUpdateSelect() => StateSelecting(a, act.focus)
+  | EditorStartSplitDrag() => StateSelecting(a, f)
+  | EditorEndSplitDrag() => StateSelecting(a, f)
+  | EditorEscape() => StateIdle()
+
+fun step_prompt(p: PromptKind, act: EditorAction): EditorState = case+ act.kind of
+  | EditorNoAction() => StatePrompt(p)
+  | EditorTypeKey() => StatePrompt(p)
+  | EditorFocusPrompt() => StatePrompt(p)
+  | EditorDismissPrompt() => StateIdle()
+  | EditorOpenMenu() => StatePrompt(p)
+  | EditorDismissMenu() => StatePrompt(p)
+  | EditorStartSelect() => StatePrompt(p)
+  | EditorUpdateSelect() => StatePrompt(p)
+  | EditorStartSplitDrag() => StatePrompt(p)
+  | EditorEndSplitDrag() => StatePrompt(p)
+  | EditorEscape() => StateIdle()
+
+fun step_menu(m: MenuKind, act: EditorAction): EditorState = case+ act.kind of
+  | EditorNoAction() => StateMenu(m)
+  | EditorTypeKey() => StateMenu(m)
+  | EditorFocusPrompt() => StateMenu(m)
+  | EditorDismissPrompt() => StateMenu(m)
+  | EditorOpenMenu() => StateMenu(m)
+  | EditorDismissMenu() => StateIdle()
+  | EditorStartSelect() => StateMenu(m)
+  | EditorUpdateSelect() => StateMenu(m)
+  | EditorStartSplitDrag() => StateMenu(m)
+  | EditorEndSplitDrag() => StateMenu(m)
+  | EditorEscape() => StateIdle()
+
+fun step_drag(x: int, act: EditorAction): EditorState = case+ act.kind of
+  | EditorNoAction() => StateSplitDrag(x)
+  | EditorTypeKey() => StateSplitDrag(x)
+  | EditorFocusPrompt() => StateSplitDrag(x)
+  | EditorDismissPrompt() => StateSplitDrag(x)
+  | EditorOpenMenu() => StateSplitDrag(x)
+  | EditorDismissMenu() => StateSplitDrag(x)
+  | EditorStartSelect() => StateSplitDrag(x)
+  | EditorUpdateSelect() => StateSplitDrag(x)
+  | EditorStartSplitDrag() => StateSplitDrag(x)
+  | EditorEndSplitDrag() => StateIdle()
+  | EditorEscape() => StateIdle()
 
 implement editor_fsm_step(st, act) = case+ st.kind of
   | EditorIdle() => step_idle(act)

@@ -1,4 +1,5 @@
 implement rend_quad_pixels(r, tex, mode, x, y, w, h, u0d, v0d, u1d, v1d, c) = let
+  val () = performance_note(PERF_GL_QUADS, 1)
   val () = bind_mode(r, mode, tex)
   val x0 = anth_d2f(x)
   val y0 = anth_d2f(y)

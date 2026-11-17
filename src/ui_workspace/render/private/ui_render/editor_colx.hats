@@ -4,8 +4,17 @@ implement editor_colx(f, r, ox, pw) = let
   val gap = imax(6, idiv(aw, 2))
   val min_gw = iadd(imul(aw, 5), iadd(gap, iadd(aw, pad)))
   val gw = imax(UI_GUTTER_WIDTH, min_gw)
+  val colx = if font_text_active(f) then readable_col_x(ox, pw, font_line_h(f)) else column_x(ox, pw)
 in
-  imax(iadd(ox, iadd(gw, 16)), column_x(ox, pw))
+  imax(iadd(ox, iadd(gw, 16)), colx)
+end
+
+implement editor_colw(f, r, ox, pw) = let
+  val colx = editor_colx(f, r, ox, pw)
+  val target_w = if font_text_active(f) then readable_col_w(pw, font_line_h(f)) else column_w(pw)
+in
+  if font_text_active(f) then imax(1, imin(target_w, isub(iadd(ox, pw), iadd(colx, 16))))
+  else target_w
 end
 
 fun draw_arrow(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, colx: int, y: int): void =

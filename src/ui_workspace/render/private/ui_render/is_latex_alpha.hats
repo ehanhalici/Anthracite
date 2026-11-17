@@ -174,7 +174,7 @@ fun math_script_scalar(d: !Doc,p: int,en: int,out: &Buf >> _,superscript: bool):
   val symbol=if superscript then math_char_to_sup(byte) else math_char_to_sub(byte)
   val ()=if igt(c_strlen(symbol),0) then buffer_append_string(out,symbol) else let
     val ()=buf_push(out,if superscript then CHAR_CARET else CHAR_UNDERSCORE)
-  in doc_buf_push_slice_with_fuel(airlock_nat(iadd(UTF8_MAX_SEQUENCE_BYTES,1)),d,p,finish,p,out) end
+  in doc_buf_push_slice_with_fuel(airlock_nat(MAX_REC_FUEL),d,p,finish,p,out) end
 in finish end
 
 fun convert_sup_run_with_fuel {recfuel:nat} .<recfuel>. (

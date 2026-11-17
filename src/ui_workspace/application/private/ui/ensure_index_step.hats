@@ -1,39 +1,58 @@
 fun ensure_index_step(s: &App_record >> _): void = search_job_step(s)
 
-fun draw_drop_target(f: !Font, r: !Rend, x: int, y: int, w: int, h: int, text: string): void = let
-  val () = rend_rect(r, x, y, w, h, col_side())
-  val () = ui_draw_border(r, iadd(x, 4), iadd(y, 4), isub(w, 8), isub(h, 8), 2, col_accent())
-  val bw = 160
-  val bh = 28
-  val cx = iadd(x, idiv(isub(w, bw), 2))
-  val cy = iadd(y, idiv(isub(h, bh), 2))
-  val () = ui_badge(f, r, cx, cy, text, col_bg(), col_accent())
+fun draw_tab_drag_buf(f: !Font, r: !Rend, w: int, hx: int, hy: int, tbuf: !Buf): void = let
+  val n = buf_len(tbuf)
+  val tw = if igt(n, 0) then font_width_buf(f, r, tbuf, n) else 40
+  val gw = imin(UI_TAB_FIXED_WIDTH, imax(64, iadd(tw, 20)))
+  val gx = imax(4, imin(isub(w, iadd(gw, 4)), iadd(hx, 10)))
+  val gy = imax(4, iadd(hy, 8))
+  val () = ui_draw_shadow(r, gx, gy, gw, 24, 4)
+  val () = rend_rect(r, gx, gy, gw, 24, col_menu())
+  val () = ui_draw_border(r, gx, gy, gw, 24, 1, col_accent())
 in
+  if igt(n, 0) then seen_int(font_draw_buf(f, r, iadd(gx, 8), iadd(gy, 3), tbuf, n, col_heading())) else ()
 end
 
-fun draw_tab_drag_split(f: !Font, r: !Rend, s: &App_record, ox: int, pw: int, h: int, dp: int): void = let
+fun draw_tab_drag_ghost(f: !Font, r: !Rend, s: &App_record, w: int): void =
+  if ige(s.dragi, 0) andalso ilt(s.dragi, tabs_len(s.tabs)) then let
+    var tbuf = buf_make(64)
+    val () = tabs_get_title(s.tabs, s.dragi, tbuf)
+    val () = draw_tab_drag_buf(f, r, w, s.hoverx, s.hovery, tbuf)
+  in
+    buf_free(tbuf)
+  end else ()
+
+fun draw_tab_drag_split_bar(f: !Font, r: !Rend, s: &App_record, ox: int, pw: int, h: int, dp: int): void = let
   val half = idiv(pw, 2)
   val mid = iadd(ox, half)
-  val eh = isub(h, UI_TOPBAR_HEIGHT)
+  val th = s.tb_h
+  val on_bar = ilt(s.hovery, th)
+  val y0 = if on_bar then 2 else th
+  val h0 = if on_bar then isub(th, 4) else isub(h, th)
 in
-  if ieq(dp, 0) andalso ige(s.hoverx, mid) then
-    draw_drop_target(f, r, mid, UI_TOPBAR_HEIGHT, isub(pw, half), eh, "Sag Bolmeye Tasi")
-  else if ieq(dp, 1) andalso ilt(s.hoverx, mid) then
-    draw_drop_target(f, r, ox, UI_TOPBAR_HEIGHT, half, eh, "Sol Bolmeye Tasi")
-  else ()
+  if ieq(dp, 0) andalso ige(s.hoverx, mid) then (
+    if on_bar then ui_draw_border(r, iadd(mid, 4), y0, isub(pw, iadd(half, 8)), h0, 2, col_accent())
+    else draw_drop_target(f, r, mid, y0, isub(pw, half), h0, "Sag Bolmeye Tasi")
+  ) else if ieq(dp, 1) andalso ilt(s.hoverx, mid) then (
+    if on_bar then ui_draw_border(r, ox, y0, isub(half, 4), h0, 2, col_accent())
+    else draw_drop_target(f, r, ox, y0, half, h0, "Sol Bolmeye Tasi")
+  ) else ()
 end
 
 fun draw_tab_drag_overlay(f: !Font, r: !Rend, s: &App_record, ox: int, pw: int, w: int, h: int): void =
-  if is_drag_tab(s.drag) andalso ige(s.hovery, UI_TOPBAR_HEIGHT) then let
+  if is_drag_tab(s.drag) then let
     val half = idiv(pw, 2)
     val mid = iadd(ox, half)
-    val eh = isub(h, UI_TOPBAR_HEIGHT)
+    val th = s.tb_h
+    val eh = isub(h, th)
     val dp = if s.dragi >= 0 andalso s.dragi < buf_len(s.tab_pane) then buf_get(s.tab_pane, s.dragi) else 0
-  in
-    if not(is_on(s.split)) then (
-      if ige(s.hoverx, mid) then draw_drop_target(f, r, mid, UI_TOPBAR_HEIGHT, isub(pw, half), eh, "Bolunmus Sayfa Ac")
+    val () = if not(is_on(s.split)) then (
+      if ige(s.hoverx, mid) andalso ige(s.hovery, th) then
+        draw_drop_target(f, r, mid, th, isub(pw, half), eh, "Bolunmus Sayfa Ac")
       else ()
-    ) else draw_tab_drag_split(f, r, s, ox, pw, h, dp)
+    ) else draw_tab_drag_split_bar(f, r, s, ox, pw, h, dp)
+  in
+    draw_tab_drag_ghost(f, r, s, w)
   end else ()
 
 fun draw_panes(f: !Font, r: !Rend, a: !App, w: int, h: int): void =
@@ -41,11 +60,14 @@ fun draw_panes(f: !Font, r: !Rend, a: !App, w: int, h: int): void =
   | @APP(s) => let
       val () = ensure_index_step(s)
       val () = load_font_if_needed(f, s)
-      val sidew = if not(is_side_none(s.side)) then s.sidew else 0
-      val ox = sidew
-      val pw = isub(w, sidew)
       val () = font_set_px(f, s.fontpx)
       val () = ensure_chrome(f, r, s)
+      val () = if not(is_side_none(s.side)) then let
+        val max_sw = imax(UI_SIDEBAR_MIN_WIDTH, isub(w, 260))
+      in if igt(s.sidew, max_sw) then s.sidew := max_sw else () end else ()
+      val sidew = if not(is_side_none(s.side)) then s.sidew else 0
+      val ox = sidew
+      val pw = imax(1, isub(w, sidew))
       val lh = font_line_h(f)
       val half = if is_on(s.split) then idiv(pw, 2) else pw
       val () = rend_rect(r, 0, 0, w, h, col_bg())
@@ -157,28 +179,57 @@ fun app_overlay_state(a: !App): @(Sidebar, PromptKind, MenuKind, int, int, int, 
       result
     end
 
+fun draw_app_hover_overlays(f: !Font, r: !Rend, a: !App, w: int, h: int): void =
+  case+ a of
+  | @APP(s) => let
+      val () = draw_file_drag_overlay(f, r, s, w, h)
+      val () = draw_tab_tooltip(f, r, s, w)
+    in
+      fold@(a)
+    end
+
 implement app_draw(a, f, r, w, h) = let
+  val t_draw = performance_now_ns()
   val ()=case+ a of | @APP(s) => let
+    val ()= (s.last_w := w; s.last_h := h)
     val ()=if s.flash_until_ns > 0L then
       (if mono_ns() >= s.flash_until_ns then s.flash_until_ns := 0L else ()) else ()
+    val ()=if s.tree_flash_until_ns > 0L then
+      (if mono_ns() >= s.tree_flash_until_ns then (s.tree_flash_until_ns := 0L; s.tree_flash_row := ~1) else ()) else ()
     val ()=cache_work_begin(s.cache)
   in fold@(a) end
+  val t_panes = performance_now_ns()
   val () = draw_panes(f, r, a, w, h)
+  val () = performance_phase_end(PERF_PHASE_DRAW_PANES, t_panes)
   val @(show, prompt, menu, menux, menuy, menuw, vault_select) = app_overlay_state(a)
+  val t_side = performance_now_ns()
   val () = if not(is_side_none(show)) then draw_side(f, r, a, h) else ()
+  val () = performance_phase_end(PERF_PHASE_DRAW_SIDEBAR, t_side)
+  val t_over = performance_now_ns()
+  val () = draw_app_hover_overlays(f, r, a, w, h)
   val () = draw_overlay_blur(r, prompt, menu, menux, menuy, menuw, vault_select, w, h)
   val () = ui_draw_prompt(f, r, a)
   val () = ui_draw_menu(f, r, a)
+  val () = draw_vault_select(f, r, a, w, h)
+  val () = performance_phase_end(PERF_PHASE_DRAW_OVERLAYS, t_over)
 in
-  draw_vault_select(f, r, a, w, h)
+  performance_phase_end(PERF_PHASE_APP_DRAW, t_draw)
 end
 implement app_work_pending(a) = case+ a of | @APP(s) => let
   val pending=cache_work_pending(s.cache)
   val searching=is_side_search(s.side) andalso ieq(s.search_state,SEARCH_RUNNING)
-  val expired: bool=if s.flash_until_ns > 0L then mono_ns() >= s.flash_until_ns else false
-in fold@(a); pending orelse searching orelse expired end
+  val now = mono_ns()
+  val expired: bool=if s.flash_until_ns > 0L then now >= s.flash_until_ns else false
+  val tree_expired: bool=if s.tree_flash_until_ns > 0L then now >= s.tree_flash_until_ns else false
+in fold@(a); pending orelse searching orelse expired orelse tree_expired end
 implement app_idle_wait(a) = case+ a of | @APP(s) => let
-  val delay=search_flash_wait(mono_ns(),s.flash_until_ns)
+  val now = mono_ns()
+  val d1 = search_flash_wait(now, s.flash_until_ns)
+  val d2 = search_flash_wait(now, s.tree_flash_until_ns)
+  val delay = if ieq(d1, 0) orelse ieq(d2, 0) then 0
+    else if ilt(d1, 0) then d2
+    else if ilt(d2, 0) then d1
+    else imin(d1, d2)
 in fold@(a); delay end
 extern fun find_wiki_fuel_exhausted(doc: !Doc, caret: int, k: int): int = "mac#anth_die_int"
 
@@ -200,7 +251,7 @@ fun open_or(rest: Tabs, owned: Buf, go: Toggle): Tabs =
     rest
   end
 
-extern fun doc_seek_sub_at_fuel_exhausted(d: !Doc, n: int, a: !Buf, al: int, dp: int, ai: int): bool = "mac#anth_die_bool"
+extern fun doc_seek_sub_at_fuel_exhausted(d: !Doc, n: int, a: !Buf, al: int, dp: int, ai: int): bool = "mac#anth_die_int"
 
 fun doc_seek_sub_at_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), d: !Doc, n: int, a: !Buf, al: int, dp: int, ai: int

@@ -18,11 +18,14 @@ fun buffer_equal_from(a: !Buf, b: !Buf, i: int): bool
 fun buffer_clone(src: !Buf): Buf
 fun buffer_c_string(b: !Buf): string
 fun ends(b: !Buf, s: string): bool
+fun ends_ci(b: !Buf, s: string): bool
+fun strip_md_ext(b: &Buf >> Buf): void
 fun is_image_path(path: !Buf): bool
 fun draw_s(f: !Font, r: !Rend, x: int, y: int, s: string, c: uint): void
 fun join2(a: !Buf, b: !Buf): Buf
 fun last_slash(path: !Buf, i: int, a: int): int
 fun base_name(path: !Buf, dst: &Buf >> Buf): void
+fun base_name_no_md(path: !Buf, dst: &Buf >> Buf): void
 fun dirname_of(path: !Buf, dst: &Buf >> Buf): void
 fun child_path(dir: !Buf, name: !Buf, dst: &Buf >> Buf): void
 fun row_path(text: !Buf, meta: !Buf, row: int, dst: &Buf >> Buf): void
@@ -47,7 +50,17 @@ datatype MenuKind = MenuNone | MenuText | MenuImage | MenuFileTree
 datatype PromptKind = PromptNone | PromptNewFile | PromptNewFolder | PromptRename
 datatype ViewMode = ViewEdit | ViewRead
 datatype EditResult = EditNone | EditChanged | EditSubmit | EditCancel
-datatype DragKind = DragNone | DragTab | DragFile | DragSplit | DragEditor
+datatype DragKind =
+  | DragNone
+  | DragTab
+  | DragFile
+  | DragSplit
+  | DragEditor
+  | DragDocScroll
+  | DragTreeScroll
+  | DragEditorPan
+  | DragEditorFontSlider
+  | DragDocFontSlider
 
 fun is_side_none(x: Sidebar): bool
 fun is_side_files(x: Sidebar): bool
@@ -72,8 +85,15 @@ fun is_drag_tab(x: DragKind): bool
 fun is_drag_file(x: DragKind): bool
 fun is_drag_split(x: DragKind): bool
 fun is_drag_editor(x: DragKind): bool
+fun is_drag_doc_scroll(x: DragKind): bool
+fun is_drag_tree_scroll(x: DragKind): bool
+fun is_drag_editor_pan(x: DragKind): bool
+fun is_drag_editor_font_slider(x: DragKind): bool
+fun is_drag_doc_font_slider(x: DragKind): bool
 fun view_mode_code(v: ViewMode): int
 fun view_mode_of_code(n: int): ViewMode
+fun chrome_topbar_h(line_h: int): int
+fun chrome_hdr_h(line_h: int): int
 
 
 
@@ -84,10 +104,28 @@ fun view_mode_of_code(n: int): ViewMode
 
 macdef UI_SIDEBAR_WIDTH = 280
 macdef UI_SIDEBAR_MIN_WIDTH = 160
-macdef UI_SIDEBAR_GRAB_WIDTH = 6
+macdef UI_SIDEBAR_GRAB_WIDTH = 12
 macdef UI_TOPBAR_HEIGHT = 36
+macdef UI_PANE_HEADER_HEIGHT = 28
+macdef UI_DOC_TOP_Y = 64
+macdef UI_TAB_FIXED_WIDTH = 160
 macdef UI_TOPBAR_BTN_WIDTH = 96
 macdef UI_MENU_WIDTH = 230
 macdef UI_MENU_ITEM_HEIGHT = 24
-macdef UI_TREE_ROW_HEIGHT = 18
+macdef UI_TREE_ROW_HEIGHT = 28
+macdef UI_TREE_INDENT_PIXELS = 20
+macdef UI_TREE_TOP_Y = 72
+macdef UI_SCROLLBAR_HIT_WIDTH = 10
+macdef UI_SCROLLBAR_DRAW_WIDTH = 6
+macdef UI_SCROLLBAR_IDLE_WIDTH = 4
+macdef UI_DRAG_THRESHOLD_PIXELS = 5
+macdef UI_BREADCRUMB_BTN_WIDTH = 30
+macdef UI_BREADCRUMB_BTN_GAP = 4
+macdef UI_BREADCRUMB_ARROW_SIZE_PIXELS = 16
+macdef UI_DOC_TITLE_TOP_PAD = 28
+macdef UI_DOC_TITLE_BOTTOM_PAD = 20
+macdef UI_FONT_PX_MIN = 12
+macdef UI_FONT_PX_MAX = 80
+macdef UI_CONFIG_UI_FONT_PX = 18
+macdef UI_KEYMAP_MAX_SHOW = 14
 macdef UI_NAVIGATION_FLASH_NS = 1000000000L

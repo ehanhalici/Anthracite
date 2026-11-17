@@ -77,11 +77,12 @@ implement font_selftest(r) = let
   val jb_ok = font_use_file(f, "fonts/JetBrains-Mono-Medium/JetBrainsMono-Regular.ttf")
   val inkJB = glyph_ink65(f, r, g)
   val sc_ok = font_use_file(f, "fonts/Source-Code-Pro-Regular/sourcecodepro/SourceCodePro-Regular.ttf")
+  val tex_dropped = (font_tex(f) = u_zero())
   val inkSC = glyph_ink65(f, r, g)
   val () = font_glyph(f, r, 1576, g)
   val ar_ok = (if igt(g.bw, 0) then 1 else 0) : int
   val () = font_free(f)
-  val ok3 = (if loaded andalso igt(gid, 0) andalso igt(axA, 0) andalso igt(inkA, 20) andalso igt(inkJB, 20) andalso igt(inkSC, 20) andalso jb_ok andalso sc_ok andalso ieq(ar_ok, 1) then 1 else 0) : int
+  val ok3 = (if loaded andalso igt(gid, 0) andalso igt(axA, 0) andalso igt(inkA, 20) andalso igt(inkJB, 20) andalso igt(inkSC, 20) andalso jb_ok andalso sc_ok andalso tex_dropped andalso ieq(ar_ok, 1) then 1 else 0) : int
 in
   (if ieq(ok1, 1) andalso ieq(ok2, 1) andalso ieq(ok3, 1) then 1 else 0)
 end

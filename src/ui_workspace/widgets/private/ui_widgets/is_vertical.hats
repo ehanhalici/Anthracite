@@ -50,8 +50,23 @@ fun arrow_right_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), r: !
     end else ()
   ) else arrow_right_fuel_exhausted(r, x, y, sz, col, i, steps)
 
+fun chevron_right_with_fuel {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int
+): void =
+  if recursion_fuel_available(recfuel) then (
+    if ilt(i, steps) then let
+      val () = rend_rect(r, iadd(x, i), iadd(y, i), 2, 2, col)
+      val () = rend_rect(r, iadd(x, i), isub(iadd(y, sz), iadd(i, 2)), 2, 2, col)
+    in
+      chevron_right_with_fuel(recfuel - 1, r, x, y, sz, col, iadd(i, 1), steps)
+    end else ()
+  ) else ()
+
 fun draw_arrow_right(r: !Rend, x: int, y: int, sz: int, col: uint): void =
-  arrow_right_with_fuel(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
+  if ige(sz, 12) then
+    chevron_right_with_fuel(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
+  else
+    arrow_right_with_fuel(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
 
 extern fun arrow_down_fuel_exhausted(r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void = "mac#anth_die_void"
 
@@ -74,14 +89,30 @@ fun arrow_left_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), r: !R
   if recursion_fuel_available(recfuel) then (
     if ilt(i, steps) then let
       val h = isub(sz, imul(i, 2))
-      val () = if igt(h, 0) then rend_rect(r, isub(iadd(x, sz), i), iadd(y, i), 1, h, col) else ()
+      val () = if igt(h, 0) then rend_rect(r, isub(iadd(x, steps), iadd(i, 1)), iadd(y, i), 1, h, col) else ()
     in
       arrow_left_with_fuel(recfuel - 1, r, x, y, sz, col, iadd(i, 1), steps)
     end else ()
   ) else arrow_left_fuel_exhausted(r, x, y, sz, col, i, steps)
 
+fun chevron_left_with_fuel {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int
+): void =
+  if recursion_fuel_available(recfuel) then (
+    if ilt(i, steps) then let
+      val px = isub(iadd(x, steps), iadd(i, 1))
+      val () = rend_rect(r, px, iadd(y, i), 2, 2, col)
+      val () = rend_rect(r, px, isub(iadd(y, sz), iadd(i, 2)), 2, 2, col)
+    in
+      chevron_left_with_fuel(recfuel - 1, r, x, y, sz, col, iadd(i, 1), steps)
+    end else ()
+  ) else ()
+
 fun draw_arrow_left(r: !Rend, x: int, y: int, sz: int, col: uint): void =
-  arrow_left_with_fuel(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
+  if ige(sz, 12) then
+    chevron_left_with_fuel(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
+  else
+    arrow_left_with_fuel(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
 
 extern fun arrow_up_fuel_exhausted(r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void = "mac#anth_die_void"
 

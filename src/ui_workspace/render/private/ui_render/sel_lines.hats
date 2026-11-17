@@ -85,18 +85,18 @@ in
   end
 end
 
-fun draw_flash_line(r: !Rend, d: !Doc, oy: int, scroll: int, lh: int, colx: int, pw: int): void = let
+fun draw_flash_line(f: !Font, r: !Rend, d: !Doc, oy: int, scroll: int, lh: int, ox: int, colx: int, pw: int): void = let
   val fl = doc_get_flash(d, mono_ns())
 in
   if ige(fl, 0) andalso ilt(fl, doc_nlines(d)) then let
     val fy = isub(iadd(oy, doc_line_y(d, fl)), scroll)
-    val () = rend_rect(r, colx, fy, column_w(pw), lh, col_rgba(147, 51, 234, 110))
+    val () = rend_rect(r, colx, fy, editor_colw(f, r, ox, pw), lh, col_rgba(147, 51, 234, 110))
   in
   end else ()
 end
 
 fun draw_doc_content(f: !Font, r: !Rend, d: !Doc, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, viewmode: ViewMode, colx: int, py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _): void = let
-  val () = draw_flash_line(r, d, oy, scroll, lh, colx, pw)
+  val () = draw_flash_line(f, r, d, oy, scroll, lh, ox, colx, pw)
 in
   if doc_nnodes(d) > 0 then let
     val start_i = first_vis_node(d, scroll)
@@ -152,66 +152,124 @@ in
   draw_gutter_range_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, d, start_li, end_li, colx, oy, scroll, ph, scratch)
 end
 
-fun draw_document_prepared(f: !Font,r: !Rend,d: !Doc,ox: int,oy: int,pw: int,ph: int,
-  scroll: int,lh: int,vault: !Buf,c: &Cache >> _,scratch: &Buf >> _,viewmode: ViewMode,height: int,colx: int): void = let
+fun draw_document_prepared_ex(f: !Font,r: !Rend,d: !Doc,ox: int,oy: int,pw: int,ph: int,
+  scroll: int,lh: int,vault: !Buf,c: &Cache >> _,scratch: &Buf >> _,viewmode: ViewMode,height: int,colx: int,
+  shover: Toggle, sdrag: Toggle): void = let
   var py: int = oy
   var pa: int = 0
   var pen_x: int = colx
   var pen_line: int = ~1
   val () = rend_clip_push(r, ox, oy, pw, ph)
   val () = draw_line_gutter(f, r, d, colx, oy, pw, ph, scroll, lh, scratch)
-  val () = draw_selection(f, r, d, colx, oy, scroll, lh, scratch)
+  val show_active = is_view_edit(viewmode) andalso doc_cursor_active(d)
+  val show_sel = is_view_read(viewmode) orelse doc_cursor_active(d)
+  val () = if show_sel then draw_selection(f, r, d, colx, oy, scroll, lh, scratch) else ()
   val () = draw_doc_content(f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, viewmode, colx, py, pa, pen_x, pen_line)
-  val () = if is_view_edit(viewmode) then draw_caret(f, r, d, colx, oy, scroll, lh, scratch) else ()
+  val () = if show_active then draw_caret(f, r, d, colx, oy, scroll, lh, scratch) else ()
   val () = rend_clip_pop(r)
-  val () = if igt(height, ph) then ui_scroll_bar(r, isub(iadd(ox, pw), 6), oy, 6, ph, Vertical, height, ph, scroll, Off, Off) else ()
+  val () = if igt(height, ph) then ui_scroll_bar(r, isub(iadd(ox, pw), 8), oy, 8, ph, Vertical, height, ph, scroll, shover, sdrag) else ()
   val () = seen_int(py)
   val () = seen_int(pa)
 in
 end
 
-fun draw_document_scrolled(f: !Font,r: !Rend,d: !Doc,ox: int,oy: int,pw: int,ph: int,
-  scroll: int,lh0: int,vault: !Buf,c: &Cache >> _,scratch: &Buf >> _,mode: ViewMode): int = let
+fun draw_document_scrolled_ex(f: !Font,r: !Rend,d: !Doc,ox: int,oy: int,pw: int,ph: int,
+  scroll: int,lh0: int,vault: !Buf,c: &Cache >> _,scratch: &Buf >> _,mode: ViewMode,
+  shover: Toggle, sdrag: Toggle, out_h: &int >> _): int = let
   val lh=if font_text_active(f) then font_document_line_height(f,lh0) else lh0
   val colx=editor_colx(f,r,ox,pw)
-  val width=if font_text_active(f) then imax(1,imin(column_w(pw),isub(iadd(ox,pw),iadd(colx,16)))) else column_w(pw)
+  val width=editor_colw(f,r,ox,pw)
   val state=work_state(airlock_nat(MAX_REC_FUEL),c)
   val line=if doc_layout_cache_height(d)>0 then line_at_y_fast(d,scroll,lh) else ~1
   val scope: EmbedWorkScope= @{active=state.enabled,document=doc_identity(d),anchorLine=line,
     scroll=isub(scroll,if ilt(line,0) then 0 else doc_line_y(d,line)),height=ph,foreground=true,childDelta=0,band=EmbedWorkVisible()}
   val ()=work_set_scope(c,scope)
-  val height=prepare_document_layout(f,d,c,r,vault,lh,width,mode)
-  val adjusted=if state.enabled then imin(imax(0,isub(height,ph)),imax(0,work_top(d,scope))) else scroll
-  val ()=draw_document_prepared(f,r,d,ox,oy,pw,ph,adjusted,lh,vault,c,scratch,mode,height,colx)
-  val ()=work_set_scope(c,state.scope)
+  val raw_height = prepare_document_layout(f, d, c, r, vault, lh, width, mode)
+  val total_height = iadd(raw_height, imax(0, isub(ph, lh)))
+  val max_scroll = imax(0, isub(raw_height, lh))
+  val () = out_h := total_height
+  val adjusted = if state.enabled then imin(max_scroll, imax(0, work_top(d, scope))) else imin(max_scroll, imax(0, scroll))
+  val () = draw_document_prepared_ex(f, r, d, ox, oy, pw, ph, adjusted, lh, vault, c, scratch, mode, total_height, colx, shover, sdrag)
+  val () = work_set_scope(c, state.scope)
 in adjusted end
+
+fun draw_document_scrolled(f: !Font,r: !Rend,d: !Doc,ox: int,oy: int,pw: int,ph: int,
+  scroll: int,lh0: int,vault: !Buf,c: &Cache >> _,scratch: &Buf >> _,mode: ViewMode): int = let
+  var dummy_h: int = 0
+in
+  draw_document_scrolled_ex(f, r, d, ox, oy, pw, ph, scroll, lh0, vault, c, scratch, mode, Off, Off, dummy_h)
+end
+
 implement draw_doc(f,r,d,ox,oy,pw,ph,scroll,lh,vault,c,scratch,mode) =
   seen_int(draw_document_scrolled(f,r,d,ox,oy,pw,ph,scroll,lh,vault,c,scratch,mode))
 
+fun draw_tab_ell_prefix(f: !Font, r: !Rend, title: !Buf, tlen: int, bx: int, ty: int, text_w: int, tcol: uint): void =
+  if ile(text_w, 20) then let
+    val fit_n = ui_fit_str_bytes(f, r, buf_ptr(title), tlen, imax(0, text_w))
+  in
+    if igt(fit_n, 0) then seen_int(font_draw(f, r, iadd(bx, 8), ty, buf_ptr(title), fit_n, tcol)) else ()
+  end else let
+    val ell_w = font_width(f, r, c_str_ptr("..."), 3)
+    val fit_n = ui_fit_str_bytes(f, r, buf_ptr(title), tlen, imax(0, isub(text_w, ell_w)))
+    val adv = if igt(fit_n, 0) then font_draw(f, r, iadd(bx, 8), ty, buf_ptr(title), fit_n, tcol) else 0
+  in
+    draw_s(f, r, iadd(iadd(bx, 8), adv), ty, "...", tcol)
+  end
 
-fun tab_item_width(f: !Font, r: !Rend, title: !Buf): int = let
+fun draw_tab_title_clipped(f: !Font, r: !Rend, title: !Buf, bx: int, ty: int, text_w: int, tcol: uint): void = let
   val tlen = buf_len(title)
   val tw = if igt(tlen, 0) then font_width_buf(f, r, title, tlen) else 0
 in
-  imin(200, imax(100, iadd(tw, 36)))
+  if ile(tlen, 0) orelse ile(text_w, 0) then ()
+  else if ile(tw, text_w) then seen_int(font_draw_buf(f, r, iadd(bx, 8), ty, title, tlen, tcol))
+  else draw_tab_ell_prefix(f, r, title, tlen, bx, ty, text_w, tcol)
 end
 
 fun draw_tab_frame(f: !Font, r: !Rend, title: !Buf, bx: int, tab_w: int, i: int, active: int): void = let
-  val tlen = buf_len(title)
+  val lh = font_line_h(f)
+  val tb_h = chrome_topbar_h(lh)
+  val box_h = isub(tb_h, 8)
+  val ty = idiv(isub(tb_h, lh), 2)
+  val close_y = idiv(isub(tb_h, 8), 2)
   val bg = if ieq(i, active) then col_bg() else col_side()
-  val () = rend_rect(r, bx, 4, tab_w, 28, bg)
-  val () = ui_draw_border(r, bx, 4, tab_w, 28, 1, if ieq(i, active) then col_line() else col_bar())
+  val () = rend_rect(r, bx, 4, tab_w, box_h, bg)
+  val () = ui_draw_border(r, bx, 4, tab_w, box_h, 1, if ieq(i, active) then col_line() else col_bar())
   val () = if ieq(i, active) then rend_rect(r, bx, 4, tab_w, 2, col_accent()) else ()
-  val text_w = isub(tab_w, 32)
-  val () = rend_clip_push(r, iadd(bx, 8), 4, text_w, 28)
-  val () = seen_int(font_draw_buf(f, r, iadd(bx, 8), 8, title, tlen, if ieq(i, active) then col_white() else col_text()))
+  val close_pad = if ige(tab_w, 44) then 30 else if ieq(i, active) then 18 else 10
+  val text_w = imax(0, isub(tab_w, close_pad))
+  val tcol = if ieq(i, active) then col_white() else col_text()
+  val () = rend_clip_push(r, iadd(bx, 6), 4, text_w, box_h)
+  val () = draw_tab_title_clipped(f, r, title, bx, ty, text_w, tcol)
   val () = rend_clip_pop(r)
-  val close_x = isub(iadd(bx, tab_w), 18)
-  val () = ui_draw_icon(f, r, UI_ICON_CLOSE, close_x, 14, 8, col_muted())
+  val show_close = ige(tab_w, 44) orelse ieq(i, active)
+  val close_x = isub(iadd(bx, tab_w), if ige(tab_w, 44) then 18 else 14)
 in
+  if show_close then ui_draw_icon(f, r, UI_ICON_CLOSE, close_x, close_y, 8, col_muted()) else ()
 end
 
 fun tab_pane_match(filter: int, tab_pane: !Buf, i: int): bool =
   if filter < 0 then true
   else if i < buf_len(tab_pane) then ieq(buf_get(tab_pane, i), filter)
   else ieq(0, filter)
+
+fun count_pane_tabs_with_fuel {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), ts: !Tabs, i: int, filter: int, tab_pane: !Buf, acc: int
+): int =
+  if recursion_fuel_available(recfuel) then (
+    case+ ts of
+    | TNil() => acc
+    | TCons(_, _, _, _, rest) => let
+        val next_acc = if tab_pane_match(filter, tab_pane, i) then iadd(acc, 1) else acc
+      in
+        count_pane_tabs_with_fuel(recfuel - 1, rest, iadd(i, 1), filter, tab_pane, next_acc)
+      end
+  ) else acc
+
+fun tab_box_width_for_bar(avail_w: int, pane_tabs: int): int =
+  if ile(avail_w, 0) orelse ile(pane_tabs, 0) then UI_TAB_FIXED_WIDTH
+  else let
+    val slot_w = idiv(avail_w, pane_tabs)
+    val fit_w = imax(28, isub(slot_w, 4))
+  in
+    imin(UI_TAB_FIXED_WIDTH, fit_w)
+  end

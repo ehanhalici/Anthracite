@@ -14,6 +14,7 @@ macdef SEARCH_FLASH_DURATION_NS = UI_NAVIGATION_FLASH_NS
 typedef SearchGeometry = @{buttonTop=int,buttonHeight=int,buttonWidth=int,secondX=int,secondY=int,
   queryTop=int,queryHeight=int,statusTop=int,resultsTop=int,rowHeight=int,rows=int}
 fun search_geometry(line_height: int,width: int,height: int): SearchGeometry
+fun search_geometry_ex(line_height: int,topbar_h: int,width: int,height: int): SearchGeometry
 fun search_scope_hit(geometry: SearchGeometry,x: int,y: int): int
 fun search_visible_hit(geometry: SearchGeometry,y: int,scroll: int): int
 fun search_flash_wait(now: lint,deadline: lint): int

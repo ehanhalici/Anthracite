@@ -18,6 +18,7 @@ staload "ui_workspace/commands/ui_menu.sats"
 implement key_is(ev, k) = ieq(x_key_is(ev, key_id(k)), 1)
 implement ctrl_on(ev) = anth_iand(ev_mods(ev), mod_ctrl()) <> 0
 implement shift_on(ev) = anth_iand(ev_mods(ev), mod_shift()) <> 0
+implement alt_on(ev) = anth_iand(ev_mods(ev), mod_alt()) <> 0
 implement key_char(ev) = ev_key_char(ev)
 
 implement text_row(t) = case+ t of

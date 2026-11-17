@@ -10,13 +10,15 @@ fun selftest_search_state(root: string): App_record = let
   val wrote=fs_write_buf(buf_cstr(path),body,length) val ()=buf_free(body)
   val tabs=TCons(doc,path,buf_make(0),0,TNil())
 in app_record_make(vault,tabs,buf_make(0),buf_make(0),buf_make(0),0,buf_make(0),buf_make(0),buf_make(0),0,
-  buf_make(0),buf_make(0),buf_make(0),18,0,0,0,0,1,280,0) end
+  buf_make(0),buf_make(0),buf_make(0),18,18,0,0,0,0,1,280,0) end
 fun selftest_search_release(s: App_record): void = let
   val ()=literal_pattern_release(s.search_pattern)
   val ()=free_input_bufs(s.clip,s.promptb,s.query,s.tree,s.tmeta,s.topen)
   val ()=free_search_bufs(s.hits,s.hmeta,s.scratch,s.imgpath)
   val ()=free_index_bufs(s.ixf,s.ixs,s.ixp,s.ixb,s.ixq,s.hjump)
   val ()=free_font_bufs(s.fpaths,s.fnames,s.fmeta,s.font_path)
+  val ()=tab_hist_free(s.tab_hists)
+  val ()=buf_free(s.keymap)
 in free_app_state(s.vault,s.tabs,s.cache,s.vpaths,s.vnames,s.vmeta,s.tab_pane,s.open_dirs) end
 fun selftest_search_drain{n:nat} .<n>. (left: int(n),s: &App_record >> _): bool =
   if left = 0 then false else if ine(s.search_state,SEARCH_RUNNING) then true else let val ()=search_job_step(s)

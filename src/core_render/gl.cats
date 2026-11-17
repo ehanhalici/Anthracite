@@ -144,6 +144,8 @@ static inline unsigned col_fm(void) { return 0x6E6A64FFu; }
 static inline unsigned col_menu(void) { return 0x2A2C31FFu; }
 static inline unsigned col_danger(void) { return 0xC47A6AFFu; }
 static inline unsigned col_overlay(void) { return 0x0A0C10D8u; }
+static inline unsigned col_tree_guide(void) { return 0x282A30FFu; }
+static inline unsigned col_scroll_thumb(void) { return 0x9E9A9480u; }
 
 /* GNU Unifont 17.0.04, SIL Open Font License 1.1 and GPLv2+ with the font exception.
    Packed from the upstream BDF; glyphs are not redrawn here. */

@@ -183,8 +183,15 @@ in
   buffer_clear(s.promptb)
 end
 
+fun apply_doc_font_delta(s: &App_record >> _, delta: int): void = let
+  val next = imax(UI_FONT_PX_MIN, imin(UI_FONT_PX_MAX, iadd(s.doc_fontpx, delta)))
+in
+  if ine(next, s.doc_fontpx) then (s.doc_fontpx := next; save_app_session(s)) else ()
+end
+
 fun handle_sidebar_shortcut_cmd(s: &App_record >> _, cmd: Cmd, ev: &event): void =
-  if is_cmd(cmd, CMD_OPEN_SEARCH) then let
+  if is_cmd(cmd, CMD_OPEN_DOC_SEARCH) then open_search_panel(s, 1)
+  else if is_cmd(cmd, CMD_OPEN_SEARCH) then let
     val kc = key_char(ev)
     val is_doc = ieq(kc, 102) orelse ieq(kc, 70)
   in
@@ -193,16 +200,17 @@ fun handle_sidebar_shortcut_cmd(s: &App_record >> _, cmd: Cmd, ev: &event): void
   else if is_cmd(cmd, CMD_NEW_FILE) then begin_prompt(s, PromptNewFile)
   else if is_cmd(cmd, CMD_NEW_FOLDER) then begin_prompt(s, PromptNewFolder)
   else if is_cmd(cmd, CMD_TOGGLE_VIEW) then toggle_view_mode(s)
-  else if is_cmd(cmd, CMD_ESCAPE) then escape_sidebar_state(s)
+  else if is_cmd(cmd, CMD_SPLIT_TOGGLE) then toggle_split_pane(s)
+  else if is_cmd(cmd, CMD_RELOAD_KEYBINDINGS) then conf_load_keybindings(s.keymap)
+  else if is_cmd(cmd, CMD_DOC_FONT_INCREASE) then apply_doc_font_delta(s, 2)
+  else if is_cmd(cmd, CMD_DOC_FONT_DECREASE) then apply_doc_font_delta(s, ~2)
+  else if is_cmd(cmd, CMD_ESCAPE) then (escape_sidebar_state(s); s.editor_focused := Off)
   else ()
 
 fun tab_select_close_or_new(s: &App_record >> _, cmd: Cmd, ts_inter: !Tabs): void = let
   val max_i = isub(tabs_len(ts_inter), 1)
-  val () = if is_cmd(cmd, CMD_NEW_TAB) then (s.active := max_i; s.preview_tab := ~1)
-           else (
-             s.active := imax(0, imin(max_i, s.active));
-             if ige(s.preview_tab, tabs_len(ts_inter)) then s.preview_tab := ~1 else ()
-           )
+  val () = if is_cmd(cmd, CMD_NEW_TAB) then (s.active := max_i; s.editor_focused := Off)
+           else s.active := imax(0, imin(max_i, s.active))
   val () = s.righti := imax(0, imin(max_i, s.righti))
 in
   save_app_session(s)

@@ -110,6 +110,31 @@ in
   (if ieq(start_c, 0) andalso igt(end_c, 15) andalso ilt(w_left1, end_c) andalso ilt(w_left2, w_left1) andalso igt(w_right1, 0) andalso ilt(del_len, end_c) then 1 else 0)
 end
 
+fun selftest_undo_push_n {n:nat} .<n>. (rem: int(n), d: !Doc): void =
+  if rem = 0 then () else let
+    val () = put_str(d, "x ")
+  in
+    selftest_undo_push_n(rem - 1, d)
+  end
+
+fun selftest_multiline_undo_check(): int = let
+  val d = doc_open()
+  val () = put_str(d, "# H1\nline2\n")
+  val () = put_str(d, "line3\n")
+  val () = doc_undo(d)
+  val u1 = ieq(doc_nlines(d), 3) andalso ile(doc_line_start(d, 2), doc_len(d))
+  val () = doc_undo(d)
+  val u2 = ieq(doc_len(d), 0) andalso ieq(doc_nlines(d), 1) andalso ieq(doc_line_start(d, 0), 0)
+  val () = doc_redo(d)
+  val r1 = ieq(doc_nlines(d), 3) andalso ieq(doc_len(d), 11)
+  val () = selftest_undo_push_n(40, d)
+  val () = doc_undo(d)
+  val trim_ok = ile(doc_line_start(d, isub(doc_nlines(d), 1)), doc_len(d))
+  val () = doc_free(d)
+in
+  if u1 andalso u2 andalso r1 andalso trim_ok then 1 else 0
+end
+
 fun selftest_history_part(): int = let
   val d5 = doc_open()
   val () = put_str(d5, "deneme")
@@ -123,10 +148,11 @@ fun selftest_history_part(): int = let
   val () = doc_wrap(d5, "**", 2, "**", 2)
   val wrap_ok = (if ieq(doc_byte(d5, 0), CHAR_STAR) andalso ieq(doc_byte(d5, 1), CHAR_STAR) then 1 else 0) : int
   val () = doc_free(d5)
+  val ml_ok = selftest_multiline_undo_check()
   val nav_ok = selftest_nav_check()
-  val () = println! ("undo=", undo_ok, " redo=", redo_ok, " wrap=", wrap_ok, " nav=", nav_ok)
+  val () = println! ("undo=", undo_ok, " redo=", redo_ok, " wrap=", wrap_ok, " nav=", nav_ok, " ml_undo=", ml_ok)
 in
-  (if ieq(undo_ok, 1) andalso ieq(redo_ok, 1) andalso ieq(wrap_ok, 1) andalso ieq(nav_ok, 1) then 1 else 0)
+  (if ieq(undo_ok, 1) andalso ieq(redo_ok, 1) andalso ieq(wrap_ok, 1) andalso ieq(nav_ok, 1) andalso ieq(ml_ok, 1) then 1 else 0)
 end
 
 fun selftest_big_part(): void = let

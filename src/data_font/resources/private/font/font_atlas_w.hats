@@ -62,8 +62,8 @@ implement clear_atlas(f) =
   case+ f of
   | @FONT(s) => let
       val () = buf_zero(s.atlas)
-      val () = s.pen_x := 1
-      val () = s.pen_y := 1
+      val () = s.pen_x := 2
+      val () = s.pen_y := 2
       val () = s.row_h := 0
     in
       fold@(f)

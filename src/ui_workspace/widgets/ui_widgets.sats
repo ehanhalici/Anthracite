@@ -45,3 +45,4 @@ fun ui_loading_overlay(f: !Font, r: !Rend, w: int, h: int, progress_pct: int, ti
 fun ui_code_slice(f: !Font, r: !Rend, x: int, y: int, w: int, h: int, line_num: int, code_text: string, is_active: Toggle, has_bp: Toggle, is_hover: Toggle): void
 fun ui_error_label(f: !Font, r: !Rend, x: int, y: int, text: string): void
 fun ui_help_label(f: !Font, r: !Rend, x: int, y: int, text: string): void
+fun ui_fit_str_bytes(f: !Font, r: !Rend, p: ptr, n: int, max_w: int): int

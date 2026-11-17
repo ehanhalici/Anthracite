@@ -86,12 +86,45 @@ static inline int anth_exists(const char *p) {
 }
 static inline int anth_mkdir(const char *p) { return mkdir(p, 0755); }
 
-/* mkdtemp creates an exclusive mode-0700 directory; no existing target is used. */
+/* Removes a directory tree created by anth_make_temp_dir; never follows symlinks. */
+static inline void anth_remove_tree(const char *path) {
+  DIR *d = opendir(path);
+  if (d) {
+    struct dirent *e;
+    while ((e = readdir(d)) != NULL) {
+      if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) continue;
+      char child[4096];
+      if (snprintf(child, sizeof child, "%s/%s", path, e->d_name) >= (int)sizeof child) continue;
+      struct stat st;
+      if (lstat(child, &st) == 0 && S_ISDIR(st.st_mode)) anth_remove_tree(child);
+      else unlink(child);
+    }
+    closedir(d);
+  }
+  rmdir(path);
+}
+
+static char anth_selftest_temp_dir[64];
+static inline void anth_selftest_temp_cleanup(void) {
+  const char *keep = getenv("ANTHRACITE_KEEP_SELFTEST_DIR");
+  if (anth_selftest_temp_dir[0] && !(keep && keep[0]))
+    anth_remove_tree(anth_selftest_temp_dir);
+}
+
+/* mkdtemp creates an exclusive mode-0700 directory; no existing target is used.
+   The directory is removed at process exit unless ANTHRACITE_KEEP_SELFTEST_DIR is set. */
 static inline int anth_make_temp_dir(char *dst, int capacity_bytes) {
   static const char fixture_template[] = "/tmp/anthracite-selftest-XXXXXX";
   if (!dst || capacity_bytes < (int)sizeof(fixture_template)) return 0;
   memcpy(dst, fixture_template, sizeof(fixture_template));
-  if (mkdtemp(dst)) return 1;
+  if (mkdtemp(dst)) {
+    setenv("ANTHRACITE_CONFIG_DIR", dst, 0);
+    if (!anth_selftest_temp_dir[0]) {
+      memcpy(anth_selftest_temp_dir, dst, sizeof(fixture_template));
+      atexit(anth_selftest_temp_cleanup);
+    }
+    return 1;
+  }
   dst[0] = '\0';
   return 0;
 }

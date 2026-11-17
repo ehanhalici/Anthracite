@@ -23,8 +23,10 @@ in
 end
 
 fun handle_tab_nav_cmd(s: &App_record >> _, cmd: Cmd, ts_inter: !Tabs): void =
-  if is_cmd(cmd, CMD_CLOSE_TAB) orelse is_cmd(cmd, CMD_NEW_TAB) then tab_select_close_or_new(s, cmd, ts_inter)
-  else if is_cmd(cmd, CMD_NEXT_TAB) then tab_cycle_next(s, ts_inter)
+  if is_cmd(cmd, CMD_CLOSE_TAB) orelse is_cmd(cmd, CMD_NEW_TAB) then (
+    app_sync_tab_hists(s, ts_inter);
+    tab_select_close_or_new(s, cmd, ts_inter)
+  ) else if is_cmd(cmd, CMD_NEXT_TAB) then tab_cycle_next(s, ts_inter)
   else if is_cmd(cmd, CMD_PREV_TAB) then tab_cycle_prev(s, ts_inter)
   else ()
 
@@ -65,6 +67,8 @@ end
 fun resolve_search_enter(s: &App_record >> _, ts0: Tabs, qr: EditResult, hit_go: Toggle, ev: &event): Tabs =
   if is_on(hit_go) then let
     val row=search_next_result(s.hmeta,s.selected_search_row,if shift_on(ev) then ~1 else 1)
+    val () = s.editor_focused := On
+    val () = s.cursor_pane := (if is_on(s.split) andalso is_on(s.focus) then 1 else 0)
   in open_hit(s,ts0,row,toggle_of(ige(row,0))) end else ts0
 
 fun embedded_key_command(s: &App_record >> _,p: !Plat,cmd: Cmd): Cmd =
@@ -74,23 +78,28 @@ fun embedded_key_command(s: &App_record >> _,p: !Plat,cmd: Cmd): Cmd =
   else if cache_embed_selection_active(s.cache) andalso (is_modifying_cmd(cmd) orelse is_cmd(cmd,CMD_TEXT_INPUT)) then CMD_NONE
   else let val ()=if not(is_cmd(cmd,CMD_NONE)) then cache_clear_embed_selection(s.cache) else () in cmd end
 
+fun apply_nav_history_cmd(s: &App_record >> _, cmd: Cmd, ts: Tabs): Tabs =
+  if is_cmd(cmd, CMD_NAV_BACK) then tabs_nav_step(s, ts, if is_on(s.focus) then 1 else 0, ~1)
+  else if is_cmd(cmd, CMD_NAV_FORWARD) then tabs_nav_step(s, ts, if is_on(s.focus) then 1 else 0, 1)
+  else ts
+
 fun key_tabs_step(s: &App_record >> _, p: !Plat,f: !Font,r: !Rend, ev: &event, requested: Cmd, hit_go: Toggle, qr: EditResult): void = let
   val cmd=embedded_key_command(s,p,requested)
-  val ()=font_set_px(f,s.fontpx)
+  val ()=font_set_px(f,s.doc_fontpx)
   val ts0 = s.tabs
   val () = s.tabs := TNil()
   val ts: Tabs = resolve_search_enter(s, ts0, qr, hit_go, ev)
   val idx = pane_of(s.focus, s.active, s.righti)
-  var ts_inter: Tabs = apply_tab_cmd(ts, cmd, idx)
+  val edit_idx = if is_on(s.split) andalso ieq(s.cursor_pane, 1) then s.righti else s.active
+  var ts_inter: Tabs = apply_nav_history_cmd(s, cmd, apply_tab_cmd(ts, cmd, idx))
   val () = handle_tab_nav_cmd(s, cmd, ts_inter)
-  val (ts_source,source_cmd)=tabs_source_edit(f,ts_inter,idx,cmd,s.scratch)
-  val (ts_ready,remaining)=tabs_visual_vertical(f,r,ts_source,idx,source_cmd,s.scratch)
-  val ts2 = key_dispatch(ts_ready, idx, remaining, s.vault, s.clip, s.scratch, p, s.paste, ev)
+  val doc_cmd = if is_on(s.editor_focused) then cmd else CMD_NONE
+  val (ts_source,source_cmd)=tabs_source_edit(f,ts_inter,edit_idx,doc_cmd,s.scratch)
+  val (ts_ready,remaining)=tabs_visual_vertical(f,r,ts_source,edit_idx,source_cmd,s.scratch)
+  val ts2 = key_dispatch(ts_ready, edit_idx, remaining, s.vault, s.clip, s.scratch, p, s.paste, ev)
   val ph = s.tabs
   val () = s.tabs := ts2
   val () = tabs_free(ph)
-  val () = if is_modifying_cmd(cmd) orelse is_cmd(cmd, CMD_TEXT_INPUT) then
-    (if ieq(s.active, s.preview_tab) then s.preview_tab := ~1 else ()) else ()
 in
 end
 
@@ -102,7 +111,7 @@ fun key_editor_step(s: &App_record >> _, p: !Plat, f: !Font,r: !Rend, ev: &event
   val hit_go = is_on(s.qfocus) andalso is_edit_submit(qr) andalso igt(s.hn, 0)
   val () = if hit_go then search_hit_focus(s) else ()
   val () = handle_prompt_submission(s, pr)
-  val cmd = key_code(ev, toggle_of(act))
+  val cmd = key_code_mapped(s, ev, toggle_of(act))
   val () = if is_cmd(cmd, CMD_ESCAPE) then app_fsm_step(s, ActEscape())
            else if is_modifying_cmd(cmd) orelse is_cmd(cmd, CMD_TEXT_INPUT) then app_fsm_step(s, ActTypeKey())
            else ()

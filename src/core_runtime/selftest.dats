@@ -4,9 +4,11 @@
 #include "common.hats"
 
 staload "mem.sats"
+staload "airlock.sats"
 staload "os/fs.sats"
 staload "os/selftest_fixture.sats"
 staload "core_platform/platform.sats"
+staload "core_platform/x11.sats"
 staload "core_render/render.sats"
 staload "core_render/gl.sats"
 staload "data_font/resources/font.sats"
@@ -107,13 +109,32 @@ fun draw_self_frame(p: !Plat, r: !Rend, f: !Font): void = let
 in
 end
 
-fun self_poll_ms(p: !Plat): int = let
-  val before_wait = mono_ns()
-  val () = seen_int(plat_wait(p, SELFTEST_POLL_TIMEOUT_MS))
-  val after_wait = mono_ns()
+fun drain_self_events {n:nat} .<n>. (left: int(n), p: !Plat): void =
+  if left = 0 then ()
+  else if plat_pending(p) = 0 then ()
+  else let
+    var ev: event
+    val () = plat_next(p, ev)
+  in
+    drain_self_events(left - 1, p)
+  end
+
+fun wait_self_poll {n:nat} .<n>. (left: int(n), p: !Plat, started: lint): int = let
+  val elapsed = anth_ms(started, mono_ns())
 in
-  anth_ms(before_wait, after_wait)
+  if left = 0 then elapsed
+  else if ige(elapsed, SELFTEST_POLL_TIMEOUT_MS) then elapsed
+  else let
+    val () = drain_self_events(airlock_nat(64), p)
+    val rem = imax(1, isub(SELFTEST_POLL_TIMEOUT_MS, elapsed))
+    val () = seen_int(plat_wait(p, rem))
+  in
+    wait_self_poll(left - 1, p, started)
+  end
 end
+
+fun self_poll_ms(p: !Plat): int =
+  wait_self_poll(airlock_nat(16), p, mono_ns())
 
 implement runtime_selftest_memory_check(before) = let
   val after = mem_live()

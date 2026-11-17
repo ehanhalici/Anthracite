@@ -11,7 +11,7 @@ fun initialize{l:addr}{n:nat} .<n>. (pf: array_v(VisualParagraphSlot?,l,n) | p: 
     prval (head,tail)=array_v_uncons(pf) val ()=ptr_set<VisualParagraphSlot>(head | p,None_vt())
     val (rest | ())=initialize(tail | ptr_add<VisualParagraphSlot>(p,1),n-1)
   in (array_v_cons(head,rest) | ()) end
-implement visual_paragraphs_make(count) = let val n=airlock_nat(count)
+implement visual_paragraphs_make(count) = let val n=airlock_nat(imax(0,count))
   val (pf,gc | p)=array_ptr_alloc<VisualParagraphSlot>(i2sz(n)) val (ready | ())=initialize(pf | p,n)
 in VisualParagraphs(ready,gc | p,n,0LL) end
 implement visual_paragraph_dispose(paragraph) = let val+ ~VisualParagraph(analysis,base,length,bytes)=paragraph
@@ -32,16 +32,22 @@ fun take_slot(slot: &VisualParagraphSlot >> _,bytes: &llint >> _): VisualParagra
   val old=slot val ()=bytes := bytes-slot_bytes(old) val ()=slot := None_vt()
 in old end
 implement visual_paragraphs_take(paragraphs,line) = let val+ @VisualParagraphs(pf,gc | p,n,bytes)=paragraphs
-  val (at,restore | cell)=array_ptr_takeout(pf | p,i2sz(airlock_below(line,n)))
-  val result=take_slot(!cell,bytes) prval ()=pf := restore(at) prval ()=fold@(paragraphs)
+  val result = (if ilt(line, 0) orelse ige(line, n) then None_vt() else let
+    val (at,restore | cell)=array_ptr_takeout(pf | p,i2sz(airlock_below(line,n)))
+    val r=take_slot(!cell,bytes) prval ()=pf := restore(at)
+  in r end): VisualParagraphSlot
+  prval ()=fold@(paragraphs)
 in result end
 fun put_slot(slot: &VisualParagraphSlot >> _,paragraph: VisualParagraph,bytes: &llint >> _): void = let
   val old=slot val ()=bytes := bytes-slot_bytes(old) val ()=release(old)
   val+ VisualParagraph(a,b,n,charge)=paragraph val ()=bytes := bytes+charge
 in slot := Some_vt(paragraph) end
 implement visual_paragraphs_put(paragraphs,line,paragraph) = let val+ @VisualParagraphs(pf,gc | p,n,bytes)=paragraphs
-  val (at,restore | cell)=array_ptr_takeout(pf | p,i2sz(airlock_below(line,n)))
-  val ()=put_slot(!cell,paragraph,bytes) prval ()=pf := restore(at) prval ()=fold@(paragraphs)
+  val () = if ilt(line, 0) orelse ige(line, n) then visual_paragraph_dispose(paragraph) else let
+    val (at,restore | cell)=array_ptr_takeout(pf | p,i2sz(airlock_below(line,n)))
+    val ()=put_slot(!cell,paragraph,bytes) prval ()=pf := restore(at)
+  in () end
+  prval ()=fold@(paragraphs)
 in () end
 implement visual_paragraph_take(plans,line) = let val+ VisualPlans(pf,gc | p,n,paragraphs,bytes)=plans
 in visual_paragraphs_take(paragraphs,line) end

@@ -11,8 +11,10 @@ macdef LH_KEY = 1
 macdef LH_HEIGHT = 2
 macdef LH_MODE = 3
 macdef LH_WRAP = 4
-macdef LH_LINES = 5
-macdef LH_DATA = 6
+macdef LH_RAW0 = 5
+macdef LH_RAW1 = 6
+macdef LH_LINES = 7
+macdef LH_DATA = 8
 
 macdef LAYOUT_RECORD_WORDS = 2
 macdef LAYOUT_RECORD_BYTES = LAYOUT_RECORD_WORDS * WORD32_BYTES
@@ -32,6 +34,8 @@ implement layout_open() = let
   val () = buf_set32(layout, LH_HEIGHT, 0)
   val () = buf_set32(layout, LH_MODE, ~1)
   val () = buf_set32(layout, LH_WRAP, LAYOUT_DEFAULT_WRAP_COLUMNS)
+  val () = buf_set32(layout, LH_RAW0, ~1)
+  val () = buf_set32(layout, LH_RAW1, ~2)
   val () = buf_set32(layout, LH_LINES, 0)
 in
   layout
@@ -95,3 +99,12 @@ in
 end
 
 implement layout_wrap(layout) = buf_get32(layout, LH_WRAP)
+
+implement layout_raw_matches(layout, raw0, raw1) =
+  buf_get32(layout, LH_RAW0) = raw0 andalso buf_get32(layout, LH_RAW1) = raw1
+
+implement layout_raw_store(layout, raw0, raw1) = let
+  val () = buf_set32(layout, LH_RAW0, raw0)
+in
+  buf_set32(layout, LH_RAW1, raw1)
+end

@@ -3,7 +3,7 @@ macdef ANALYSIS_WINDOW_SEARCH_FUEL = 32
 macdef ANALYSIS_BUFFER_ALLOWANCE_BYTES = 64LL
 macdef ANALYSIS_OBJECT_ALLOWANCE_BYTES = 1024LL
 fun scalar_bound{n:nat} .<n>. (fuel: int(n),text: !ScalarText,source: int,lo: int,hi: int): int =
-  if not(recursion_fuel_available(fuel)) then lo else if ige(lo,hi) then lo else let
+  if ige(lo,hi) then lo else if fuel = 0 then lo else let
     val middle=iadd(lo,idiv(isub(hi,lo),2))
   in if ilt(scalar_start(text,middle),source) then scalar_bound(fuel-1,text,source,iadd(middle,1),hi)
     else scalar_bound(fuel-1,text,source,lo,middle) end

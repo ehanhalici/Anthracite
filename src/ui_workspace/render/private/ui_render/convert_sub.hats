@@ -103,7 +103,7 @@ in
 end
 
 fun draw_node_mathb(
-  f: !Font, r: !Rend, d: !Doc, i: int, colx: int, y: int, lh: int, pw: int,
+  f: !Font, r: !Rend, d: !Doc, i: int, colx: int, y: int, lh: int, colw: int,
   pen_x: &int >> _, pen_line: &int >> _
 ): void = let
   val () = pen_line := ~1
@@ -113,7 +113,6 @@ fun draw_node_mathb(
   val () = math_append_preview(d, st, en, mb)
   val mlen = buf_len(mb)
   val tw = font_width_buf(f, r, mb, mlen)
-  val colw = column_w(pw)
   val bw = imin(colw, iadd(tw, 32))
   val bx = iadd(colx, imax(0, idiv(isub(colw, bw), 2)))
   val tx = iadd(bx, idiv(isub(bw, tw), 2))

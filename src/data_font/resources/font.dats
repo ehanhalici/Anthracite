@@ -8,6 +8,7 @@ macdef FONT_OPEN_BUFFER_INITIAL_BYTES = 8192
 
 
 staload "mem.sats"
+staload "core_runtime/performance.sats"
 staload "airlock.sats"
 staload "flag.sats"
 staload "os/fs.sats"

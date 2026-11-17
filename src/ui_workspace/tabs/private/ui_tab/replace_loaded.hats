@@ -1,6 +1,6 @@
 fun replace_loaded(ts: Tabs, idx: int, doc: Doc, path: Buf): Tabs = let
   var title = buf_make(REPLACE_LOADED_TITLE_INITIAL_BYTES)
-  val () = base_name(path, title)
+  val () = base_name_no_md(path, title)
 in
   tabs_replace(ts, idx, doc, path, title)
 end

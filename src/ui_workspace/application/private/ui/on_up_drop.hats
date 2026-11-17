@@ -2,9 +2,14 @@ fun on_up_drop(s: &App_record >> _, f: !Font, r: !Rend, w: int, x: int, y: int):
   case+ s.drag of
   | DragNone() => ()
   | DragSplit() => save_app_session(s)
-  | DragFile() => if ige(s.sel, 0) then on_up_move_file(s, y) else ()
+  | DragFile() => if ige(s.sel, 0) then on_up_move_file(s, x, y, w) else ()
   | DragTab() => on_up_drag_tab(s, w, x, y)
   | DragEditor() => on_up_editor(s, x, y)
+  | DragDocScroll() => save_app_session(s)
+  | DragTreeScroll() => ()
+  | DragEditorPan() => save_app_session(s)
+  | DragEditorFontSlider() => save_app_session(s)
+  | DragDocFontSlider() => save_app_session(s)
 
 fun on_up_clamp_active(s: &App_record >> _): void = let
   val n = tabs_len(s.tabs)
@@ -20,6 +25,7 @@ fun on_up(a: !App, f: !Font, r: !Rend, ev: &event, w: int): void =
       val y = ev_y(ev)
       val () = on_up_drop(s, f, r, w, x, y)
       val () = s.drag := DragNone
+      val () = s.tree_drag_pending := Off
       val () = s.dragi := ~1
       val () = s.downx := ~1
       val () = s.downy := ~1
@@ -30,7 +36,7 @@ fun on_up(a: !App, f: !Font, r: !Rend, ev: &event, w: int): void =
     end
 
 fun scroll_tree(s: &App_record >> _, delta: int, h: int): void = let
-  val visible_rows = imax(1, idiv(imax(0, isub(h, 72)), UI_TREE_ROW_HEIGHT))
+  val visible_rows = imax(1, idiv(imax(0, isub(h, tree_top_y_of(s))), tree_row_h(s.fontpx)))
   val max_scroll = imax(0, isub(tree_visible_count(s), visible_rows))
 in
   s.treescroll := imax(0, imin(max_scroll, iadd(s.treescroll, delta)))
@@ -46,25 +52,34 @@ end
 
 fun scroll_document(s: &App_record >> _, delta: int): void = let
   val idx = pane_of(s.focus, s.active, s.righti)
+  val pane = if is_on(s.split) andalso is_on(s.focus) then 1 else 0
+  val total_h = doc_pane_total_h(s, pane)
+  val lim = if igt(total_h, 0) then imax(0, isub(total_h, imax(1, s.doc_vh))) else 100000
   val ts = s.tabs
   val () = s.tabs := TNil()
   val ph = s.tabs
-  val () = s.tabs := tabs_scroll(ts, idx, delta, 100000)
+  val () = s.tabs := tabs_scroll(ts, idx, delta, lim)
 in
   tabs_free(ph)
+end
+
+fun wheel_editor(s: &App_record >> _, ev: &event, upward: bool): void = let
+  val wcmd = keymap_resolve_wheel(s.keymap, ev)
+in
+  if is_cmd(wcmd, CMD_DOC_FONT_INCREASE) then apply_doc_font_delta(s, 2)
+  else if is_cmd(wcmd, CMD_DOC_FONT_DECREASE) then apply_doc_font_delta(s, ~2)
+  else scroll_document(s, if upward then ~48 else 48)
 end
 
 fun on_wheel(a: !App, ev: &event, w: int, h: int): void =
   case+ a of
   | @APP(s) => let
       val upward = is_btn(button_of(ev_button(ev)), BtnWheelUp)
-      val on_tree = is_side_files(s.side) andalso ilt(ev_x(ev), s.sidew)
-        andalso ige(ev_y(ev), UI_TOPBAR_HEIGHT)
-      val on_search = is_side_search(s.side) andalso ilt(ev_x(ev), s.sidew)
-        andalso ige(ev_y(ev), UI_TOPBAR_HEIGHT)
-      val () = if on_search then scroll_search(s, if upward then ~3 else 3, h)
-        else if on_tree then scroll_tree(s, if upward then ~3 else 3, h)
-        else scroll_document(s, if upward then ~48 else 48)
+      val in_side = not(is_side_none(s.side)) andalso ilt(ev_x(ev), s.sidew) andalso ige(ev_y(ev), s.tb_h)
+      val () = if in_side andalso is_side_search(s.side) then scroll_search(s, if upward then ~3 else 3, h)
+        else if in_side andalso is_side_files(s.side) then scroll_tree(s, if upward then ~3 else 3, h)
+        else if not(in_side) then wheel_editor(s, ev, upward)
+        else ()
       val () = seen_int(w)
     in
       fold@(a)

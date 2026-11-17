@@ -5,3 +5,5 @@ In Anthracite's rendering pipeline:
 - `VisualRows` is cached against `doc_layout_version(d)`.
 - Whenever folding state or version is updated (`doc_toggle`, `doc_toggle_deep`), all AST node visibility flags (`doc_node_hidden`) must be updated synchronously in `doc_compute_foldability`.
 - `visual_projection_make` must always read synchronized visibility so that cached visual rows never store stale hidden masks.
+- Large top-level documents wrap visible-first: lines not shaped yet keep one placeholder row (`VISUAL_ROW_PENDING_WIDTH`) and `visual_rows_pending` > 0. Code that needs exact rows for a line outside the viewport must call `visual_layout_wrap_range` (or `visual_layout_prepare` for every line); painting and hit-testing assume the viewport band was settled by `visual_layout_prepare_band`.
+- Shaping can lazily load font faces, which changes `visual_layout_key`; re-key rows after shaping (as `wrap_stored` does), never before.

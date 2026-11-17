@@ -90,11 +90,14 @@ implement rend_flush(r) =
       val n = s.nvert
       val () =
         if n > 0 then let
+          val t0 = performance_now_ns()
+          val () = performance_note(PERF_GL_FLUSH_CALLS, 1)
           val () = gl_airlock_upload_batch(s.vao, s.vbo, s.batch, n)
           val () = glUniform1i(s.loc_mode, shade_code(s.mode))
           val () = glActiveTexture(GL_TEXTURE0)
           val () = glBindTexture(GL_TEXTURE_2D, s.tex)
           val () = glDrawArrays(GL_TRIANGLES, 0, n)
+          val () = performance_phase_end(PERF_PHASE_REND_FLUSH, t0)
         in
           s.nvert := 0
         end else ()
@@ -109,6 +112,7 @@ fun bind_mode(r: !Rend, mode: Shade, tex: uint): void =
     in
       fold@(r);
       if changed then let
+        val () = performance_note(PERF_GL_MODE_SWITCHES, 1)
         val () = rend_flush(r)
       in
         case+ r of
@@ -180,6 +184,7 @@ implement rend_begin(r, w, h) =
     end
 
 implement rend_rect(r, x, y, w, h, c) = let
+  val () = performance_note(PERF_GL_QUADS, 1)
   val () = bind_mode(r, ShadeSolid, u0())
   val x0 = i2f(x)
   val y0 = i2f(y)

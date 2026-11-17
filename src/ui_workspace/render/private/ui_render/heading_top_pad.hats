@@ -36,12 +36,18 @@ fun draw_node_heading(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind,
   val () = pa := a
   val line = doc_line_of(d, a)
   val yy = isub(iadd(oy, doc_line_y(d, line)), scroll)
+  val prev_line = doc_line_is_preview(d, if is_view_read(viewmode) then 1 else 0, line)
+  val step = imax(lh, doc_line_step(d, line))
   val () = pen_line := pen_pack(line, 0)
   val () = pen_x := colx
 in
-  if ilt(iadd(yy, lh), oy) orelse igt(yy, iadd(oy, ph)) then ()
-  else if is_view_read(viewmode) then draw_heading_text(f, r, d, a, b, k, colx, yy, scratch)
-  else ()
+  if ilt(iadd(yy, step), oy) orelse igt(yy, iadd(oy, ph)) then ()
+  else if prev_line then (
+    if doc_visual_active(d) then
+      seen_int(visual_draw_slice(f, r, d, a, b, colx, oy, scroll, lh, ph, col_heading(), scratch))
+    else
+      draw_heading_text(f, r, d, a, b, k, colx, yy, scratch)
+  ) else ()
 end
 
 fun draw_node_box(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind,
@@ -63,11 +69,11 @@ in
 end
 
 
-fun draw_image_quad(r: !Rend, c: &Cache >> _, shown: !Buf, pw: int, colx: int, y: int, h: int, req_w: int, req_h: int): void = let
+fun draw_image_quad(r: !Rend, c: &Cache >> _, shown: !Buf, colw: int, colx: int, y: int, h: int, req_w: int, req_h: int): void = let
   var iw: int = 0
   var ih: int = 0
   val tex = ensure_tex(c, shown, r, iw, ih)
-  val dw = calc_image_dw(iw, req_w, column_w(pw))
+  val dw = calc_image_dw(iw, req_w, colw)
   val dh = (if igt(h, 0) then h else calc_image_dh(ih, iw, req_h, dw))
   val () = if ine(texture_is_valid(tex), 0) then rend_quad(r, tex, ShadeRgba, colx, y, dw, dh, 0.0, 0.0, 1.0, 1.0, col_white())
            else let
@@ -78,7 +84,7 @@ fun draw_image_quad(r: !Rend, c: &Cache >> _, shown: !Buf, pw: int, colx: int, y
 in
 end
 
-fun draw_node_image(r: !Rend, d: !Doc, i: int, pw: int, colx: int, y: int, h: int,
+fun draw_node_image(r: !Rend, d: !Doc, i: int, colw: int, colx: int, y: int, h: int,
                     vault: !Buf, c: &Cache >> _,
                     pen_x: &int >> _, pen_line: &int >> _): void = let
   val () = pen_line := ~1
@@ -88,7 +94,7 @@ fun draw_node_image(r: !Rend, d: !Doc, i: int, pw: int, colx: int, y: int, h: in
   var shown = buf_make(DRAW_NODE_IMAGE_SHOWN_INITIAL_BYTES)
   val () = resolve_media_path(d, i, vault, rel, full, shown)
   val @(req_w, req_h) = image_requested_size(d, i)
-  val () = draw_image_quad(r, c, shown, pw, colx, y, h, req_w, req_h)
+  val () = draw_image_quad(r, c, shown, colw, colx, y, h, req_w, req_h)
   val () = buf_free(rel)
   val () = buf_free(full)
   val () = buf_free(shown)

@@ -11,6 +11,7 @@ staload "ui_workspace/application/ui.sats"
 staload "core_runtime/event_loop.sats"
 staload "core_runtime/application.sats"
 staload "core_runtime/text_engine_startup.sats"
+staload "core_runtime/performance.sats"
 
 fun vault_at(cwd: !Buf, use_arg: bool): string =
   if use_arg then let
@@ -42,5 +43,8 @@ in
   app_free(app)
 end
 
-implement application_run(p, r) =
+implement application_run(p, r) = let
+  val () = performance_runtime_init()
+in
   run_workspace(p, r, workspace_path())
+end

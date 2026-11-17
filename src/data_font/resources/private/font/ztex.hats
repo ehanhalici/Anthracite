@@ -27,7 +27,7 @@ implement font_open() = FONT(@{
 , num_h= 0, nglyph= 0, loca_fmt= Off
 , cmap_off= ~1, glyf_off= ~1, loca_off= ~1, hmtx_off= ~1, kern_off= ~1
 , npts= 0, nends= 0, nedges= 0
-, pen_x= 1, pen_y= 1, row_h= 0
+, pen_x= 2, pen_y= 2, row_h= 0
 , aw= FONT_ATLAS_WIDTH_PIXELS, ah= FONT_ATLAS_HEIGHT_PIXELS, tex= ztex()
 , has_ttf= Off, line_h= 18, asc_px= 14
 , fb_has= Off

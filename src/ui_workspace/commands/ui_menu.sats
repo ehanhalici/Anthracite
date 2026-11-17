@@ -11,6 +11,7 @@ fun act_prompt(dir: !Buf, cur: !Buf, name: !Buf, kind: PromptKind): void
 fun key_is(ev: &event, k: Key): bool
 fun ctrl_on(ev: &event): bool
 fun shift_on(ev: &event): bool
+fun alt_on(ev: &event): bool
 fun key_char(ev: &event): int
 
 datatype TextItem = TextCut | TextCopy | TextPaste | TextClear

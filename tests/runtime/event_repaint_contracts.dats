@@ -30,7 +30,31 @@ fun merges(): bool =
   andalso needed(repaint_merge(RepaintNeeded(),RepaintClean()))
   andalso needed(repaint_merge(RepaintNeeded(),RepaintNeeded()))
 
+fun drain_sim {batch:nat} .<batch>. (
+  batch_left: int(batch), pending: &int >> _, dirty: Repaint
+): Repaint =
+  if batch_left = 0 then dirty
+  else if not(event_batch_has_budget(batch_left, pending)) then dirty
+  else let
+    val k = event_at(imod(pending, EVENT_VARIANTS))
+    val () = pending := isub(pending, 1)
+  in
+    drain_sim(batch_left - 1, pending, repaint_merge(dirty, event_repaint(k)))
+  end
+
+fun batch_burst(): int = let
+  var pending: int = 100
+  val r1 = drain_sim(airlock_nat(EVENT_DRAIN_BATCH_LIMIT), pending, RepaintClean())
+  val f1_ok = needed(r1) andalso ieq(pending, isub(100, EVENT_DRAIN_BATCH_LIMIT))
+  val r2 = drain_sim(airlock_nat(EVENT_DRAIN_BATCH_LIMIT), pending, RepaintClean())
+  val f2_ok = needed(r2) andalso ieq(pending, 0)
+  val r3 = drain_sim(airlock_nat(EVENT_DRAIN_BATCH_LIMIT), pending, RepaintClean())
+  val f3_ok = not(needed(r3)) andalso ieq(pending, 0)
+in
+  if f1_ok andalso f2_ok andalso f3_ok then 0 else 1
+end
+
 implement main0() = let
-  val errors=iadd(events(EVENT_VARIANTS,0),if merges() then 0 else 1)
+  val errors=iadd(events(EVENT_VARIANTS,0),iadd(if merges() then 0 else 1, batch_burst()))
   val ()=println!("event=event_repaint_contracts errors=",errors)
 in if igt(errors,0) then exit(1) else () end

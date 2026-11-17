@@ -38,7 +38,9 @@ implement font_use_fallback_file(f,path) = case+ sfnt_open(path) of
   | ~LoadedSfnt(face) => let
       val+ ~SfntFace(b,info) = face
       val () = install_fallback(f,b,info)
+      val () = clear_atlas(f)
       val () = clear_cache(f,0)
+      val () = drop_tex(f)
     in true end
 
 fun load_fallback_path(f: !Font, path: string): void =

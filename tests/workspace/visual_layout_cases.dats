@@ -88,6 +88,68 @@ fun hard_lines(f: !Font,r: !Rend): int = let val d=doc_open() val b=bytes("A\342
   val expected=ieq(doc_visual_line_rows(d,0),3) andalso ieq(doc_line_step(d,0),imul(3,lh))
   val ()=doc_free(d)
 in if expected then 0 else 1 end
+
+fun none_plan(opt: Option_vt(FontSpanLayout)): bool =
+  case+ opt of
+  | ~None_vt() => true
+  | ~Some_vt(layout) => let val () = font_span_dispose(layout) in false end
+
+fun none_para(opt: Option_vt(VisualParagraph)): bool =
+  case+ opt of
+  | ~None_vt() => true
+  | ~Some_vt(p) => let val () = visual_paragraph_dispose(p) in false end
+
+fun storage_bounds_guard(): int = let
+  val plans = visual_plans_make(0, 0)
+  val paras = visual_paragraphs_make(0)
+  val p0 = none_plan(visual_plans_take(plans, ~1))
+  val p1 = none_plan(visual_plans_take(plans, 0))
+  val g0 = none_para(visual_paragraphs_take(paras, ~1))
+  val g1 = none_para(visual_paragraphs_take(paras, 0))
+  val () = visual_plans_dispose(plans)
+  val () = visual_paragraphs_dispose(paras)
+in
+  if p0 andalso p1 andalso g0 andalso g1 then 0 else 1
+end
+
+fun unshapeable_metrics_guard(f: !Font): int = let
+  val bad = buf_make(2)
+  val () = buf_set(bad, 0, 255)
+  val () = buf_set(bad, 1, 254)
+  val () = buf_set_len(bad, 2)
+  val (flags, advances) = font_text_wrap_metrics(f, bad, 2)
+  val ok = ige(buf_cap(flags), 2) andalso ige(buf_cap(advances), 12) andalso ieq(buf_get32(advances, 0), 0)
+  val () = buf_free(flags)
+  val () = buf_free(advances)
+  val () = buf_free(bad)
+in
+  if ok then 0 else 1
+end
+
+fun crlf_layout_guard(f: !Font, r: !Rend): int = let
+  val d = doc_open()
+  val b = bytes("\r\n\r\nsatır 1\r\nsatır 2\r")
+  val () = doc_insert_buf(d, b, buf_len(b))
+  val () = buf_free(b)
+  val () = visual_layout_prepare(f, r, d, 80, ViewEdit)
+  val s1 = snapshot(d)
+  val r1 = doc_visual_line_rows(d, 2)
+  val () = visual_layout_prepare(f, r, d, 80, ViewRead)
+  val s2 = snapshot(d)
+  val r2 = doc_visual_line_rows(d, 2)
+  val () = doc_free(d)
+in
+  if ieq(s1, 0) andalso ieq(s2, 0) andalso igt(r1, 0) andalso igt(r2, 0) then 0 else 1
+end
+
+fun crlf_and_guards(f: !Font, r: !Rend): int = let
+  val crlf = crlf_layout_guard(f, r)
+  val bounds = storage_bounds_guard()
+  val metrics = unshapeable_metrics_guard(f)
+  val () = println!("event=crlf_and_guards crlf=", crlf, " bounds=", bounds, " metrics=", metrics)
+in
+  iadd(crlf, iadd(bounds, metrics))
+end
 fun navigation(f: !Font,r: !Rend): int = let val d=doc_open() val b=bytes("İŞİİ İŞİİ İŞİİ İŞİİ\n")
   val ()=doc_insert_buf(d,b,buf_len(b)) val ()=buf_free(b) val ()=doc_set_caret_move(d,0)
   val ()=visual_layout_prepare(f,r,d,90,ViewEdit) var scratch=buf_make(256)
@@ -454,13 +516,134 @@ in if not(created) then let val ()=buf_free(root) in 1 end else let
     val removed=fs_unlink(buf_cstr(path)) val closed=fs_rmdir(buf_cstr(root))
     val ()=buf_free(path) val ()=buf_free(root)
   in iadd(nesting,iadd(errors,if ieq(removed,0) andalso ieq(closed,0) then 0 else 1)) end end
+fun blue_y_span{n:nat} .<n>. (left: int(n), image: !Buf, i: int, min_y: &int >> _, max_y: &int >> _): void =
+  if left = 0 then () else let
+    val at = imul(i, 4)
+    val blue = ieq(buf_get(image, at), 58) andalso ieq(buf_get(image, iadd(at, 1)), 74) andalso ieq(buf_get(image, iadd(at, 2)), 92)
+    val y = isub(127, idiv(i, 128))
+    val () = if blue then (min_y := imin(min_y, y); max_y := imax(max_y, y)) else ()
+  in
+    blue_y_span(left - 1, image, iadd(i, 1), min_y, max_y)
+  end
+
+fun live_preview_heading_selection(f: !Font, r: !Rend): int = let
+  val old_px = font_get_px(f)
+  val () = font_set_px(f, 20)
+  val d = doc_open()
+  val s = "# Big Heading\nnormal **bold**\n"
+  val () = doc_insert(d, c_str_ptr(s), c_strlen(s))
+  val () = doc_set_cursor_active(d, true)
+  val () = doc_set_caret_move(d, 15)
+  val () = visual_layout_prepare(f, r, d, 720, ViewEdit)
+  val lh = font_document_line_height(f, font_line_h(f))
+  val h_tot = doc_layout_mode(d, lh, 0, 800)
+  val state = doc_visual_take(d)
+  val ok_live = case+ state of
+    | None_vt() => false
+    | Some_vt(rows) => let
+        val r0 = visual_rows_at(rows, 0)
+        val r1 = visual_rows_at(rows, 1)
+        val+ VisualRows(t, m, l, dt, n, key, plans) = rows
+      in
+        igt(r0.px, key.px) andalso igt(r0.height, key.height) andalso igt(r0.top, 0)
+        andalso ieq(r1.px, key.px) andalso ieq(r1.height, key.height) andalso ieq(r1.top, 0)
+        andalso ilt(r0.finish - r0.start, 13) andalso ige(r1.finish - r1.start, 15)
+      end
+  val () = doc_visual_put(d, state)
+  val () = doc_set_cursor_active(d, false)
+  val () = visual_layout_prepare(f, r, d, 720, ViewEdit)
+  val state2 = doc_visual_take(d)
+  val ok_blur = case+ state2 of
+    | None_vt() => false
+    | Some_vt(rows) => let
+        val r1 = visual_rows_at(rows, 1)
+      in
+        ilt(r1.finish - r1.start, 15)
+      end
+  val () = doc_visual_put(d, state2)
+  val () = visual_layout_prepare(f, r, d, 720, ViewRead)
+  val _ = doc_layout_mode(d, lh, 1, 800)
+  val () = doc_set_caret_move(d, 0)
+  val () = doc_set_caret_extend(d, 13)
+  val () = rend_begin(r, 640, 480)
+  var scratch = buf_make(256)
+  val () = visual_draw_selection(f, r, d, 20, 20, 0, lh, scratch)
+  val () = buf_free(scratch)
+  val () = rend_flush(r)
+  val image = buf_make(WORD16_MODULUS)
+  val () = font_gl_read_pixels(image, 128, 128)
+  var min_y: int = 128
+  var max_y: int = ~1
+  val () = blue_y_span(airlock_nat(16384), image, 0, min_y, max_y)
+  val () = buf_free(image)
+  val ok_sel_h = ige(max_y, min_y) andalso igt(iadd(isub(max_y, min_y), 1), lh)
+  val () = doc_free(d)
+  val () = font_set_px(f, old_px)
+in
+  if igt(h_tot, 0) andalso ok_live andalso ok_blur andalso ok_sel_h then 0 else 1
+end
+
+
+(* Visible-first wrapping: after the band is exact and background work drains,
+   the rows must equal a full synchronous wrap of the same document. *)
+fun same_row(a: VisualRow,b: VisualRow): bool =
+  ieq(a.start,b.start) andalso ieq(a.finish,b.finish) andalso ieq(a.width,b.width) andalso ieq(a.line,b.line)
+  andalso ieq(a.ordinal,b.ordinal) andalso ieq(a.px,b.px) andalso ieq(a.height,b.height)
+  andalso ieq(a.ascent,b.ascent) andalso ieq(a.top,b.top)
+fun same_rows{n:nat} .<n>. (left: int(n),a: !VisualRows,b: !VisualRows,i: int): int =
+  if left = 0 then 0 else iadd(if same_row(visual_rows_at(a,i),visual_rows_at(b,i)) then 0 else 1,same_rows(left-1,a,b,iadd(i,1)))
+fun compare_rows{x,y:bool}(a: !option_vt(VisualRows,x),b: !option_vt(VisualRows,y)): int = case+ a of
+  | None_vt() => 1 | Some_vt(ra) => (case+ b of | None_vt() => 1 | Some_vt(rb) => let
+      val+ VisualRows(t1,m1,l1,d1,n1,k1,p1)=ra val+ VisualRows(t2,m2,l2,d2,n2,k2,p2)=rb
+    in if ine(n1,n2) then 1 else same_rows(airlock_nat(n1),ra,rb,0) end)
+fun deferred_text(d: !Doc,lines: int): void = let
+  fun go{n:nat} .<n>. (left: int(n),d: !Doc,i: int): void = if left = 0 then () else let
+    val s=if ieq(imod(i,7),0) then "## Başlık bölümü\n"
+      else if ieq(imod(i,5),0) then "kısa satır\n"
+      else "Uzun bir paragraf satırı **kalın** ve *eğik* sözcüklerle [[not|bağlantı]] içerir; sarma birden çok görsel satır üretmelidir ki karşılaştırma anlamlı olsun.\n"
+    val ()=doc_insert(d,c_str_ptr(s),c_strlen(s))
+  in go(left-1,d,iadd(i,1)) end
+in go(airlock_nat(lines),d,0) end
+fun drain{n:nat} .<n>. (left: int(n),f: !Font,r: !Rend,d: !Doc,width: int,view: VisualViewport,lh: int): int =
+  if ile(visual_layout_pending(d),0) then 0 else if left = 0 then 1 else let
+    val ()=visual_layout_background(f,r,d,width,ViewRead,view,1L)
+    val _=doc_layout_mode(d,lh,1,width)
+  in drain(left-1,f,r,d,width,view,lh) end
+fun band_exact{n:nat} .<n>. (left: int(n),d: !Doc,line: int,bottom: int): int =
+  if left = 0 then 0 else if igt(doc_line_y(d,line),bottom) then 0
+  else iadd(if igt(doc_visual_line_rows(d,line),0) then 0 else 1,band_exact(left-1,d,iadd(line,1),bottom))
+fun deferred_rows_match_full(f: !Font,r: !Rend): int = let
+  val width=360 val lines=80
+  val full=doc_open() val () = deferred_text(full,lines) val ()=doc_set_caret_move(full,0)
+  val deferred=doc_open() val () = deferred_text(deferred,lines) val ()=doc_set_caret_move(deferred,0)
+  val lh=font_document_line_height(f,font_line_h(f))
+  val ()=visual_layout_prepare(f,r,full,width,ViewRead)
+  val _=doc_layout_mode(full,lh,1,width)
+  val view: VisualViewport= @{anchorLine= ~1,offset=0,height=imul(lh,6)}
+  val _=visual_layout_prepare_band(f,r,deferred,width,ViewRead,lh,view)
+  val started=visual_layout_pending(deferred)
+  val visible=band_exact(airlock_nat(lines),deferred,0,view.height)
+  val leftover=drain(airlock_nat(imul(lines,2)),f,r,deferred,width,view,lh)
+  val a=doc_visual_take(full) val b=doc_visual_take(deferred)
+  val differ=compare_rows(a,b)
+  val ()=doc_visual_put(full,a) val ()=doc_visual_put(deferred,b)
+  val heights=if ieq(doc_layout_mode(full,lh,1,width),doc_layout_mode(deferred,lh,1,width)) then 0 else 1
+  val ()=print_string("event=visual_deferred pending_after_band=") val ()=print_int(started)
+  val ()=print_string(" visible_pending=") val ()=print_int(visible)
+  val ()=print_string(" leftover=") val ()=print_int(leftover)
+  val ()=print_string(" row_mismatches=") val ()=print_int(differ)
+  val ()=print_string(" height_mismatch=") val ()=print_int(heights) val ()=print_newline()
+  val ()=doc_free(full) val ()=doc_free(deferred)
+in iadd(if igt(started,0) then 0 else 1,iadd(visible,iadd(leftover,iadd(differ,heights)))) end
+
 implement native_visual_layout_cases(f,r) = let val before=mem_live() val d=doc_open()
-  val body=test(f,r,d) val markup=markdown(f,r) val hard=hard_lines(f,r)
+  val body=test(f,r,d) val markup=markdown(f,r) val hard=iadd(hard_lines(f,r), crlf_and_guards(f,r))
   val nav=navigation(f,r) val fold=iadd(folding_and_task(f,r),math_geometry(f,r))
-  val errors=body+markup+hard+nav+fold val ()=doc_free(d) val delta=isub(mem_live(),before)
+  val lp=live_preview_heading_selection(f,r)
+  val errors=body+markup+hard+nav+fold+lp val ()=doc_free(d) val delta=isub(mem_live(),before)
   val scale=iadd(wrap_scale(f,r,64),iadd(wrap_scale(f,r,256),wrap_scale(f,r,1024)))
   val clipping=iadd(paragraph_bidi_rows(f,r),iadd(owned_row_plans(f,r),iadd(nested_clips(r),warm_layout(f,r))))
-  val embedded=embedded_documents(f,r)
+  val embedded=iadd(embedded_documents(f,r),deferred_rows_match_full(f,r))
   val ()=println!("event=native_visual_layout errors=",errors," retained_font_source_bytes=",delta)
   val ()=println!("event=visual_cases body=",body," markdown=",markup," hard=",hard," navigation=",nav," fold=",fold)
 in iadd(embedded,iadd(clipping,iadd(errors,scale))) end

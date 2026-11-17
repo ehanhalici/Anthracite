@@ -23,13 +23,14 @@ fun transform_down_tabs(
 ): Tabs = let
   var ti: int = ~1
   var close: bool = false
-  val () = handle_down_tab_bar_selection(s, ts0, f, r, hit,
-    topbar_tab_start_x(s.btnw), topbar_mode_btn_x(w, s.modew), w, ti, close)
+  val tx0 = topbar_tabs_x0(s)
+  val mode_bx = topbar_mode_btn_x(w, s.modew)
+  val () = handle_down_tab_bar_selection(s, ts0, f, r, hit, tx0, mode_bx, w, ti, close)
   var imgdel: Toggle = Off
   var clear: Toggle = Off
   val ts1 = handle_down_context_menu(s, p, ts0, idx, hit,
     ti, toggle_of(close), imgdel, clear)
-  val ts2 = handle_down_sidebar_click(s, f, ts1, hit)
+  val ts2 = handle_down_sidebar_click(s, f, ts1, ctrl_on(ev), hit)
   val ts3 = handle_editor_click(s, f, r, ts2, ev, w, hit, idx, imgdel, clear)
   val () = handle_down_context_menu_open(s, hit)
   val room = imax(0, isub(w, s.menuw))
@@ -56,7 +57,7 @@ end
 
 fun side_split_hit(s: &App_record, button: Btn, x: int, y: int): bool =
   not(is_side_none(s.side)) andalso is_btn(button, BtnLeft)
-    andalso ige(y, UI_TOPBAR_HEIGHT)
+    andalso ige(y, s.tb_h)
     andalso ige(x, isub(s.sidew, idiv(UI_SIDEBAR_GRAB_WIDTH, 2)))
     andalso ilt(x, iadd(s.sidew, idiv(UI_SIDEBAR_GRAB_WIDTH, 2)))
 
@@ -72,7 +73,7 @@ end
 fun down_zone(s: &App_record, button: Btn, x: int, y: int, sidew: int): DownZone =
   if not(is_menu_none(s.menu)) then DownMenu
   else if side_split_hit(s, button, x, y) then DownResize
-  else if ilt(y, UI_TOPBAR_HEIGHT) then DownTopbar
+  else if ilt(y, s.tb_h) then DownTopbar
   else if igt(sidew, 0) andalso ilt(x, sidew) then DownSidebar
   else DownEditor
 
@@ -137,6 +138,8 @@ fun on_down(a: !App, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int, h: int): 
       in
         fold@(a)
       end else let
+        val () = s.last_w := w
+        val () = s.last_h := h
         val () = cache_clear_embed_selection(s.cache)
         val () = on_down_panes(s, p, f, r, ev, w)
       in
@@ -144,7 +147,7 @@ fun on_down(a: !App, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int, h: int): 
       end
 
 fun resize_side(s: &App_record >> _, x: int, w: int): void = let
-  val max_width = imax(UI_SIDEBAR_MIN_WIDTH, idiv(w, 2))
+  val max_width = imax(UI_SIDEBAR_MIN_WIDTH, imin(idiv(w, 2), isub(w, 260)))
 in
   s.sidew := imax(UI_SIDEBAR_MIN_WIDTH, imin(max_width, x))
 end
@@ -195,6 +198,7 @@ fun app_reorder_tab(s: &App_record >> _, from_i: int, to_i: int): void = let
   val () = s.tabs := ts2
   val () = tabs_free(ph)
   val () = tab_pane_move(s.tab_pane, from_i, to_i)
+  val () = app_move_tab_hist(s, from_i, to_i)
   val () = s.active := reorder_index(s.active, from_i, to_i)
   val () = s.righti := reorder_index(s.righti, from_i, to_i)
   val () = s.dragi := to_i

@@ -66,12 +66,20 @@ fun bind_media(f: !Font,d: !Doc,c: &Cache >> _,r: !Rend,vault: !Buf,lh: int,colw
   val ()=buf_set32(index,0,doc_parse_generation(d))
 in doc_media_put(d,index) end
 
-fun prepare_layout_geometry(f: !Font,r: !Rend,d: !Doc,lh: int,colw: int,viewmode: ViewMode): int = let
-  val ()=visual_layout_prepare(f,r,d,colw,viewmode)
-  val is_read = (if is_view_read(viewmode) then 1 else 0)
-  val height=doc_layout_mode(d,lh,is_read,colw)
-in height
-end
+(* Top-level documents drawn in a viewport shape only the visible band now and
+   the rest in background frames. Embedded documents stay exact: their height
+   feeds the parent layout and their cached views. *)
+fun deferred_wrap(d: !Doc,c: !Cache): bool = let val scope=work_scope(c)
+in scope.active andalso scope.document = doc_identity(d) andalso ieq(doc_embed_level(d),0)
+  andalso igt(doc_len(d),VISUAL_DEFER_MIN_BYTES) end
+fun scope_viewport(c: !Cache): VisualViewport = let val scope=work_scope(c)
+in @{anchorLine=scope.anchorLine,offset=scope.scroll,height=scope.height} end
+fun prepare_layout_geometry(f: !Font,r: !Rend,d: !Doc,c: !Cache,lh: int,colw: int,viewmode: ViewMode): int =
+  if deferred_wrap(d,c) then visual_layout_prepare_band(f,r,d,colw,viewmode,lh,scope_viewport(c))
+  else let
+    val ()=visual_layout_prepare(f,r,d,colw,viewmode)
+    val is_read = (if is_view_read(viewmode) then 1 else 0)
+  in doc_layout_mode(d,lh,is_read,colw) end
 fun seed_media_index{n:nat} .<n>. (left: int(n),d: !Doc,index: !Buf,i: int,lh: int): void =
   if left = 0 then () else let
     val node=buf_get32(index,i) val k=doc_node_kind(d,node)
@@ -90,7 +98,7 @@ fun prepare_visible{n:nat} .<n>. (fuel: int(n),f: !Font,d: !Doc,cache: &Cache >>
   if not(recursion_fuel_available(fuel)) then prepare_visible_exhausted() else let
     val version=doc_layout_version(d)
     val ()=bind_media(f,d,cache,r,vault,lh,width,0)
-    val height=prepare_layout_geometry(f,r,d,lh,width,mode)
+    val height=prepare_layout_geometry(f,r,d,cache,lh,width,mode)
   in if ieq(version,doc_layout_version(d)) then height else prepare_visible(fuel-1,f,d,cache,r,vault,lh,width,mode) end
 extern fun prepare_nearby_exhausted(): int = "mac#anth_die_int"
 fun prepare_nearby{n:nat} .<n>. (fuel: int(n),f: !Font,d: !Doc,cache: &Cache >> _,r: !Rend,vault: !Buf,
@@ -102,7 +110,7 @@ fun prepare_nearby{n:nat} .<n>. (fuel: int(n),f: !Font,d: !Doc,cache: &Cache >> 
   var overscan: EmbedWorkScope=previous val ()=overscan.band := EmbedWorkOverscan()
   val ()=work_set_scope(cache,overscan)
   val ()=bind_media(f,d,cache,r,vault,lh,width,0)
-  val background=prepare_layout_geometry(f,r,d,lh,width,mode)
+  val background=prepare_layout_geometry(f,r,d,cache,lh,width,mode)
   val ()=work_set_scope(cache,previous)
   val height=prepare_visible(airlock_nat(MAX_REC_FUEL),f,d,cache,r,vault,lh,width,mode)
 in if ieq(version,doc_layout_version(d)) orelse cache_work_pending(cache) then height
@@ -110,13 +118,20 @@ in if ieq(version,doc_layout_version(d)) orelse cache_work_pending(cache) then h
 fun prepare_scheduled(f: !Font,d: !Doc,cache: &Cache >> _,r: !Rend,vault: !Buf,
   lh: int,width: int,mode: ViewMode): int = let
   val ()=seed_media(d,lh)
-  val initial=prepare_layout_geometry(f,r,d,lh,width,mode)
+  val initial=prepare_layout_geometry(f,r,d,cache,lh,width,mode)
 in prepare_nearby(airlock_nat(MAX_REC_FUEL),f,d,cache,r,vault,lh,width,mode) end
-implement prepare_document_layout(f,d,cache,r,vault,lh,width,mode) = let
+fun prepare_document_layout_now(f: !Font,d: !Doc,cache: &Cache >> _,r: !Rend,vault: !Buf,
+  lh: int,width: int,mode: ViewMode): int = let
   val scope=work_scope(cache)
 in if scope.active andalso scope.document = doc_identity(d) then prepare_scheduled(f,d,cache,r,vault,lh,width,mode)
   else let val ()=bind_media(f,d,cache,r,vault,lh,width,0)
-    in prepare_layout_geometry(f,r,d,lh,width,mode) end end
+    in prepare_layout_geometry(f,r,d,cache,lh,width,mode) end end
+implement prepare_document_layout(f,d,cache,r,vault,lh,width,mode) =
+  if not(deferred_wrap(d,cache)) then prepare_document_layout_now(f,d,cache,r,vault,lh,width,mode) else let
+    val ()=visual_layout_background(f,r,d,width,mode,scope_viewport(cache),VISUAL_WRAP_BACKGROUND_BUDGET_NS)
+    val height=prepare_document_layout_now(f,d,cache,r,vault,lh,width,mode)
+    val ()=if igt(visual_layout_pending(d),0) then work_mark_pending(cache) else ()
+  in height end
 
 fun kind_col(k: NodeKind): uint =
   if is_heading(k) then col_heading()

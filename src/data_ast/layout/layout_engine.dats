@@ -74,11 +74,19 @@ in
     val en = if ilt(iadd(line, 1), doc_nlines(d)) then doc_line_start(d, iadd(line, 1)) else doc_len(d)
     val rows = line_source_rows(d, line, wc)
     val () = cur := advance_node_cursor(airlock_nat(MAX_REC_FUEL), d, cur, nn, st)
-    val @(extra, hpad) = line_scan_extras(airlock_nat(MAX_REC_FUEL), d, cur, nn, st, en, lh, is_read, 0, 0)
+    val prev_line = (if doc_line_is_preview(d, is_read, line) then 1 else 0) : int
+    val @(extra, hpad) = line_scan_extras(airlock_nat(MAX_REC_FUEL), d, cur, nn, st, en, lh, prev_line, 0, 0)
+    val hk = if ieq(prev_line, 1) then doc_line_heading_kind(d, line) else KNone
+    val @(snum, sden) = doc_heading_scale_of(hk)
   in
-    if ieq(is_read, 1) andalso igt(extra, 0) then
+    if ieq(prev_line, 1) andalso igt(extra, 0) then
       iadd(extra, hpad)
-    else
+    else if ieq(prev_line, 1) andalso igt(snum, sden) then let
+      val scaled_lh = imax(lh, idiv(imul(lh, snum), sden))
+      val pads = iadd(doc_heading_top_pad_of(hk), doc_heading_bottom_pad_of(hk))
+    in
+      iadd(imul(rows, scaled_lh), pads)
+    end else
       iadd(iadd(imul(rows, lh), extra), hpad)
   end
 end
@@ -115,7 +123,8 @@ fun stamp_height(d: !Doc,i: int,k: NodeKind): void =
 
 fun stamp_y(d: !Doc,lh: int,is_read: int,wc: int,i: int): int = let
   val line=doc_line_of(d,doc_node_start(d,i)) val ly=doc_line_y(d,line) val k=doc_node_kind(d,i)
-in if (is_kind(k,KImage) orelse is_kind(k,KEmbed)) andalso ieq(is_read,0) then
+  val prev=doc_line_is_preview(d,is_read,line)
+in if (is_kind(k,KImage) orelse is_kind(k,KEmbed)) andalso not(prev) then
   iadd(ly,imul(line_source_rows(d,line,wc),lh)) else ly end
 
 fun stamp_nodes_with_fuel {recfuel:nat} .<recfuel>. (
@@ -183,21 +192,25 @@ in
 end
 
 implement doc_layout_mode(d, line_height, is_read, colw) = let
+  val t0 = performance_now_ns()
   val lh = if ilt(line_height, 8) then 8 else line_height
   val version = doc_layout_version(d)
   val wrap = doc_wrap_cols(colw)
   val key = iadd(lh, imul(wrap, 1000))
+  val result =
+    if doc_layout_cache_match(d, version, key, is_read) then
+      doc_layout_cache_height(d)
+    else let
+      val () = performance_note(PERF_LAYOUT_BUILDS, 1)
+      val height = doc_layout_calc(d, lh, doc_nnodes(d), is_read, colw)
+      val () = doc_visual_index(d)
+      val () = doc_layout_cache_store(d, version, key, height, is_read, wrap)
+    in
+      height
+    end
+  val () = performance_phase_end(PERF_PHASE_DOC_LAYOUT, t0)
 in
-  if doc_layout_cache_match(d, version, key, is_read) then
-    doc_layout_cache_height(d)
-  else let
-    val () = performance_note(PERF_LAYOUT_BUILDS, 1)
-    val height = doc_layout_calc(d, lh, doc_nnodes(d), is_read, colw)
-    val () = doc_visual_index(d)
-    val () = doc_layout_cache_store(d, version, key, height, is_read, wrap)
-  in
-    height
-  end
+  result
 end
 
 implement doc_layout(d, line_height) =

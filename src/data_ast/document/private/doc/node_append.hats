@@ -78,13 +78,16 @@ implement doc_ver(d) = d_ver(d)
 
 implement doc_layout_version(d) = d_ver(d)
 
-implement doc_layout_cache_match(d, version, key, mode) =
+implement doc_layout_cache_match(d, version, key, mode) = let
+  val @(r0, r1) = doc_raw_lines(d, mode)
+in
   case+ d of
   | @DOC(s) => let
-      val hit = layout_cache_matches(s.lay, version, key, mode)
+      val hit = layout_cache_matches(s.lay, version, key, mode) andalso layout_raw_matches(s.lay, r0, r1)
     in
       fold@(d); hit
     end
+end
 
 implement doc_layout_cache_height(d) =
   case+ d of
@@ -94,13 +97,17 @@ implement doc_layout_cache_height(d) =
       fold@(d); height
     end
 
-implement doc_layout_cache_store(d, version, key, height, mode, wrap) =
+implement doc_layout_cache_store(d, version, key, height, mode, wrap) = let
+  val @(r0, r1) = doc_raw_lines(d, mode)
+in
   case+ d of
   | @DOC(s) => let
       val () = layout_cache_store(s.lay, version, key, height, mode, wrap)
+      val () = layout_raw_store(s.lay, r0, r1)
     in
       fold@(d)
     end
+end
 
 implement doc_layout_cached_wrap(d) =
   case+ d of

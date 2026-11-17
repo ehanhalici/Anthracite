@@ -21,9 +21,8 @@ fun hist_drop_oldest_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel),
     | ~HNil() => HNil()
     | ~HCons(b, c, rest) =>
         case+ rest of
-        | HNil() => let
+        | ~HNil() => let
             val () = buf_free(b)
-            val () = hist_free(rest)
           in
             HNil()
           end
@@ -61,7 +60,7 @@ datavtype Doc_ = DOC of @{
   gap= Buf, lines= Buf, nodes= Buf, lay= Buf, visual= Option_vt(VisualRows), media= Buf, anchors= Buf
 , uhist= Hist, rhist= Hist
 , lo= int, hi= int, len= int
-, caret= int, anchor= int
+, caret= int, anchor= int, cursor_active= int
 , nlines= int, nnodes= int, span= int
 , last_op= EditOp, typing_cnt= int, is_md= Toggle
 , ver= int, folds= Buf
@@ -79,7 +78,7 @@ implement doc_open() = DOC(@{
   gap= buf_make(DOC_OPEN_GAP_INITIAL_BYTES), lines= buf_make(64 * 4), nodes= buf_make(64 * AST_NODE_WORDS * 4), lay= layout_open(), visual= None_vt(), media= buf_make(0), anchors= buf_make(0)
 , uhist= HNil(), rhist= HNil()
 , lo= 0, hi= 256, len= 0
-, caret= 0, anchor= 0
+, caret= 0, anchor= 0, cursor_active= 0
 , nlines= 1, nnodes= 0, span= 0
 , last_op= OpNone, typing_cnt= 0, is_md= On
 , ver= 0, folds= buf_make(64 * 4)
@@ -134,6 +133,22 @@ implement doc_set_embed_level(d, level) =
   case+ d of
   | @DOC(s) => let
       val () = s.embed_level := level
+    in
+      fold@(d)
+    end
+
+implement doc_cursor_active(d) =
+  case+ d of
+  | @DOC(s) => let
+      val v = ine(s.cursor_active, 0)
+    in
+      fold@(d); v
+    end
+
+implement doc_set_cursor_active(d, active) =
+  case+ d of
+  | @DOC(s) => let
+      val () = s.cursor_active := (if active then 1 else 0)
     in
       fold@(d)
     end

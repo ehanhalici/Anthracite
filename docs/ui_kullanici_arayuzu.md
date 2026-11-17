@@ -100,3 +100,28 @@ verisini kullanır. Önce katlama görünürlüğü, sonra görsel izdüşüm/ye
 `source_edit_conformance`, görsel fixture'lar, FSM testi ve grafik selftest birlikte
 değerlendirilir. GPU çıktı ve kullanıcı etkileşimlerinin tamamı sonlu durum
 testlerinden otomatik olarak kanıtlanmış sayılmaz.
+
+## Gezinme, sekmeler, sürükle-bırak ve kısayollar
+
+- **Dosya gezgini ve sürükle-taşıma:** Dosya ağacı `UI_TREE_ROW_HEIGHT = 28` ve
+  `UI_TREE_INDENT_PIXELS = 20` yerleşimiyle dikey hizalama çizgileri çizer. Sol
+  sürükleme 5 px eşik sonrası taşır: klasör üstüne, dosya satırının üst klasörüne,
+  boşluğa (kasa köküne) veya açık bir belge bölmesine bırakılabilir; taşıma sonrası
+  açık sekmeler ve [ui_tab_history.sats](../src/ui_workspace/tabs/ui_tab_history.sats)
+  girdileri yeni yol önekiyle güncellenir. Belgede orta tuş veya `Alt+Sol`
+  sürüklemesi metin/embed seçimini bozmadan dikey kaydırma panı yapar.
+- **İnce kaydırma çubukları ve bölünmüş odak:** Belge ve dosya ağacı sağ
+  kenarlarında `UI_SCROLLBAR_IDLE_WIDTH = 4` (üzerine gelince/sürüklenince 6 px)
+  tıklanabilir ve sürüklenebilir scrollbar gösterir. Bölünmüş görünümde etkin drag,
+  menü veya modal yokken fare bölme üzerine geçince odak anında güncellenir.
+- **Sekme başlığı, geçmiş ve sabit sekmeler:** Her sekme `UI_TAB_FIXED_WIDTH = 160`
+  genişliğindedir; taşan başlıklar `"..."` ile kısaltılır ve üzerine gelince tam
+  isim açılır kutuda gösterilir. Sekmeleri doğrudan karşı bölmenin sekme şeridine
+  sürüklemek canlı olarak taşır. `UI_PANE_HEADER_HEIGHT = 28` yüksekliğindeki
+  bölme üst şeridinde `<` / `>` geçmiş düğmeleri ve tıklanabilir sağ-hizalı path
+  breadcrumb yer alır.
+- **Klavye kısayolları ve geri alma düzeltmesi:** Çok satırlı geri almada oluşan
+  çökme `replace_all_raw` içinde `nlines`, AST düğümleri ve görsel durumun
+  yeniden kurulmasıyla giderildi. [ui_keymap.sats](../src/ui_workspace/commands/ui_keymap.sats)
+  `keybindings.json` üzerinden tek tuş ve Emacs tarzı iki adımlı chord dizilerini
+  (`C-x C-s`, `M-...`, `unbind`) destekler.

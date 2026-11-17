@@ -78,7 +78,7 @@ implement doc_compute_foldability(d) = let
   val nn = d_nnodes(d)
   var cursor: int = 0
   val () = clear_flags_with_fuel(airlock_nat(MAX_REC_FUEL), d, 0, nn)
-  val () = stamp_regions_with_fuel(airlock_nat(nreg), d, 0, nn, cursor, ~1, ~1)
+  val () = stamp_regions_with_fuel(airlock_nat(imax(0, nreg)), d, 0, nn, cursor, ~1, ~1)
   val () = sync_nodes_hidden_with_fuel(airlock_nat(MAX_REC_FUEL), d, 0, nn)
 in
 end

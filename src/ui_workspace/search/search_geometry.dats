@@ -10,8 +10,8 @@ macdef SEARCH_GAP_PIXELS = 6
 macdef SEARCH_HEADER_INSET_PIXELS = 4
 macdef SEARCH_BUTTON_LABEL_EMS = 6
 macdef NANOSECONDS_PER_MILLISECOND = 1000000L
-implement search_geometry(lh0,width,height) = let
-  val lh=imax(1,lh0) val top=iadd(UI_TOPBAR_HEIGHT,SEARCH_HEADER_INSET_PIXELS)
+implement search_geometry_ex(lh0,topbar_h,width,height) = let
+  val lh=imax(1,lh0) val top=iadd(topbar_h,SEARCH_HEADER_INSET_PIXELS)
   val row=iadd(lh,SEARCH_PADDING_PIXELS) val available=imax(1,isub(width,imul(2,SEARCH_PADDING_PIXELS)))
   val stacked=ilt(available,imul(lh,SEARCH_BUTTON_LABEL_EMS))
   val bw=if stacked then available else idiv(isub(available,SEARCH_PADDING_PIXELS),2)
@@ -22,6 +22,9 @@ implement search_geometry(lh0,width,height) = let
 in @{buttonTop=top,buttonHeight=row,buttonWidth=bw,secondX=second_x,secondY=second_y,
   queryTop=query,queryHeight=row,statusTop=status,resultsTop=results,rowHeight=row,
   rows=idiv(imax(0,isub(height,results)),row)} end
+
+implement search_geometry(lh0,width,height) =
+  search_geometry_ex(lh0,UI_TOPBAR_HEIGHT,width,height)
 fun inside(x: int,y: int,left: int,top: int,width: int,height: int): bool =
   ige(x,left) andalso ilt(x,iadd(left,width)) andalso ige(y,top) andalso ilt(y,iadd(top,height))
 implement search_scope_hit(g,x,y) =

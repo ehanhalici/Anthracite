@@ -20,9 +20,10 @@ güç kaybı senaryosu için veri kaybını matematiksel olarak sıfırlamaz.
 ## Ayarlar ve oturum
 
 [conf.sats](../src/config/conf.sats) / [conf.dats](../src/config/conf.dats)
-vault seçimi, oturum ve açık sekme/panel durumunu saklar. JSON ve oturum
-yardımcıları özel uygulama gruplarına ayrılmıştır. `ANTHRACITE_CONFIG_DIR`
-test ve ayrı kurulumlar için mevcut yapılandırma yolu geçersiz kılma anahtarıdır.
+vault seçimi, oturum, açık sekme/panel durumu ve `keybindings.json` klavye
+kısayollarını saklar. JSON ve oturum yardımcıları özel uygulama gruplarına
+ayrılmıştır. `ANTHRACITE_CONFIG_DIR` test ve ayrı kurulumlar için mevcut
+yapılandırma yolu geçersiz kılma anahtarıdır.
 
 ## Tanılama ve doğrulama
 
@@ -30,8 +31,9 @@ test ve ayrı kurulumlar için mevcut yapılandırma yolu geçersiz kılma anaht
 tanılama tamponunu taşır. Fonksiyon imzaları doğrudan bu sözleşmeden okunur;
 eski belgelerdeki iki parametreli örnekler bütün log API'sini temsil etmez.
 
-`workspace_config_contracts` benzersiz yapılandırma dizininde aktif vault ve
-oturumun font, bölme, panel, açık klasör durumlarını round-trip ile doğrular.
+`workspace_config_contracts`, `workspace_keymap_contracts` ve `workspace_history_contracts`
+benzersiz yapılandırma dizininde aktif vault, oturum, Emacs tarzı `keybindings.json`
+ve sekme gezinme geçmişini round-trip ile doğrular.
 Grafik selftest ayrıca belge/VFS ve dosya taşıma kontrollerini içerir.
 Yeni testler benzersiz geçici kök kullanmalıdır; eski sabit fixture yolları
 BUG-007 kapsamında giderilmiştir: grafik selftest `mkdtemp` ile özel bir

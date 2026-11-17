@@ -1,4 +1,9 @@
 macdef EMBED_BACKGROUND_BUDGET_NS = 4000000L
+(* CPU time per frame for shaping off-screen lines of a deferred document. *)
+macdef VISUAL_WRAP_BACKGROUND_BUDGET_NS = 6000000L
+(* Below this size a full wrap costs less than a frame (~2 ms/KB in Release on the
+   fixture), so small documents are shaped synchronously and finish in one frame. *)
+macdef VISUAL_DEFER_MIN_BYTES = 4096
 macdef EMBED_ESTIMATED_LINES = 4
 macdef EMBED_FRAME_PADDING_PIXELS = 8
 fun work_scope_empty(): EmbedWorkScope =
@@ -42,6 +47,10 @@ fun work_scope(cache: !Cache): EmbedWorkScope = let val state=work_state(airlock
 fun work_set_scope(cache: !Cache,scope: EmbedWorkScope): void = let
   var state: EmbedWorkState=work_state(airlock_nat(MAX_REC_FUEL),cache)
   val ()=state.scope := scope
+in work_update(airlock_nat(MAX_REC_FUEL),cache,state) end
+fun work_mark_pending(cache: !Cache): void = let
+  var state: EmbedWorkState=work_state(airlock_nat(MAX_REC_FUEL),cache)
+  val ()=state.pending := true
 in work_update(airlock_nat(MAX_REC_FUEL),cache,state) end
 implement cache_work_pending(cache) = let val state=work_state(airlock_nat(MAX_REC_FUEL),cache) in state.pending end
 fun work_allow(cache: !Cache): bool = let

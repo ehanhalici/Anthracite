@@ -150,7 +150,14 @@ implement ensure_tex(f, r) =
   case+ f of
   | @FONT(s) => let
       val t0 = s.tex
-      val t = if t0 = ztex() then rend_tex_r8(r, t0, s.aw, s.ah) else t0
+      val fresh = (t0 = ztex())
+      val t = if fresh then rend_tex_r8(r, t0, s.aw, s.ah) else t0
+      val () = if fresh then (
+        performance_note(PERF_FONT_ATLAS_UPLOADS, 1);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, s.aw);
+        rend_tex_sub_buf(r, t, 0, 0, s.aw, s.ah, s.atlas, 0);
+        glPixelStorei(GL_UNPACK_ROW_LENGTH, 0)
+      ) else ()
       val () = s.tex := t
     in
       fold@(f)
@@ -159,6 +166,7 @@ implement ensure_tex(f, r) =
 implement upload_atlas(f, r, tex, x, y, w, h) =
   case+ f of
   | @FONT(s) => let
+      val () = performance_note(PERF_FONT_ATLAS_UPLOADS, 1)
       val () = glPixelStorei(GL_UNPACK_ROW_LENGTH, s.aw)
       val () = rend_tex_sub_buf(r, tex, x, y, w, h, s.atlas, y * s.aw + x)
       val () = glPixelStorei(GL_UNPACK_ROW_LENGTH, 0)

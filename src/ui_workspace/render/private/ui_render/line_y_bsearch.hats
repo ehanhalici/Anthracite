@@ -182,10 +182,10 @@ fun count_before_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: 
 fun count_before(d: !Doc, a: int, p: int, k0: int): int = count_before_with_fuel(airlock_nat(MAX_REC_FUEL), d, a, p, k0)
 
 implement font_arrow_w(f, r) = let
-  val s = "v"
-  val w = font_width(f, r, c_str_ptr(s), 1)
+  var gm: gmet = @{ax= 0, bx= 0, top= 0, bw= 0, bh= 0, x0= 0, y0= 0, ok= Off}
+  val () = font_glyph(f, r, 118, gm)
 in
-  if igt(w, 0) then w else 8
+  if igt(gm.ax, 0) then gm.ax else 8
 end
 
 implement arrow_pos_x(f, r, colx) = let

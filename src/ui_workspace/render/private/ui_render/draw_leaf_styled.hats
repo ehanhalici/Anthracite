@@ -3,12 +3,12 @@ fun draw_leaf_styled(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind,
                      scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _,
                      viewmode: ViewMode): void = let
   val flags = doc_node_flags(d, i)
-  val is_read = is_view_read(viewmode)
+  val st0 = doc_node_start(d, i)
+  val is_read = doc_line_is_preview(d, if is_view_read(viewmode) then 1 else 0, doc_line_of(d, st0))
   val skip = is_read andalso (is_kind(k, KMark) orelse is_kind(k, KLinkDest) orelse is_kind(k, KLinkTitle) orelse iand(flags, FL_READ_HIDDEN) != 0)
 in
   if skip then ()
   else let
-    val st0 = doc_node_start(d, i)
     val st = (if is_read andalso is_kind(k, KEscape) then iadd(st0, 1) else st0)
     val en = doc_node_end(d, i)
     val p_idx = doc_node_parent(d, i)
@@ -21,37 +21,41 @@ in
   end
 end
 
-fun draw_container_box(r: !Rend, d: !Doc, i: int, k: NodeKind, colx: int, y: int, h: int, lh: int, pw: int): void =
+fun draw_container_box(r: !Rend, d: !Doc, i: int, k: NodeKind, colx: int, y: int, h: int, lh: int, colw: int): void =
   if is_kind(k, KQuote) then
     rend_rect(r, isub(colx, 8), y, 3, imax(h, lh), col_quote())
   else if is_kind(k, KCallout) then
     rend_rect(r, isub(colx, 8), y, 4, imax(h, lh), col_accent())
   else if is_kind(k, KCode) orelse is_kind(k, KMathBlock) then let
     val fl = doc_node_flags(d, i)
-    val () = rend_rect(r, colx, y, column_w(pw), imax(h, lh), col_highbg())
+    val () = rend_rect(r, colx, y, colw, imax(h, lh), col_highbg())
   in
     if iand(fl, FL_ERROR) != 0 then rend_rect(r, colx, y, 3, imax(h, lh), col_danger()) else ()
   end else ()
 
 fun draw_node_content(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, ox: int, oy: int, pw: int, ph: int, scroll: int,
                       lh: int, colx: int, y: int, h: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _,
-                      py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode): void =
+                      py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode): void = let
+  val line = doc_line_of(d, doc_node_start(d, i))
+  val prev_line = doc_line_is_preview(d, if is_view_read(viewmode) then 1 else 0, line)
+in
   if is_heading(k) then
     draw_node_heading(f, r, d, i, k, oy, ph, scroll, lh, colx, y, viewmode, scratch, py, pa, pen_x, pen_line)
-  else if is_kind(k, KHr) then (
+  else if is_kind(k, KHr) andalso prev_line then (
     pen_line := ~1; pen_x := colx;
-    rend_rect(r, colx, iadd(y, 4), column_w(pw), 2, col_line())
+    rend_rect(r, colx, iadd(y, 4), editor_colw(f, r, ox, pw), 2, col_line())
   )
-  else if is_kind(k, KImage) then
-    draw_node_image(r, d, i, pw, colx, y, h, vault, c, pen_x, pen_line)
-  else if is_kind(k, KEmbed) then
+  else if is_kind(k, KImage) andalso prev_line then
+    draw_node_image(r, d, i, editor_colw(f, r, ox, pw), colx, y, h, vault, c, pen_x, pen_line)
+  else if is_kind(k, KEmbed) andalso prev_line then
     draw_node_embed(f, r, d, i, ox, oy, pw, ph, scroll, colx, y, h, lh, vault, c, scratch, pen_x, pen_line)
-  else if is_kind(k, KMathb) andalso is_view_read(viewmode) then
-    draw_node_mathb(f, r, d, i, colx, y, lh, pw, pen_x, pen_line)
+  else if is_kind(k, KMathb) andalso prev_line then
+    draw_node_mathb(f, r, d, i, colx, y, lh, editor_colw(f, r, ox, pw), pen_x, pen_line)
   else if kind_is_leaf(k) then
     draw_leaf_styled(f, r, d, i, k, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line, viewmode)
   else
-    draw_container_box(r, d, i, k, colx, y, h, lh, pw)
+    draw_container_box(r, d, i, k, colx, y, h, lh, editor_colw(f, r, ox, pw))
+end
 
 fun draw_node(f: !Font, r: !Rend, d: !Doc, i: int, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode): void = let
   val k = doc_node_kind(d, i)
@@ -60,7 +64,7 @@ fun draw_node(f: !Font, r: !Rend, d: !Doc, i: int, ox: int, oy: int, pw: int, ph
   val colx = editor_colx(f, r, ox, pw)
   val p_idx = doc_node_parent(d, i)
   val p_k = if ige(p_idx, 0) then doc_node_kind(d, p_idx) else KNone
-  val in_read = is_view_read(viewmode)
+  val in_read = doc_line_is_preview(d, if is_view_read(viewmode) then 1 else 0, doc_line_of(d, doc_node_start(d, i)))
   val skip = is_on(doc_node_hidden(d, i)) orelse (in_read andalso (is_heading(p_k) orelse is_kind(p_k, KImage) orelse is_kind(p_k, KEmbed) orelse is_kind(p_k, KMathb)))
 in
   if skip then ()

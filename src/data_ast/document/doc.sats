@@ -94,6 +94,14 @@ fun doc_len(d: !Doc): int
 fun doc_touch(d: !Doc): void
 fun doc_caret(d: !Doc): int
 fun doc_anchor(d: !Doc): int
+fun doc_cursor_active(d: !Doc): bool
+fun doc_set_cursor_active(d: !Doc, active: bool): void
+fun doc_raw_lines(d: !Doc, is_read: int): @(int, int)
+fun doc_line_is_preview(d: !Doc, is_read: int, line: int): bool
+fun doc_line_heading_kind(d: !Doc, line: int): NodeKind
+fun doc_heading_scale_of(k: NodeKind): @(int, int)
+fun doc_heading_top_pad_of(k: NodeKind): int
+fun doc_heading_bottom_pad_of(k: NodeKind): int
 fun doc_set_caret_move(d: !Doc, i: int): void
 fun doc_set_caret_extend(d: !Doc, i: int): void
 fun doc_insert(d: !Doc, p: ptr, n: int): void
@@ -178,6 +186,8 @@ fun doc_wrap_cols(colw: int): int
 fun doc_get_wrap(d: !Doc): int
 fun column_w(avail: int): int
 fun column_x(pane: int, avail: int): int
+fun readable_col_w(avail: int, lh: int): int
+fun readable_col_x(pane: int, avail: int, lh: int): int
 fun doc_codepoints(d: !Doc, st: int, en: int): int
 fun doc_advance_cps(d: !Doc, st: int, en: int, k: int): int
 fun doc_selftest(fixture_root: string): int

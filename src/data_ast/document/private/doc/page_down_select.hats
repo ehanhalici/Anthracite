@@ -66,9 +66,16 @@ fun replace_all_raw(d: !Doc, p: ptr, n: int): void = let
   val () = d_set_len(d, 0)
   val () = d_set_caret(d, 0)
   val () = d_set_anchor(d, 0)
-  val () = d_set_nnodes(d, 0)
+  val () = d_set_nlines(d, 1)
+  val () = d_line_set(d, 0, 0)
+  val () = doc_clear_nodes(d)
+  val () = doc_visual_put(d, None_vt())
+  val () = if igt(n, 0) then gap_put(d, p, n) else ()
+  val () = d_bump_ver(d)
+  val () = rebuild_lines(d)
+  val () = ast_parse_all(d)
 in
-  doc_insert_core(d, p, n)
+  fold_apply(d)
 end
 
 fun replace_all(d: !Doc, p: ptr, n: int): void = let

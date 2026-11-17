@@ -11,6 +11,8 @@ staload "os/diag.sats"
 staload "data_ast/document/doc.sats"
 staload "ui_workspace/common/ui_common.sats"
 staload "ui_workspace/tabs/ui_tab.sats"
+staload "ui_workspace/commands/ui_cmd.sats"
+staload "ui_workspace/commands/ui_keymap.sats"
 staload "config/conf.sats"
 
 macdef MAX_CONF_FILE_SIZE = 10000000
@@ -40,6 +42,9 @@ macdef KEY_FONT_PATH_LEN = 11
 
 macdef KEY_FONT_PX = "\"font_px\""
 macdef KEY_FONT_PX_LEN = 9
+
+macdef KEY_DOC_FONT_PX = "\"doc_font_px\""
+macdef KEY_DOC_FONT_PX_LEN = 13
 
 macdef KEY_VIEWMODE = "\"viewmode\""
 macdef KEY_VIEWMODE_LEN = 10
@@ -79,6 +84,7 @@ macdef VAULT_META_FIELD_NOFF = 2
 macdef VAULT_META_FIELD_NLEN = 3
 
 macdef SESSION_DEFAULT_FONT_PX = 18
+macdef SESSION_DEFAULT_DOC_FONT_PX = 18
 macdef SESSION_DEFAULT_VIEWMODE = 0
 macdef SESSION_DEFAULT_SPLIT = 0
 macdef SESSION_DEFAULT_ACTIVE = 0
@@ -89,3 +95,5 @@ macdef SESSION_DEFAULT_ACTIVE = 0
 #include "config/private/conf/extract_vault_name.hats"
 #include "config/private/conf/conf_set_active_vault.hats"
 #include "config/private/conf/parse_one_tab.hats"
+#include "config/private/conf/prefs_conf.hats"
+#include "config/private/conf/keybindings_conf.hats"

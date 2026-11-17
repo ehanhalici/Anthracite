@@ -33,7 +33,7 @@ implement doc_visual_width(d) = case+ d of | @DOC(s) => let
 in width end
 fun visual_count{b:bool}(slot: !option_vt(VisualRows,b),version: int,line: int): int = case+ slot of
   | None_vt() => 0 | Some_vt(rows) => let val+ VisualRows(t,m,l,data,n,k,plans)=rows
-  in if ieq(k.version,version) then visual_rows_count(rows,line) else 0 end
+  in if ieq(k.version,version) andalso not(visual_rows_line_pending(rows,line)) then visual_rows_count(rows,line) else 0 end
 implement doc_visual_line_rows(d,line) = case+ d of | @DOC(s) => let
   val count=visual_count(s.visual,s.ver,line) prval ()=fold@(d)
 in count end

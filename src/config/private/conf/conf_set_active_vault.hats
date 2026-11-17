@@ -84,12 +84,14 @@ in
 end
 
 fun session_head_base(
-  json: &Buf >> Buf, font_p: string, font_px: int, viewmode: int, split: int
+  json: &Buf >> Buf, font_p: string, font_px: int, doc_font_px: int, viewmode: int, split: int
 ): void = let
   val () = buffer_append_string(json, "{\n  \"font_path\": \"")
   val () = buffer_append_string(json, font_p)
   val () = buffer_append_string(json, "\",\n  \"font_px\": ")
   val () = buffer_append_integer(json, font_px)
+  val () = buffer_append_string(json, ",\n  \"doc_font_px\": ")
+  val () = buffer_append_integer(json, doc_font_px)
   val () = buffer_append_string(json, ",\n  \"viewmode\": ")
   val () = buffer_append_integer(json, viewmode)
   val () = buffer_append_string(json, ",\n  \"split\": ")
@@ -98,10 +100,10 @@ in
 end
 
 fun session_json_head(
-  json: &Buf >> Buf, font_p: string, font_px: int, viewmode: int,
+  json: &Buf >> Buf, font_p: string, font_px: int, doc_font_px: int, viewmode: int,
   split: int, active: int, righti: int, side_open: int, sidew: int, tab_cnt: int
 ): void = let
-  val () = session_head_base(json, font_p, font_px, viewmode, split)
+  val () = session_head_base(json, font_p, font_px, doc_font_px, viewmode, split)
   val () = buffer_append_string(json, ",\n  \"active\": ")
   val () = buffer_append_integer(json, active)
   val () = buffer_append_string(json, ",\n  \"right_active\": ")
@@ -151,11 +153,11 @@ fun open_dirs_to_json(open_dirs: !Buf, dst: &Buf >> Buf): void = let
 in
 end
 
-implement conf_save_session(vault, font_p, font_px, viewmode, split, active, righti, side_open, sidew, tab_pane, open_dirs, ts) = let
+implement conf_save_session_ex(vault, font_p, font_px, doc_font_px, viewmode, split, active, righti, side_open, sidew, tab_pane, open_dirs, ts) = let
   var spath = buf_make(BUF_SZ_PATH)
   val () = session_path_into(vault, spath)
   var json = buf_make(BUF_SZ_LARGE)
-  val () = session_json_head(json, font_p, font_px, viewmode, split, active, righti, side_open, sidew, tabs_len(ts))
+  val () = session_json_head(json, font_p, font_px, doc_font_px, viewmode, split, active, righti, side_open, sidew, tabs_len(ts))
   val () = tabs_to_json(ts, tab_pane, json, 0)
   val () = buffer_append_string(json, "\n  ]")
   val () = open_dirs_to_json(open_dirs, json)
@@ -165,6 +167,9 @@ implement conf_save_session(vault, font_p, font_px, viewmode, split, active, rig
   val () = buf_free(json)
 in
 end
+
+implement conf_save_session(vault, font_p, font_px, viewmode, split, active, righti, side_open, sidew, tab_pane, open_dirs, ts) =
+  conf_save_session_ex(vault, font_p, font_px, font_px, viewmode, split, active, righti, side_open, sidew, tab_pane, open_dirs, ts)
 
 fun read_tab_scroll(content: !Buf, p_pos: int, rbrace: int): int = let
   val sc_pos = find_substr(content, KEY_SCROLL, p_pos)
@@ -184,7 +189,7 @@ end
 
 fun open_tab_with(ts: Tabs, d: Doc, tmp_path: Buf, sc: int): Tabs = let
   var tbuf = buf_make(BUF_SZ_NAME)
-  val () = base_name(tmp_path, tbuf)
+  val () = base_name_no_md(tmp_path, tbuf)
   val powned = buffer_clone(tmp_path)
   val () = buf_free(tmp_path)
 in

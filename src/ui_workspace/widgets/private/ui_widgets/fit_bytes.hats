@@ -12,26 +12,35 @@ fun fit_bytes_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Fo
   ) else fit_bytes_fuel_exhausted(f, r, p, n, max_w, i, last_fit)
 
 fun fit_str_bytes(f: !Font, r: !Rend, p: ptr, n: int, max_w: int): int =
-  fit_bytes_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, p, n, max_w, 0, 0)
+  if ile(n, 0) orelse ile(max_w, 0) then 0
+  else if ile(font_width(f, r, p, n), max_w) then n
+  else fit_bytes_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, p, n, max_w, 0, 0)
+
+implement ui_fit_str_bytes(f, r, p, n, max_w) =
+  fit_str_bytes(f, r, p, n, max_w)
 
 
-fun ui_cell_bg(r: !Rend, x: int, y: int, w: int, h: int, is_selected: Toggle, is_hover: Toggle): void =
+fun ui_cell_bg(r: !Rend, x: int, y: int, w: int, h: int, is_selected: Toggle, is_hover: Toggle): void = let
+  val pad_y = iadd(y, 1)
+  val pad_h = imax(1, isub(h, 2))
+in
   if is_on(is_selected) then let
-    val () = rend_rect(r, x, y, w, h, col_side())
-    val () = rend_rect(r, x, y, 2, h, col_accent())
+    val () = rend_rect(r, x, pad_y, w, pad_h, col_side())
+    val () = rend_rect(r, x, pad_y, 2, pad_h, col_accent())
   in
   end else if is_on(is_hover) then let
-    val () = rend_rect(r, x, y, w, h, col_bar())
+    val () = rend_rect(r, x, pad_y, w, pad_h, col_bar())
   in
   end else ()
+end
 
 fun ui_cell_expander(f: !Font, r: !Rend, x_cur: &int >> _, y: int, h: int, is_expandable: Toggle, is_expanded: Toggle, is_hover: Toggle): void =
   if is_on(is_expandable) then let
     val () = ui_expander(f, r, x_cur, iadd(y, idiv(isub(h, 8), 2)), is_expanded, is_hover)
-    val () = x_cur := iadd(x_cur, 14)
+    val () = x_cur := iadd(x_cur, 16)
   in
   end else let
-    val () = x_cur := iadd(x_cur, 6)
+    val () = x_cur := iadd(x_cur, 8)
   in
   end
 
@@ -39,7 +48,7 @@ fun ui_cell_icon(f: !Font, r: !Rend, x_cur: &int >> _, y: int, h: int, icon: int
   if igt(icon, 0) then let
     val icol = if is_on(is_selected) then col_accent() else col_muted()
     val () = ui_draw_icon(f, r, icon, x_cur, iadd(y, idiv(isub(h, 12), 2)), 12, icol)
-    val () = x_cur := iadd(x_cur, 16)
+    val () = x_cur := iadd(x_cur, 18)
   in
   end else ()
 
@@ -65,8 +74,8 @@ fun draw_cell_guides_with_fuel {recfuel:nat} .<recfuel>. (
 ): void =
   if recursion_fuel_available(recfuel) then (
     if ilt(d, depth) then let
-      val gx = iadd(x, iadd(imul(d, 14), 7))
-      val () = rend_rect(r, gx, y, 1, h, col_line())
+      val gx = iadd(x, iadd(imul(d, UI_TREE_INDENT_PIXELS), 4))
+      val () = rend_rect(r, gx, y, 1, h, col_tree_guide())
     in
       draw_cell_guides_with_fuel(recfuel - 1, r, x, y, h, iadd(d, 1), depth)
     end else ()
@@ -78,7 +87,7 @@ fun draw_cell_guides(r: !Rend, x: int, y: int, h: int, depth: int): void =
 implement ui_cell(f, r, x, y, w, h, depth, is_expandable, is_expanded, icon, label, value_text, is_selected, is_hover) = let
   val () = ui_cell_bg(r, x, y, w, h, is_selected, is_hover)
   val () = draw_cell_guides(r, x, y, h, depth)
-  val x_indent = iadd(x, imul(depth, 14))
+  val x_indent = iadd(x, imul(depth, UI_TREE_INDENT_PIXELS))
   val ty = iadd(y, idiv(isub(h, font_line_h(f)), 2))
   var x_cur: int = x_indent
   val () = ui_cell_expander(f, r, x_cur, y, h, is_expandable, is_expanded, is_hover)

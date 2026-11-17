@@ -15,6 +15,10 @@ target_link_libraries(document_performance PRIVATE anthracite_host native_text_e
 add_executable(performance_counter_contracts EXCLUDE_FROM_ALL tests/performance/performance_counter_contracts.c)
 add_test(NAME performance_counter_contracts COMMAND performance_counter_contracts)
 add_test(NAME performance_summary_contracts COMMAND python3 "${CMAKE_SOURCE_DIR}/tests/performance/test_summarize.py")
+# Counter budgets need an X display (or Xvfb); skipped with code 77 otherwise.
+add_test(NAME performance_budgets COMMAND python3 "${CMAKE_SOURCE_DIR}/tests/performance/perf_budget.py"
+  "$<TARGET_FILE:document_performance>" "$<TARGET_FILE:search_performance>")
+set_tests_properties(performance_budgets PROPERTIES SKIP_RETURN_CODE 77 LABELS perf TIMEOUT 900)
 add_test(NAME font_temporary_ownership_type_error COMMAND "${CMAKE_COMMAND}"
   "-DPATSOPT=${ANTHRACITE_OT_PATSOPT}" "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
   -P "${CMAKE_SOURCE_DIR}/tests/contracts/expect_font_temporary_error.cmake")
@@ -135,7 +139,7 @@ set_tests_properties(fold_callout_alinti PROPERTIES LABELS fold)
 anthracite_contract_test(workspace_contracts tests/workspace/workspace_contracts.dats)
 target_link_libraries(workspace_contracts PRIVATE anthracite_host native_text_engine
   ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
-foreach(mode image config document)
+foreach(mode image config document keymap history)
   add_test(NAME workspace_${mode}_contracts COMMAND "${CMAKE_COMMAND}"
     "-DEXECUTABLE=$<TARGET_FILE:workspace_contracts>" "-DMODE=${mode}"
     "-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}" -P "${CMAKE_SOURCE_DIR}/tests/workspace/run_isolated.cmake")

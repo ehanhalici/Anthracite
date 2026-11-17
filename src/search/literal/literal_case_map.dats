@@ -10,7 +10,7 @@ fun scalar_valid(cp: int): bool = ige(cp,0) andalso ile(cp,UNICODE_MAX_SCALAR)
   andalso not(ige(cp,UNICODE_SURROGATE_START) andalso ilt(cp,UNICODE_SURROGATE_LIMIT))
 fun entry_word(i: int): int = iadd(SEARCH_CASE_HEADER_WORDS,imul(i,SEARCH_CASE_ENTRY_WORDS))
 fun search{n:nat} .<n>. (fuel: int(n),table: !Buf,cp: int,low: int,high: int): int =
-  if ige(low,high) then cp else if not(recursion_fuel_available(fuel)) then cp else let
+  if ige(low,high) then cp else if fuel = 0 then cp else let
     val middle=iadd(low,idiv(isub(high,low),2)) val at=entry_word(middle)
     val value=buf_get32(table,iadd(at,SEARCH_CASE_FIELD_SCALAR))
   in if ieq(value,cp) then buf_get32(table,iadd(at,SEARCH_CASE_FIELD_REPRESENTATIVE))

@@ -1,6 +1,8 @@
 # Shared ATS outputs have one producer. All executable consumers wait for it;
 # otherwise Make can run the same patsopt command in two target graphs at once.
-add_library(performance_counters OBJECT "${CMAKE_SOURCE_DIR}/src/core_runtime/performance.c")
+add_library(performance_counters OBJECT
+  "${CMAKE_SOURCE_DIR}/src/core_runtime/performance.c"
+  "${CMAKE_SOURCE_DIR}/src/core_runtime/perf_sampler.c")
 get_property(ANTHRACITE_BUILD_TARGETS DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
 set(ANTHRACITE_TEST_OUTPUTS "")
 set(ANTHRACITE_SHARED_TEST_OUTPUTS "")

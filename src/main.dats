@@ -9,6 +9,7 @@ staload "core_render/render.sats"
 staload "core_render/gl.sats"
 staload "core_runtime/selftest.sats"
 staload "core_runtime/application.sats"
+staload "core_runtime/performance.sats"
 staload "data_ast/document/doc.sats"
 
 macdef FIRST_ARGUMENT = 1
@@ -43,6 +44,7 @@ in
 end
 
 implement main0() = let
+  val () = performance_runtime_init()
   val fold_dump = c_argc() > FOLD_PATH_ARGUMENT andalso c_strcmp(c_argv(FIRST_ARGUMENT), "--fold-dump") = 0
 in
   if fold_dump then doc_fold_dump(c_argv(FOLD_PATH_ARGUMENT)) else start_application()

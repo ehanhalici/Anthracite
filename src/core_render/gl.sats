@@ -61,6 +61,8 @@ fun col_fm(): uint = "mac#col_fm"
 fun col_menu(): uint = "mac#col_menu"
 fun col_danger(): uint = "mac#col_danger"
 fun col_overlay(): uint = "mac#col_overlay"
+fun col_tree_guide(): uint = "mac#col_tree_guide"
+fun col_scroll_thumb(): uint = "mac#col_scroll_thumb"
 fun uf_wide(cp: int): int = "mac#uf_wide"
 fun uf_byte(cp: int, row: int, colb: int): int = "mac#uf_byte"
 

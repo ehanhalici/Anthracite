@@ -15,17 +15,13 @@ staload "core_runtime/event_loop.sats"
 staload "core_runtime/text_engine_startup.sats"
 staload "core_runtime/event_repaint.sats"
 staload "core_runtime/frame_trace.sats"
+staload "core_runtime/performance.sats"
 staload "os/fs.sats"
 
-fun is0(n: int): bool = n = 0
-
-fun damage(a: !App,k: Ev,ev: &event): Repaint =
-  if is_ev(k,EvMotion) then
-    if app_motion_changes(a,ev) then RepaintNeeded() else RepaintClean()
+fun damage(a: !App, k: Ev, ev: &event): Repaint =
+  if is_ev(k, EvMotion) then
+    if app_motion_changes(a, ev) then RepaintNeeded() else RepaintClean()
   else event_repaint(k)
-
-fun plat_read_buf(p: !Plat, ev: &event, dst: !Buf, cap: int): int =
-  plat_read(p, ev, buf_ptr(dst), cap)
 
 fun dispatch(p: !Plat,a: !App,f: !Font,r: !Rend,ev: &event): Repaint = let
   var w: int = 0
@@ -39,33 +35,47 @@ fun dispatch(p: !Plat,a: !App,f: !Font,r: !Rend,ev: &event): Repaint = let
   val ()=app_event(a,p,f,r,ev,w,h)
 in changed end
 
-fun drain_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), p: !Plat, a: !App, f: !Font, r: !Rend,dirty: Repaint): Repaint =
-  if recursion_fuel_available(recfuel) then (
-    if plat_pending(p) = 0 then dirty
+fun drain_batch {batch:nat} .<batch>. (
+  batch_left: int(batch), p: !Plat, a: !App, f: !Font, r: !Rend, dirty: Repaint
+): Repaint =
+  if batch_left = 0 then dirty
+  else let
+    val pending = plat_pending(p)
+  in
+    if not(event_batch_has_budget(batch_left, pending)) then dirty
     else let
       var ev: event
       val () = plat_next(p, ev)
-      val changed=dispatch(p,a,f,r,ev)
+      val changed = dispatch(p, a, f, r, ev)
     in
-      if is_off(plat_running(p)) then dirty else
-        drain_with_fuel(recfuel - 1, p, a, f, r,repaint_merge(dirty,changed))
+      if is_off(plat_running(p)) then dirty
+      else drain_batch(batch_left - 1, p, a, f, r, repaint_merge(dirty, changed))
     end
-  ) else dirty (* Intentional 64-event batch: continuous input cannot starve presentation. *)
+  end
 
-fun drain(p: !Plat, a: !App, f: !Font, r: !Rend): Repaint =
-  drain_with_fuel(airlock_nat(64), p, a, f, r,RepaintClean())
+fun drain(p: !Plat, a: !App, f: !Font, r: !Rend): Repaint = let
+  val t0 = performance_now_ns()
+  val dirty = drain_batch(airlock_nat(EVENT_DRAIN_BATCH_LIMIT), p, a, f, r, RepaintClean())
+  val () = performance_phase_end(PERF_PHASE_EVENT_DISPATCH, t0)
+in
+  dirty
+end
 
 extern fun frame_fuel_exhausted(p: !Plat, a: !App, f: !Font, r: !Rend, loaded: bool): void = "mac#anth_die_void"
 
 fun frame_present(p: !Plat, a: !App, f: !Font, r: !Rend): void = let
   val started=mono_ns()
+  val pf0 = performance_now_ns()
   var w: int = 0
   var h: int = 0
   val () = platform_dimensions(p, w, h)
   val () = rend_begin(r, w, h)
   val () = app_draw(a, f, r, w, h)
   val () = rend_flush(r)
+  val ps0 = performance_now_ns()
   val ()=plat_swap(p)
+  val () = performance_phase_end(PERF_PHASE_PLAT_SWAP, ps0)
+  val () = performance_phase_end(PERF_PHASE_FRAME_TOTAL, pf0)
 in
   frame_trace(started)
 end

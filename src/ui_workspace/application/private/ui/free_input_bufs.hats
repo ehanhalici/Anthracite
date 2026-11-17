@@ -57,13 +57,15 @@ implement app_free(a) = let
     end
   val+ ~APP(s) = app_val
   val ()=literal_pattern_release(s.search_pattern)
-  val ts2 = tabs_ensure_paths(s.tabs, s.vault)
+  val ts2 = tabs_flush_paths(s.tabs, s.vault)
   val side_open = (if is_side_none(s.side) then 0 else 1)
-  val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.viewmode, s.split, s.active, s.righti, side_open, s.sidew, s.tab_pane, s.open_dirs, ts2)
+  val () = save_session_impl(s.vault, s.font_path, s.fontpx, s.doc_fontpx, s.viewmode, s.split, s.active, s.righti, side_open, s.sidew, s.tab_pane, s.open_dirs, ts2)
   val () = free_input_bufs(s.clip, s.promptb, s.query, s.tree, s.tmeta, s.topen)
   val () = free_search_bufs(s.hits, s.hmeta, s.scratch, s.imgpath)
   val () = free_index_bufs(s.ixf, s.ixs, s.ixp, s.ixb, s.ixq, s.hjump)
   val () = free_font_bufs(s.fpaths, s.fnames, s.fmeta, s.font_path)
+  val () = tab_hist_free(s.tab_hists)
+  val () = buf_free(s.keymap)
 in
   free_app_state(s.vault, ts2, s.cache, s.vpaths, s.vnames, s.vmeta, s.tab_pane, s.open_dirs)
 end
@@ -105,7 +107,7 @@ fun is_in_lines_with_fuel {recfuel:nat} .<recfuel>. (
       val e = skip_to_lf(lines, cur, n)
       val len = isub(e, cur)
       val plen = buf_len(p)
-      val matches = ieq(len, plen) andalso buf_span_eq_m(lines, cur, p, 0, airlock_nat(len))
+      val matches = ieq(len, plen) andalso buf_span_eq_m(lines, cur, p, 0, airlock_nat(imax(0, len)))
     in
       if matches then true
       else is_in_lines_with_fuel(recfuel - 1, lines, p, iadd(e, 1), n)
@@ -171,7 +173,7 @@ fun tree_source_m {rem:nat} .<rem>. (
 
 fun tree_source_for_view(s: &App_record, wanted: int): int =
   if ilt(wanted, 0) orelse ile(s.tn, 0) then ~1
-  else tree_source_m(s, 0, wanted, 0, ~1, airlock_nat(s.tn))
+  else tree_source_m(s, 0, wanted, 0, ~1, airlock_nat(imax(0, s.tn)))
 
 fun tree_count_visible {rem:nat} .<rem>. (
   s: &App_record, source: int, visible: int, hidden_depth: int, rem: int(rem)
@@ -188,11 +190,14 @@ fun tree_count_visible {rem:nat} .<rem>. (
   end
 
 fun tree_visible_count(s: &App_record): int =
-  tree_count_visible(s, 0, 0, ~1, airlock_nat(s.tn))
+  tree_count_visible(s, 0, 0, ~1, airlock_nat(imax(0, s.tn)))
 
-fun tree_source_at_y(s: &App_record, y: int): int =
-  if ilt(y, 72) then ~1
-  else tree_source_for_view(s, iadd(s.treescroll, idiv(isub(y, 72), UI_TREE_ROW_HEIGHT)))
+fun tree_source_at_y(s: &App_record, y: int): int = let
+  val top_y = tree_top_y_of(s)
+in
+  if ilt(y, top_y) then ~1
+  else tree_source_for_view(s, iadd(s.treescroll, idiv(isub(y, top_y), tree_row_h(s.fontpx))))
+end
 
 fun tree_toggle_source(s: &App_record >> _, source: int): void =
   if ige(source, 0) andalso is_dir_mark(meta_dir(s.tmeta, source), DirYes) then let

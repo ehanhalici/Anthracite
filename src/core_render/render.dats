@@ -9,6 +9,7 @@ staload "airlock.sats"
 staload "os/fs.sats"
 staload "core_render/gl.sats"
 staload "core_render/render.sats"
+staload "core_runtime/performance.sats"
 
 #define RENDER_BATCH_MAX_VERTICES 4096
 #define RENDER_CLIP_INITIAL_BYTES 256
