@@ -16,8 +16,10 @@ fun run_loaded(data: !NormalizationData): int = let
   val provenance = normalization_provenance_contracts(data)
   val blob = normalization_blob_contracts(c_argv(1))
   val balanced = ieq(before,mem_live())
-  val () = println!("event=normalization_contracts source_errors=",source," provenance_errors=",provenance," blob_errors=",blob," balanced=",balanced)
-in iadd(source,iadd(provenance,iadd(blob,if balanced then 0 else 1))) end
+  val dense: int = if normalization_dense_match(data) then 0 else 1
+  val () = print!("event=normalization_contracts source_errors=",source," provenance_errors=",provenance," blob_errors=",blob," balanced=",balanced)
+  val () = print_string(" dense_errors=") val () = print_int(dense) val () = print_newline()
+in iadd(dense,iadd(source,iadd(provenance,iadd(blob,if balanced then 0 else 1)))) end
 
 fun run(): int = case+ normalization_load(c_argv(1)) of
   | ~NormalizationRejected(error) => 1

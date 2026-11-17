@@ -50,11 +50,28 @@ fun reject_map{kind:int}(b: Buf, error: PropertyError): PropertyLoad(kind) = let
   val () = buf_free(b)
 in PropertyRejected(error) end
 
+fun dense_base(count: int): int = iadd(4,imul(count,3))
+fun dense_span{n:nat} .<n>. (n: int(n),b: !Buf,at: int,value: int): void =
+  if n = 0 then () else let val ()=buf_set32(b,at,value) in dense_span(n-1,b,iadd(at,1),value) end
+(* Ranges are validated contiguous from 0, so every dense slot gets written. *)
+fun dense_fill{n:nat} .<n>. (n: int(n),b: !Buf,at: int,base: int): void =
+  if n = 0 then () else let val first=buf_get32(b,at) in
+    if ige(first,UNICODE_DENSE_SCALARS) then () else let
+      val last=imin(buf_get32(b,iadd(at,1)),isub(UNICODE_DENSE_SCALARS,1))
+      val ()=dense_span(airlock_nat(iadd(isub(last,first),1)),b,iadd(base,first),buf_get32(b,iadd(at,2)))
+    in dense_fill(n-1,b,iadd(at,3),base) end end
+fun with_dense(b0: Buf,count: int): Buf = let
+  var b: Buf=b0
+  val base=dense_base(count) val bytes=imul(iadd(base,UNICODE_DENSE_SCALARS),WORD32_BYTES)
+  val ()=buf_ensure(b,bytes) val ()=buf_set_len(b,bytes)
+  val ()=dense_fill(airlock_nat(count),b,4,base)
+in b end
+
 implement property_parse(b,domain) =
   if not(header_valid(b,domain)) then reject_map(b,PropertyHeader()) else let
     val count = buf_get32(b,3)
     val valid = ranges_valid(airlock_nat(count),b,4,~1,domain)
-  in if valid then PropertyLoaded(PropertyMap(b,count)) else reject_map(b,PropertyRanges()) end
+  in if valid then PropertyLoaded(PropertyMap(with_dense(b,count),count)) else reject_map(b,PropertyRanges()) end
 
 implement property_load(path,domain) = case+ text_file_read(path) of
   | ~TextFileError(code) => PropertyRejected(PropertyIo(code))
@@ -75,6 +92,13 @@ fun search {n:nat} .<n>. (
     else buf_get32(b,iadd(at,2)) end
 
 implement property_value(map,cp) = let val+ PropertyMap(b,count) = map in
-  search(airlock_nat(iadd(count,1)),b,cp,0,count) end
+  if ige(cp,0) andalso ilt(cp,UNICODE_DENSE_SCALARS) then buf_get32(b,iadd(dense_base(count),cp))
+  else search(airlock_nat(iadd(count,1)),b,cp,0,count) end
+fun dense_match{n:nat} .<n>. (n: int(n),b: !Buf,count: int,cp: int): bool =
+  if n = 0 then true
+  else ieq(buf_get32(b,iadd(dense_base(count),cp)),search(airlock_nat(iadd(count,1)),b,cp,0,count))
+    andalso dense_match(n-1,b,count,iadd(cp,1))
+implement property_dense_match(map) = let val+ PropertyMap(b,count) = map in
+  dense_match(airlock_nat(UNICODE_DENSE_SCALARS),b,count,0) end
 
 implement property_dispose(map) = let val+ ~PropertyMap(b,count) = map in buf_free(b) end

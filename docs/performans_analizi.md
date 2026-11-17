@@ -377,3 +377,35 @@ Release, fixture, 5 süreç medyanı:
 İlk karenin kalan ~12 ms'si: tam layout ~2,7 ms, ilk artımlı geçiş ~0,8 ms,
 projeksiyon ve iskelet ile bant şekillendirme ~4,2 ms; kalanı medya bağlama,
 çizim ve flush.
+
+## Unicode doğrudan tablolar — 2026-11-18
+
+Önceki listedeki öneri 2 uygulandı. Yüklenen üç tablo türü (9 özellik haritası,
+grafem veritabanı, normalizasyon satırları) doğrulamadan sonra U+0000–U+07FF
+için bir doğrudan tablo kuruyor (`UNICODE_DENSE_SCALARS = 2048`, tablo başına
+8 KB, toplam ~88 KB). Tablo verinin sonuna, aynı tampona ekleniyor; bu aralıktaki
+arama tek okumaya iniyor, diğer kod noktaları ikili aramaya devam ediyor.
+`property_dense_match`, `unicode_properties_dense_match` ve
+`normalization_dense_match` 2048 kod noktasının tümünde tabloyu ikili aramayla
+karşılaştırıyor (`line_contracts` ve `normalization_contracts`:
+`dense_errors=0`).
+
+Release, fixture, 5 süreç medyanı:
+
+| | Önce | Sonra |
+|---|---|---|
+| Arka plan kare sayısı (çalıştırma başına) | ~26 | ~21 |
+| Sıçrama/PageDown kaydırma CPU (medyan / p95) | 2,2–2,3 / 2,7–2,9 ms | 2,0 / 2,4–2,6 ms |
+| İlk kare | 11,9–13,0 ms | 11,3–12,3 ms |
+| Arama (50 not) | 1,24 ms | 1,22–1,28 ms (değişmedi) |
+
+`property_value` arka plan profilinde %6,2 self süreden ~%1,4'e indi.
+
+Denenip geri alınan: NFC birleştirmesinde ikinci kod noktası birleşemiyorsa çift
+aramasını atlayan bir bayrak tablosu. Ölçülebilir fark çıkmadı (profildeki %4,2
+yalnızca 6 örnekti), bu yüzden eklenmedi.
+
+Kalan şekillendirme maliyetinin çoğu OpenType GSUB/GPOS yürüyüşünde
+(`glyph_substitution_step`, `ot_coverage_index`, GPOS grafiği) ve özellik kümesi
+sıralamasında (`radix_round`, `ot_layout_feature_set`). İkisini de öneri 3
+(shape-plan / kelime önbelleği) hedefliyor.

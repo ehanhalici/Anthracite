@@ -14,3 +14,5 @@ fun unicode_conjunct(db: !UnicodeDb, cp: int): ConjunctClass
 fun unicode_pictographic(db: !UnicodeDb, cp: int): bool
 fun grapheme_class_of(code: int): GraphemeClass
 fun conjunct_class_of(code: int): ConjunctClass
+(* Contract check: dense entries equal the binary search for every dense scalar. *)
+fun unicode_properties_dense_match(db: !UnicodeDb): bool
