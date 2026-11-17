@@ -14,7 +14,10 @@ macdef LH_WRAP = 4
 macdef LH_RAW0 = 5
 macdef LH_RAW1 = 6
 macdef LH_LINES = 7
-macdef LH_DATA = 8
+(* Inclusive line range whose visual row count changed since the last layout. *)
+macdef LH_DIRTY0 = 8
+macdef LH_DIRTY1 = 9
+macdef LH_DATA = 10
 
 macdef LAYOUT_RECORD_WORDS = 2
 macdef LAYOUT_RECORD_BYTES = LAYOUT_RECORD_WORDS * WORD32_BYTES
@@ -37,6 +40,8 @@ implement layout_open() = let
   val () = buf_set32(layout, LH_RAW0, ~1)
   val () = buf_set32(layout, LH_RAW1, ~2)
   val () = buf_set32(layout, LH_LINES, 0)
+  val () = buf_set32(layout, LH_DIRTY0, ~1)
+  val () = buf_set32(layout, LH_DIRTY1, ~2)
 in
   layout
 end
@@ -90,6 +95,8 @@ implement layout_cache_matches(layout, version, key, mode) =
 implement layout_cache_height(layout) = buf_get32(layout, LH_HEIGHT)
 
 implement layout_cache_store(layout, version, key, height, mode, wrap) = let
+  val () = buf_set32(layout, LH_DIRTY0, ~1)
+  val () = buf_set32(layout, LH_DIRTY1, ~2)
   val () = buf_set32(layout, LH_VER, version)
   val () = buf_set32(layout, LH_KEY, key)
   val () = buf_set32(layout, LH_HEIGHT, height)
@@ -107,4 +114,15 @@ implement layout_raw_store(layout, raw0, raw1) = let
   val () = buf_set32(layout, LH_RAW0, raw0)
 in
   buf_set32(layout, LH_RAW1, raw1)
+end
+
+implement layout_dirty_first(layout) = buf_get32(layout, LH_DIRTY0)
+implement layout_dirty_last(layout) = buf_get32(layout, LH_DIRTY1)
+implement layout_mark_dirty(layout, first, last) = let
+  val old0 = buf_get32(layout, LH_DIRTY0)
+  val old1 = buf_get32(layout, LH_DIRTY1)
+  val empty = ilt(old0, 0)
+  val () = buf_set32(layout, LH_DIRTY0, if empty then first else imin(old0, first))
+in
+  buf_set32(layout, LH_DIRTY1, if empty then last else imax(old1, last))
 end

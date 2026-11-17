@@ -61,8 +61,8 @@ in case+ state of
   | ~Some_vt(rows0) => let var rows=rows0
       val wrapped=visual_wrap_lines(f,r,d,rows,range,deadline)
       val ()=doc_visual_put(d,Some_vt(rekey(rows,visual_layout_key(f,d,width,mode))))
-      val ()=if igt(wrapped,0) then doc_layout_cache_store(d,~1,0,0,~1,doc_get_wrap(d)) else ()
-    in wrapped end end
+      val ()=if igt(wrapped.count,0) then doc_layout_mark_rows(d,wrapped.first,wrapped.last) else ()
+    in wrapped.count end end
 implement visual_layout_wrap_range(f,r,d,width,mode,range,deadline) =
   if not(font_text_active(f)) orelse not(stored_matches(f,d,width,mode)) then 0 else let
     val t0 = performance_now_ns()

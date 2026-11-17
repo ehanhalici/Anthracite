@@ -263,15 +263,17 @@ fun forget_plans_once(rows: !VisualRows,wrapped: int): void =
 
 fun splice{n:nat} .<n>. (left: int(n),f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,
   old_lines: !Buf,old_data: !Buf,line: int,range: VisualLineRange,deadline: lint,
-  cur: &int >> _,scratch: &Buf >> _,wrapped: int): int =
+  cur: &int >> _,scratch: &Buf >> _,wrapped: VisualWrapped): VisualWrapped =
   if left = 0 then let val ()=close_lines(rows,line) in wrapped end else let
     val chosen=ige(line,range.first) andalso ile(line,range.last) andalso old_pending(old_lines,old_data,line)
-      andalso within_budget(deadline,wrapped)
-    val ()=if chosen then let val ()=forget_plans_once(rows,wrapped)
+      andalso within_budget(deadline,wrapped.count)
+    val ()=if chosen then let val ()=forget_plans_once(rows,wrapped.count)
         in seen_int(one(f,r,d,rows,line,cur,scratch,true)) end
       else copy_line(rows,old_lines,old_data,line)
-  in splice(left-1,f,r,d,rows,old_lines,old_data,iadd(line,1),range,deadline,cur,scratch,
-      if chosen then iadd(wrapped,1) else wrapped) end
+    val next: VisualWrapped=if chosen then
+        @{count=iadd(wrapped.count,1),first=if ieq(wrapped.count,0) then line else wrapped.first,last=line}
+      else wrapped
+  in splice(left-1,f,r,d,rows,old_lines,old_data,iadd(line,1),range,deadline,cur,scratch,next) end
 
 fun has_pending_in{n:nat} .<n>. (left: int(n),rows: !VisualRows,line: int): bool =
   if left = 0 then false else visual_rows_line_pending(rows,line) orelse has_pending_in(left-1,rows,iadd(line,1))
@@ -279,8 +281,9 @@ fun has_pending_in{n:nat} .<n>. (left: int(n),rows: !VisualRows,line: int): bool
 implement visual_wrap_lines(f,r,d,rows,range,deadline) = let
   val nlines=doc_nlines(d)
   val first=imax(0,range.first) val last=imin(isub(nlines,1),range.last)
+  val nothing: VisualWrapped= @{count=0,first=0,last= ~1}
 in if ile(visual_rows_pending(rows),0) orelse igt(first,last)
-    orelse not(has_pending_in(airlock_nat(iadd(isub(last,first),1)),rows,first)) then 0 else let
+    orelse not(has_pending_in(airlock_nat(iadd(isub(last,first),1)),rows,first)) then nothing else let
   val before=visual_rows_pending(rows)
   val+ ~VisualRows(t,m,old_lines,old_data,n,k,plans)=rows
   val fresh_lines=buf_make(buf_len(old_lines)) val ()=buf_zero(fresh_lines) val ()=buf_set_len(fresh_lines,buf_len(old_lines))
@@ -288,8 +291,8 @@ in if ile(visual_rows_pending(rows),0) orelse igt(first,last)
   var scratch = buf_make(VISUAL_WRAP_FILL_SCRATCH_INITIAL_BYTES)
   var cur: int = 0
   val bounded: VisualLineRange= @{first=first,last=last}
-  val wrapped=splice(airlock_nat(nlines),f,r,d,target,old_lines,old_data,0,bounded,deadline,cur,scratch,0)
-  val ()=visual_rows_set_pending(target,isub(before,wrapped))
+  val wrapped=splice(airlock_nat(nlines),f,r,d,target,old_lines,old_data,0,bounded,deadline,cur,scratch,nothing)
+  val ()=visual_rows_set_pending(target,isub(before,wrapped.count))
   val ()=buf_free(scratch) val ()=buf_free(old_lines) val ()=buf_free(old_data)
   val ()=rows := target
 in wrapped end end

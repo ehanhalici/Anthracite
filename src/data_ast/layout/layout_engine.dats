@@ -179,6 +179,39 @@ in
   end
 end
 
+
+(* Incremental relayout after visual rows of lines [first,last] changed with the
+   document version unchanged: node visibility and widget heights are as the
+   last full layout left them, so only those line steps, the y of every later
+   line, and nodes reaching past the first changed line need recomputing. *)
+extern fun relayout_exhausted(): int = "mac#anth_die_int"
+fun restep{n:nat} .<n>. (fuel: int(n),d: !Doc,lh: int,is_read: int,wc: int,line: int,last: int,cur: &int >> _): void =
+  if fuel = 0 then () else if igt(line,last) then () else let
+    val step=line_calc_step(d,line,doc_nnodes(d),lh,is_read,wc,cur)
+    val ()=doc_layout_store_line(d,line,doc_line_y(d,line),step)
+  in restep(fuel-1,d,lh,is_read,wc,iadd(line,1),last,cur) end
+fun reflow{n:nat} .<n>. (fuel: int(n),d: !Doc,line: int,y: int): int =
+  if ige(line,doc_nlines(d)) then y else if fuel = 0 then relayout_exhausted() else let
+    val step=doc_line_step(d,line)
+    val ()=doc_layout_store_line(d,line,y,step)
+  in reflow(fuel-1,d,iadd(line,1),iadd(y,step)) end
+fun restamp{n:nat} .<n>. (fuel: int(n),d: !Doc,lh: int,is_read: int,wc: int,i: int,from: int): void =
+  if ige(i,doc_nnodes(d)) then () else if fuel = 0 then () else let
+    val ()=if igt(doc_node_end(d,i),from) then let
+        val ()=doc_layout_store_node_y(d,i,stamp_y(d,lh,is_read,wc,i))
+      in stamp_height(d,i,doc_node_kind(d,i)) end else ()
+  in restamp(fuel-1,d,lh,is_read,wc,iadd(i,1),from) end
+fun doc_layout_update(d: !Doc,lh: int,is_read: int,colw: int,first: int,last: int): int = let
+  val wc=doc_wrap_cols(colw)
+  val nlines=doc_nlines(d)
+  val a=imax(0,first) val b=imin(isub(nlines,1),last)
+  var cur: int=0
+  val ()=restep(airlock_nat(iadd(imax(0,isub(b,a)),1)),d,lh,is_read,wc,a,b,cur)
+  val start_y=if igt(a,0) then iadd(doc_line_y(d,isub(a,1)),doc_line_step(d,isub(a,1))) else 0
+  val height=reflow(airlock_nat(iadd(imax(0,isub(nlines,a)),1)),d,a,start_y)
+  val ()=restamp(airlock_nat(doc_nnodes(d)),d,lh,is_read,wc,0,doc_line_start(d,a))
+in height end
+
 implement doc_get_wrap(d) = let
   val wrap = doc_layout_cached_wrap(d)
 in
@@ -198,9 +231,19 @@ implement doc_layout_mode(d, line_height, is_read, colw) = let
   val wrap = doc_wrap_cols(colw)
   val key = iadd(lh, imul(wrap, 1000))
   val result =
-    if doc_layout_cache_match(d, version, key, is_read) then
-      doc_layout_cache_height(d)
-    else let
+    if doc_layout_cache_match(d, version, key, is_read) then let
+      val @(first, last) = doc_layout_dirty_rows(d)
+    in
+      if ilt(first, 0) orelse is_off(doc_is_md(d)) orelse ieq(doc_nnodes(d), 0) then doc_layout_cache_height(d)
+      else let
+        val () = performance_note(PERF_LAYOUT_UPDATES, 1)
+        val height = doc_layout_update(d, lh, is_read, colw, first, last)
+        val () = doc_visual_index(d)
+        val () = doc_layout_cache_store(d, version, key, height, is_read, wrap)
+      in
+        height
+      end
+    end else let
       val () = performance_note(PERF_LAYOUT_BUILDS, 1)
       val height = doc_layout_calc(d, lh, doc_nnodes(d), is_read, colw)
       val () = doc_visual_index(d)

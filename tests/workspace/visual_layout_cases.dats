@@ -612,6 +612,12 @@ fun drain{n:nat} .<n>. (left: int(n),f: !Font,r: !Rend,d: !Doc,width: int,view: 
 fun band_exact{n:nat} .<n>. (left: int(n),d: !Doc,line: int,bottom: int): int =
   if left = 0 then 0 else if igt(doc_line_y(d,line),bottom) then 0
   else iadd(if igt(doc_visual_line_rows(d,line),0) then 0 else 1,band_exact(left-1,d,iadd(line,1),bottom))
+fun same_lines{n:nat} .<n>. (left: int(n),a: !Doc,b: !Doc,i: int): int =
+  if left = 0 then 0 else iadd(if ieq(doc_line_y(a,i),doc_line_y(b,i)) andalso ieq(doc_line_step(a,i),doc_line_step(b,i)) then 0 else 1,
+    same_lines(left-1,a,b,iadd(i,1)))
+fun same_nodes{n:nat} .<n>. (left: int(n),a: !Doc,b: !Doc,i: int): int =
+  if left = 0 then 0 else iadd(if ieq(doc_node_y(a,i),doc_node_y(b,i)) andalso ieq(doc_node_height(a,i),doc_node_height(b,i)) then 0 else 1,
+    same_nodes(left-1,a,b,iadd(i,1)))
 fun deferred_rows_match_full(f: !Font,r: !Rend): int = let
   val width=360 val lines=80
   val full=doc_open() val () = deferred_text(full,lines) val ()=doc_set_caret_move(full,0)
@@ -628,13 +634,17 @@ fun deferred_rows_match_full(f: !Font,r: !Rend): int = let
   val differ=compare_rows(a,b)
   val ()=doc_visual_put(full,a) val ()=doc_visual_put(deferred,b)
   val heights=if ieq(doc_layout_mode(full,lh,1,width),doc_layout_mode(deferred,lh,1,width)) then 0 else 1
+  (* Deferred geometry came from incremental relayouts; it must equal a full one. *)
+  val geometry=if ine(doc_nlines(full),doc_nlines(deferred)) orelse ine(doc_nnodes(full),doc_nnodes(deferred)) then 1
+    else iadd(same_lines(airlock_nat(doc_nlines(full)),full,deferred,0),same_nodes(airlock_nat(doc_nnodes(full)),full,deferred,0))
   val ()=print_string("event=visual_deferred pending_after_band=") val ()=print_int(started)
   val ()=print_string(" visible_pending=") val ()=print_int(visible)
   val ()=print_string(" leftover=") val ()=print_int(leftover)
   val ()=print_string(" row_mismatches=") val ()=print_int(differ)
-  val ()=print_string(" height_mismatch=") val ()=print_int(heights) val ()=print_newline()
+  val ()=print_string(" height_mismatch=") val ()=print_int(heights)
+  val ()=print_string(" geometry_mismatches=") val ()=print_int(geometry) val ()=print_newline()
   val ()=doc_free(full) val ()=doc_free(deferred)
-in iadd(if igt(started,0) then 0 else 1,iadd(visible,iadd(leftover,iadd(differ,heights)))) end
+in iadd(geometry,iadd(if igt(started,0) then 0 else 1,iadd(visible,iadd(leftover,iadd(differ,heights))))) end
 
 implement native_visual_layout_cases(f,r) = let val before=mem_live() val d=doc_open()
   val body=test(f,r,d) val markup=markdown(f,r) val hard=iadd(hard_lines(f,r), crlf_and_guards(f,r))

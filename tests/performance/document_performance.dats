@@ -42,6 +42,7 @@ fun report(): void = let
   val ()=counter("ast_parses",PERF_AST_PARSES)
   val ()=counter("fold_prepares",PERF_FOLD_PREPARES)
   val ()=counter("layout_builds",PERF_LAYOUT_BUILDS)
+  val ()=counter("layout_updates",PERF_LAYOUT_UPDATES)
   val ()=counter("wrap_builds",PERF_WRAP_BUILDS)
   val ()=counter("wrap_lines",PERF_WRAP_LINES)
   val ()=counter("width_queries",PERF_WIDTH_QUERIES)

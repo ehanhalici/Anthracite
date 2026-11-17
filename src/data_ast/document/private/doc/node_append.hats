@@ -206,3 +206,19 @@ fun node_block_rank(k: NodeKind): int =
   else if is_kind(k, KLi) then 2
   else if is_kind(k, KPara) then 1
   else 0
+
+implement doc_layout_mark_rows(d, first, last) =
+  case+ d of
+  | @DOC(s) => let
+      val () = layout_mark_dirty(s.lay, first, last)
+    in
+      fold@(d)
+    end
+
+implement doc_layout_dirty_rows(d) =
+  case+ d of
+  | @DOC(s) => let
+      val range = @(layout_dirty_first(s.lay), layout_dirty_last(s.lay))
+    in
+      fold@(d); range
+    end

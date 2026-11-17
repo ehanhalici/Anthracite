@@ -344,3 +344,36 @@ Kalan maliyetler ve sonraki adımlar:
   da çözer.
 - Önceki listedeki öneri 2 (Unicode tablo) ve 3 (shape-plan önbelleği) artık arka
   plan süresini ve sıçrama/PageDown kaydırmasını hedefliyor.
+
+## Artımlı layout — 2026-11-18
+
+Arka plan karelerinin her biri layout'u baştan yapıyordu (Release'de ~2,7 ms). Artık:
+
+- `visual_wrap_lines` şekillendirdiği satır aralığını döndürüyor.
+  `doc_layout_mark_rows` bu aralığı layout kaydına "kirli" olarak yazıyor
+  (`LH_DIRTY0/1`). Belge sürümü ve layout anahtarı değişmiyor.
+- `doc_layout_mode` anahtar eşleşirken kirli aralık varsa `doc_layout_update`
+  çalıştırıyor:
+  - yalnızca kirli satırların adımını yeniden hesaplıyor;
+  - sonraki satırların y'sini kaydırıyor;
+  - sonu ilk kirli satırdan sonra biten düğümleri yeniden damgalıyor;
+  - görsel indeksi yeniden kuruyor.
+- `doc_layout_ast_prepare` (katlama, görünürlük, widget yükseklikleri) atlanıyor,
+  çünkü bunlar yalnızca belge sürümüne bağlı. Tam layout `layout_builds`
+  sayacına, artımlı layout yeni `layout_updates` sayacına yazılıyor.
+- `deferred_rows_match_full` testi artık her satırın y/adım değerini ve her
+  düğümün y/yükseklik değerini de tam layout ile karşılaştırıyor; fark yok.
+
+Release, fixture, 5 süreç medyanı:
+
+| | Önce | Sonra |
+|---|---|---|
+| İlk kare CPU | 13,8–15,2 ms | 11,9–13,0 ms |
+| Arka plan karesinde layout | 2,7 ms | 0,46 ms |
+| Arka plan karesi (medyan / p95) | 9,0 / 9,7 ms | 6,9 / 7,5 ms |
+| Arka planın toplam CPU'su | ~234 ms | ~180 ms |
+| Arka plan kare sayısı | ~26 | ~26 (6 ms şekillendirme bütçesi sınırlıyor) |
+
+İlk karenin kalan ~12 ms'si: tam layout ~2,7 ms, ilk artımlı geçiş ~0,8 ms,
+projeksiyon ve iskelet ile bant şekillendirme ~4,2 ms; kalanı medya bağlama,
+çizim ve flush.

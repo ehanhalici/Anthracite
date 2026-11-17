@@ -30,13 +30,15 @@ DOCUMENT_BUDGETS = [
     # First frame shapes only the viewport band (visible-first wrap, 2026-11-18);
     # the rest is shaped in "background" frames before warm_idle.
     ("first", "counter.wrap_builds", "max", 1),
-    ("first", "counter.layout_builds", "max", 2),        # placeholder layout + band relayout
+    ("first", "counter.layout_builds", "max", 1),        # full layout over placeholders
+    ("first", "counter.layout_updates", "max", 2),       # 1 today: incremental after band shaping
     ("first", "counter.wrap_lines", "max", 16),          # 13 today (was all 1296 lines)
     ("first", "counter.shape_calls", "max", 48),         # 40 today (was 824)
-    ("first", "counter.alloc_calls", "max", 122_000),    # 110,833 today (was 173,073)
+    ("first", "counter.alloc_calls", "max", 96_000),     # 87,329 today (was 173,073)
     ("first", "counter.gl_flush_calls", "max", 100),     # 91 today; atlas uploads flush
     ("background", "counter.wrap_builds", "max", 0),     # no rebuild while draining
-    ("background", "counter.layout_builds", "max", 1),
+    ("background", "counter.layout_builds", "max", 0),   # incremental only
+    ("background", "counter.layout_updates", "max", 1),
     ("warm_idle", "counter.wrap_lines", "max", 0),       # background fully drained
     ("warm_idle", "counter.shape_calls", "max", 0),
     ("warm_idle", "counter.wrap_builds", "max", 0),

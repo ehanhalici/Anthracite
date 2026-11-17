@@ -54,7 +54,8 @@ static const char *g_counter_names[PERF_COUNTER_COUNT] = {
   "font_atlas_uploads",
   "alloc_calls",
   "alloc_bytes",
-  "wrap_lines"
+  "wrap_lines",
+  "layout_updates"
 };
 
 static const char *g_phase_names[PERF_PHASE_COUNT] = {
