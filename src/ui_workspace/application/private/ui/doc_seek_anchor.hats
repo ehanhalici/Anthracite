@@ -193,8 +193,8 @@ in
   ts2
 end
 
-fun wiki_open_new(ts: Tabs, anchor: &Buf >> _, shown: Buf, alen: int, target_act: &int >> _): Tabs = let
-  val ts2 = tabs_open(ts, shown)
+fun wiki_open_new(ts: Tabs, anchor: &Buf >> _, shown: Buf, alen: int, target_act: &int >> _, kept: &ClosedDocs >> _): Tabs = let
+  val ts2 = tabs_open_kept(ts, shown, kept)
   val new_idx = isub(tabs_len(ts2), 1)
   val ts3 = tabs_jump_anchor_if(ts2, new_idx, anchor, alen)
   val () = target_act := new_idx

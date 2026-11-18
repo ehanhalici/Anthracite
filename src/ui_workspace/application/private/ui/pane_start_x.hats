@@ -295,7 +295,7 @@ in
     save_app_session(s)
   ) else let
     val ts = s.tabs; val () = s.tabs := TNil()
-    val ts2 = tabs_open(ts, srcp)
+    val ts2 = tabs_open_kept(ts, srcp, s.closed)
     val ntabs = tabs_len(ts2)
     val ni = isub(ntabs, 1)
     val () = app_sync_tab_hists(s, ts2)

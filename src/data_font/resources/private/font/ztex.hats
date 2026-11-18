@@ -36,6 +36,7 @@ implement font_open() = FONT(@{
 , fb_kern= ~1
 , native_primary= None_vt(), native_fallback= None_vt(), native_generation= 0, native_fb_generation= 0
 , text_session= None_vt(), registry= font_registry_next()
+, source_id= 0, primary_path= buf_make(0), fallback_path= buf_make(0)
 })
 
 fun release_fallback(file: Option_vt(Buf)): void = case+ file of
@@ -49,6 +50,8 @@ implement font_free(f) = let
   val () = rend_tex_free(s.tex)
   val () = buf_free(s.file)
   val () = release_fallback(s.fb_file)
+  val () = buf_free(s.primary_path)
+  val () = buf_free(s.fallback_path)
   val () = buf_free(s.atlas)
   val () = buf_free(s.cache)
   val () = buf_free(s.xs)

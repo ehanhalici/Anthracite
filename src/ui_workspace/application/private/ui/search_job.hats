@@ -1,4 +1,5 @@
 implement search_job_clear(s) = let
+  val ()=if search_active() then search_parallel_cancel() else ()
   val old=s.search_pattern val ()=s.search_pattern := None_vt()
   val ()=literal_pattern_release(old)
   val ()=s.search_state := SEARCH_IDLE val ()=s.search_cursor := 0
@@ -30,6 +31,9 @@ in if ieq(buf_len(s.query),0) then () else case+ literal_pattern_open_default(s.
     val ()=s.search_pattern := Some_vt(pattern) val ()=literal_pattern_release(old)
     val ()=if ieq(s.scope,SEARCH_SCOPE_VAULT) then s.search_catalog_ready := false else ()
     val ()=if ieq(s.scope,SEARCH_SCOPE_VAULT) then search_catalog_prepare(s) else ()
+    (* Vault scope with workers: every catalog chunk is queued now and merged
+       in catalog order as workers finish (search_parallel_frame). *)
+    val ()=if ieq(s.scope,SEARCH_SCOPE_VAULT) andalso search_parallel_available() then search_parallel_begin(s.ixf) else ()
   in s.search_state := SEARCH_RUNNING end end
 fun append_search_document{n:nat} .<n>. (left: int(n),tabs: !Tabs,index: int,pattern: !LiteralPattern,
   hits: &Buf >> _,meta: &Buf >> _,jumps: &Buf >> _,rows: &int >> _): SearchAppendResult =
@@ -72,7 +76,23 @@ fun search_refresh_document(s: &App_record >> _): void =
     val index=pane_of(s.focus,s.active,s.righti) val current=search_doc_stamp(airlock_nat(MAX_REC_FUEL),s.tabs,index)
     val changed=current.document <> s.search_source.document orelse ine(current.generation,s.search_source.generation)
   in if changed then search_job_begin(s) else () end else ()
+fun search_parallel_with{b:bool}(slot: !option_vt(LiteralPattern,b),files: !Buf,paths: !Buf,query: !Buf,map: !Buf,
+  tabs: !Tabs,hits: &Buf >> _,meta: &Buf >> _,jumps: &Buf >> _,rows: &int >> _): SearchMerged = case+ slot of
+  | None_vt() => let val ()=search_parallel_cancel() in @{files=0,matched=0,truncated=true,done=true} end
+  | Some_vt(pattern) => search_parallel_step(files,paths,query,map,tabs,pattern,hits,meta,jumps,rows)
+(* One frame of a parallel vault search: merge what workers finished. *)
+fun search_parallel_frame(s: &App_record >> _): void = let
+  var map=buf_make(0) val ()=search_case_map_path(map)
+  val step=search_parallel_with(s.search_pattern,s.ixf,s.ixp,s.query,map,s.tabs,s.hits,s.hmeta,s.hjump,s.hn)
+  val ()=buf_free(map)
+  val ()=s.search_cursor := iadd(s.search_cursor,step.files)
+  val ()=s.search_nfiles := iadd(s.search_nfiles,step.matched)
+  val ()=if step.truncated then s.search_skipped := true else ()
+in if step.done then
+    s.search_state := (if s.search_skipped orelse ige(s.hn,SEARCH_RESULT_LIMIT) then SEARCH_PARTIAL else SEARCH_IDLE)
+  else () end
 fun search_job_step(s: &App_record >> _): void =
   if is_side_search(s.side) then let val ()=search_refresh_document(s)
-  in if ieq(s.search_state,SEARCH_RUNNING) then
-    search_drain(airlock_nat(iadd(MAX_INDEX_FILES,1)),s,mono_ns()+SEARCH_WORK_BUDGET_NS) else () end else ()
+  in if not(ieq(s.search_state,SEARCH_RUNNING)) then ()
+    else if ieq(s.scope,SEARCH_SCOPE_VAULT) andalso search_active() then search_parallel_frame(s)
+    else search_drain(airlock_nat(iadd(MAX_INDEX_FILES,1)),s,mono_ns()+SEARCH_WORK_BUDGET_NS) end else ()

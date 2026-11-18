@@ -13,13 +13,19 @@ macdef VISUAL_ROW_ASCENT = 7
 macdef VISUAL_ROW_TOP = 8
 macdef VISUAL_ROW_MAX_COUNT = 107374180
 macdef VISUAL_ROW_SEARCH_FUEL = 32
-macdef VISUAL_ROW_PLAN_CACHE_ENTRIES = 128
+(* Row plans kept per document (row index mod entries, tagged by row): large,
+   since RAM is cheap and a kept plan saves reshaping the row on every revisit;
+   bounded by VISUAL_ROW_PLAN_BUDGET_BYTES of plan memory. *)
+macdef VISUAL_ROW_PLAN_CACHE_ENTRIES = 4096
+macdef VISUAL_ROW_PLAN_BUDGET_BYTES = 67108864LL
 (* A line that has not been shaped yet holds one placeholder row covering the
    whole line with this width. Layout estimates its height (doc_visual_line_rows
    reports 0); visual_layout_prepare_band wraps it before it becomes visible. *)
 macdef VISUAL_ROW_PENDING_WIDTH = ~1
 datatype VisualProjection = VisualSource | VisualRendered
-typedef VisualKey = @{version=int,width=int,px=int,height=int,ascent=int,primary=int,fallback=int,primaryGeneration=int,fallbackGeneration=int,projection=VisualProjection,sourceStart=int,sourceFinish=int,rawStart=int,rawFinish=int}
+typedef VisualKey = @{version=int,width=int,px=int,height=int,ascent=int,primary=int,fallback=int,primaryGeneration=int,fallbackGeneration=int,projection=VisualProjection,sourceStart=int,sourceFinish=int,rawStart=int,rawFinish=int,build=int}
+(* `build` identifies one VisualRows construction (not compared by visual_rows_matches):
+   results shaped by workers for an older build are discarded. *)
 typedef VisualRow = @{start=int,finish=int,width=int,line=int,ordinal=int,px=int,height=int,ascent=int,top=int}
 datavtype VisualPlanSlot = VisualPlanEmpty | VisualPlanOwned of (int,FontSpanLayout,llint)
 datavtype VisualParagraph = VisualParagraph of (NativeTextAnalysis,int,int,llint)

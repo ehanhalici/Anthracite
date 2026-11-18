@@ -1,5 +1,6 @@
 staload "mem.sats"
 staload "data_ast/document/doc.sats"
+staload "os/file_stamp.sats"
 staload "ui_workspace/commands/ui_cmd.sats"
 
 datavtype Tabs =
@@ -7,6 +8,21 @@ datavtype Tabs =
   | TCons of (Doc, Buf, Buf, int, Tabs)
 
 datavtype Pair = PAIR of (Tabs, Tabs)
+
+(* Documents of closed tabs, kept whole (text, AST, rows, layout), newest first.
+   A tab is saved before it closes, so the file stamp taken right after closing
+   identifies the kept content exactly; a reopen of the unchanged file reuses
+   the document, any later change on disk drops it. At most
+   CLOSED_DOCS_MAX_ENTRIES documents and CLOSED_DOCS_BUDGET_BYTES (estimated). *)
+datavtype ClosedDocs =
+  | ClosedNone of ()
+  | ClosedKept of (Buf, FileStamp, int, Doc, ClosedDocs)
+fun closed_docs_free(kept: ClosedDocs): void
+fun closed_docs_count(kept: !ClosedDocs): int
+(* Same as tabs_drop / tabs_open, but closing keeps the document and opening
+   reuses a kept one. ANTHRACITE_TAB_CACHE=0 keeps nothing. *)
+fun tabs_drop_kept(ts: Tabs, i: int, kept: &ClosedDocs >> _): Tabs
+fun tabs_open_kept(ts: Tabs, path: Buf, kept: &ClosedDocs >> _): Tabs
 
 fun tabs_free(ts: Tabs): void
 fun tabs_len(ts: !Tabs): int

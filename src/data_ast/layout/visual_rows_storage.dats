@@ -12,12 +12,17 @@ in buf_free(data) end
 fun projection(a: VisualProjection,b: VisualProjection): bool = case+ a of
   | VisualSource() => (case+ b of | VisualSource() => true | VisualRendered() => false)
   | VisualRendered() => (case+ b of | VisualSource() => false | VisualRendered() => true)
+(* Faces load lazily while shaping. Rows built while a face was not loaded yet
+   never needed it (shaping would have loaded it), so a later load of that face
+   keeps them valid; any other face change does not. *)
+fun same_face(font: int,generation: int,current: int,current_generation: int): bool =
+  ilt(font,0) orelse (ieq(font,current) andalso ieq(generation,current_generation))
 implement visual_key_context_matches(a,k) = ieq(a.width,k.width) andalso ieq(a.px,k.px)
   andalso ieq(a.sourceStart,k.sourceStart) andalso ieq(a.sourceFinish,k.sourceFinish)
   andalso ieq(a.rawStart,k.rawStart) andalso ieq(a.rawFinish,k.rawFinish)
   andalso ieq(a.height,k.height) andalso ieq(a.ascent,k.ascent)
-  andalso ieq(a.primary,k.primary) andalso ieq(a.fallback,k.fallback)
-  andalso ieq(a.primaryGeneration,k.primaryGeneration) andalso ieq(a.fallbackGeneration,k.fallbackGeneration)
+  andalso same_face(a.primary,a.primaryGeneration,k.primary,k.primaryGeneration)
+  andalso same_face(a.fallback,a.fallbackGeneration,k.fallback,k.fallbackGeneration)
   andalso projection(a.projection,k.projection)
 implement visual_rows_matches(rows,k) = let val+ VisualRows(t,m,l,d,n,a,plans)=rows
 in ieq(a.version,k.version) andalso visual_key_context_matches(a,k) end

@@ -61,7 +61,7 @@ fun handle_down_context_menu(
   val () = imgdel := toggle_of(image_item_hit(s, hit, ImageDelete))
   val () = down_menu_clip(s, p, ts0, idx, toggle_of(cut), toggle_of(copy), toggle_of(imgcopy), toggle_of(paste), toggle_of(imgrev))
   val ts1 = cmd_if(ts0, idx, CMD_CUT, toggle_of(cut))
-  val ts2 = tab_keep_one(drop_if(ts1, ti, close), close)
+  val ts2 = tab_keep_one(drop_if(ts1, ti, close, s.closed), close)
   val () = if is_on(close) then down_menu_close(s, ts2, ti) else ()
 in
   ts2
@@ -157,7 +157,7 @@ end
 
 fun tree_open_new_tab(s: &App_record >> _, ts: Tabs, path: Buf): Tabs = let
   val origin_pane = if is_on(s.split) andalso is_on(s.focus) then 1 else 0
-  val res = tabs_open(ts, path)
+  val res = tabs_open_kept(ts, path, s.closed)
   val () = app_sync_tab_hists(s, res)
   val n = tabs_len(res)
   val act = isub(n, 1)

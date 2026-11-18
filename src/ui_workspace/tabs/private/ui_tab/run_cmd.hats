@@ -352,9 +352,7 @@ in
   end
 end
 
-implement tabs_open(ts, path) =
-  if is_image_path(path) then open_image(ts, path)
-  else let
+fun open_document(ts: Tabs, path: Buf): Tabs = let
     val doc = doc_open()
     val ok = doc_load_checked(doc, buffer_c_string(path))
   in
@@ -366,3 +364,5 @@ implement tabs_open(ts, path) =
       ts
     end
   end
+implement tabs_open(ts, path) =
+  if is_image_path(path) then open_image(ts, path) else open_document(ts, path)

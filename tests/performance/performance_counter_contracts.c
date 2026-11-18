@@ -1,4 +1,9 @@
-#include "core_runtime/performance.cats"
+#include "core_runtime/performance_ids.h"
+/* ATS2 telemetry (core_runtime/kernel/thread_stats.dats). */
+void anth_performance_enable(int enabled);
+void anth_performance_reset(void);
+void anth_performance_note(int key, int amount);
+unsigned long long anth_performance_value(int key);
 int main(void) {
   anth_performance_enable(0);
   anth_performance_reset();

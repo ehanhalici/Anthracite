@@ -170,3 +170,28 @@ foreach(fixture IN LISTS jpeg_rejections)
   add_test(NAME jpeg_reject_${case} COMMAND image_oracle_contracts reject "${fixture}")
   set_tests_properties(jpeg_reject_${case} PROPERTIES LABELS "image;jpeg;negative" TIMEOUT 30)
 endforeach()
+
+# Allocator: correctness under cross-thread frees, and contention-free scaling
+# measured with per-thread hardware counters (perf label, skipped when busy).
+add_executable(arena_contracts EXCLUDE_FROM_ALL tests/runtime/arena_contracts.c)
+target_include_directories(arena_contracts PRIVATE "${CMAKE_SOURCE_DIR}/src")
+set_target_properties(arena_contracts PROPERTIES C_STANDARD 11)
+add_test(NAME arena_contracts COMMAND arena_contracts)
+set_tests_properties(arena_contracts PROPERTIES LABELS "runtime;tsan" TIMEOUT 600)
+add_test(NAME arena_scaling_contracts COMMAND arena_contracts --scaling)
+set_tests_properties(arena_scaling_contracts PROPERTIES LABELS perf SKIP_RETURN_CODE 77 RUN_SERIAL TRUE TIMEOUT 300)
+anthracite_contract_test(closed_tab_contracts tests/workspace/closed_tab_contracts.dats)
+target_link_libraries(closed_tab_contracts PRIVATE anthracite_host native_text_engine
+  ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
+add_test(NAME closed_tab_contracts COMMAND closed_tab_contracts)
+set_tests_properties(closed_tab_contracts PROPERTIES LABELS "document;tsan" TIMEOUT 120)
+# Parallel line shaping must equal sequential shaping for every worker count.
+anthracite_contract_test(parallel_wrap_contracts tests/workspace/parallel_wrap_contracts.dats)
+target_link_libraries(parallel_wrap_contracts PRIVATE anthracite_host native_text_engine
+  ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
+add_test(NAME parallel_wrap_contracts COMMAND python3 "${CMAKE_SOURCE_DIR}/tests/workspace/parallel_wrap_driver.py"
+  "$<TARGET_FILE:parallel_wrap_contracts>")
+set_tests_properties(parallel_wrap_contracts PROPERTIES LABELS "graphics;tsan" SKIP_RETURN_CODE 77 RUN_SERIAL TRUE TIMEOUT 2400)
+add_test(NAME pool_scaling_contracts COMMAND python3 "${CMAKE_SOURCE_DIR}/tests/performance/pool_scaling_driver.py"
+  "$<TARGET_FILE:parallel_wrap_contracts>")
+set_tests_properties(pool_scaling_contracts PROPERTIES LABELS perf SKIP_RETURN_CODE 77 RUN_SERIAL TRUE TIMEOUT 900)

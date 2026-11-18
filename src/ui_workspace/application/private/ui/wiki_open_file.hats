@@ -89,7 +89,7 @@ in
   result
 end
 
-fun wiki_open_file(ts: Tabs, anchor: &Buf >> _, shown: Buf, alen: int, target_act: &int >> _): Tabs = let
+fun wiki_open_file(ts: Tabs, anchor: &Buf >> _, shown: Buf, alen: int, target_act: &int >> _, kept: &ClosedDocs >> _): Tabs = let
   val existing = tabs_find_path(ts, shown)
 in
   if ige(existing, 0) then let
@@ -97,10 +97,10 @@ in
   in
     wiki_open_existing(ts, existing, anchor, alen, target_act)
   end else
-    wiki_open_new(ts, anchor, shown, alen, target_act)
+    wiki_open_new(ts, anchor, shown, alen, target_act, kept)
 end
 
-fun app_wiki_dispatch(ts: Tabs, idx: int, rlen: int, alen: int, anchor: &Buf >> _, shown: Buf, target_act: &int >> _): Tabs =
+fun app_wiki_dispatch(ts: Tabs, idx: int, rlen: int, alen: int, anchor: &Buf >> _, shown: Buf, target_act: &int >> _, kept: &ClosedDocs >> _): Tabs =
   if rlen < 0 then let
     val () = buf_free(shown)
     val () = target_act := ~1
@@ -111,44 +111,44 @@ fun app_wiki_dispatch(ts: Tabs, idx: int, rlen: int, alen: int, anchor: &Buf >> 
   in
     wiki_open_existing(ts, idx, anchor, alen, target_act)
   end else
-    wiki_open_file(ts, anchor, shown, alen, target_act)
+    wiki_open_file(ts, anchor, shown, alen, target_act, kept)
 
-fun app_wiki_open(ts: Tabs, idx: int, vault: !Buf, target_act: &int >> _): Tabs = let
+fun app_wiki_open(ts: Tabs, idx: int, vault: !Buf, target_act: &int >> _, kept: &ClosedDocs >> _): Tabs = let
   var anchor = buf_make(APP_WIKI_OPEN_ANCHOR_INITIAL_BYTES)
   var shown = buf_make(APP_WIKI_OPEN_SHOWN_INITIAL_BYTES)
   val rlen = tabs_wiki_prep(ts, idx, vault, anchor, shown)
   val alen = buf_len(anchor)
-  val ts_out = app_wiki_dispatch(ts, idx, rlen, alen, anchor, shown, target_act)
+  val ts_out = app_wiki_dispatch(ts, idx, rlen, alen, anchor, shown, target_act, kept)
   val () = buf_free(anchor)
 in
   ts_out
 end
 
-fun wiki_open(ts: Tabs, idx: int, vault: !Buf, i: int): Tabs = let
+fun wiki_open(ts: Tabs, idx: int, vault: !Buf, i: int, kept: &ClosedDocs >> _): Tabs = let
   var dummy: int = ~1
 in
-  app_wiki_open(ts, idx, vault, dummy)
+  app_wiki_open(ts, idx, vault, dummy, kept)
 end
 
-fun app_embedded_navigation(ts: Tabs,index: int,vault: !Buf,cache: !Cache,target: &int >> _): Tabs = let
+fun app_embedded_navigation(ts: Tabs,index: int,vault: !Buf,cache: !Cache,target: &int >> _,kept: &ClosedDocs >> _): Tabs = let
   var anchor: Buf=buf_make(0)
   var path: Buf=buf_make(0)
   val kind=cache_embed_navigation(cache,vault,path,anchor)
-  val result=app_embedded_dispatch(ts,index,vault,kind,path,anchor,target)
+  val result=app_embedded_dispatch(ts,index,vault,kind,path,anchor,target,kept)
   val ()=buf_free(anchor)
 in result end
 and app_embedded_dispatch(ts: Tabs,index: int,vault: !Buf,kind: EmbedNavigationKind,path: Buf,
-  anchor: &Buf >> _,target: &int >> _): Tabs = let val length=buf_len(anchor)
+  anchor: &Buf >> _,target: &int >> _,kept: &ClosedDocs >> _): Tabs = let val length=buf_len(anchor)
 in case+ kind of
-  | EmbedNavigationNone() => let val ()=buf_free(path) in app_wiki_open(ts,index,vault,target) end
-  | EmbedNavigationFile() => wiki_open_file(ts,anchor,path,length,target)
+  | EmbedNavigationNone() => let val ()=buf_free(path) in app_wiki_open(ts,index,vault,target,kept) end
+  | EmbedNavigationFile() => wiki_open_file(ts,anchor,path,length,target,kept)
   | EmbedNavigationExternal() => let
       val ()=fs_open_url(buf_cstr(path)) val ()=buf_free(path) val ()=target := ~1
     in ts end
 end
 
-fun close_active_tab(ts: Tabs, idx: int): Tabs = let
-  val ts2 = tabs_drop(ts, idx)
+fun close_active_tab(ts: Tabs, idx: int, kept: &ClosedDocs >> _): Tabs = let
+  val ts2 = tabs_drop_kept(ts, idx, kept)
 in
   if ieq(tabs_len(ts2), 0) then let
     val d = doc_open()

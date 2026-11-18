@@ -7,6 +7,7 @@ staload "data_font/text/font_text.sats"
 staload "data_font/text/font_text_types.sats"
 staload "data_font/native/text/native_text_assets_types.sats"
 staload "core_runtime/text_engine_startup.sats"
+staload "core_runtime/workers.sats"
 extern fun startup_failed(): void = "mac#anth_die_void"
 fun activated(result: FontTextEnable): void = case+ result of
   | ~FontTextEnabled() =>
@@ -24,5 +25,14 @@ in
   in false end else let
     val ()=workspace_arabic_font_start(f)
     val ()=activated(font_text_enable(f,workspace_text_location()))
+    (* The worker pool is created once here and lives until the process exits. *)
+    val workers=workers_ensure()
+    val ()=println!("event=worker_pool workers=",workers," chunk_bytes=",workers_chunk_bytes())
   in font_text_active(f) end
 end
+
+fun enabled_quietly(result: FontTextEnable): void = case+ result of
+  | ~FontTextEnabled() => () | ~FontTextAlreadyEnabled() => () | ~FontTextAssetsFailed(error) => ()
+implement workspace_worker_text_start(f) = let
+  val ()=enabled_quietly(font_text_enable(f,workspace_text_location()))
+in font_text_active(f) end

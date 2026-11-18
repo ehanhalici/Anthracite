@@ -409,3 +409,176 @@ Kalan şekillendirme maliyetinin çoğu OpenType GSUB/GPOS yürüyüşünde
 (`glyph_substitution_step`, `ot_coverage_index`, GPOS grafiği) ve özellik kümesi
 sıralamasında (`radix_round`, `ot_layout_feature_set`). İkisini de öneri 3
 (shape-plan / kelime önbelleği) hedefliyor.
+
+## Shape-plan önbelleği — 2026-11-18
+
+Önceki listedeki öneri 3'ün plan kısmı uygulandı. `native_text_item_shape` her
+öğe için (profil, script, dil, yön, maskeler) planını yeniden kuruyordu: GSUB/GPOS
+özellik kümesi, sıralama (`radix_round`) ve lookup programı. Profilde bu, öğe
+şekillendirme süresinin arka planda ~%6–9'u, sıçrama kaydırmasında ~%11–19'uydu.
+
+- `NativeShapeCache` (yüz başına) artık en son kullanılan 16 planı tutuyor
+  (`NativePlanCache`). Anahtar planın kendi `NativePlanInfo` bilgisi.
+- `native_shape_plan_take` eşleşen planı listeden çıkarıyor, yoksa planı kuruyor.
+  `native_shape_plan_keep` planı başa koyuyor ve listeyi 16 girdide kesiyor.
+  Planlar şekillendirme sırasında yalnızca ödünç alınıyor ve yüz önbelleğiyle
+  birlikte atılıyor.
+- Test (`native_shape_faces.dats`): saklanan plan eşit istek için geri dönüyor ve
+  beklenen glifleri aynen üretiyor; farklı istek ıskalıyor ve önbelleği
+  değiştirmiyor (`native_plan_cache kept=1 after_miss=1 taken=0 errors=0`).
+  Bu test, `ANTHRACITE_OT_LATIN_TTF` / `ANTHRACITE_OT_ARABIC_TTF` ayarlıysa
+  `native_shape_font_conformance` içinde koşuyor. Bu ortamda ayarlı olmadığı için
+  DejaVu Sans Mono + Noto Naskh Arabic ile elle çalıştırıldı.
+
+Release, fixture, 5 süreç medyanı:
+
+| | Önce | Sonra |
+|---|---|---|
+| Sıçrama/PageDown kaydırma (medyan / p95) | 2,0–2,1 / 2,5–2,6 ms | 1,6 / 1,9–2,1 ms |
+| Kaydırma karesi tahsisi p95 (jump / wheel) | 4284 / 464 | 2064 / 222 |
+| Arka plan kare sayısı | ~21 | ~19,6 |
+| İlk kare | 11,2–12,3 ms | 10,7–11,3 ms |
+
+Kelime düzeyinde glif önbelleği (aynı metin+stil için glif dizisi) hâlâ açık bir
+fırsat; kalan maliyet GSUB/GPOS lookup yürüyüşünün kendisi.
+
+## Arena, kalıcı işçi havuzu, paralel işleme ve agresif önbellekler — 2026-11-18
+
+Makine: Ryzen 9 7900X3D (iki CCD; CPU 0–5/12–17 96 MB L3, 6–11/18–23 32 MB L3),
+çekirdek başına 1 MB L2, 124 GB RAM. Ölçümler Release, fixture, 5 süreç medyanı.
+
+### Bellek: arena ayırıcı (`src/core_runtime/kernel/arena.dats`)
+- Bütün ATS tahsisleri `ATS_MEMALLOC_USER` ile arenaya gidiyor (uygulama ve tüm
+  testler). Açılışta 100 MB commit, sonra 64 MB adımlar, huge page; bellek
+  çalışırken işletim sistemine geri verilmiyor (gecikmeli temizlik).
+- İş parçacığı başına 2 MB segmentler, 40 boyut sınıfı, kilitsiz boş listeler.
+  Başka iş parçacığının serbest bıraktığı blok sahibin ayrı önbellek satırındaki
+  kuyruğuna gidiyor; biten iş parçacığının yığını yeni iş parçacığına devrediliyor.
+- `mem_live` artık çağıran iş parçacığının baytları; bir Buf onu ayıran iş
+  parçacığının hesabından düşülüyor. İşçilerin kalıcı önbellekleri ana iş
+  parçacığında sızıntı gibi görünmüyor.
+- Tek başına etkisi: tüm kareler ~%10 hızlı (ilk kare 11,4 → 10,5 ms, sıçrama
+  kaydırma 1,67 → 1,48 ms).
+
+### Kalıcı işçi havuzu (`src/core_runtime/kernel/workers.dats`)
+- Metin motoru başlarken bir kez kuruluyor, program kapanana kadar yaşıyor.
+- Fiziksel çekirdek başına bir işçi; işçi çekirdeğinin iki mantıksal CPU'suna
+  atanıyor. Ana iş parçacığının L3 alanı önce, sonra diğer çekirdekler.
+  Affinity maskesi ve cgroup kotası dikkate alınıyor; ana iş parçacığına bir
+  çekirdek bırakılıyor ve ana iş parçacığı sabitlenmiyor.
+- `/proc/stat` ile o an başka programların meşgul ettiği çekirdekler (kendi
+  işçilerimizin süresi düşülerek) iş dağıtımında atlanıyor.
+- İş halkası tek üretici/çok tüketici: boştaki işçi başka işçinin işini CAS ile
+  çalıyor. Sonuç halkaları SPSC. Üretici ve tüketici indeksleri ayrı satırlarda.
+- Parça bütçesi: işçinin L2 payının yarısı (burada 512 KB).
+
+### Paralel satır şekillendirme
+- Görünür bant ana iş parçacığında, geri kalan satırlar işçilerde. İşçi ana
+  `Font` ile aynı yüz dosyalarından kendi `Font`'unu açıyor; `Doc`'a dokunmuyor.
+  Sonuç: satırlar + paragraf analizi; ana iş parçacığı splice + artımlı layout.
+- `VisualKey.build` her satır kurulumunu damgalıyor; eski sonuçlar atılıyor.
+
+| | Önce | Sonra |
+|---|---|---|
+| Arka planın bitmesi | ~19,6 kare | ~4 kare |
+| Arka plan karesinde ana iş parçacığı CPU'su | 6,9 ms | 1,1–1,6 ms |
+| Sıçrama kaydırma (medyan / p95) | 1,65 / 2,10 ms | 0,32 / 0,37 ms |
+| Tekerlek kaydırma, boşta kare, ilk kare | — | değişmedi |
+
+Ölçekleme (`pool_scaling_contracts`, donanım sayaçları): 2 işçide 1,6–1,8×,
+4 işçide 2,9×, 11 işçide 4,9× duvar süresi hızlanması; toplam komut +%1,2,
+toplam çevrim +%5,5 (çekirdekler birbirini bekletmiyor), 1000 komutta 0,14
+cache-miss. Hızlanmanın sınırı ana iş parçacığının seri kısmı (splice, layout).
+
+### Paralel arama
+- Katalog L2 parçalarına bölünüyor; bir dosya asla bölünmüyor, bütçeden büyük
+  dosya tek başına bir parça. Parçalar aynı işçiye tercih edilerek gidiyor
+  (dosya önbelleği isabeti), gerekirse çalınıyor. Ana iş parçacığı sonuçları
+  katalog sırasıyla birleştiriyor; 200 satır sınırı ve "kesildi" bayrağı
+  sıralı aramayla birebir aynı. Sekmede açık dosyalar ana iş parçacığında.
+- Yolda bulunan darboğaz: katalog taraması her dosya için önceki tüm yolları
+  karşılaştırıyordu (O(n²)) ve dosya başına üç `stat` yapıyordu. Karma tablo ve
+  `readdir` tipi + tek `stat` ile düzeltildi.
+
+| 5000 not, 20 MB, eşleşmeyen sorgu | Süre |
+|---|---|
+| Önce (sıralı, eski katalog) | 998 ms |
+| Sıralı, yeni katalog | 200 ms |
+| Paralel (11 işçi) | 37,5 ms |
+
+### Agresif önbellekler
+- Satır plan önbelleği: 128 → 4096 slot, belge başına 64 MB bütçe (sıçrama
+  kaydırmadaki kazancın kaynağı).
+- Yazı tipi plan önbelleği: 16 → 64 girdi.
+- Kapanan sekmeler: kaydedilmiş belge (metin, AST, satırlar, layout) yol +
+  mtime + boyut anahtarıyla saklanıyor (32 belge / 256 MB); aynı dosyanın
+  yeniden açılışında yükleme, ayrıştırma ve sarma yok.
+- Arama içerik önbelleği: işçi başına 64 MB, boyut+mtime doğrulamalı.
+  Bu vault'ta ölçülebilir kazancı küçük (katalog ana maliyetti).
+
+### Testler
+- `arena_contracts` (1–12 iş parçacığı, ~10,5 milyon işlem, ~2,8 milyon çapraz
+  serbest bırakma, kanaryalar) ve `arena_scaling_contracts` (donanım sayaçları,
+  kasıtlı false-sharing kontrol deneyi 5× yavaşlama gösteriyor).
+- `parallel_wrap_contracts`: 1/2/3/5/8/12 işçi × rastgele zamanlama × 5 tekrar;
+  satırlar, satır ve düğüm geometrisi sıralıyla birebir aynı.
+- `parallel_search_contracts`: 50/500/5000 not × 6 işçi sayısı × 5 sorgu;
+  çıktı baytları sıralıyla aynı.
+- `pool_scaling_contracts`, `closed_tab_contracts`.
+- ThreadSanitizer (`-DANTHRACITE_TSAN=ON`, `ctest -L tsan`): 2/5/11 işçide sıfır
+  uyarı. TSan işçi sayısını okuyan bir yarışı yakaladı ve düzeltildi.
+
+## Çalışma zamanı çekirdeği ATS2'ye taşındı — 2026-11-18
+
+Arena ayırıcı, işçi havuzu, iş parçacığı başına sayaçlar, kapanan sekme
+önbelleği ve arama dosya önbelleği artık ATS2'de (`src/core_runtime/kernel/*.dats`,
+`ui_tab/closed_docs.hats`, `search/results/search_file_cache.dats`). Altlarındaki
+tek C `kernel/kernel.cats`: kök hücre depolaması ve tek satırlık, döngüsüz, dalsız
+atomik/sistem çağrısı makroları (sınır: `docs/skill.md` §5). SIGPROF profilleyici
+Release'ten çıkarıldı (`-DANTHRACITE_PROFILER=ON` ile derlenir).
+
+Doğrulama: 264/264 test (iki ölçekleme testi boşta ayrıca çalıştırıldı),
+`--selftest` delta_bytes=0, TSan derlemesinde `tsan` etiketi 4/4 ve 0 uyarı.
+Yeni değişmez denetimi (önbellekteki aralık başlığı) taşıma sırasında gerçek bir
+hatayı yakaladı: sıfırlanmış kök tablo "segment 0" olarak okunuyordu; bağlar
+artık "segment + 1, 0 = yok" kodlamasında.
+
+| | C çekirdek | ATS2 çekirdek |
+|---|---|---|
+| Arena ölçekleme (5 iş parçacığı) | — | 4,81×, 49 çevrim/işlem sabit |
+| Havuz ölçekleme (11 işçi) | 4,9×, çevrim +%5,5 | 4,80×, çevrim +%5,2 |
+| İlk kare CPU (medyan) | 10,7–11,3 ms | 11,7–12,0 ms |
+| Sıçrama kaydırma CPU (medyan) | 0,32 ms | 0,36 ms |
+| Arka plan karesi CPU | 1,1–1,6 ms | 1,1–1,7 ms |
+| Tekerlek kaydırma, boşta kare | değişmedi | değişmedi |
+
+### İlk kare gerilemesinin profili
+
+Eski C arena (oturum dökümünden geri alınıp aynı ikiliye bağlandı) ile ATS2
+arenası aynı oturumda dönüşümlü 25'er taze süreçle ölçüldü; saatler arası
+sapma (±0,5 ms) böylece elendi. 60 koşunun birleştirilmiş `--tag first`
+profili farkın tamamen tahsis/serbest bırakma yolunda olduğunu gösterdi
+(`ANTHRACITE_WORKERS=0` etkisiz; libc modunda C ve ATS2 çekirdekler eşit):
+
+| Adım | C arena | ATS2 arena | Fark |
+|---|---|---|---|
+| Başlangıç | 11,21 ms | 12,03 ms | +0,82 ms |
+| `ensure_init`/`heap` soğuk yolları ayrı, `cold` bildirimli (hızlı denetim satır içi) + `release` segment başlığını bir kez okur + `owner_slot` sahibin satırına | 11,62 ms | 12,18 ms | +0,56 ms |
+| Buf muhasebesi sahibi serbest bırakmanın kaydettiği etiketten okur (`arena_freed_slot`); ikinci başlık araması yok | 11,56 ms | 11,96 ms | +0,40 ms |
+
+Bulgular:
+- `mem_free_at` her Buf serbest bırakmasında segment başlığını ayrıca okuyordu
+  (önbellek kaçırması bu fonksiyona düşüyordu) ve `owner_slot`, diğer
+  iş parçacıklarının CAS ile yazdığı `remote` satırındaydı.
+- `start_init`/`heap_create` tek çağıranlı olduğu için `ensure_init`/`heap`
+  içine gömülüyor, bu ikisi de satır içine alınamayacak kadar büyüyordu.
+- İş parçacığı satırındaki canlı bayt sayacı artık `lock` öneki almıyor:
+  sahibi düz yükle/yaz yapar, başka iş parçacıklarının serbest bıraktığı
+  baytlar satırın beşinci önbellek satırında tek başına duran `WORD_REMOTE`'a
+  `fetch_add` ile yazılır; `live = LIVE − REMOTE`.
+
+Kalan ~0,4 ms (%3,5): boş liste başının yüklenmesi (C ile aynı yük) ve
+güvenlik denetimleri (boş liste bağının aralık denetimi, segment
+büyü/tür/sınıf denetimleri). Bu denetimler bilinçli olarak tutuldu.
+Ölçekleme değişmedi (arena 5 iş parçacığında 4,91×, 49 çevrim/işlem; havuz
+11 işçide 4,69×), TSan `tsan` 4/4 ve 0 uyarı, 264/264 test.

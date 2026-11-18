@@ -1,5 +1,11 @@
 #define _GNU_SOURCE
-#include "core_runtime/performance.cats"
+#include "core_runtime/kernel/kernel.cats"
+/* ATS2 telemetry (core_runtime/kernel/thread_stats.dats). */
+void anth_performance_enable(int enabled);
+unsigned long long anth_performance_sum(int key);
+unsigned long long anth_perf_phase_total(int phase);
+unsigned long long anth_perf_phase_count(int phase);
+unsigned long long anth_perf_phase_max(int phase);
 #include <signal.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -103,7 +109,7 @@ static void anth_sigprof_handler(int sig, siginfo_t *info, void *uctx) {
     rbp = next_rbp;
   }
   g_samples[idx].depth = depth;
-  g_samples[idx].tag = anth_perf_sample_tag;
+  g_samples[idx].tag = anth_k_sample_tag();
   g_sample_count = idx + 1;
 }
 #else
@@ -158,16 +164,16 @@ static uintptr_t anth_find_stack_high(void) {
 static void anth_write_metrics(FILE *out, const char *tag) {
   fprintf(out, "# tag=%s\n", tag ? tag : "summary");
   for (int i = 0; i < PERF_PHASE_COUNT; ++i) {
-    unsigned long long total = (unsigned long long)anth_perf_phase_ns[i];
-    unsigned long long calls = (unsigned long long)anth_perf_phase_calls[i];
-    unsigned long long mx = (unsigned long long)anth_perf_phase_max_ns[i];
+    unsigned long long total = anth_perf_phase_total(i);
+    unsigned long long calls = anth_perf_phase_count(i);
+    unsigned long long mx = anth_perf_phase_max(i);
     unsigned long long avg = calls > 0 ? total / calls : 0ULL;
     fprintf(out, "event=perf_phase name=%s calls=%llu total_ns=%llu avg_ns=%llu max_ns=%llu\n",
       g_phase_names[i], calls, total, avg, mx);
   }
   for (int i = 0; i < PERF_COUNTER_COUNT; ++i) {
     fprintf(out, "event=performance_counter name=%s value=%llu\n",
-      g_counter_names[i], (unsigned long long)anth_performance_counters[i]);
+      g_counter_names[i], anth_performance_sum(i));
   }
 }
 
@@ -283,7 +289,7 @@ void anth_perf_runtime_dump(const char *tag) {
   if (g_profile_path[0] != '\0' || g_log_path[0] != '\0') {
     g_dumped = 1;
     anth_stop_sampler_and_dump(tag);
-  } else if (anth_performance_enabled) {
+  } else if (anth_k_perf_enabled()) {
     anth_write_metrics(stdout, tag);
   }
 }

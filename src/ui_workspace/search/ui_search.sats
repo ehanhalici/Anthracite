@@ -24,3 +24,5 @@ fun search_dir(path: !Buf, q: !Buf, hits: &Buf >> _, hmeta: &Buf >> _, hn: &int 
 fun refresh_search(vault: !Buf, q: !Buf, hits: &Buf >> _, hmeta: &Buf >> _, hn: &int >> _): void
 fun find_hit_file(hmeta: !Buf, hits: !Buf, row: int, dst: &Buf >> _): void
 fun hit_text(hits: !Buf, off: int, n: int, f: !Font, r: !Rend, x: int, y: int, c: uint): int
+(* Path of the generated case map literal patterns are compiled with. *)
+fun search_case_map_path(dst: &Buf >> _): void

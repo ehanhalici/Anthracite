@@ -185,7 +185,7 @@ fun app_record_make(
   var km = buf_make(2048)
   val () = conf_load_keybindings(km)
 in @{
-  vault= vb, tabs= tabs, cache= CNil(), active= act_idx, righti= right_idx, split= toggle_of(ieq(sp, 1)),
+  vault= vb, tabs= tabs, cache= CNil(), closed= ClosedNone(), active= act_idx, righti= right_idx, split= toggle_of(ieq(sp, 1)),
   focus= Off, side= (if ieq(side_open, 1) then SideFiles else SideNone), fontpx= fpx, doc_fontpx= dfpx,
   clip= buf_make(APP_RECORD_MAKE_CLIP_INITIAL_BYTES), menu= MenuNone, menux= 0, menuy= 0, drag= DragNone, dragi= ~1,
   prompt= PromptNone, promptb= buf_make(APP_RECORD_MAKE_PROMPTB_INITIAL_BYTES),

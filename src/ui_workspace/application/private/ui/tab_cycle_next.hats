@@ -91,7 +91,8 @@ fun key_tabs_step(s: &App_record >> _, p: !Plat,f: !Font,r: !Rend, ev: &event, r
   val ts: Tabs = resolve_search_enter(s, ts0, qr, hit_go, ev)
   val idx = pane_of(s.focus, s.active, s.righti)
   val edit_idx = if is_on(s.split) andalso ieq(s.cursor_pane, 1) then s.righti else s.active
-  var ts_inter: Tabs = apply_nav_history_cmd(s, cmd, apply_tab_cmd(ts, cmd, idx))
+  val ts_tab = apply_tab_cmd(ts, cmd, idx, s.closed)
+  var ts_inter: Tabs = apply_nav_history_cmd(s, cmd, ts_tab)
   val () = handle_tab_nav_cmd(s, cmd, ts_inter)
   val doc_cmd = if is_on(s.editor_focused) then cmd else CMD_NONE
   val (ts_source,source_cmd)=tabs_source_edit(f,ts_inter,edit_idx,doc_cmd,s.scratch)

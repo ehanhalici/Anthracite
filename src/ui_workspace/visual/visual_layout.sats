@@ -6,6 +6,15 @@ staload "core_render/render.sats"
 staload "ui_workspace/common/ui_common.sats"
 (* Inclusive source-line range. *)
 typedef VisualLineRange = @{first=int,last=int}
+(* Per-row font size and vertical metrics of one source line. *)
+typedef VisualRowStyle = @{px=int,height=int,ascent=int,top=int}
+(* Shaping inputs of one projected source line [a,b); shaped=false for lines
+   that get one trivial row (empty or outside the view range). *)
+typedef VisualLineInput = @{line=int,a=int,b=int,target=int,style=VisualRowStyle,shaped=bool}
+(* Rows shaped away from the document (worker threads), indexed by source
+   line: rows (VISUAL_ROW_WORDS each, absolute projected offsets), per line
+   first row and row count (count ~1 = no result), paragraph analyses. *)
+datavtype VisualShaped = VisualShaped of (Buf,Buf,VisualParagraphs,int)
 (* Lines shaped by one visual_wrap_lines call; first > last when count = 0. *)
 typedef VisualWrapped = @{count=int,first=int,last=int}
 (* Viewport in document coordinates: top = line_y(anchorLine) + offset (anchorLine < 0: top = offset). *)
@@ -28,3 +37,15 @@ fun visual_wrap_fill(f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows):
 (* exact=false: placeholder rows only (visual_layout_prepare_deferred). *)
 fun visual_wrap_build(f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,exact: bool): void
 fun visual_wrap_lines(f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,range: VisualLineRange,deadline: lint): VisualWrapped
+fun visual_wrap_line_input(d: !Doc,rows: !VisualRows,line: int,cur: &int >> _): VisualLineInput
+(* Shapes one projected line held alone in `text` (offsets 0..length) without
+   any document: appends its rows to `out` (offsets relative to the line,
+   line field 0) and returns its paragraph analysis. Used by workers. *)
+fun visual_wrap_segment(f: !Font,text: !Buf,length: int,target: int,style: VisualRowStyle,out: &Buf >> _): Option_vt(VisualParagraph)
+fun visual_shaped_make(lines: int): VisualShaped
+fun visual_shaped_dispose(shaped: VisualShaped): void
+fun visual_shaped_count(shaped: !VisualShaped): int
+(* Records rows (relative to `a`) and the paragraph of `line`. *)
+fun visual_shaped_add(shaped: &VisualShaped >> _,line: int,a: int,rows: !Buf,first: int,count: int,paragraph: Option_vt(VisualParagraph)): void
+(* Splice: pending lines that have shaped rows take them; the rest are copied. *)
+fun visual_wrap_apply(d: !Doc,rows: &VisualRows >> VisualRows,shaped: &VisualShaped >> _): VisualWrapped

@@ -24,6 +24,13 @@ project(anthracite C)
 include(cmake/ATSSourceIndex.cmake)
 
 set(CMAKE_C_STANDARD 99)
+# ThreadSanitizer build for the threading tests (ctest -L tsan); use a
+# separate build directory: cmake -B build-tsan -DANTHRACITE_TSAN=ON.
+option(ANTHRACITE_TSAN "Build with ThreadSanitizer" OFF)
+if(ANTHRACITE_TSAN)
+  add_compile_options(-fsanitize=thread -g -O1 -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=thread)
+endif()
 
 set(PATSHOME $ENV{PATSHOME})
 if("${PATSHOME}" STREQUAL "")
@@ -59,6 +66,10 @@ if(NOT PRIMARY_FONT_SHA256 STREQUAL "9930d84013bfd7682df9d0d740d6417c111bfd49f29
 endif()
 
 file(GLOB_RECURSE ATS_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*.dats")
+# The runtime kernel (allocator, worker pool, per-thread statistics) is linked
+# into every executable through cmake/ATSGenerated.cmake, not only the app.
+file(GLOB ATS_KERNEL_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/core_runtime/kernel/*.dats")
+list(REMOVE_ITEM ATS_SOURCES ${ATS_KERNEL_SOURCES})
 configure_file("src/core_runtime/text_engine_paths.dats.in"
   "${CMAKE_CURRENT_BINARY_DIR}/text_engine_paths.dats" @ONLY)
 list(APPEND ATS_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/text_engine_paths.dats")

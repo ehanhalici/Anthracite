@@ -34,7 +34,7 @@ DOCUMENT_BUDGETS = [
     ("first", "counter.layout_updates", "max", 2),       # 1 today: incremental after band shaping
     ("first", "counter.wrap_lines", "max", 16),          # 13 today (was all 1296 lines)
     ("first", "counter.shape_calls", "max", 48),         # 40 today (was 824)
-    ("first", "counter.alloc_calls", "max", 96_000),     # 87,329 today (was 173,073)
+    ("first", "counter.alloc_calls", "max", 94_000),     # 85,049 today (was 173,073)
     ("first", "counter.gl_flush_calls", "max", 100),     # 91 today; atlas uploads flush
     ("background", "counter.wrap_builds", "max", 0),     # no rebuild while draining
     ("background", "counter.layout_builds", "max", 0),   # incremental only
@@ -49,7 +49,7 @@ DOCUMENT_BUDGETS = [
     ("warm_scroll_wheel", "counter.layout_builds", "max", 0),
     ("warm_scroll_wheel", "counter.shape_calls", "median", 2),   # 1 today
     ("warm_scroll_wheel", "counter.shape_calls", "p95", 6),      # 4 today
-    ("warm_scroll_wheel", "counter.alloc_calls", "p95", 520),    # 465 today
+    ("warm_scroll_wheel", "counter.alloc_calls", "p95", 250),    # 222 today with the shape-plan cache (was 465)
 ]
 SEARCH_BUDGETS = [
     ("search", "counter.alloc_calls", "max", 1_200),     # 1,079 today for 50 notes
@@ -121,8 +121,14 @@ def main():
                 print(result.stdout[-4000:], result.stderr[-4000:], sep="\n")
                 print(f"document_performance failed with {result.returncode}")
                 return 1
+            # Counter budgets need the deterministic sequential search; the
+            # parallel search is checked for equality in parallel_search_contracts
+            # and here only for leaks.
+            sequential = dict(env, ANTHRACITE_PARALLEL_SEARCH="0")
             search_result = subprocess.run([search, str(fixture / "vault"), "not", "5"],
-                                           capture_output=True, text=True, env=env, timeout=300, check=False)
+                                           capture_output=True, text=True, env=sequential, timeout=300, check=False)
+            parallel_result = subprocess.run([search, str(fixture / "vault"), "not", "5"],
+                                             capture_output=True, text=True, env=env, timeout=300, check=False)
         finally:
             if xvfb is not None:
                 xvfb.terminate()
@@ -139,6 +145,8 @@ def main():
         check(summarize.summarize(summarize.parse([search_log])), SEARCH_BUDGETS, failures)
         if "live_delta=0" not in search_result.stdout:
             failures.append("search leaked live allocations: " + search_result.stdout.splitlines()[-1])
+        if parallel_result.returncode != 0 or "live_delta=0" not in parallel_result.stdout:
+            failures.append("parallel search leaked or failed: " + (parallel_result.stdout.splitlines() or ["no output"])[-1])
         alloc_runs = {line.split("alloc_calls=")[1].split()[0]
                       for line in search_result.stdout.splitlines() if "alloc_calls=" in line}
         if len(alloc_runs) != 1:

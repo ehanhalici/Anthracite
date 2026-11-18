@@ -4,6 +4,7 @@
 #define GL_GLEXT_PROTOTYPES 1
 #include <GL/gl.h>
 #include <stdint.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -158,15 +159,16 @@ typedef struct {
 static anth_uf *anth_uf_tab;
 static int anth_uf_n;
 
-static void anth_uf_load(void) {
-  static int tried;
+/* Loaded once per process; workers may measure bitmap-fallback widths too. */
+static void anth_uf_load_once(void);
+static pthread_once_t anth_uf_once = PTHREAD_ONCE_INIT;
+static void anth_uf_load(void) { pthread_once(&anth_uf_once, anth_uf_load_once); }
+static void anth_uf_load_once(void) {
   const char *path;
   FILE *f;
   char magic[4];
   uint32_t ver = 0, n = 0;
   anth_uf *tab;
-  if (tried) return;
-  tried = 1;
 #ifndef ANTHRACITE_UNIFONT
 #define ANTHRACITE_UNIFONT "src/data_font/unifont.bin"
 #endif

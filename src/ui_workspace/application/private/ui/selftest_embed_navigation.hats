@@ -7,9 +7,10 @@ fun selftest_embed_navigation(root: string): int = let
   val document=doc_open() val length=buf_len(source) val ()=doc_insert_buf(document,source,length)
   val ()=doc_set_caret_move(document,0) val ()=buf_free(source)
   val tabs=TCons(document,buf_make(0),buf_make(0),0,TNil()) var target: int= ~1
-  val opened=app_wiki_open(tabs,0,vault,target)
+  var kept: ClosedDocs=ClosedNone()
+  val opened=app_wiki_open(tabs,0,vault,target,kept)
   val first=ieq(target,1) andalso ieq(tabs_len(opened),2) andalso ieq(tabs_caret(opened,1),c_strlen("literal Word\n\n# Word\n"))
-  val reused=app_wiki_open(opened,0,vault,target)
+  val reused=app_wiki_open(opened,0,vault,target,kept) val ()=closed_docs_free(kept)
   val same=ieq(target,1) andalso ieq(tabs_len(reused),2)
   val ()=tabs_free(reused) val removed=fs_unlink(buf_cstr(path))
   val ()=buf_free(vault) val ()=buf_free(path)

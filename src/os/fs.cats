@@ -58,6 +58,13 @@ static inline int anth_size(const char *p) {
   if (st.st_size > 0x7fffffff) return -1;
   return (int)st.st_size;
 }
+/* Size and mtime from one stat call (-1 size when missing or too large). */
+static inline int anth_size_mtime(const char *p, int *mtime) {
+  struct stat st;
+  if (stat(p, &st) != 0) { *mtime = -1; return -1; }
+  *mtime = (int)st.st_mtime;
+  return st.st_size > 0x7fffffff ? -1 : (int)st.st_size;
+}
 static inline int anth_mtime(const char *p) {
   struct stat st;
   if (stat(p, &st) != 0) return -1;

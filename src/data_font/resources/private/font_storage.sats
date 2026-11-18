@@ -74,3 +74,5 @@ fun cache_s(f: !Font, slot: int, k: int, v: int): void
 fun ensure_tex(f: !Font, r: !Rend): void
 fun upload_atlas(f: !Font, r: !Rend, tex: uint, x: int, y: int, w: int, h: int): void
 fun kern_fmt0_value(f: !Font, p: int, left: int, right: int): int
+fun font_note_primary_path(f: !Font,path: string): void
+fun font_note_fallback_path(f: !Font,path: string): void

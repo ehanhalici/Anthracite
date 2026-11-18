@@ -16,6 +16,8 @@ staload "data_font/resources/private/font_storage.sats"
 staload "data_font/resources/font_document_metrics.sats"
 staload "ui_workspace/common/ui_common.sats"
 staload "ui_workspace/visual/visual_layout.sats"
+staload "ui_workspace/visual/visual_wrap_parallel.sats"
+staload "core_runtime/workers.sats"
 staload "core_runtime/performance.sats"
 implement visual_layout_key(f,d,width,mode) = let
   val p=font_native_current(f,GlyphPrimaryFace()) val a=font_native_current(f,GlyphFallbackFace())
@@ -26,7 +28,7 @@ implement visual_layout_key(f,d,width,mode) = let
 in @{version=doc_layout_version(d),width=imax(1,width),px=font_get_px(f),height=font_document_line_height(f,font_line_h(f)),ascent=metrics.ascent,primary=p.font,fallback=a.font,
   primaryGeneration=p.generation,fallbackGeneration=a.generation,
   projection=if is_view_read(mode) then VisualRendered() else VisualSource(),sourceStart=range.start,sourceFinish=range.finish,
-  rawStart=r0,rawFinish=r1} end
+  rawStart=r0,rawFinish=r1,build=0} end
 staload "airlock.sats"
 staload "mem.sats"
 staload "os/fs.sats"
@@ -34,11 +36,20 @@ staload "os/fs.sats"
 macdef BAND_OVERSCAN_HALVES = 1
 macdef BAND_SETTLE_FUEL = 4
 macdef LINE_SEARCH_FUEL = 40
+macdef next_build() = visual_next_build()
+(* Copies every field (record updates through `var` miscompile in patsopt). *)
+fun with_build(k: VisualKey,build: int): VisualKey =
+  @{version=k.version,width=k.width,px=k.px,height=k.height,ascent=k.ascent,primary=k.primary,fallback=k.fallback,
+    primaryGeneration=k.primaryGeneration,fallbackGeneration=k.fallbackGeneration,projection=k.projection,
+    sourceStart=k.sourceStart,sourceFinish=k.sourceFinish,rawStart=k.rawStart,rawFinish=k.rawFinish,build=build}
+fun built_key(f: !Font,d: !Doc,width: int,mode: ViewMode,build: int): VisualKey =
+  with_build(visual_layout_key(f,d,width,mode),build)
 fun fresh(f: !Font,r: !Rend,d: !Doc,width: int,mode: ViewMode,exact: bool): void = let
-  var rows=visual_projection_make(d,visual_layout_key(f,d,width,mode))
+  val build=next_build()
+  var rows=visual_projection_make(d,built_key(f,d,width,mode,build))
   val ()=visual_wrap_build(f,r,d,rows,exact)
   val+ ~VisualRows(t,m,l,data,n,old,plans)=rows
-  val ()=doc_visual_put(d,Some_vt(VisualRows(t,m,l,data,n,visual_layout_key(f,d,width,mode),plans)))
+  val ()=doc_visual_put(d,Some_vt(VisualRows(t,m,l,data,n,built_key(f,d,width,mode,build),plans)))
 in doc_layout_cache_store(d,~1,0,0,~1,doc_get_wrap(d)) end
 fun stored_matches(f: !Font,d: !Doc,width: int,mode: ViewMode): bool = let
   val state=doc_visual_take(d)
@@ -53,7 +64,7 @@ in count end
 (* Faces load lazily while shaping, so the font part of the key can change from
    "not loaded" during this call; rows shaped here used the loaded faces. *)
 fun rekey(rows: VisualRows,key: VisualKey): VisualRows = let val+ ~VisualRows(t,m,l,data,n,old,plans)=rows
-in VisualRows(t,m,l,data,n,key,plans) end
+in VisualRows(t,m,l,data,n,with_build(key,old.build),plans) end
 fun wrap_stored(f: !Font,r: !Rend,d: !Doc,width: int,mode: ViewMode,range: VisualLineRange,deadline: lint): int = let
   val state=doc_visual_take(d)
 in case+ state of
@@ -101,12 +112,29 @@ fun settle{n:nat} .<n>. (fuel: int(n),f: !Font,r: !Rend,d: !Doc,width: int,mode:
 in if ieq(wrapped,0) then height else if fuel = 0 then layout_height(d,mode,lh,width)
   else settle(fuel-1,f,r,d,width,mode,lh,view) end
 implement visual_layout_prepare_band(f,r,d,width,mode,lh,view) = let
+  (* Start workers (and their font loading) while this frame shapes the band. *)
+  val ()=if igt(visual_layout_pending(d),0) orelse not(visual_wrap_parallel_available()) then () else ()
   val ()=visual_layout_prepare_deferred(f,r,d,width,mode)
 in settle(airlock_nat(BAND_SETTLE_FUEL),f,r,d,width,mode,lh,view) end
+(* Worker threads shape off-screen lines; this frame only splices what they
+   finished and queues more. Without workers the main thread shapes within
+   budget_ns: below the band first, then above. *)
+fun background_parallel(f: !Font,d: !Doc,band: VisualLineRange): void = let
+  val state=doc_visual_take(d)
+in case+ state of
+  | ~None_vt() => doc_visual_put(d,None_vt())
+  | ~Some_vt(rows0) => let var rows=rows0
+      val t0=performance_now_ns()
+      val wrapped=visual_wrap_parallel_step(f,d,rows,band)
+      val ()=performance_phase_end(PERF_PHASE_VISUAL_PREPARE,t0)
+      val ()=doc_visual_put(d,Some_vt(rows))
+    in if igt(wrapped.count,0) then doc_layout_mark_rows(d,wrapped.first,wrapped.last) else () end end
+fun background_budget(f: !Font,r: !Rend,d: !Doc,width: int,mode: ViewMode,band: VisualLineRange,budget_ns: lint): void = let
+  val deadline=mono_ns()+budget_ns
+  val below=visual_layout_wrap_range(f,r,d,width,mode,@{first=iadd(band.last,1),last=doc_nlines(d)},deadline)
+  val above=if mono_ns() < deadline then visual_layout_wrap_range(f,r,d,width,mode,@{first=0,last=isub(band.first,1)},deadline) else 0
+in seen_int(iadd(below,above)) end
 implement visual_layout_background(f,r,d,width,mode,view,budget_ns) =
-  if ile(visual_layout_pending(d),0) orelse not(stored_matches(f,d,width,mode)) then () else let
-    val deadline=mono_ns()+budget_ns
-    val band=view_band(d,view)
-    val below=visual_layout_wrap_range(f,r,d,width,mode,@{first=iadd(band.last,1),last=doc_nlines(d)},deadline)
-    val above=if mono_ns() < deadline then visual_layout_wrap_range(f,r,d,width,mode,@{first=0,last=isub(band.first,1)},deadline) else 0
-  in seen_int(iadd(below,above)) end
+  if ile(visual_layout_pending(d),0) orelse not(stored_matches(f,d,width,mode)) then ()
+  else if visual_wrap_parallel_available() then background_parallel(f,d,view_band(d,view))
+  else background_budget(f,r,d,width,mode,view_band(d,view),budget_ns)

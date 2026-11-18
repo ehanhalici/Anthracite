@@ -34,8 +34,9 @@ fun free_font_bufs(fpaths: Buf, fnames: Buf, fmeta: Buf, font_path: Buf): void =
 in
 end
 
-fun free_app_state(vault: Buf, ts2: Tabs, cache: Cache, vpaths: Buf, vnames: Buf, vmeta: Buf, tab_pane: Buf, open_dirs: Buf): void = let
+fun free_app_state(vault: Buf, ts2: Tabs, cache: Cache, closed: ClosedDocs, vpaths: Buf, vnames: Buf, vmeta: Buf, tab_pane: Buf, open_dirs: Buf): void = let
   val () = buf_free(vault)
+  val () = closed_docs_free(closed)
   val () = tabs_free(ts2)
   val () = cache_free(cache)
   val () = buf_free(vpaths)
@@ -67,7 +68,7 @@ implement app_free(a) = let
   val () = tab_hist_free(s.tab_hists)
   val () = buf_free(s.keymap)
 in
-  free_app_state(s.vault, ts2, s.cache, s.vpaths, s.vnames, s.vmeta, s.tab_pane, s.open_dirs)
+  free_app_state(s.vault, ts2, s.cache, s.closed, s.vpaths, s.vnames, s.vmeta, s.tab_pane, s.open_dirs)
 end
 
 fun pane_of(sfocus: Toggle, active: int, righti: int): int =

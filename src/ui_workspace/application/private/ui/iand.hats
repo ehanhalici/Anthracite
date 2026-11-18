@@ -11,7 +11,7 @@ fun ev_text_buf(ev: &event, dst: !Buf, n: int): int =
 
 typedef SearchDocumentStamp = @{document=ptr,generation=int}
 vtypedef App_record = @{
-  vault= Buf, tabs= Tabs, cache= Cache,
+  vault= Buf, tabs= Tabs, cache= Cache, closed= ClosedDocs,
   active= int, righti= int, split= Toggle, focus= Toggle, side= Sidebar, fontpx= int, doc_fontpx= int,
   clip= Buf, menu= MenuKind, menux= int, menuy= int, drag= DragKind, dragi= int,
   prompt= PromptKind, promptb= Buf, query= Buf, qfocus= Toggle,

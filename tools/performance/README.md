@@ -48,6 +48,22 @@ shipped binary inlines.
 
 ```
 echo 'add_compile_options(-g -fno-omit-frame-pointer)' > /tmp/fp.cmake
-cmake -S . -B /tmp/anth-rel -DCMAKE_BUILD_TYPE=Release -DCMAKE_PROJECT_INCLUDE=/tmp/fp.cmake
+cmake -S . -B /tmp/anth-rel -DCMAKE_BUILD_TYPE=Release -DANTHRACITE_PROFILER=ON -DCMAKE_PROJECT_INCLUDE=/tmp/fp.cmake
 cmake --build /tmp/anth-rel --target document_performance search_performance
 ```
+
+## Threads, arena and caches
+
+| Variable | Effect |
+|---|---|
+| `ANTHRACITE_WORKERS=n` | Worker count (default: physical cores in the affinity mask and cgroup quota, minus the main thread's). `0` disables the pool. |
+| `ANTHRACITE_PARALLEL_WRAP=0` | Background line shaping on the main thread (6 ms budget per frame). |
+| `ANTHRACITE_PARALLEL_SEARCH=0` | Sequential vault search. |
+| `ANTHRACITE_ARENA=0` | libc allocator instead of the arena. `ANTHRACITE_ARENA_MAX=bytes` caps the reservation. |
+| `ANTHRACITE_TAB_CACHE=0` | Do not keep documents of closed tabs. |
+| `ANTHRACITE_THREAD_JITTER=1` | Random worker delays (tests). |
+| `ANTHRACITE_WORKER_COUNTERS=1` | Per-worker hardware counters (cycles, instructions, cache misses). |
+
+Checks: `ctest -L perf` (`performance_budgets`, `arena_scaling_contracts`,
+`pool_scaling_contracts`; the scaling checks skip themselves when the machine is
+busy) and, in a `-DANTHRACITE_TSAN=ON` build directory, `ctest -L tsan`.

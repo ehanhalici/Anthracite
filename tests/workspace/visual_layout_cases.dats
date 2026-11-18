@@ -590,8 +590,18 @@ fun same_row(a: VisualRow,b: VisualRow): bool =
   ieq(a.start,b.start) andalso ieq(a.finish,b.finish) andalso ieq(a.width,b.width) andalso ieq(a.line,b.line)
   andalso ieq(a.ordinal,b.ordinal) andalso ieq(a.px,b.px) andalso ieq(a.height,b.height)
   andalso ieq(a.ascent,b.ascent) andalso ieq(a.top,b.top)
+fun show_row(tag: string,r: VisualRow): void = let
+  val ()=print_string(tag) val ()=print_int(r.start) val ()=print_string(",") val ()=print_int(r.finish)
+  val ()=print_string(" w=") val ()=print_int(r.width) val ()=print_string(" line=") val ()=print_int(r.line)
+  val ()=print_string(" ord=") val ()=print_int(r.ordinal) val ()=print_string(" px=") val ()=print_int(r.px)
+  val ()=print_string(" h=") val ()=print_int(r.height) val ()=print_string(" asc=") val ()=print_int(r.ascent)
+  val ()=print_string(" top=") val ()=print_int(r.top)
+in print_newline() end
 fun same_rows{n:nat} .<n>. (left: int(n),a: !VisualRows,b: !VisualRows,i: int): int =
-  if left = 0 then 0 else iadd(if same_row(visual_rows_at(a,i),visual_rows_at(b,i)) then 0 else 1,same_rows(left-1,a,b,iadd(i,1)))
+  if left = 0 then 0 else let val ra=visual_rows_at(a,i) val rb=visual_rows_at(b,i)
+    val same=same_row(ra,rb)
+    val ()=if same orelse igt(i,8) then () else (show_row("event=visual_row_mismatch full=",ra); show_row("event=visual_row_mismatch deferred=",rb))
+  in iadd(if same then 0 else 1,same_rows(left-1,a,b,iadd(i,1))) end
 fun compare_rows{x,y:bool}(a: !option_vt(VisualRows,x),b: !option_vt(VisualRows,y)): int = case+ a of
   | None_vt() => 1 | Some_vt(ra) => (case+ b of | None_vt() => 1 | Some_vt(rb) => let
       val+ VisualRows(t1,m1,l1,d1,n1,k1,p1)=ra val+ VisualRows(t2,m2,l2,d2,n2,k2,p2)=rb
@@ -604,10 +614,14 @@ fun deferred_text(d: !Doc,lines: int): void = let
     val ()=doc_insert(d,c_str_ptr(s),c_strlen(s))
   in go(left-1,d,iadd(i,1)) end
 in go(airlock_nat(lines),d,0) end
+extern fun pause_microseconds(us: int): int = "mac#usleep"
+(* Background steps until nothing is pending; with workers the results arrive
+   asynchronously, so each step yields 200 us (bounded: 25 000 steps = 5 s). *)
 fun drain{n:nat} .<n>. (left: int(n),f: !Font,r: !Rend,d: !Doc,width: int,view: VisualViewport,lh: int): int =
   if ile(visual_layout_pending(d),0) then 0 else if left = 0 then 1 else let
     val ()=visual_layout_background(f,r,d,width,ViewRead,view,1L)
     val _=doc_layout_mode(d,lh,1,width)
+    val _=pause_microseconds(200)
   in drain(left-1,f,r,d,width,view,lh) end
 fun band_exact{n:nat} .<n>. (left: int(n),d: !Doc,line: int,bottom: int): int =
   if left = 0 then 0 else if igt(doc_line_y(d,line),bottom) then 0
@@ -629,7 +643,7 @@ fun deferred_rows_match_full(f: !Font,r: !Rend): int = let
   val _=visual_layout_prepare_band(f,r,deferred,width,ViewRead,lh,view)
   val started=visual_layout_pending(deferred)
   val visible=band_exact(airlock_nat(lines),deferred,0,view.height)
-  val leftover=drain(airlock_nat(imul(lines,2)),f,r,deferred,width,view,lh)
+  val leftover=drain(airlock_nat(25000),f,r,deferred,width,view,lh)
   val a=doc_visual_take(full) val b=doc_visual_take(deferred)
   val differ=compare_rows(a,b)
   val ()=doc_visual_put(full,a) val ()=doc_visual_put(deferred,b)
@@ -646,6 +660,14 @@ fun deferred_rows_match_full(f: !Font,r: !Rend): int = let
   val ()=doc_free(full) val ()=doc_free(deferred)
 in iadd(geometry,iadd(if igt(started,0) then 0 else 1,iadd(visible,iadd(leftover,iadd(differ,heights))))) end
 
+extern fun set_env(name: string,value: string,overwrite: int): int = "mac#setenv"
+(* ANTHRACITE_PARALLEL_WRAP is read per step: "0" = main-thread budget path, "1" = workers. *)
+fun deferred_in_mode(f: !Font,r: !Rend,mode: string): int = let
+  val _=set_env("ANTHRACITE_PARALLEL_WRAP",mode,1)
+  val () = print_string("event=visual_deferred_mode parallel=") val () = print_string(mode) val () = print_newline()
+  val errors=deferred_rows_match_full(f,r)
+  val _=set_env("ANTHRACITE_PARALLEL_WRAP","1",1)
+in errors end
 implement native_visual_layout_cases(f,r) = let val before=mem_live() val d=doc_open()
   val body=test(f,r,d) val markup=markdown(f,r) val hard=iadd(hard_lines(f,r), crlf_and_guards(f,r))
   val nav=navigation(f,r) val fold=iadd(folding_and_task(f,r),math_geometry(f,r))
@@ -653,7 +675,8 @@ implement native_visual_layout_cases(f,r) = let val before=mem_live() val d=doc_
   val errors=body+markup+hard+nav+fold+lp val ()=doc_free(d) val delta=isub(mem_live(),before)
   val scale=iadd(wrap_scale(f,r,64),iadd(wrap_scale(f,r,256),wrap_scale(f,r,1024)))
   val clipping=iadd(paragraph_bidi_rows(f,r),iadd(owned_row_plans(f,r),iadd(nested_clips(r),warm_layout(f,r))))
-  val embedded=iadd(embedded_documents(f,r),deferred_rows_match_full(f,r))
+  val sequential=deferred_in_mode(f,r,"0") val parallel=deferred_in_mode(f,r,"1")
+  val embedded=iadd(embedded_documents(f,r),iadd(sequential,parallel))
   val ()=println!("event=native_visual_layout errors=",errors," retained_font_source_bytes=",delta)
   val ()=println!("event=visual_cases body=",body," markdown=",markup," hard=",hard," navigation=",nav," fold=",fold)
 in iadd(embedded,iadd(clipping,iadd(errors,scale))) end

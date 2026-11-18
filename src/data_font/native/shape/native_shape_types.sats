@@ -16,12 +16,14 @@ staload "data_text/normalization/normalization_types.sats"
 datavtype NativeSubstitution = NativeSubMissing | NativeSubTables of (OtLayoutTable(1,0),OtSubstitutionGraph)
 datavtype NativePositioning = NativePosMissing | NativePosTables of (OtLayoutTable(2,0),OtPositionGraph)
 typedef NativeFaceIdentity = @{font=int,glyphs=int,units=int}
-datavtype NativeShapeCache = NativeShapeCache of (GlyphMetadata,NativeSubstitution,NativePositioning,NativeFaceIdentity)
-datavtype NativeShapeCacheRead = NativeCacheAccepted of NativeShapeCache | NativeCacheRejected of OtError
 datavtype NativeSubPlan = NativeSubNoPlan | NativeSubPlan of OtShapeSchedule(1)
 datavtype NativePosPlan = NativePosNoPlan | NativePosPlan of OtShapeSchedule(2)
 typedef NativePlanInfo = @{face=NativeFaceIdentity,request=OtShapeRequest,masks=OtShapeMasks}
 datavtype NativeShapePlan = NativeShapePlan of (NativeSubPlan,NativePosPlan,NativePlanInfo)
+(* Most recently used plans of one face; a plan's own info is its key. *)
+datavtype NativePlanCache = NativePlansEmpty | NativePlansCons of (NativeShapePlan,NativePlanCache)
+datavtype NativeShapeCache = NativeShapeCache of (GlyphMetadata,NativeSubstitution,NativePositioning,NativeFaceIdentity,NativePlanCache)
+datavtype NativeShapeCacheRead = NativeCacheAccepted of NativeShapeCache | NativeCacheRejected of OtError
 datavtype NativeShapePlanRead = NativePlanAccepted of NativeShapePlan | NativePlanRejected of OtError
 datavtype NativeShapeText = NativeShapeText of (ScalarText,OtShapeProfile)
 datavtype NativeShapeTextRead = NativeTextAccepted of NativeShapeText | NativeTextRejected of NormalizationError

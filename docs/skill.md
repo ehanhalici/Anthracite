@@ -149,3 +149,38 @@ sözleşmesinden okunur.
   dışında kalır.
 - **FFI imzaları:** `mac#` imzalarının C tarafıyla uyumu derleyici tarafından
   denetlenmez; imza eşlemesi ve tip testleriyle korunur.
+- **Çalışma zamanı çekirdeğinin C sınırı (tek adaptör başlığı):** Ayırıcı
+  (`core_runtime/kernel/arena.dats`), işçi havuzu (`kernel/workers.dats`) ve
+  iş parçacığı başına sayaçlar (`kernel/thread_stats.dats`) ATS2'dir. Release
+  derlemede bunların altında kalan C yalnızca `src/core_runtime/kernel/kernel.cats`
+  dosyasındadır ve şunlardan ibarettir:
+  - kök hücrelerin depolama bildirimleri (statik diziler, `_Thread_local`
+    hücreler, `alignas(64)` yerleşimi ve `_Static_assert` boyut denetimleri);
+  - tek satırlık, döngüsüz ve dalsız makrolar: C11 atomik yükle / yaz /
+    `fetch_add` / CAS / exchange, futex bekle/uyandır ve sistem çağrıları
+    (`mmap`, `mprotect`, `madvise`, `open`/`read`, `sched_*`, `pthread_*`,
+    `perf_event_open`, `clock_gettime`);
+  - kutu aktarımı: bir ATS kutusu (iş, sonuç) halkaya işaretçi olarak girer ve
+    aynı tipte çıkar (`anth_k_submit_box` / `anth_k_take_box`);
+  - bağlantı için zayıf (`weak`) özdeşlik varsayılanları ve sözdizimsel olarak
+    gereken `pthread_attr`/`perf_event_attr` doldurma.
+
+  Her indeks (iş parçacığı satırı, işçi, halka, yuva, CPU, segment, sayfa,
+  boyut sınıfı) makroya ATS2 bildiriminin statik sınırıyla ulaşır. Her sistem
+  çağrısı sonucu kullanılmadan önce ATS2'de denetlenir; başarısızlık "veri yok"
+  sonucu olarak orada kalır, kutusuz bir sonuç tipiyle (`~1` = yok) taşınır ve
+  çekirdek hiç tahsis yapmaz. Bellekten geri okunan adresler (boş listeler,
+  uzak serbest bırakma yığınları, önbellekteki aralıklar) rezervasyon ve
+  segment başlığıyla doğrulanır; ihlal hafızayı bozmak yerine programı durdurur.
+- **ATS2'nin kanıtlamadığı:** Kilitsiz protokollerin bellek sıralaması
+  (acquire/release, Dekker uyuma el sıkışması, CAS ile iş çalma) ATS2'nin tip
+  sisteminde ifade edilemez. Bir kutunun bir yuvaya bir kez girip bir kez
+  çıkması halka protokolüyle ve çalışma zamanı denetimiyle (yanlış kullanımda
+  durma) sağlanır, tiple değil. Bu yüzden `-DANTHRACITE_TSAN=ON` derlemesi,
+  jitter'lı paralel eşitlik sözleşmeleri ve donanım sayaçlı ölçekleme testleri
+  bu protokoller için kanıtın yerini tutan denetim olarak kalır.
+- **Kapsam dışı eski C:** `arabic.cats`, `text_layout.h`, `ucd_data.cats`,
+  `fs.cats` döngüleri, `gl.cats` unifont yükleyicisi ve tanılama halkası bu
+  sınırdan önce yazıldı; henüz ATS2'ye taşınmadı. Geliştirici aracı
+  `perf_sampler.c` yalnızca `-DANTHRACITE_PROFILER=ON` ile derlenir (Release'te
+  kapalı).

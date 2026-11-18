@@ -51,25 +51,25 @@ in
   end
 end
 
-fun open_hit_file(ts: Tabs, path: !Buf, act: &int >> _): Tabs = let
+fun open_hit_file(ts: Tabs, path: !Buf, act: &int >> _, kept: &ClosedDocs >> _): Tabs = let
   val existing = tabs_find_path(ts, path)
 in
   if ige(existing, 0) then (act := existing; ts)
   else let
-    val res = tabs_open(ts, buffer_clone(path))
+    val res = tabs_open_kept(ts, buffer_clone(path), kept)
     val () = act := isub(tabs_len(res), 1)
   in
     res
   end
 end
 
-fun open_hit_target(ts: Tabs,path: !Buf,scope: int,active: &int >> _): Tabs =
-  if ieq(scope,SEARCH_SCOPE_DOCUMENT) then ts else open_hit_file(ts,path,active)
+fun open_hit_target(ts: Tabs,path: !Buf,scope: int,active: &int >> _,kept: &ClosedDocs >> _): Tabs =
+  if ieq(scope,SEARCH_SCOPE_DOCUMENT) then ts else open_hit_file(ts,path,active,kept)
 fun open_hit(s: &App_record >> _, ts: Tabs, srow: int, go: Toggle): Tabs =
   if is_on(go) then let
     var hitfile = buf_make(OPEN_HIT_HITFILE_INITIAL_BYTES)
     val () = find_hit_file(s.hmeta, s.hits, srow, hitfile)
-    val ts2 = open_hit_target(ts,hitfile,s.scope,s.active)
+    val ts2 = open_hit_target(ts,hitfile,s.scope,s.active,s.closed)
     val () = if ieq(s.scope,SEARCH_SCOPE_VAULT) then s.focus := Off else ()
     val () = buf_free(hitfile)
     val () = open_hit_jump(s, srow)
@@ -89,8 +89,8 @@ fun open_created_file(ts: Tabs, dir: !Buf, name: !Buf, kind: PromptKind): Tabs =
     tabs_open(ts, new_file)
   end else ts
 
-fun apply_tab_cmd(ts: Tabs, cmd: Cmd, idx: int): Tabs =
-  if is_cmd(cmd, CMD_CLOSE_TAB) then close_active_tab(ts, idx)
+fun apply_tab_cmd(ts: Tabs, cmd: Cmd, idx: int, kept: &ClosedDocs >> _): Tabs =
+  if is_cmd(cmd, CMD_CLOSE_TAB) then close_active_tab(ts, idx, kept)
   else if is_cmd(cmd, CMD_NEW_TAB) then new_empty_tab(ts)
   else ts
 

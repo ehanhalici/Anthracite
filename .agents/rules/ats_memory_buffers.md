@@ -23,11 +23,19 @@ When using 32-bit word operations on `Buf` in Anthracite:
   generation bindings synchronized when moving a storage module.
 
 ## 3. Temporary boxed results without GC
-- Production builds use `ATS_MEMALLOC_LIBC`. Payload-bearing nonlinear
-  `datatype`/`Option` constructors can allocate boxes without automatic release.
+- Every executable is built with `ATS_MEMALLOC_USER`: all ATS allocations go
+  through the ATS2 arena in `src/core_runtime/kernel/arena.dats` (`ANTHRACITE_ARENA=0` falls
+  back to libc). Payload-bearing nonlinear `datatype`/`Option` constructors
+  can allocate boxes without automatic release.
+- Never free ATS-allocated memory with libc `free`, and never let ATS free
+  memory from libc `malloc`: object libraries must use the same allocator flag
+  as the executables (`cmake/ATSGenerated.cmake` rewrites it for both).
 - Prefer flat temporary records or consumed `Option_vt` results; borrow indexed
   `!option_vt(T,b)` when a result is inspected repeatedly, then dispose it once.
 - `mem_live` tracks buffer payload, not every ATS constructor or GPU allocation.
+  It is the calling thread's own live bytes: a Buf is charged to the thread that
+  allocated it, whichever thread frees it (arena owner tag), so worker caches
+  never appear as main-thread leaks.
   Keep LeakSanitizer findings distinct from balanced tracked-buffer tests (BUG-032).
 
 ## 4. Boundary Airlock & Recursion Fuel Discipline

@@ -147,21 +147,50 @@ fun path_match_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ixp: 
     else path_match_with_fuel(recfuel - 1, ixp, poff, plen, p, iadd(i, 1))
   ) else true
 
-fun find_file_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ixf: !Buf, ixp: !Buf, path: !Buf, fid: int, nfiles: int): int =
-  if recursion_fuel_available(recfuel) then (
-    if ige(fid, nfiles) then ~1
-    else let
-      val poff = ix_file_get(ixf, fid, IX_F_PATHOFF)
-      val plen = ix_file_get(ixf, fid, IX_F_PATHLEN)
-    in
-      if ieq(plen, buf_len(path)) andalso path_match_with_fuel(airlock_nat(MAX_REC_FUEL), ixp, poff, plen, path, 0) then fid
-      else find_file_with_fuel(recfuel - 1, ixf, ixp, path, iadd(fid, 1), nfiles)
-    end
-  ) else ~1
+(* Path index for the walk: open addressing over 32-bit slots holding fid+1
+   (0 = empty). Replaces a scan of every known file per directory entry, which
+   made cataloging a 5000-note vault quadratic in the number of files. *)
+macdef PATH_HASH_MODULUS = 16777213
+macdef PATH_HASH_MULTIPLIER = 31
+macdef PATH_TABLE_MIN_SLOTS = 1024
+fun hash_bytes{n:nat} .<n>. (left: int(n),b: !Buf,at: int,h: int): int =
+  if left = 0 then h else hash_bytes(left-1,b,iadd(at,1),imod(iadd(imul(h,PATH_HASH_MULTIPLIER),buf_get(b,at)),PATH_HASH_MODULUS))
+fun path_hash(b: !Buf,at: int,length: int): int = hash_bytes(airlock_nat(imax(0,length)),b,at,7)
+fun table_slots(table: !Buf): int = idiv(buf_len(table),WORD32_BYTES)
+fun same_path(ixf: !Buf,ixp: !Buf,fid: int,path: !Buf): bool = let
+  val poff = ix_file_get(ixf, fid, IX_F_PATHOFF)
+  val plen = ix_file_get(ixf, fid, IX_F_PATHLEN)
+in ieq(plen, buf_len(path)) andalso path_match_with_fuel(airlock_nat(MAX_REC_FUEL), ixp, poff, plen, path, 0) end
+fun probe{n:nat} .<n>. (left: int(n),table: !Buf,ixf: !Buf,ixp: !Buf,path: !Buf,slot: int): int =
+  if left = 0 then ~1 else let val entry=buf_get32(table,slot)
+  in if ieq(entry,0) then ~1 else if same_path(ixf,ixp,isub(entry,1),path) then isub(entry,1)
+    else probe(left-1,table,ixf,ixp,path,imod(iadd(slot,1),table_slots(table))) end
+fun table_find(table: !Buf,ixf: !Buf,ixp: !Buf,path: !Buf): int = let val slots=table_slots(table)
+in probe(airlock_nat(slots),table,ixf,ixp,path,imod(path_hash(path,0,buf_len(path)),slots)) end
+fun free_slot{n:nat} .<n>. (left: int(n),table: !Buf,slot: int): int =
+  if left = 0 then slot else if ieq(buf_get32(table,slot),0) then slot
+  else free_slot(left-1,table,imod(iadd(slot,1),table_slots(table)))
+fun table_put(table: !Buf,ixf: !Buf,ixp: !Buf,fid: int): void = let
+  val slots=table_slots(table)
+  val start=imod(path_hash(ixp,ix_file_get(ixf,fid,IX_F_PATHOFF),ix_file_get(ixf,fid,IX_F_PATHLEN)),slots)
+in buf_set32(table,free_slot(airlock_nat(slots),table,start),iadd(fid,1)) end
+fun table_fill{n:nat} .<n>. (left: int(n),table: !Buf,ixf: !Buf,ixp: !Buf,fid: int): void =
+  if left = 0 then () else let val ()=table_put(table,ixf,ixp,fid) in table_fill(left-1,table,ixf,ixp,iadd(fid,1)) end
+(* At most half full: rebuilt at twice the size when it would pass that. *)
+fun table_make(ixf: !Buf,ixp: !Buf,files: int): Buf = let
+  fun size{n:nat} .<n>. (left: int(n),slots: int,need: int): int =
+    if left = 0 then slots else if ige(slots,need) then slots else size(left-1,imul(slots,2),need)
+  val slots=size(airlock_nat(32),PATH_TABLE_MIN_SLOTS,imul(iadd(files,1),2))
+  val bytes=imul(slots,WORD32_BYTES)
+  val table=buf_make(bytes) val ()=buf_zero(table) val ()=buf_set_len(table,bytes)
+  val ()=table_fill(airlock_nat(imax(0,files)),table,ixf,ixp,0)
+in table end
+fun table_reserve(table: &Buf >> _,ixf: !Buf,ixp: !Buf): void =
+  if ilt(imul(iadd(ix_file_count(ixf),1),2),table_slots(table)) then () else let
+    val known=ix_file_count(ixf) val ()=buf_free(table) val ()=table := table_make(ixf,ixp,known) in () end
 
-fun register_file(ixf: &Buf >> _, ixp: &Buf >> _, path: !Buf, sz: int, mt: int): int = let
-  val nfiles = ix_file_count(ixf)
-  val existing = find_file_with_fuel(airlock_nat(MAX_REC_FUEL), ixf, ixp, path, 0, nfiles)
+fun register_file(ixf: &Buf >> _, ixp: &Buf >> _, table: &Buf >> _, path: !Buf, sz: int, mt: int): int = let
+  val existing = table_find(table, ixf, ixp, path)
 in
   if ige(existing, 0) then let
     val prev_sz = ix_file_get(ixf, existing, IX_F_SIZE)
@@ -177,21 +206,22 @@ in
     val plen = buf_len(path)
     val () = buffer_append_range(ixp, path, 0, plen)
     val fid = ix_file_add(ixf, poff, plen, sz, mt, 1, 0, 0, 0)
+    val () = table_reserve(table, ixf, ixp)
+    val () = table_put(table, ixf, ixp, fid)
   in
     fid
   end
 end
 
-fun walk_file_entry(ixf: &Buf >> _, ixp: &Buf >> _, path: !Buf): void =
+fun walk_file_entry(ixf: &Buf >> _, ixp: &Buf >> _, table: &Buf >> _, path: !Buf): void =
   if ends_with_md(path) then let
-    val ps = buffer_c_string(path)
-    val sz = fs_size(ps)
-    val mt = fs_mtime(ps)
-    val _ = register_file(ixf, ixp, path, sz, mt)
+    var mt: int = 0
+    val sz = fs_size_mtime(buffer_c_string(path), mt)
+    val _ = register_file(ixf, ixp, table, path, sz, mt)
   in
   end else ()
 
-extern fun walk_dir_fuel_exhausted(dp: ptr, parent: !Buf, ixf: &Buf >> _, ixp: &Buf >> _, d: int, trunc: &int >> _): void = "mac#anth_die_void"
+extern fun walk_dir_fuel_exhausted(dp: ptr, parent: !Buf, ixf: &Buf >> _, ixp: &Buf >> _, table: &Buf >> _, d: int, trunc: &int >> _): void = "mac#anth_die_void"
 
 fun is_dot_or_empty(name: !Buf): bool = let
   val n = buf_len(name)
@@ -200,7 +230,7 @@ in
   else ieq(buf_get(name, 0), CHAR_DOT)
 end
 
-fun handle_dir_child {recfuel:nat} .<recfuel, 0>. (recfuel: int(recfuel), child: !Buf, is_d: int, d: int, trunc: &int >> _, ixf: &Buf >> _, ixp: &Buf >> _): void =
+fun handle_dir_child {recfuel:nat} .<recfuel, 0>. (recfuel: int(recfuel), child: !Buf, is_d: int, d: int, trunc: &int >> _, ixf: &Buf >> _, ixp: &Buf >> _, table: &Buf >> _): void =
   if recursion_fuel_available(recfuel) then (
     if is_d != 0 then (
       if ilt(d, MAX_INDEX_DEPTH) then let
@@ -208,14 +238,14 @@ fun handle_dir_child {recfuel:nat} .<recfuel, 0>. (recfuel: int(recfuel), child:
         val sub_dp = dir_open(ps)
       in
         if sub_dp != 0 then (
-          walk_dir_with_fuel(recfuel - 1, sub_dp, child, ixf, ixp, iadd(d, 1), trunc);
+          walk_dir_with_fuel(recfuel - 1, sub_dp, child, ixf, ixp, table, iadd(d, 1), trunc);
           dir_close(sub_dp)
         ) else ()
       end else trunc := 1
-    ) else walk_file_entry(ixf, ixp, child)
+    ) else walk_file_entry(ixf, ixp, table, child)
   ) else ()
 
-and walk_dir_with_fuel {recfuel:nat} .<recfuel, 1>. (recfuel: int(recfuel), dp: ptr, parent: !Buf, ixf: &Buf >> _, ixp: &Buf >> _, d: int, trunc: &int >> _): void =
+and walk_dir_with_fuel {recfuel:nat} .<recfuel, 1>. (recfuel: int(recfuel), dp: ptr, parent: !Buf, ixf: &Buf >> _, ixp: &Buf >> _, table: &Buf >> _, d: int, trunc: &int >> _): void =
   if recursion_fuel_available(recfuel) then let
     var name = buf_make(HANDLE_DIR_CHILD_NAME_INITIAL_BYTES)
     var isdir: int = 0
@@ -225,23 +255,28 @@ and walk_dir_with_fuel {recfuel:nat} .<recfuel, 1>. (recfuel: int(recfuel), dp: 
   in
     if ok = 0 then buf_free(name)
     else if is_dot_or_empty(name) then (
-      buf_free(name); walk_dir_with_fuel(recfuel - 1, dp, parent, ixf, ixp, d, trunc)
+      buf_free(name); walk_dir_with_fuel(recfuel - 1, dp, parent, ixf, ixp, table, d, trunc)
     ) else let
       val child = join2(parent, name)
       val () = buf_free(name)
-      val () = handle_dir_child(recfuel - 1, child, fs_isdir(buffer_c_string(child)), d, trunc, ixf, ixp)
+      (* readdir's d_type answers "directory?" without a stat; unknown -> stat. *)
+      val is_d = if ige(isdir, 0) then isdir else fs_isdir(buffer_c_string(child))
+      val () = handle_dir_child(recfuel - 1, child, is_d, d, trunc, ixf, ixp, table)
       val () = buf_free(child)
     in
-      walk_dir_with_fuel(recfuel - 1, dp, parent, ixf, ixp, d, trunc)
+      walk_dir_with_fuel(recfuel - 1, dp, parent, ixf, ixp, table, d, trunc)
     end
-  end else walk_dir_fuel_exhausted(dp, parent, ixf, ixp, d, trunc)
+  end else walk_dir_fuel_exhausted(dp, parent, ixf, ixp, table, d, trunc)
 
 implement ix_walk_vault(vault, ixf, ixp, trunc) = let
   val ps = buffer_c_string(vault)
   val dp = dir_open(ps)
 in
   if dp != 0 then let
-    val () = walk_dir_with_fuel(airlock_nat(MAX_REC_FUEL), dp, vault, ixf, ixp, 0, trunc)
+    val known = ix_file_count(ixf)
+    var table = table_make(ixf, ixp, known)
+    val () = walk_dir_with_fuel(airlock_nat(MAX_REC_FUEL), dp, vault, ixf, ixp, table, 0, trunc)
+    val () = buf_free(table)
     val () = dir_close(dp)
   in
   end else ()

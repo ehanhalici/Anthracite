@@ -115,7 +115,7 @@ fun line_target_width_kind(k: NodeKind, default_w: int): int =
   else if is_kind(k, KCode) then imax(32, isub(default_w, 16))
   else default_w
 
-typedef RowStyle = @{px=int,height=int,ascent=int,top=int}
+typedef RowStyle = VisualRowStyle
 
 fun append_known(rows: &VisualRows >> VisualRows,a: int,b: int,line: int,ordinal: int,width: int,rs: RowStyle): void =
   visual_rows_append(rows,@{start=a,finish=b,width=width,line=line,ordinal=ordinal,
@@ -186,7 +186,7 @@ in
   in @{px=rpx,height=rh,ascent=rasc,top=doc_heading_top_pad_of(hk)} end
   else @{px=key.px,height=key.height,ascent=key.ascent,top=0}
 end
-fun wrap_projected_line(f: !Font,r: !Rend,rows: &VisualRows >> _,line: int,a: int,b: int,target_w: int,rs: RowStyle,scratch: &Buf >> _): void = let
+fun wrap_projected_line(f: !Font,rows: &VisualRows >> _,line: int,a: int,b: int,target_w: int,rs: RowStyle,scratch: &Buf >> _): void = let
   val+ VisualRows(text,map,lines,data,count,key,plans)=rows
   val ()=buf_set_len(scratch,0) val ()=buf_append_at(scratch,text,a,isub(b,a))
   val old_px=font_get_px(f)
@@ -197,24 +197,29 @@ fun wrap_projected_line(f: !Font,r: !Rend,rows: &VisualRows >> _,line: int,a: in
 in
   font_set_px_val(f,old_px)
 end
-(* Appends the rows of one source line. exact=false records a placeholder row
-   instead of shaping (VISUAL_ROW_PENDING_WIDTH) and returns 1 for it. *)
-fun one(f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,line: int,cur: &int >> _,scratch: &Buf >> _,exact: bool): int = let
+implement visual_wrap_line_input(d,rows,line,cur) = let
   val st=doc_line_start(d,line)
   val raw=if ilt(iadd(line,1),doc_nlines(d)) then doc_line_start(d,iadd(line,1)) else doc_len(d)
   val en0=if igt(raw,st) andalso ieq(doc_byte(d,isub(raw,1)),CHAR_LF) then isub(raw,1) else raw
   val en=if igt(en0,st) andalso ieq(doc_byte(d,isub(en0,1)),CHAR_CR) then isub(en0,1) else en0
   val a=visual_rows_offset(rows,st) val b=visual_rows_offset(rows,en)
-  val+ VisualRows(text,map,lines,data,count,key,plans)=rows val ()=buf_set32(lines,line,count)
+  val+ VisualRows(text,map,lines,data,count,key,plans)=rows
   val nn = doc_nnodes(d)
   val () = cur := advance_wrap_cursor(airlock_nat(MAX_REC_FUEL), d, cur, nn, st)
   val k = block_kind_at(airlock_nat(MAX_REC_FUEL), d, st, cur, nn, KNone)
-  val target_w = line_target_width_kind(k, key.width)
-  val rs = line_row_style(d, key, line)
   val in_scope=ilt(st,key.sourceFinish) andalso igt(raw,key.sourceStart)
-in if ile(b,a) orelse not(in_scope) then let val ()=append_known(rows,a,imax(a,b),line,0,0,rs) in 0 end
-  else if not(exact) then let val ()=append_known(rows,a,b,line,0,VISUAL_ROW_PENDING_WIDTH,rs) in 1 end
-  else let val ()=performance_note(PERF_WRAP_LINES,1) val ()=wrap_projected_line(f,r,rows,line,a,b,target_w,rs,scratch) in 0 end end
+in @{line=line,a=a,b=imax(a,b),target=line_target_width_kind(k,key.width),style=line_row_style(d,key,line),
+    shaped=igt(b,a) andalso in_scope} end
+
+(* Appends the rows of one source line. exact=false records a placeholder row
+   instead of shaping (VISUAL_ROW_PENDING_WIDTH) and returns 1 for it. *)
+fun one(f: !Font,r: !Rend,d: !Doc,rows: &VisualRows >> VisualRows,line: int,cur: &int >> _,scratch: &Buf >> _,exact: bool): int = let
+  val input=visual_wrap_line_input(d,rows,line,cur)
+  val+ VisualRows(text,map,lines,data,count,key,plans)=rows val ()=buf_set32(lines,line,count)
+in if not(input.shaped) then let val ()=append_known(rows,input.a,input.b,line,0,0,input.style) in 0 end
+  else if not(exact) then let val ()=append_known(rows,input.a,input.b,line,0,VISUAL_ROW_PENDING_WIDTH,input.style) in 1 end
+  else let val ()=performance_note(PERF_WRAP_LINES,1)
+    val ()=wrap_projected_line(f,rows,line,input.a,input.b,input.target,input.style,scratch) in 0 end end
 
 fun close_lines(rows: !VisualRows,line: int): void = let
   val+ VisualRows(t,m,l,data,count,key,plans)=rows in buf_set32(l,line,count) end
@@ -294,5 +299,106 @@ in if ile(visual_rows_pending(rows),0) orelse igt(first,last)
   val wrapped=splice(airlock_nat(nlines),f,r,d,target,old_lines,old_data,0,bounded,deadline,cur,scratch,nothing)
   val ()=visual_rows_set_pending(target,isub(before,wrapped.count))
   val ()=buf_free(scratch) val ()=buf_free(old_lines) val ()=buf_free(old_data)
+  val ()=rows := target
+in wrapped end end
+
+(* ---- shaping away from the document (workers) ---- *)
+fun segment_key(): VisualKey = @{version=0,width=0,px=0,height=0,ascent=0,primary= ~1,fallback= ~1,
+  primaryGeneration=0,fallbackGeneration=0,projection=VisualSource(),sourceStart=0,sourceFinish=0,rawStart= ~1,rawFinish= ~2,build=0}
+fun append_words(out: &Buf >> _,data: !Buf,words: int): void = let
+  val at=buf_len(out) val bytes=imul(words,WORD32_BYTES)
+  val ()=buf_ensure(out,iadd(at,bytes))
+  val ()=buf_copy_range(out,at,data,0,bytes)
+in buf_set_len(out,iadd(at,bytes)) end
+implement visual_wrap_segment(f,text,length,target,style,out) = let
+  val n=imax(0,length)
+  var copy=buf_make(imax(1,n)) val ()=buf_append_at(copy,text,0,n)
+  val lines=buf_make(imul(3,WORD32_BYTES)) val ()=buf_zero(lines) val ()=buf_set_len(lines,imul(3,WORD32_BYTES))
+  var rows=VisualRows(copy,buf_make(WORD32_BYTES),lines,buf_make(VISUAL_WRAP_FILL_SCRATCH_INITIAL_BYTES),0,segment_key(),visual_plans_make(0,1))
+  var scratch=buf_make(VISUAL_WRAP_FILL_SCRATCH_INITIAL_BYTES)
+  val ()=performance_note(PERF_WRAP_LINES,1)
+  val ()=wrap_projected_line(f,rows,0,0,n,target,style,scratch)
+  val ()=buf_free(scratch)
+  val+ VisualRows(t,m,l,data,count,key,plans)=rows
+  val ()=append_words(out,data,imul(count,VISUAL_ROW_WORDS))
+  val paragraph=visual_paragraph_take(plans,0)
+  val ()=visual_rows_dispose(rows)
+in paragraph end
+
+macdef SHAPED_LINE_WORDS = 2
+macdef SHAPED_LINE_FIRST = 0
+macdef SHAPED_LINE_COUNT = 1
+fun shaped_clear{n:nat} .<n>. (left: int(n),index: !Buf,line: int): void =
+  if left = 0 then () else let
+    val ()=buf_set32(index,iadd(imul(line,SHAPED_LINE_WORDS),SHAPED_LINE_COUNT),~1)
+  in shaped_clear(left-1,index,iadd(line,1)) end
+implement visual_shaped_make(lines) = let
+  val n=imax(0,lines) val bytes=imul(imax(1,imul(n,SHAPED_LINE_WORDS)),WORD32_BYTES)
+  val index=buf_make(bytes) val ()=buf_set_len(index,bytes) val ()=shaped_clear(airlock_nat(n),index,0)
+in VisualShaped(buf_make(VISUAL_WRAP_FILL_SCRATCH_INITIAL_BYTES),index,visual_paragraphs_make(n),0) end
+implement visual_shaped_dispose(shaped) = let val+ ~VisualShaped(rows,index,paragraphs,count)=shaped
+  val ()=buf_free(rows) val ()=buf_free(index)
+in visual_paragraphs_dispose(paragraphs) end
+implement visual_shaped_count(shaped) = let val+ VisualShaped(rows,index,paragraphs,count)=shaped in count end
+fun shift_row(out: !Buf,row: int,a: int,line: int): void = let val base=imul(row,VISUAL_ROW_WORDS)
+  val ()=buf_set32(out,iadd(base,VISUAL_ROW_START),iadd(a,buf_get32(out,iadd(base,VISUAL_ROW_START))))
+  val ()=buf_set32(out,iadd(base,VISUAL_ROW_FINISH),iadd(a,buf_get32(out,iadd(base,VISUAL_ROW_FINISH))))
+in buf_set32(out,iadd(base,VISUAL_ROW_LINE),line) end
+fun shift_rows{n:nat} .<n>. (left: int(n),out: !Buf,row: int,a: int,line: int): void =
+  if left = 0 then () else let val ()=shift_row(out,row,a,line) in shift_rows(left-1,out,iadd(row,1),a,line) end
+fun shaped_paragraph(paragraphs: !VisualParagraphs,line: int,a: int,paragraph: Option_vt(VisualParagraph)): void =
+  case+ paragraph of
+  | ~None_vt() => ()
+  | ~Some_vt(p) => let val+ ~VisualParagraph(analysis,base,length,bytes)=p
+    in visual_paragraphs_put(paragraphs,line,VisualParagraph(analysis,iadd(base,a),length,bytes)) end
+implement visual_shaped_add(shaped,line,a,source,first,count,paragraph) = let
+  val+ @VisualShaped(rows,index,paragraphs,lines)=shaped
+  val start=idiv(buf_len(rows),imul(VISUAL_ROW_WORDS,WORD32_BYTES))
+  val at=buf_len(rows) val bytes=imul(imul(count,VISUAL_ROW_WORDS),WORD32_BYTES)
+  val ()=buf_ensure(rows,iadd(at,bytes))
+  val ()=buf_copy_range(rows,at,source,imul(imul(first,VISUAL_ROW_WORDS),WORD32_BYTES),bytes)
+  val ()=buf_set_len(rows,iadd(at,bytes))
+  val ()=shift_rows(airlock_nat(imax(0,count)),rows,start,a,line)
+  val ()=buf_set32(index,iadd(imul(line,SHAPED_LINE_WORDS),SHAPED_LINE_FIRST),start)
+  val ()=buf_set32(index,iadd(imul(line,SHAPED_LINE_WORDS),SHAPED_LINE_COUNT),count)
+  val ()=shaped_paragraph(paragraphs,line,a,paragraph)
+  val ()=lines := iadd(lines,1)
+in fold@(shaped) end
+
+fun shaped_has(shaped: !VisualShaped,line: int): bool = let val+ VisualShaped(rows,index,paragraphs,count)=shaped
+in ige(line,0) andalso ilt(imul(line,SHAPED_LINE_WORDS),idiv(buf_len(index),WORD32_BYTES))
+  andalso ige(buf_get32(index,iadd(imul(line,SHAPED_LINE_WORDS),SHAPED_LINE_COUNT)),0) end
+fun take_shaped(rows: &VisualRows >> VisualRows,shaped: !VisualShaped,line: int): void = let
+  val+ VisualShaped(source,index,paragraphs,count)=shaped
+  val first=buf_get32(index,iadd(imul(line,SHAPED_LINE_WORDS),SHAPED_LINE_FIRST))
+  val rowcount=buf_get32(index,iadd(imul(line,SHAPED_LINE_WORDS),SHAPED_LINE_COUNT))
+  val+ ~VisualRows(t,m,l,data0,n,k,plans)=rows var data: Buf=data0
+  val ()=buf_set32(l,line,n)
+  val row_bytes=imul(VISUAL_ROW_WORDS,WORD32_BYTES)
+  val ()=buf_ensure(data,imul(iadd(n,rowcount),row_bytes))
+  val ()=buf_copy_range(data,imul(n,row_bytes),source,imul(first,row_bytes),imul(rowcount,row_bytes))
+  val paragraph=visual_paragraphs_take(paragraphs,line)
+  val ()=case+ paragraph of | ~None_vt() => () | ~Some_vt(p) => visual_paragraph_put(plans,line,p)
+in rows := VisualRows(t,m,l,data,iadd(n,rowcount),k,plans) end
+fun apply_lines{n:nat} .<n>. (left: int(n),rows: &VisualRows >> VisualRows,old_lines: !Buf,old_data: !Buf,
+  shaped: !VisualShaped,line: int,wrapped: VisualWrapped): VisualWrapped =
+  if left = 0 then let val ()=close_lines(rows,line) in wrapped end else let
+    val chosen=old_pending(old_lines,old_data,line) andalso shaped_has(shaped,line)
+    val ()=if chosen then let val ()=forget_plans_once(rows,wrapped.count) in take_shaped(rows,shaped,line) end
+      else copy_line(rows,old_lines,old_data,line)
+    val next: VisualWrapped=if chosen then
+        @{count=iadd(wrapped.count,1),first=if ieq(wrapped.count,0) then line else wrapped.first,last=line}
+      else wrapped
+  in apply_lines(left-1,rows,old_lines,old_data,shaped,iadd(line,1),next) end
+implement visual_wrap_apply(d,rows,shaped) = let
+  val nothing: VisualWrapped= @{count=0,first=0,last= ~1}
+in if ile(visual_rows_pending(rows),0) orelse ile(visual_shaped_count(shaped),0) then nothing else let
+  val before=visual_rows_pending(rows)
+  val+ ~VisualRows(t,m,old_lines,old_data,n,k,plans)=rows
+  val fresh_lines=buf_make(buf_len(old_lines)) val ()=buf_zero(fresh_lines) val ()=buf_set_len(fresh_lines,buf_len(old_lines))
+  var target=VisualRows(t,m,fresh_lines,buf_make(imax(VISUAL_WRAP_FILL_SCRATCH_INITIAL_BYTES,buf_cap(old_data))),0,k,plans)
+  val wrapped=apply_lines(airlock_nat(doc_nlines(d)),target,old_lines,old_data,shaped,0,nothing)
+  val ()=visual_rows_set_pending(target,isub(before,wrapped.count))
+  val ()=buf_free(old_lines) val ()=buf_free(old_data)
   val ()=rows := target
 in wrapped end end

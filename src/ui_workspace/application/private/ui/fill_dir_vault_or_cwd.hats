@@ -22,8 +22,8 @@ fun copy_if(ts: !Tabs, idx: int, clip: &Buf >> _, go: Toggle): void =
 fun cmd_if(ts: Tabs, idx: int, cmd: Cmd, go: Toggle): Tabs =
   if is_on(go) then tabs_cmd(ts, idx, cmd) else ts
 
-fun drop_if(ts: Tabs, ti: int, go: Toggle): Tabs =
-  if is_on(go) then tabs_drop(ts, ti) else ts
+fun drop_if(ts: Tabs, ti: int, go: Toggle, kept: &ClosedDocs >> _): Tabs =
+  if is_on(go) then tabs_drop_kept(ts, ti, kept) else ts
 
 fun tab_keep_one(ts: Tabs, close: Toggle): Tabs =
   if is_on(close) then
@@ -48,8 +48,8 @@ fun click_go(f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, oy
     ts
   end
 
-fun wiki_go(ts: Tabs, idx: int, vault: !Buf, go: Toggle): Tabs =
-  if is_on(go) then wiki_open(ts, idx, vault, 0) else ts
+fun wiki_go(ts: Tabs, idx: int, vault: !Buf, go: Toggle, kept: &ClosedDocs >> _): Tabs =
+  if is_on(go) then wiki_open(ts, idx, vault, 0, kept) else ts
 
 fun read_all(path: !Buf, dst: &Buf >> _): void = let
   val p = buffer_c_string(path)

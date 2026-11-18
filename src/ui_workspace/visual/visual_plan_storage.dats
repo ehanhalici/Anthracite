@@ -45,7 +45,8 @@ fun put_slot(slot: &VisualPlanSlot >> _,row: int,layout: FontSpanLayout,bytes: &
   val old=slot val ()=release(old)
 in slot := VisualPlanOwned(row,layout,charge) end
 implement visual_plans_put(plans,row,layout) = let val+ @VisualPlans(pf,gc | p,n,paragraphs,bytes)=plans
-  val () = if ilt(row, 0) orelse ile(n, 0) then font_span_dispose(layout) else let
+  val over=bytes+font_span_memory_bytes(layout) > VISUAL_ROW_PLAN_BUDGET_BYTES
+  val () = if ilt(row, 0) orelse ile(n, 0) orelse over then font_span_dispose(layout) else let
     val (at,restore | cell)=array_ptr_takeout(pf | p,i2sz(airlock_below(imod(row,n),n)))
     val ()=put_slot(!cell,row,layout,bytes) prval ()=pf := restore(at)
   in () end

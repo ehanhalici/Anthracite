@@ -109,7 +109,7 @@ fun app_wiki_go(
   s: &App_record >> _, ts: Tabs, idx: int, gowiki: bool, new_tab: bool, target_act: &int >> _
 ): Tabs =
   if not(gowiki) then (target_act := ~1; ts)
-  else if new_tab then app_embedded_navigation(ts, idx, s.vault, s.cache, target_act)
+  else if new_tab then app_embedded_navigation(ts, idx, s.vault, s.cache, target_act, s.closed)
   else app_embedded_nav_in_place(s, ts, idx, target_act)
 
 fun assign_new_tab_pane(s: &App_record >> _, origin_pane: int, old_len: int, cur_len: int, target_act: int): void =

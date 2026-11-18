@@ -19,9 +19,14 @@ fun selftest_search_release(s: App_record): void = let
   val ()=free_font_bufs(s.fpaths,s.fnames,s.fmeta,s.font_path)
   val ()=tab_hist_free(s.tab_hists)
   val ()=buf_free(s.keymap)
-in free_app_state(s.vault,s.tabs,s.cache,s.vpaths,s.vnames,s.vmeta,s.tab_pane,s.open_dirs) end
+in free_app_state(s.vault,s.tabs,s.cache,s.closed,s.vpaths,s.vnames,s.vmeta,s.tab_pane,s.open_dirs) end
+extern fun selftest_pause_microseconds(us: int): int = "mac#usleep"
+macdef SELFTEST_SEARCH_FRAME_MICROSECONDS = 2000
+(* One step per simulated frame: vault searches finish on worker threads, so
+   the steps are spaced like frames instead of running back to back. *)
 fun selftest_search_drain{n:nat} .<n>. (left: int(n),s: &App_record >> _): bool =
   if left = 0 then false else if ine(s.search_state,SEARCH_RUNNING) then true else let val ()=search_job_step(s)
+    val _=if ieq(s.search_state,SEARCH_RUNNING) then selftest_pause_microseconds(SELFTEST_SEARCH_FRAME_MICROSECONDS) else 0
   in selftest_search_drain(left-1,s) end
 fun selftest_search_query(s: &App_record >> _,scope: int,text: string): bool = let
   val ()=s.qfocus := On

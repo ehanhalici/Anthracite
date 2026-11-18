@@ -16,7 +16,7 @@ in case+ glyph_nominal_read_bytes(b,info,db,text,p.face.font,0u) of
     val ()=e.edit := status in NativeShapeRejected(e) end
   | ~GlyphRunCreated(run) => substitutions(b,info,cache,plan,native_shape_prepare(data,plan,context,run),scale) end
 implement native_shape_run(b,info,cache,plan,data,text,context,scale) = let
-  val+ NativeShapeCache(m,sub,pos,face)=cache val+ NativeShapePlan(selected,positions,p)=plan
+  val+ NativeShapeCache(m,sub,pos,face,plans)=cache val+ NativeShapePlan(selected,positions,p)=plan
   val+ NativeShapeText(source,profile)=text
   val valid=ieq(face.font,p.face.font) andalso ieq(face.glyphs,p.face.glyphs) andalso ieq(face.units,p.face.units)
     andalso ieq(info.glyphs,face.glyphs) andalso ieq(info.units,face.units)

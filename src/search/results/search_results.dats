@@ -9,6 +9,7 @@ staload "os/fs.sats"
 staload "data_text/source/text_source.sats"
 staload "search/results/search_results.sats"
 staload "search/literal/literal_search.sats"
+staload "search/results/search_file_cache.sats"
 staload "ui_workspace/tabs/ui_tab.sats"
 staload "ui_workspace/common/ui_common.sats"
 macdef SEARCH_SNIPPET_BEFORE_BYTES = 80
@@ -76,6 +77,14 @@ in result end
 fun disk_source(path: !Buf): Option_vt(Buf) = let var shadow=buf_make(SEARCH_VFS_PATH_CAPACITY_BYTES)
   val ()=fs_vfs_buf(buf_cstr(path),shadow,isub(SEARCH_VFS_PATH_CAPACITY_BYTES,1))
   val result=effective_source(path,shadow) val ()=buf_free(shadow)
+in result end
+implement search_disk_source(path) = disk_source(path)
+fun cached_effective(cache: &FileCache >> _,path: !Buf,shadow: !Buf): Option_vt(Buf) = let
+  val effective=if igt(fs_size(buf_cstr(shadow)),0) then buf_cstr(shadow) else buf_cstr(path)
+in search_file_cache_read(cache,effective,LITERAL_SOURCE_LIMIT_BYTES) end
+implement search_cached_source(cache,path) = let var shadow=buf_make(SEARCH_VFS_PATH_CAPACITY_BYTES)
+  val ()=fs_vfs_buf(buf_cstr(path),shadow,isub(SEARCH_VFS_PATH_CAPACITY_BYTES,1))
+  val result=cached_effective(cache,path,shadow) val ()=buf_free(shadow)
 in result end
 fun read_source(path: !Buf,tabs: !Tabs): Option_vt(Buf) = let var text=buf_make(0)
   val found=tabs_copy_doc_text(tabs,path,text)
