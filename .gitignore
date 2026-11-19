@@ -3,6 +3,8 @@ GPATH
 GRTAGS
 GTAGS
 fonts/*
+!fonts/.gitkeep
 .idea/*
 __pycache__/
 *.py[cod]
+.cache
