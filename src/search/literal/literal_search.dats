@@ -10,11 +10,11 @@ staload "search/literal/literal_search.sats"
 staload "search/literal/literal_work.sats"
 fun next_state{n:nat} .<n>. (fuel: int(n),query: !Buf,failure: !Buf,state: int,byte: int): int =
   if ieq(buf_get(query,state),byte) then iadd(state,1) else if ile(state,0) then 0
-  else if not(recursion_fuel_available(fuel)) then 0
+  else if fuel = 0 then 0
   else next_state(fuel-1,query,failure,buf_get32(failure,isub(state,1)),byte)
 fun build_failure{n:nat} .<n>. (left: int(n),query: !Buf,failure: !Buf,i: int,state: int): void =
   if left = 0 then () else let
-    val next=next_state(airlock_nat(iadd(state,1)),query,failure,state,buf_get(query,i))
+    val next=next_state(airlock_nat(imax(0,iadd(state,1))),query,failure,state,buf_get(query,i))
     val ()=buf_set32(failure,i,next)
   in build_failure(left-1,query,failure,iadd(i,1),next) end
 fun pattern(table: Buf,source: !Buf): LiteralPattern = let
@@ -37,7 +37,7 @@ in buf_set32(ranges,iadd(at,LITERAL_RANGE_FINISH),finish) end
 fun scan{n:nat} .<n>. (left: int(n),query: !Buf,failure: !Buf,text: !Buf,starts: !Buf,ends: !Buf,
   ranges: !Buf,limit: int,i: int,state: int,count: int): int =
   if left = 0 then count else if ige(count,limit) then count else let
-    val next=next_state(airlock_nat(iadd(state,1)),query,failure,state,buf_get(text,i)) val size=buf_len(query)
+    val next=next_state(airlock_nat(imax(0,iadd(state,1))),query,failure,state,buf_get(text,i)) val size=buf_len(query)
     val matched=ieq(next,size)
     val ()=if matched then emit(ranges,count,buf_get32(starts,isub(iadd(i,1),size)),buf_get32(ends,i)) else ()
     val state=if matched then buf_get32(failure,isub(size,1)) else next

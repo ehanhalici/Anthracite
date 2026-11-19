@@ -14,6 +14,7 @@ macdef SEARCH_FLASH_DURATION_NS = UI_NAVIGATION_FLASH_NS
 typedef SearchGeometry = @{buttonTop=int,buttonHeight=int,buttonWidth=int,secondX=int,secondY=int,
   queryTop=int,queryHeight=int,statusTop=int,resultsTop=int,rowHeight=int,rows=int}
 fun search_geometry(line_height: int,width: int,height: int): SearchGeometry
+fun search_geometry_ex(line_height: int,topbar_h: int,width: int,height: int): SearchGeometry
 fun search_scope_hit(geometry: SearchGeometry,x: int,y: int): int
 fun search_visible_hit(geometry: SearchGeometry,y: int,scroll: int): int
 fun search_flash_wait(now: lint,deadline: lint): int
@@ -23,3 +24,5 @@ fun search_dir(path: !Buf, q: !Buf, hits: &Buf >> _, hmeta: &Buf >> _, hn: &int 
 fun refresh_search(vault: !Buf, q: !Buf, hits: &Buf >> _, hmeta: &Buf >> _, hn: &int >> _): void
 fun find_hit_file(hmeta: !Buf, hits: !Buf, row: int, dst: &Buf >> _): void
 fun hit_text(hits: !Buf, off: int, n: int, f: !Font, r: !Rend, x: int, y: int, c: uint): int
+(* Path of the generated case map literal patterns are compiled with. *)
+fun search_case_map_path(dst: &Buf >> _): void

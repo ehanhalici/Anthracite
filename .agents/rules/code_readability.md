@@ -1,5 +1,13 @@
 # Readability, source layout and verification
 
+- Enforce SRP, SLAP, and at most 20 body lines per function (excluding signature,
+  blank lines, comments, and outer `let`/`in`/`end`). Split multi-step blocks into
+  atomic helpers instead of compressing lines.
+- No boolean flag parameters (`flag: bool` followed by `if flag`): use `Toggle`
+  for two-state UI/domain flags or split into two separate functions.
+- Use exhaustive `case+` over algebraic datatypes (`Cmd`, `DownZone`,
+  `EditorStateKind`, `FontRunStatus`, etc.) without `| _ =>` wildcards so adding
+  a variant fails compilation cleanly.
 - Name semantic literals, including field indices, record strides, capacities,
   encoding limits, file signatures and timing/geometry policy. State the unit in
   names. Derive byte sizes from field counts; do not duplicate the formula.
@@ -7,9 +15,6 @@
   context explains them. Serialized state codes need named constants or types.
 - Expand ambiguous helpers. Preserve established domain terms such as UTF8,
   AST, GSUB and GPOS. A function name must describe whether it appends or replaces.
-- Prefer one responsibility and at most 20 body lines. Splitting an owner into
-  private `.hats` groups preserves its representation; it does not by itself
-  shorten a function or introduce independently linked modules.
 - Relocations update ATS imports, C includes, CMake source groups, tools,
   compile-rejection tests and documentation together. Basenames remain unique
   because generated C files use them as identities.

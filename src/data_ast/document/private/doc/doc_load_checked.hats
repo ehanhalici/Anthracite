@@ -133,6 +133,19 @@ implement column_w(avail) =
 
 implement column_x(pane, avail) = iadd(pane, idiv(isub(avail, column_w(avail)), 2))
 
+implement readable_col_w(avail, lh) =
+  if ilt(avail, 720) then avail
+  else if ile(lh, 26) then imin(850, avail)
+  else let
+    val target = imax(850, imul(lh, 32))
+    val max_fit = imax(imin(850, avail), isub(avail, 64))
+  in
+    imin(target, max_fit)
+  end
+
+implement readable_col_x(pane, avail, lh) =
+  iadd(pane, idiv(isub(avail, readable_col_w(avail, lh)), 2))
+
 extern fun has_kind_fuel_exhausted(d: !Doc, k: NodeKind, i: int): int = "mac#anth_die_int"
 
 fun has_kind_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), d: !Doc, k: NodeKind, i: int): int =

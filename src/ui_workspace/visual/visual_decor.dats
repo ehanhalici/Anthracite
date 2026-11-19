@@ -11,8 +11,11 @@ staload "core_render/render.sats"
 staload "core_render/gl.sats"
 staload "ui_workspace/visual/visual_paint.sats"
 staload "ui_workspace/visual/visual_decor.sats"
-implement visual_leaf_background(f,r,d,a,b,colx,oy,scroll,lh,ph,style,scratch) =
-  if ine(anth_iand(style,STYLE_HIGH),0) then visual_draw_band(f,r,d,a,b,colx,oy,scroll,lh,ph,0,lh,col_highbg(),scratch) else ()
+implement visual_leaf_background(f,r,d,a,b,colx,oy,scroll,lh,ph,style,scratch) = let
+  val ()=if ine(anth_iand(style,STYLE_HIGH),0) then visual_draw_band(f,r,d,a,b,colx,oy,scroll,lh,ph,0,lh,col_highbg(),scratch) else ()
+in
+  if ine(anth_iand(style,STYLE_CODE),0) then visual_draw_band(f,r,d,a,b,colx,oy,scroll,lh,ph,0,lh,col_codebg(),scratch) else ()
+end
 implement visual_leaf_rules(f,r,d,a,b,colx,oy,scroll,lh,ph,style,scratch) = let
   val ()=if ine(anth_iand(style,STYLE_LINK),0) then
     visual_draw_band(f,r,d,a,b,colx,oy,scroll,lh,ph,isub(lh,2),1,col_link(),scratch) else ()

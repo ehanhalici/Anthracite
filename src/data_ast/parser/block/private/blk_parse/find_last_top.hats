@@ -87,20 +87,23 @@ in
 end
 
 implement ast_reparse_v2(d, at, oldlen, newlen) = let
+  val t0 = performance_now_ns()
   val is_md = doc_is_md(d)
-in
-  if is_off(is_md) then (doc_clear_nodes(d); doc_set_span(d, 0))
-  else let
-    val old_total = doc_nnodes(d)
-  in
-    if ile(old_total, 0) then ast_parse_all(d)
+  val () =
+    if is_off(is_md) then (doc_clear_nodes(d); doc_set_span(d, 0))
     else let
-      var p_top: int = ~1
-      var c_top: int = ~1
-      val () = find_top_with_fuel(airlock_nat(MAX_REC_FUEL), d, at, 0, ~1, p_top, c_top)
+      val old_total = doc_nnodes(d)
     in
-      if ilt(c_top, 0) then ast_parse_all(d)
-      else ast_reparse_do(d, at, oldlen, newlen, isub(newlen, oldlen), old_total, p_top, c_top)
+      if ile(old_total, 0) then ast_parse_all(d)
+      else let
+        var p_top: int = ~1
+        var c_top: int = ~1
+        val () = find_top_with_fuel(airlock_nat(MAX_REC_FUEL), d, at, 0, ~1, p_top, c_top)
+      in
+        if ilt(c_top, 0) then ast_parse_all(d)
+        else ast_reparse_do(d, at, oldlen, newlen, isub(newlen, oldlen), old_total, p_top, c_top)
+      end
     end
-  end
+in
+  performance_phase_end(PERF_PHASE_AST_REPARSE, t0)
 end

@@ -21,3 +21,11 @@ foreach(test search_geometry_contracts search_results_contracts)
   add_dependencies(${test} search_case_data)
   add_test(NAME ${test} COMMAND ${test} "${search_case_data}")
 endforeach()
+# Parallel vault search must equal the sequential search for every worker count.
+anthracite_contract_test(parallel_search_contracts tests/search/parallel_search_contracts.dats)
+target_link_libraries(parallel_search_contracts PRIVATE anthracite_host native_text_engine
+  ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
+add_dependencies(parallel_search_contracts search_case_data)
+add_test(NAME parallel_search_contracts COMMAND python3 "${CMAKE_SOURCE_DIR}/tests/search/parallel_search_driver.py"
+  "$<TARGET_FILE:parallel_search_contracts>")
+set_tests_properties(parallel_search_contracts PROPERTIES LABELS "search;tsan" TIMEOUT 3600)

@@ -30,8 +30,8 @@ fun label_start{n:nat} .<n>. (left: int(n),d: !Doc,start: int,finish: int): int 
   if finish <= start then start else if left = 0 then finish
   else if id_byte(doc_byte(d,isub(finish,1))) then label_start(left-1,d,start,isub(finish,1)) else finish
 fun line_marker(d: !Doc,start: int,finish: int): @(int,int) = let
-  val endpos=trim_end(airlock_nat(isub(finish,start)),d,start,finish)
-  val label=label_start(airlock_nat(isub(endpos,start)),d,start,endpos)
+  val endpos=trim_end(airlock_nat(imax(0,isub(finish,start))),d,start,finish)
+  val label=label_start(airlock_nat(imax(0,isub(endpos,start))),d,start,endpos)
   val marker=isub(label,1)
   val valid=igt(endpos,label) andalso ige(marker,start) andalso ieq(doc_byte(d,marker),CHAR_CARET)
     andalso (ieq(marker,start) orelse whitespace(doc_byte(d,isub(marker,1))))
@@ -67,8 +67,8 @@ fun owner_choose{n:nat} .<n>. (left: int(n),d: !Doc,stack: !Buf,marker: int,i: i
   in if is_kind(kind,KCode) andalso ilt(marker,doc_node_end(d,node)) then ~2
     else owner_choose(left-1,d,stack,marker,iadd(i,1),if ige(candidate,rank) then node else best,imax(rank,candidate)) end
 fun block_target(d: !Doc,stack: &Buf >> _,cursor: &int >> _,start: int,marker: int,finish: int,run: &ParagraphRun >> _): AnchorTarget = let
-  val content=trim_end(airlock_nat(isub(marker,start)),d,start,marker)
-  val point=if igt(content,start) then marker else isub(trim_end(airlock_nat(start),d,0,start),1)
+  val content=trim_end(airlock_nat(imax(0,isub(marker,start))),d,start,marker)
+  val point=if igt(content,start) then marker else isub(trim_end(airlock_nat(imax(0,start)),d,0,start),1)
   val ()=owner_advance(airlock_nat(MAX_REC_FUEL),d,stack,cursor,point,run)
   val ()=stack_trim(airlock_nat(idiv(buf_len(stack),WORD32_BYTES)),d,stack,point)
   val node=owner_choose(airlock_nat(idiv(buf_len(stack),WORD32_BYTES)),d,stack,marker,0,~1,0)
@@ -99,7 +99,7 @@ fun heading_entries{n:nat} .<n>. (left: int(n),d: !Doc,index: &Buf >> _,i: int):
     val ()=if is_heading(doc_node_kind(d,i)) then let
       val start=doc_node_cstart(d,i) val finish=doc_node_cend(d,i)
       val target: AnchorTarget= @{found=true,start=doc_node_start(d,i),finish=imax(doc_node_end(d,i),doc_node_fold_end(d,i)),marker=doc_node_start(d,i)}
-    in append_entry(index,@{kind=ANCHOR_HEADING,labelStart=start,labelFinish=trim_end(airlock_nat(isub(finish,start)),d,start,finish),target=target}) end else ()
+    in append_entry(index,@{kind=ANCHOR_HEADING,labelStart=start,labelFinish=trim_end(airlock_nat(imax(0,isub(finish,start))),d,start,finish),target=target}) end else ()
   in heading_entries(left-1,d,index,iadd(i,1)) end
 fun index_prepare(d: !Doc,index: &Buf >> _): void =
   if igt(buf_len(index),0) then () else let
@@ -117,7 +117,7 @@ fun index_find{n:nat} .<n>. (left: int(n),d: !Doc,index: !Buf,anchor: !Buf,offse
   if left = 0 then @{found=false,start=0,finish=0,marker=0} else let
     val start=buf_get32(index,iadd(at,ANCHOR_LABEL_START)) val finish=buf_get32(index,iadd(at,ANCHOR_LABEL_FINISH))
     val matches=ieq(buf_get32(index,iadd(at,ANCHOR_KIND)),kind) andalso ieq(isub(finish,start),isub(buf_len(anchor),offset))
-      andalso label_equal(airlock_nat(isub(finish,start)),d,anchor,start,offset)
+      andalso label_equal(airlock_nat(imax(0,isub(finish,start))),d,anchor,start,offset)
   in if matches then @{found=true,start=buf_get32(index,iadd(at,ANCHOR_TARGET_START)),finish=buf_get32(index,iadd(at,ANCHOR_TARGET_FINISH)),marker=buf_get32(index,iadd(at,ANCHOR_MARKER))}
     else index_find(left-1,d,index,anchor,offset,kind,iadd(at,ANCHOR_ENTRY_WORDS)) end
 implement doc_resolve_anchor(d,anchor) =

@@ -22,8 +22,8 @@ fun copy_if(ts: !Tabs, idx: int, clip: &Buf >> _, go: Toggle): void =
 fun cmd_if(ts: Tabs, idx: int, cmd: Cmd, go: Toggle): Tabs =
   if is_on(go) then tabs_cmd(ts, idx, cmd) else ts
 
-fun drop_if(ts: Tabs, ti: int, go: Toggle): Tabs =
-  if is_on(go) then tabs_drop(ts, ti) else ts
+fun drop_if(ts: Tabs, ti: int, go: Toggle, kept: &ClosedDocs >> _): Tabs =
+  if is_on(go) then tabs_drop_kept(ts, ti, kept) else ts
 
 fun tab_keep_one(ts: Tabs, close: Toggle): Tabs =
   if is_on(close) then
@@ -40,16 +40,16 @@ fun open_row(ts: Tabs, tree: !Buf, meta: !Buf, row: int, go: Toggle): Tabs =
     tabs_open(ts, owned)
   end else ts
 
-fun click_go(f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, pw: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &NodeKind >> _, hiti: &int >> _, go: Toggle): Tabs =
-  if is_on(go) then tabs_click(f, r, ts, idx, x, y, ox, pw, 0, lh, scratch, keep, hitk, hiti, 0)
+fun click_go(f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, oy: int, pw: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &NodeKind >> _, hiti: &int >> _, go: Toggle): Tabs =
+  if is_on(go) then tabs_click_oy(f, r, ts, idx, x, y, ox, oy, pw, lh, scratch, keep, hitk, hiti, 0)
   else let
     val () = buffer_preserve(scratch)
   in
     ts
   end
 
-fun wiki_go(ts: Tabs, idx: int, vault: !Buf, go: Toggle): Tabs =
-  if is_on(go) then wiki_open(ts, idx, vault, 0) else ts
+fun wiki_go(ts: Tabs, idx: int, vault: !Buf, go: Toggle, kept: &ClosedDocs >> _): Tabs =
+  if is_on(go) then wiki_open(ts, idx, vault, 0, kept) else ts
 
 fun read_all(path: !Buf, dst: &Buf >> _): void = let
   val p = buffer_c_string(path)

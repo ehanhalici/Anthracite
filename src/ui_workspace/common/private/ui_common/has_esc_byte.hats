@@ -150,43 +150,34 @@ implement is_edit_cancel(x) = case+ x of
   | EditChanged() => false
   | EditSubmit() => false
 
-implement is_drag_none(x) = case+ x of
-  | DragNone() => true
-  | DragTab() => false
-  | DragFile() => false
-  | DragSplit() => false
-  | DragEditor() => false
+fun drag_code(x: DragKind): int = case+ x of
+  | DragNone() => 0
+  | DragTab() => 1
+  | DragFile() => 2
+  | DragSplit() => 3
+  | DragEditor() => 4
+  | DragDocScroll() => 5
+  | DragTreeScroll() => 6
+  | DragEditorPan() => 7
+  | DragEditorFontSlider() => 8
+  | DragDocFontSlider() => 9
 
-implement is_drag_tab(x) = case+ x of
-  | DragTab() => true
-  | DragNone() => false
-  | DragFile() => false
-  | DragSplit() => false
-  | DragEditor() => false
-
-implement is_drag_file(x) = case+ x of
-  | DragFile() => true
-  | DragNone() => false
-  | DragTab() => false
-  | DragSplit() => false
-  | DragEditor() => false
-
-implement is_drag_split(x) = case+ x of
-  | DragSplit() => true
-  | DragNone() => false
-  | DragTab() => false
-  | DragFile() => false
-  | DragEditor() => false
-
-implement is_drag_editor(x) = case+ x of
-  | DragEditor() => true
-  | DragNone() => false
-  | DragTab() => false
-  | DragFile() => false
-  | DragSplit() => false
+implement is_drag_none(x) = ieq(drag_code(x), 0)
+implement is_drag_tab(x) = ieq(drag_code(x), 1)
+implement is_drag_file(x) = ieq(drag_code(x), 2)
+implement is_drag_split(x) = ieq(drag_code(x), 3)
+implement is_drag_editor(x) = ieq(drag_code(x), 4)
+implement is_drag_doc_scroll(x) = ieq(drag_code(x), 5)
+implement is_drag_tree_scroll(x) = ieq(drag_code(x), 6)
+implement is_drag_editor_pan(x) = ieq(drag_code(x), 7)
+implement is_drag_editor_font_slider(x) = ieq(drag_code(x), 8)
+implement is_drag_doc_font_slider(x) = ieq(drag_code(x), 9)
 
 implement view_mode_code(v) = case+ v of
   | ViewEdit() => 0
   | ViewRead() => 1
 
 implement view_mode_of_code(n) = if ieq(n, 1) then ViewRead else ViewEdit
+
+implement chrome_topbar_h(line_h) = imax(UI_TOPBAR_HEIGHT, iadd(line_h, 14))
+implement chrome_hdr_h(line_h) = imax(UI_PANE_HEADER_HEIGHT, iadd(line_h, 8))

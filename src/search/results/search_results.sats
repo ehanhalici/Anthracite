@@ -1,5 +1,6 @@
 staload "mem.sats"
 staload "search/literal/literal_search.sats"
+staload "search/results/search_file_cache.sats"
 staload "ui_workspace/tabs/ui_tab.sats"
 macdef SEARCH_RESULT_WORDS = 4
 macdef SEARCH_RESULT_MATCH = 0
@@ -17,6 +18,10 @@ fun search_append_matches(source: !Buf,path: !Buf,pattern: !LiteralPattern,file:
   text: &Buf >> _,metadata: &Buf >> _,jumps: &Buf >> _,rows: &int >> _): SearchAppendResult
 fun search_append_file(path: !Buf,tabs: !Tabs,pattern: !LiteralPattern,file: int,
   text: &Buf >> _,metadata: &Buf >> _,jumps: &Buf >> _,rows: &int >> _): SearchAppendResult
+(* File bytes as search reads them from disk (VFS shadow first), never from tabs. *)
+fun search_disk_source(path: !Buf): Option_vt(Buf)
+(* The same bytes through a worker's file cache (search_file_cache.sats). *)
+fun search_cached_source(cache: &FileCache >> _,path: !Buf): Option_vt(Buf)
 fun search_visible_count(metadata: !Buf,collapsed: !Buf): int
 fun search_source_row(metadata: !Buf,collapsed: !Buf,visible: int): int
 fun search_toggle_group(metadata: !Buf,collapsed: &Buf >> _,row: int): bool

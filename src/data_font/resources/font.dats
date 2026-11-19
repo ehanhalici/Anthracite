@@ -8,6 +8,7 @@ macdef FONT_OPEN_BUFFER_INITIAL_BYTES = 8192
 
 
 staload "mem.sats"
+staload "core_runtime/performance.sats"
 staload "airlock.sats"
 staload "flag.sats"
 staload "os/fs.sats"
@@ -50,8 +51,12 @@ datavtype Font_ = FONT of @{
 , fb_kern= int
 , native_primary= Option_vt(NativeShapeCache), native_fallback= Option_vt(NativeShapeCache)
 , native_generation= int, native_fb_generation= int
+, cff_ctx= SfntCffContext, fb_cff_ctx= SfntCffContext
+, cff_stk= Buf, cff_ret= Buf
 , text_session= Option_vt(FontTextSession)
 , registry= int
+(* Face files this Font was loaded from, so another thread can open the same faces. *)
+, source_id= int, primary_path= Buf, fallback_path= Buf
 }
 (* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
 assume Font = Font_
@@ -66,3 +71,4 @@ staload "data_font/resources/private/font_storage.sats"
 #include "data_font/resources/private/font/ztex.hats"
 #include "data_font/resources/private/font/font_atlas_w.hats"
 #include "data_font/resources/private/font/pt_x.hats"
+#include "data_font/resources/private/font/font_sources.hats"

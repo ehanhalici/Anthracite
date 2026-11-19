@@ -4,31 +4,39 @@ staload "data_font/native/text/native_text_analysis_types.sats"
 staload "data_text/utf8/utf8.sats"
 staload "data_text/line_break/line_types.sats"
 staload "data_text/bidi/bidi_types.sats"
-extern fun failed(): Buf = "mac#anth_die_box"
 fun break_code(b: LineBreak): int = case+ b of
   | BreakForbidden() => 1 | BreakOptional() => 3 | BreakMandatory() => 5
+fun fallback_flags(n: int): Buf = let
+  val safe_n = imax(0, n)
+  val flags = buf_make(iadd(safe_n, 1))
+  val () = buf_set(flags, safe_n, 5)
+in flags end
 fun fill{n:nat} .<n>. (left: int(n),a: !NativeTextAnalysis,flags: !Buf,i: int): void =
   if left = 0 then () else let val+ NativeTextAnalysis(text,bidi,scripts,breaks,graphemes,source_length)=a
     val ()=if native_text_analysis_grapheme(a,i) then
       buf_set(flags,scalar_start(text,i),break_code(native_text_analysis_break(a,i))) else ()
   in fill(left-1,a,flags,iadd(i,1)) end
 fun analyzed(assets: !NativeTextAssets,b: !Buf,n: int): Buf = case+ native_text_analyze(assets,b,n,AutoLtr()) of
-  | ~NativeAnalysisRejected(e) => let val ()=println!("event=visual_boundaries status=rejected") in failed() end
-  | ~NativeAnalysisAccepted(a) => let val flags=buf_make(iadd(n,1)) val ()=buf_zero(flags)
+  | ~NativeAnalysisRejected(e) => fallback_flags(n)
+  | ~NativeAnalysisAccepted(a) => let val safe_n = imax(0, n)
+    val flags=buf_make(iadd(safe_n,1)) val ()=buf_zero(flags)
     val ()=fill(airlock_nat(native_text_analysis_count(a)),a,flags,0)
-    val ()=buf_set(flags,n,5) val ()=native_text_analysis_dispose(a)
+    val ()=buf_set(flags,safe_n,5) val ()=native_text_analysis_dispose(a)
   in flags end
 fun active{b:bool}(state: !option_vt(FontTextSession,b),source: !Buf,n: int): Buf = case+ state of
-  | None_vt() => failed() | Some_vt(session) => let val+ FontTextSession(assets,cache,p,f,m)=session
+  | None_vt() => fallback_flags(n) | Some_vt(session) => let val+ FontTextSession(assets,cache,p,f,m)=session
   in analyzed(assets,source,n) end
 implement font_text_boundaries(f,b,n) = let val state=font_text_take(f)
   val flags=active(state,b,n) val ()=font_text_put(f,state)
 in flags end
 
-extern fun metrics_abort(): void = "mac#anth_die_void"
-fun metrics_failed(): @(Buf,Buf) = let val ()=metrics_abort() in @(buf_make(0),buf_make(0)) end
+fun metrics_fallback(length: int): @(Buf, Buf) = let
+  val safe_n = imax(0, length)
+  val flags = fallback_flags(safe_n)
+  val advances = buf_make(imul(iadd(safe_n, 1), WORD32_BYTES))
+in @(flags, advances) end
 fun cached_metrics{b:bool}(state: !option_vt(FontTextCache,b),length: int): @(Buf,Buf) = case+ state of
-  | None_vt() => metrics_failed()
+  | None_vt() => metrics_fallback(length)
   | Some_vt(cache) => let val+ FontTextCache(key,layout,px,tail)=cache
     in font_span_wrap_metrics(layout,length) end
 fun mandatory{n:nat} .<n>. (left: int(n),flags: !Buf,i: int): int =
@@ -42,29 +50,40 @@ fun merge_metrics{n:nat} .<n>. (left: int(n),flags: !Buf,advances: !Buf,local_fl
   in merge_metrics(left-1,flags,advances,local_flags,local_advances,base,total,iadd(i,1)) end
 fun segment_metrics(f: !Font,assets: !NativeTextAssets,cache: &Option_vt(FontTextCache) >> _,
   source: !Buf,start: int,finish: int,options: FontSpanOptions): @(Buf,Buf) = let
-  var segment=buf_make(isub(finish,start)) val ()=buf_append_at(segment,source,start,isub(finish,start))
-  val error=font_text_cache_prepare(cache,f,assets,segment,isub(finish,start),options)
-  val ()=case+ error of | ~None_vt() => () | ~Some_vt(e) => metrics_abort()
-  val result=cached_metrics(cache,isub(finish,start)) val ()=buf_free(segment)
+  val seg_len = imax(0, isub(finish, start))
+  var segment=buf_make(imax(1, seg_len)) val ()=buf_append_at(segment,source,start,seg_len)
+  val error=font_text_cache_prepare(cache,f,assets,segment,seg_len,options)
+  val result = (case+ error of
+    | ~None_vt() => cached_metrics(cache, seg_len)
+    | ~Some_vt(e) => metrics_fallback(seg_len)): @(Buf, Buf)
+  val ()=buf_free(segment)
 in result end
 fun segments{n:nat} .<n>. (left: int(n),f: !Font,assets: !NativeTextAssets,cache: &Option_vt(FontTextCache) >> _,
   source: !Buf,flags: !Buf,advances: !Buf,base: int,options: FontSpanOptions): void =
   if not(recursion_fuel_available(left)) then () else if ige(base,buf_len(source)) then () else let
-    val finish=mandatory(airlock_nat(isub(buf_len(source),base)),flags,iadd(base,1))
+    val finish=mandatory(airlock_nat(imax(0,isub(buf_len(source),base))),flags,iadd(base,1))
     val (local_flags,local_advances)=segment_metrics(f,assets,cache,source,base,finish,options)
-    val count=isub(finish,base)
+    val count=imax(0,isub(finish,base))
     val ()=merge_metrics(airlock_nat(count),flags,advances,local_flags,local_advances,base,buf_get32(advances,base),1)
     val ()=buf_free(local_flags) val ()=buf_free(local_advances)
-  in segments(left-1,f,assets,cache,source,flags,advances,finish,options) end
+  in segments(left-1,f,assets,cache,source,flags,advances,imax(iadd(base,1),finish),options) end
 fun split_metrics(f: !Font,assets: !NativeTextAssets,cache: &Option_vt(FontTextCache) >> _,
   source: !Buf,length: int,options: FontSpanOptions): @(Buf,Buf) = let
-  val flags=analyzed(assets,source,length) val advances=buf_make(imul(iadd(length,1),WORD32_BYTES))
+  val flags=analyzed(assets,source,length) val advances=buf_make(imul(iadd(imax(0,length),1),WORD32_BYTES))
   val ()=segments(airlock_nat(MAX_REC_FUEL),f,assets,cache,source,flags,advances,0,options)
 in @(flags,advances) end
 fun metrics_result(error: Option_vt(FontSpanFailure),f: !Font,assets: !NativeTextAssets,
   cache: &Option_vt(FontTextCache) >> _,b: !Buf,length: int,options: FontSpanOptions): @(Buf,Buf) =
   case+ error of | ~Some_vt(e) => (case+ e of
-    | SpanParagraph() => split_metrics(f,assets,cache,b,length,options) | _ => metrics_failed())
+    | SpanParagraph() => split_metrics(f,assets,cache,b,length,options)
+    | SpanAnalysis() => metrics_fallback(length)
+    | SpanItems() => metrics_fallback(length)
+    | SpanContext() => metrics_fallback(length)
+    | SpanShaping() => metrics_fallback(length)
+    | SpanCapacity() => metrics_fallback(length)
+    | SpanOverflow() => metrics_fallback(length)
+    | SpanMissing() => metrics_fallback(length)
+    | SpanUnsupported() => metrics_fallback(length))
     | ~None_vt() => cached_metrics(cache,length)
 fun session_metrics(f: !Font,session: &FontTextSession >> FontTextSession,b: !Buf,length: int): @(Buf,Buf) = let
   val+ ~FontTextSession(assets,old,primary,fallback,m)=session
@@ -75,7 +94,7 @@ fun session_metrics(f: !Font,session: &FontTextSession >> FontTextSession,b: !Bu
   val ()=session := FontTextSession(assets,cache,primary,fallback,m)
 in result end
 fun active_metrics(f: !Font,state: &Option_vt(FontTextSession) >> _,b: !Buf,length: int): @(Buf,Buf) = case+ state of
-  | @None_vt() => let prval ()=fold@(state) in metrics_failed() end
+  | @None_vt() => let prval ()=fold@(state) in metrics_fallback(length) end
   | @Some_vt(session) => let val result=session_metrics(f,session,b,length) prval ()=fold@(state) in result end
 implement font_text_wrap_metrics(f,b,length) = let var state=font_text_take(f)
   val result=active_metrics(f,state,b,length) val ()=font_text_put(f,state)

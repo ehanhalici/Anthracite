@@ -46,18 +46,29 @@ fun cache_free(c: Cache): void
 fun draw_doc(f: !Font, r: !Rend, d: !Doc, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, viewmode: ViewMode): void
 fun draw_tabrow(f: !Font, r: !Rend, ts: Tabs, x: int, active: int, i: int): Tabs
 fun draw_tabrow_pane(f: !Font, r: !Rend, ts: Tabs, x: int, active: int, i: int, filter: int, tab_pane: !Buf): Tabs
+fun draw_tabrow_pane_w(f: !Font, r: !Rend, ts: Tabs, x: int, avail_w: int, active: int, i: int, filter: int, tab_pane: !Buf): Tabs
+fun draw_tabrow_pane_hover(f: !Font, r: !Rend, ts: Tabs, x: int, avail_w: int, active: int, i: int, filter: int, tab_pane: !Buf, hx: int, hy: int): Tabs
+fun tab_box_width_for_bar(avail_w: int, pane_tabs: int): int
 fun tab_hit_test(f: !Font, r: !Rend, ts: !Tabs, start_x: int, click_x: int, out_ti: &int >> _, out_close: &bool >> _): void
 fun tab_hit_test_pane(f: !Font, r: !Rend, ts: !Tabs, start_x: int, click_x: int, filter: int, tab_pane: !Buf, out_ti: &int >> _, out_close: &bool >> _): void
+fun tab_hit_test_pane_w(f: !Font, r: !Rend, ts: !Tabs, start_x: int, avail_w: int, click_x: int, filter: int, tab_pane: !Buf, out_ti: &int >> _, out_close: &bool >> _): void
 fun tab_find_at_x(f: !Font, r: !Rend, ts: !Tabs, start_x: int, hover_x: int, filter: int, tab_pane: !Buf): int
+fun tab_find_at_x_w(f: !Font, r: !Rend, ts: !Tabs, start_x: int, avail_w: int, hover_x: int, filter: int, tab_pane: !Buf): int
+fun tab_hover_info(f: !Font, r: !Rend, ts: !Tabs, start_x: int, hover_x: int, filter: int, tab_pane: !Buf, out_ti: &int >> _, out_bx: &int >> _, out_over: &bool >> _): void
+fun tab_hover_info_w(f: !Font, r: !Rend, ts: !Tabs, start_x: int, avail_w: int, hover_x: int, filter: int, tab_pane: !Buf, out_ti: &int >> _, out_bx: &int >> _, out_over: &bool >> _): void
 fun draw_focus(f: !Font, r: !Rend, ts: Tabs, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, viewmode: ViewMode): Tabs
+fun draw_focus_pane(f: !Font, r: !Rend, ts: Tabs, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, viewmode: ViewMode, shover: Toggle, sdrag: Toggle, out_h: &int >> _): Tabs
 fun draw_right(f: !Font, r: !Rend, ts: Tabs, split: Toggle, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, viewmode: ViewMode): Tabs
 fun tabs_click(f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, pw: int, scroll_hint: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &NodeKind >> _, hiti: &int >> _, i: int): Tabs
+fun tabs_click_oy(f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, oy: int, pw: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &NodeKind >> _, hiti: &int >> _, i: int): Tabs
+fun tabs_point_was_raw(ts: !Tabs, idx: int, y: int, oy: int, lh: int, viewmode: ViewMode): bool
 fun caret_xy(f: !Font, r: !Rend, d: !Doc, colx: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _, cx: &int >> _, cy: &int >> _): void
 fun line_quote_prefix(d: !Doc, ls: int, le: int): int
 fun font_arrow_w(f: !Font, r: !Rend): int
 fun arrow_pos_x(f: !Font, r: !Rend, colx: int): int
 fun gutter_num_end_x(f: !Font, r: !Rend, colx: int): int
 fun editor_colx(f: !Font, r: !Rend, ox: int, pw: int): int
+fun editor_colw(f: !Font, r: !Rend, ox: int, pw: int): int
 fun take_path(d: !Doc, i: int, dst: &Buf >> _): void
 fun take_anchor(d: !Doc, i: int, dst: &Buf >> _): void
 fun resolve_path(vault: !Buf, rel: !Buf, dst: &Buf >> _): void

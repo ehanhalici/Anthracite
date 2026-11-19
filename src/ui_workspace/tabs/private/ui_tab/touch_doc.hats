@@ -151,17 +151,21 @@ in
   end
 end
 
-fun caret_move_h(d: !Doc, is_left: bool): void =
-  if doc_caret_is_ar(d) then (if is_left then doc_right_move(d) else doc_left_move(d))
-  else (if is_left then doc_left_move(d) else doc_right_move(d))
+fun caret_move_left(d: !Doc): void =
+  if doc_caret_is_ar(d) then doc_right_move(d) else doc_left_move(d)
 
-fun caret_select_h(d: !Doc, is_left: bool): void =
-  if doc_caret_is_ar(d) then (if is_left then doc_right_select(d) else doc_left_select(d))
-  else (if is_left then doc_left_select(d) else doc_right_select(d))
+fun caret_move_right(d: !Doc): void =
+  if doc_caret_is_ar(d) then doc_left_move(d) else doc_right_move(d)
+
+fun caret_select_left(d: !Doc): void =
+  if doc_caret_is_ar(d) then doc_right_select(d) else doc_left_select(d)
+
+fun caret_select_right(d: !Doc): void =
+  if doc_caret_is_ar(d) then doc_left_select(d) else doc_right_select(d)
 
 fun run_caret_motion_cmd(d: !Doc, cmd: Cmd): void =
-  if is_cmd(cmd, CMD_CARET_LEFT) then caret_move_h(d, true)
-  else if is_cmd(cmd, CMD_CARET_RIGHT) then caret_move_h(d, false)
+  if is_cmd(cmd, CMD_CARET_LEFT) then caret_move_left(d)
+  else if is_cmd(cmd, CMD_CARET_RIGHT) then caret_move_right(d)
   else if is_cmd(cmd, CMD_CARET_UP) then doc_up_move(d)
   else if is_cmd(cmd, CMD_CARET_DOWN) then doc_down_move(d)
   else if is_cmd(cmd, CMD_CARET_LINE_START) then doc_home_move(d)
@@ -177,8 +181,8 @@ fun run_caret_motion_cmd(d: !Doc, cmd: Cmd): void =
 fun run_select_motion_cmd(d: !Doc, cmd: Cmd): void =
   if is_cmd(cmd, CMD_SELECT_ALL) then select_all(d)
   else if is_cmd(cmd, CMD_COLLAPSE_SELECTION) then doc_set_caret_move(d, doc_caret(d))
-  else if is_cmd(cmd, CMD_SELECT_LEFT) then caret_select_h(d, true)
-  else if is_cmd(cmd, CMD_SELECT_RIGHT) then caret_select_h(d, false)
+  else if is_cmd(cmd, CMD_SELECT_LEFT) then caret_select_left(d)
+  else if is_cmd(cmd, CMD_SELECT_RIGHT) then caret_select_right(d)
   else if is_cmd(cmd, CMD_SELECT_UP) then doc_up_select(d)
   else if is_cmd(cmd, CMD_SELECT_DOWN) then doc_down_select(d)
   else if is_cmd(cmd, CMD_SELECT_LINE_START) then doc_home_select(d)
@@ -197,12 +201,24 @@ in
   run_select_motion_cmd(d, cmd)
 end
 
+fun doc_kill_line(d: !Doc): void = let
+  val c = doc_caret(d)
+  val line = doc_line_of(d, c)
+  val n = doc_nlines(d)
+  val line_end = if ilt(iadd(line, 1), n) then doc_line_start(d, iadd(line, 1)) else doc_len(d)
+  val text_end = if igt(line_end, c) andalso ieq(doc_byte(d, isub(line_end, 1)), CHAR_LF) then isub(line_end, 1) else line_end
+  val stop = if igt(text_end, c) then text_end else line_end
+in
+  if igt(stop, c) then doc_delete_range(d, c, stop) else ()
+end
+
 fun run_edit_cmd(d: !Doc, cmd: Cmd): void =
   if is_cmd(cmd, CMD_BACKSPACE) then doc_backspace(d)
   else if is_cmd(cmd, CMD_DELETE) then doc_delete(d)
   else if is_cmd(cmd, CMD_DELETE_SELECTION) then delete_selection(d)
   else if is_cmd(cmd, CMD_DELETE_WORD_LEFT) then doc_del_word_left(d)
   else if is_cmd(cmd, CMD_DELETE_WORD_RIGHT) then doc_del_word_right(d)
+  else if is_cmd(cmd, CMD_KILL_LINE) then doc_kill_line(d)
   else if is_cmd(cmd, CMD_UNDO) then doc_undo(d)
   else if is_cmd(cmd, CMD_REDO) then doc_redo(d)
   else if is_cmd(cmd, CMD_WRAP_BOLD) then wrap_selection(d, BOLD_MARK, BOLD_MARK)

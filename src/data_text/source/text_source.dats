@@ -9,7 +9,7 @@ staload "data_text/source/text_source.sats"
 
 fun read_owned(fd: int, size: int): TextFileResult = let
   val b = buf_make(size)
-  val count = fs_read_buf(fd, b, size)
+  val count = if ieq(size, 0) then 0 else fs_read_buf(fd, b, size)
   val () = fs_close(fd)
 in
   if ieq(count, size) then let val () = buf_set_len(b, size) in TextFile(b) end

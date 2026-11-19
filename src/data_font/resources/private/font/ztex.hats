@@ -27,7 +27,7 @@ implement font_open() = FONT(@{
 , num_h= 0, nglyph= 0, loca_fmt= Off
 , cmap_off= ~1, glyf_off= ~1, loca_off= ~1, hmtx_off= ~1, kern_off= ~1
 , npts= 0, nends= 0, nedges= 0
-, pen_x= 1, pen_y= 1, row_h= 0
+, pen_x= 2, pen_y= 2, row_h= 0
 , aw= FONT_ATLAS_WIDTH_PIXELS, ah= FONT_ATLAS_HEIGHT_PIXELS, tex= ztex()
 , has_ttf= Off, line_h= 18, asc_px= 14
 , fb_has= Off
@@ -35,7 +35,10 @@ implement font_open() = FONT(@{
 , fb_nglyph= 0, fb_num_h= 0
 , fb_kern= ~1
 , native_primary= None_vt(), native_fallback= None_vt(), native_generation= 0, native_fb_generation= 0
+, cff_ctx= sfnt_cff_context_empty(), fb_cff_ctx= sfnt_cff_context_empty()
+, cff_stk= buf_make(64 * 4), cff_ret= buf_make(16 * 3 * 4)
 , text_session= None_vt(), registry= font_registry_next()
+, source_id= 0, primary_path= buf_make(0), fallback_path= buf_make(0)
 })
 
 fun release_fallback(file: Option_vt(Buf)): void = case+ file of
@@ -49,6 +52,8 @@ implement font_free(f) = let
   val () = rend_tex_free(s.tex)
   val () = buf_free(s.file)
   val () = release_fallback(s.fb_file)
+  val () = buf_free(s.primary_path)
+  val () = buf_free(s.fallback_path)
   val () = buf_free(s.atlas)
   val () = buf_free(s.cache)
   val () = buf_free(s.xs)
@@ -56,6 +61,8 @@ implement font_free(f) = let
   val () = buf_free(s.fl)
   val () = buf_free(s.ends)
   val () = buf_free(s.edges)
+  val () = buf_free(s.cff_stk)
+  val () = buf_free(s.cff_ret)
 in
   buf_free(s.cov)
 end

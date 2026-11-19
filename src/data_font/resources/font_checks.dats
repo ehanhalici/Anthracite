@@ -63,6 +63,84 @@ in
   (if ieq(kv, isub(0, 30)) then 1 else 0)
 end
 
+fun chk_lower(b: int): int =
+  if ige(b, 65) andalso ile(b, 90) then iadd(b, 32) else b
+
+fun chk_ext4(b: !Buf, e: int, c1: int, c2: int, c3: int): bool =
+  ieq(buf_get(b, e), 46)
+  andalso ieq(chk_lower(buf_get(b, iadd(e, 1))), c1)
+  andalso ieq(chk_lower(buf_get(b, iadd(e, 2))), c2)
+  andalso ieq(chk_lower(buf_get(b, iadd(e, 3))), c3)
+
+fun chk_is_font_ext(b: !Buf, off: int, len: int): bool =
+  if ilt(len, 5) then false
+  else let
+    val e = iadd(off, isub(len, 4))
+  in
+    chk_ext4(b, e, 116, 116, 102)
+    orelse chk_ext4(b, e, 116, 116, 99)
+    orelse chk_ext4(b, e, 111, 116, 102)
+  end
+
+fun chk_cmp_ci {n:nat} .<n>. (
+  rem: int(n), b: !Buf, o1: int, l1: int, o2: int, l2: int, k: int
+): int =
+  if rem = 0 then 0
+  else if ige(k, l1) andalso ige(k, l2) then 0
+  else if ige(k, l1) then ~1
+  else if ige(k, l2) then 1
+  else let
+    val c1 = chk_lower(buf_get(b, iadd(o1, k)))
+    val c2 = chk_lower(buf_get(b, iadd(o2, k)))
+  in
+    if ilt(c1, c2) then ~1
+    else if igt(c1, c2) then 1
+    else chk_cmp_ci(rem - 1, b, o1, l1, o2, l2, iadd(k, 1))
+  end
+
+fun chk_entries_m {n:nat} .<n>. (
+  rem: int(n), paths: !Buf, names: !Buf, meta: !Buf, i: int, cnt: int
+): bool =
+  if rem = 0 then true
+  else if ige(i, cnt) then true
+  else let
+    val i4 = imul(i, 4)
+    val po = buf_get32(meta, i4)
+    val pl = buf_get32(meta, iadd(i4, 1))
+    val no = buf_get32(meta, iadd(i4, 2))
+    val nl = buf_get32(meta, iadd(i4, 3))
+    val entry_ok = igt(nl, 0) andalso not(chk_is_font_ext(names, no, nl)) andalso chk_is_font_ext(paths, po, pl)
+    val order_ok =
+      if igt(i, 0) then let
+        val p4 = imul(isub(i, 1), 4)
+        val pno = buf_get32(meta, iadd(p4, 2))
+        val pnl = buf_get32(meta, iadd(p4, 3))
+        val nc = chk_cmp_ci(airlock_nat(iadd(imax(0, imin(pnl, nl)), 1)), names, pno, pnl, no, nl, 0)
+      in
+        ile(nc, 0)
+      end else true
+  in
+    if entry_ok andalso order_ok then chk_entries_m(rem - 1, paths, names, meta, iadd(i, 1), cnt)
+    else false
+  end
+
+fun scan_entries_ok(paths: !Buf, names: !Buf, meta: !Buf, c: int): bool =
+  igt(c, 12) andalso chk_entries_m(airlock_nat(c), paths, names, meta, 0, c)
+
+fun scan_selftest(): int = let
+  var paths = buf_make(1024)
+  var names = buf_make(512)
+  var meta = buf_make(256)
+  var cnt: int = 0
+  val () = font_scan_fonts("fonts", paths, names, meta, cnt)
+  val ok = scan_entries_ok(paths, names, meta, cnt)
+  val () = buf_free(paths)
+  val () = buf_free(names)
+  val () = buf_free(meta)
+in
+  if ok then 1 else 0
+end
+
 implement font_selftest(r) = let
   val f = font_open()
   var g: gmet = @{ax= 0, bx= 0, top= 0, bw= 0, bh= 0, x0= 0, y0= 0, ok= Off}
@@ -77,11 +155,17 @@ implement font_selftest(r) = let
   val jb_ok = font_use_file(f, "fonts/JetBrains-Mono-Medium/JetBrainsMono-Regular.ttf")
   val inkJB = glyph_ink65(f, r, g)
   val sc_ok = font_use_file(f, "fonts/Source-Code-Pro-Regular/sourcecodepro/SourceCodePro-Regular.ttf")
+  val tex_dropped = (font_tex(f) = u_zero())
   val inkSC = glyph_ink65(f, r, g)
   val () = font_glyph(f, r, 1576, g)
   val ar_ok = (if igt(g.bw, 0) then 1 else 0) : int
+  val ttc_ok = font_use_file(f, "fonts/PkgTTC-SGr-Iosevka-34.9.1/SGr-Iosevka-Regular.ttc")
+  val inkTTC = glyph_ink65(f, r, g)
+  val otf_ok = font_use_file(f, "fonts/ibm-plex-mono-font/IbmPlexMono-7L4D.otf")
+  val inkOTF = glyph_ink65(f, r, g)
   val () = font_free(f)
-  val ok3 = (if loaded andalso igt(gid, 0) andalso igt(axA, 0) andalso igt(inkA, 20) andalso igt(inkJB, 20) andalso igt(inkSC, 20) andalso jb_ok andalso sc_ok andalso ieq(ar_ok, 1) then 1 else 0) : int
+  val ok4 = scan_selftest()
+  val ok3 = (if loaded andalso igt(gid, 0) andalso igt(axA, 0) andalso igt(inkA, 20) andalso igt(inkJB, 20) andalso igt(inkSC, 20) andalso igt(inkTTC, 20) andalso igt(inkOTF, 20) andalso jb_ok andalso sc_ok andalso ttc_ok andalso otf_ok andalso tex_dropped andalso ieq(ar_ok, 1) then 1 else 0) : int
 in
-  (if ieq(ok1, 1) andalso ieq(ok2, 1) andalso ieq(ok3, 1) then 1 else 0)
+  (if ieq(ok1, 1) andalso ieq(ok2, 1) andalso ieq(ok3, 1) andalso ieq(ok4, 1) then 1 else 0)
 end

@@ -122,6 +122,57 @@ in
   doc_set_caret_extend(d, target)
 end
 
+fun doc_line_stop(d: !Doc, line: int, ls: int): int = let
+  val n = d_nlines(d)
+  val e0 = if ilt(iadd(line, 1), n) then doc_line_start(d, iadd(line, 1)) else d_len(d)
+  val e1 = if igt(e0, ls) andalso ieq(doc_byte(d, isub(e0, 1)), CHAR_LF) then isub(e0, 1) else e0
+in
+  if igt(e1, ls) andalso ieq(doc_byte(d, isub(e1, 1)), CHAR_CR) then isub(e1, 1) else e1
+end
+
+fun resolve_word_pos(d: !Doc, ls: int, le: int, p: int): int =
+  if ilt(p, le) andalso is_class(doc_char_class(doc_byte(d, p)), ClassWord) then p
+  else if igt(p, ls) andalso is_class(doc_char_class(doc_byte(d, isub(p, 1))), ClassWord) then imax(ls, utf8_prev(d, p))
+  else if ilt(p, le) andalso not(is_class(doc_char_class(doc_byte(d, p)), ClassBlank)) then p
+  else if igt(p, ls) andalso not(is_class(doc_char_class(doc_byte(d, isub(p, 1))), ClassBlank)) then imax(ls, utf8_prev(d, p))
+  else ~1
+
+fun word_span_start {left:nat} .<left>. (left: int(left), d: !Doc, ls: int, i: int, cls: CharClass): int =
+  if left = 0 then imax(ls, i)
+  else if ile(i, ls) then imax(ls, i)
+  else if is_class(doc_char_class(doc_byte(d, isub(i, 1))), cls) then let
+    val prev = imax(ls, utf8_prev(d, i))
+  in
+    if ilt(prev, i) then word_span_start(left - 1, d, ls, prev, cls) else imax(ls, i)
+  end else imax(ls, i)
+
+fun word_span_end {left:nat} .<left>. (left: int(left), d: !Doc, le: int, i: int, cls: CharClass): int =
+  if left = 0 then imin(le, i)
+  else if ige(i, le) then imin(le, i)
+  else if is_class(doc_char_class(doc_byte(d, i)), cls) then let
+    val next = imin(le, utf8_next(d, i))
+  in
+    if igt(next, i) then word_span_end(left - 1, d, le, next, cls) else imin(le, i)
+  end else imin(le, i)
+
+implement doc_select_word_at(d, pos) = let
+  val len = d_len(d)
+  val p0 = imax(0, imin(pos, len))
+  val line = doc_line_of(d, p0)
+  val ls = doc_line_start(d, line)
+  val le = doc_line_stop(d, line, ls)
+  val wp = resolve_word_pos(d, ls, le, imax(ls, imin(p0, le)))
+in
+  if ige(wp, ls) andalso ilt(wp, le) then let
+    val cls = doc_char_class(doc_byte(d, wp))
+    val w_start = word_span_start(airlock_span(ls, wp), d, ls, wp, cls)
+    val w_end = word_span_end(airlock_span(wp, le), d, le, wp, cls)
+  in
+    if igt(w_end, w_start) then (doc_set_caret_move(d, w_start); doc_set_caret_extend(d, w_end); true)
+    else false
+  end else false
+end
+
 implement doc_del_word_left(d) = let
   val () = doc_record(d, OpBreak)
   var a: int = 0

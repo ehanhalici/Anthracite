@@ -4,7 +4,7 @@ extern fun scale_failed(): int = "mac#anth_die_int"
 fun ppem(px: int,num: int,den: int): int = let
   val product=g0int2int_int_llint(px)*g0int2int_int_llint(num)
   val value=product/g0int2int_int_llint(den)
-in if value < 1LL orelse value > 96LL then scale_failed() else airlock_i32(value) end
+in if value < 1LL then scale_failed() else if value > 96LL then 96 else airlock_i32(value) end
 implement font_text_scaled_buffer(f,r,x,y,b,n,color,num,den) = let
   val numerator=if igt(num,0) then num else 1 val denominator=if igt(den,0) then den else 1
   val old=font_get_px(f) val size=ppem(old,numerator,denominator)

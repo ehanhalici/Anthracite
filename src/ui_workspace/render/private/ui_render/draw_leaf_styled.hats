@@ -3,12 +3,13 @@ fun draw_leaf_styled(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind,
                      scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _,
                      viewmode: ViewMode): void = let
   val flags = doc_node_flags(d, i)
-  val is_read = is_view_read(viewmode)
-  val skip = is_read andalso (is_kind(k, KMark) orelse is_kind(k, KLinkDest) orelse is_kind(k, KLinkTitle) orelse iand(flags, FL_READ_HIDDEN) != 0)
+  val st0 = doc_node_start(d, i)
+  val is_read = doc_line_is_preview(d, if is_view_read(viewmode) then 1 else 0, doc_line_of(d, st0))
+  val hide_mark = is_kind(k, KMark) andalso not(is_bullet_mark(d, i)) andalso not(is_table_pipe_mark(d, i))
+  val skip = is_read andalso (hide_mark orelse is_kind(k, KLinkDest) orelse is_kind(k, KLinkTitle) orelse iand(flags, FL_READ_HIDDEN) != 0)
 in
   if skip then ()
   else let
-    val st0 = doc_node_start(d, i)
     val st = (if is_read andalso is_kind(k, KEscape) then iadd(st0, 1) else st0)
     val en = doc_node_end(d, i)
     val p_idx = doc_node_parent(d, i)
@@ -17,41 +18,75 @@ in
     if is_read andalso is_kind(p_k, KMath) then
       draw_leaf_math_inline(f, r, d, i, oy, ph, scroll, lh, colx, st, en, scratch, pen_x, pen_line)
     else
-      draw_leaf_content(f, r, d, i, k, oy, ph, scroll, lh, colx, st, en, scratch, pen_x, pen_line)
+      draw_leaf_content(f, r, d, i, k, oy, ph, scroll, lh, colx, st, en, scratch, pen_x, pen_line, is_read)
   end
 end
 
-fun draw_container_box(r: !Rend, d: !Doc, i: int, k: NodeKind, colx: int, y: int, h: int, lh: int, pw: int): void =
+fun draw_container_box(r: !Rend, d: !Doc, i: int, k: NodeKind, colx: int, y: int, h: int, lh: int, colw: int): void =
   if is_kind(k, KQuote) then
     rend_rect(r, isub(colx, 8), y, 3, imax(h, lh), col_quote())
   else if is_kind(k, KCallout) then
-    rend_rect(r, isub(colx, 8), y, 4, imax(h, lh), col_accent())
+    rend_rect(r, isub(colx, 8), y, 4, imax(h, lh), col_accent_hi())
   else if is_kind(k, KCode) orelse is_kind(k, KMathBlock) then let
     val fl = doc_node_flags(d, i)
-    val () = rend_rect(r, colx, y, column_w(pw), imax(h, lh), col_highbg())
+    val () = rend_rect(r, colx, y, colw, imax(h, lh), col_highbg())
   in
     if iand(fl, FL_ERROR) != 0 then rend_rect(r, colx, y, 3, imax(h, lh), col_danger()) else ()
   end else ()
 
+fun draw_raw_block_prefix(
+  f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, colx: int,
+  oy: int, scroll: int, lh: int, ph: int, scratch: &Buf >> _,
+  pen_x: &int >> _, pen_line: &int >> _
+): void =
+  if is_kind(k, KQuote) then let
+    val st = doc_node_start(d, i)
+    val cs = doc_node_cstart(d, i)
+  in
+    if ige(st, 0) andalso igt(cs, st) then
+      seen_int(draw_view_slice(f, r, d, st, cs, colx, oy, scroll, lh, ph, col_muted(), scratch, pen_x, pen_line))
+    else ()
+  end else let
+    val p_idx = doc_node_parent(d, i)
+  in
+    if ige(p_idx, 0) andalso is_kind(doc_node_kind(d, p_idx), KCallout) then let
+      val st = doc_node_start(d, i)
+      val ls = doc_line_start(d, doc_line_of(d, st))
+    in
+      if ige(ls, 0) andalso igt(st, ls) then
+        seen_int(draw_view_slice(f, r, d, ls, st, colx, oy, scroll, lh, ph, col_muted(), scratch, pen_x, pen_line))
+      else ()
+    end else ()
+  end
+
 fun draw_node_content(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, ox: int, oy: int, pw: int, ph: int, scroll: int,
                       lh: int, colx: int, y: int, h: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _,
-                      py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode): void =
+                      py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode): void = let
+  val line = doc_line_of(d, doc_node_start(d, i))
+  val prev_line = doc_line_is_preview(d, if is_view_read(viewmode) then 1 else 0, line)
+  val () = if not(prev_line) then draw_raw_block_prefix(f, r, d, i, k, colx, oy, scroll, lh, ph, scratch, pen_x, pen_line) else ()
+in
   if is_heading(k) then
     draw_node_heading(f, r, d, i, k, oy, ph, scroll, lh, colx, y, viewmode, scratch, py, pa, pen_x, pen_line)
-  else if is_kind(k, KHr) then (
+  else if is_kind(k, KHr) andalso prev_line then (
     pen_line := ~1; pen_x := colx;
-    rend_rect(r, colx, iadd(y, 4), column_w(pw), 2, col_line())
+    rend_rect(r, colx, iadd(y, 4), editor_colw(f, r, ox, pw), 2, col_line())
   )
-  else if is_kind(k, KImage) then
-    draw_node_image(r, d, i, pw, colx, y, h, vault, c, pen_x, pen_line)
-  else if is_kind(k, KEmbed) then
+  else if is_kind(k, KTableDelim) andalso prev_line then (
+    pen_line := ~1; pen_x := colx;
+    rend_rect(r, colx, iadd(y, idiv(lh, 2)), editor_colw(f, r, ox, pw), 1, col_line())
+  )
+  else if is_kind(k, KImage) andalso prev_line then
+    draw_node_image(r, d, i, editor_colw(f, r, ox, pw), colx, y, h, vault, c, pen_x, pen_line)
+  else if is_kind(k, KEmbed) andalso prev_line then
     draw_node_embed(f, r, d, i, ox, oy, pw, ph, scroll, colx, y, h, lh, vault, c, scratch, pen_x, pen_line)
-  else if is_kind(k, KMathb) andalso is_view_read(viewmode) then
-    draw_node_mathb(f, r, d, i, colx, y, lh, pw, pen_x, pen_line)
+  else if is_kind(k, KMathb) andalso prev_line then
+    draw_node_mathb(f, r, d, i, colx, y, lh, editor_colw(f, r, ox, pw), pen_x, pen_line)
   else if kind_is_leaf(k) then
     draw_leaf_styled(f, r, d, i, k, oy, ph, scroll, lh, colx, scratch, pen_x, pen_line, viewmode)
   else
-    draw_container_box(r, d, i, k, colx, y, h, lh, pw)
+    draw_container_box(r, d, i, k, colx, y, h, lh, editor_colw(f, r, ox, pw))
+end
 
 fun draw_node(f: !Font, r: !Rend, d: !Doc, i: int, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode): void = let
   val k = doc_node_kind(d, i)
@@ -60,7 +95,7 @@ fun draw_node(f: !Font, r: !Rend, d: !Doc, i: int, ox: int, oy: int, pw: int, ph
   val colx = editor_colx(f, r, ox, pw)
   val p_idx = doc_node_parent(d, i)
   val p_k = if ige(p_idx, 0) then doc_node_kind(d, p_idx) else KNone
-  val in_read = is_view_read(viewmode)
+  val in_read = doc_line_is_preview(d, if is_view_read(viewmode) then 1 else 0, doc_line_of(d, doc_node_start(d, i)))
   val skip = is_on(doc_node_hidden(d, i)) orelse (in_read andalso (is_heading(p_k) orelse is_kind(p_k, KImage) orelse is_kind(p_k, KEmbed) orelse is_kind(p_k, KMathb)))
 in
   if skip then ()
@@ -157,7 +192,7 @@ in
   rend_rect(r, sx, sy, sw, lh, col_sel())
 end
 
-fun draw_sel_row(f: !Font, r: !Rend, d: !Doc, rst: int, ren: int, a: int, b: int, colx: int, sy: int, lh: int, scratch: &Buf >> _): void = let
+fun draw_sel_row_col(f: !Font, r: !Rend, d: !Doc, rst: int, ren: int, a: int, b: int, colx: int, sy: int, lh: int, c: uint, scratch: &Buf >> _): void = let
   val pfx = row_quote_prefix(d, rst)
   val p_rst = iadd(rst, pfx)
   val p_ren = imax(p_rst, ren)
@@ -175,13 +210,13 @@ in
     val sx = iadd(base_x, rel_sx)
     val sw = rel_sw
   in
-    rend_rect(r, sx, sy, sw, lh, col_sel())
+    rend_rect(r, sx, sy, sw, lh, c)
   end else ()
 end
 
-fun draw_sel_rows_with_fuel {recfuel:nat} .<recfuel>. (
+fun draw_sel_rows_col_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, ls: int, le: int,
-  a: int, b: int, colx: int, base_sy: int, lh: int, wc: int, row: int, rows: int, scratch: &Buf >> _
+  a: int, b: int, colx: int, base_sy: int, lh: int, wc: int, row: int, rows: int, c: uint, scratch: &Buf >> _
 ): void =
   if recursion_fuel_available(recfuel) then (
     if ige(row, rows) then ()
@@ -189,13 +224,13 @@ fun draw_sel_rows_with_fuel {recfuel:nat} .<recfuel>. (
       val rst = (if wc > 0 then doc_advance_cps(d, ls, le, imul(row, wc)) else ls) : int
       val ren = (if wc > 0 then doc_advance_cps(d, rst, le, wc) else le) : int
       val sy = iadd(base_sy, imul(row, lh))
-      val () = draw_sel_row(f, r, d, rst, ren, a, b, colx, sy, lh, scratch)
+      val () = draw_sel_row_col(f, r, d, rst, ren, a, b, colx, sy, lh, c, scratch)
     in
-      draw_sel_rows_with_fuel(recfuel - 1, f, r, d, ls, le, a, b, colx, base_sy, lh, wc, iadd(row, 1), rows, scratch)
+      draw_sel_rows_col_with_fuel(recfuel - 1, f, r, d, ls, le, a, b, colx, base_sy, lh, wc, iadd(row, 1), rows, c, scratch)
     end
   ) else ()
 
-fun draw_sel_line(f: !Font, r: !Rend, d: !Doc, ls: int, le: int, smin: int, smax: int, colx: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _): void = let
+fun draw_sel_line_col(f: !Font, r: !Rend, d: !Doc, ls: int, le: int, smin: int, smax: int, colx: int, oy: int, scroll: int, lh: int, c: uint, scratch: &Buf >> _): void = let
   val a = imax(ls, smin)
   val b = imin(le, smax)
 in
@@ -206,7 +241,10 @@ in
     val cols = doc_codepoints(d, ls, le)
     val rows = (if wc > 0 andalso igt(cols, wc) then idiv(iadd(cols, isub(wc, 1)), wc) else 1) : int
   in
-    if rows <= 1 then draw_sel_row(f, r, d, ls, le, a, b, colx, sy, lh, scratch)
-    else draw_sel_rows_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, d, ls, le, a, b, colx, sy, lh, wc, 0, rows, scratch)
+    if rows <= 1 then draw_sel_row_col(f, r, d, ls, le, a, b, colx, sy, lh, c, scratch)
+    else draw_sel_rows_col_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, d, ls, le, a, b, colx, sy, lh, wc, 0, rows, c, scratch)
   end else ()
 end
+
+fun draw_sel_line(f: !Font, r: !Rend, d: !Doc, ls: int, le: int, smin: int, smax: int, colx: int, oy: int, scroll: int, lh: int, scratch: &Buf >> _): void =
+  draw_sel_line_col(f, r, d, ls, le, smin, smax, colx, oy, scroll, lh, col_sel(), scratch)

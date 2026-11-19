@@ -52,7 +52,17 @@ datatype Cmd =
   | CMD_SELECT_PAGE_DOWN
   | CMD_NEXT_TAB
   | CMD_PREV_TAB
+  | CMD_NAV_BACK
+  | CMD_NAV_FORWARD
+  | CMD_OPEN_DOC_SEARCH
+  | CMD_KILL_LINE
+  | CMD_RELOAD_KEYBINDINGS
+  | CMD_DOC_FONT_INCREASE
+  | CMD_DOC_FONT_DECREASE
+  | CMD_SPLIT_TOGGLE
 
+fun cmd_code(k: Cmd): int
+fun cmd_of_code(n: int): Cmd
 fun is_cmd(a: Cmd, b: Cmd): bool
 
 datatype Letter =

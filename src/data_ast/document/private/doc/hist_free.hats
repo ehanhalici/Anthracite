@@ -21,9 +21,8 @@ fun hist_drop_oldest_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel),
     | ~HNil() => HNil()
     | ~HCons(b, c, rest) =>
         case+ rest of
-        | HNil() => let
+        | ~HNil() => let
             val () = buf_free(b)
-            val () = hist_free(rest)
           in
             HNil()
           end
@@ -61,11 +60,11 @@ datavtype Doc_ = DOC of @{
   gap= Buf, lines= Buf, nodes= Buf, lay= Buf, visual= Option_vt(VisualRows), media= Buf, anchors= Buf
 , uhist= Hist, rhist= Hist
 , lo= int, hi= int, len= int
-, caret= int, anchor= int
+, caret= int, anchor= int, cursor_active= int
 , nlines= int, nnodes= int, span= int
 , last_op= EditOp, typing_cnt= int, is_md= Toggle
 , ver= int, folds= Buf
-, flash_line= int, flash_time= lint, embed_level= int
+, flash_line= int, flash_start= int, flash_end= int, flash_time= lint, embed_level= int
 , pending_jump= int
 , view_start= int, view_finish= int, parse_generation= int
 , regions= Buf, hidden= Buf
@@ -79,32 +78,47 @@ implement doc_open() = DOC(@{
   gap= buf_make(DOC_OPEN_GAP_INITIAL_BYTES), lines= buf_make(64 * 4), nodes= buf_make(64 * AST_NODE_WORDS * 4), lay= layout_open(), visual= None_vt(), media= buf_make(0), anchors= buf_make(0)
 , uhist= HNil(), rhist= HNil()
 , lo= 0, hi= 256, len= 0
-, caret= 0, anchor= 0
+, caret= 0, anchor= 0, cursor_active= 0
 , nlines= 1, nnodes= 0, span= 0
 , last_op= OpNone, typing_cnt= 0, is_md= On
 , ver= 0, folds= buf_make(64 * 4)
-, flash_line= ~1, flash_time= 0L, embed_level= 0
+, flash_line= ~1, flash_start= 0, flash_end= 0, flash_time= 0L, embed_level= 0
 , pending_jump= ~1
 , view_start= 0, view_finish= ~1, parse_generation= 0
 , regions= buf_make(64 * 16), hidden= buf_make(DOC_OPEN_HIDDEN_INITIAL_BYTES)
 })
 
-implement doc_set_flash(d, line, until) =
+implement doc_set_flash_span(d, line, start, finish, until) =
   case+ d of
   | @DOC(s) => let
       val () = s.flash_line := line
+      val () = s.flash_start := start
+      val () = s.flash_end := finish
       val () = s.flash_time := until
     in
       fold@(d)
     end
 
-implement doc_get_flash(d, now) =
+implement doc_set_flash(d, line, until) =
+  doc_set_flash_span(d, line, 0, 0, until)
+
+implement doc_get_flash_span(d, now, out_st, out_en) =
   case+ d of
   | @DOC(s) => let
-      val res = (if ige(s.flash_line, 0) andalso now < s.flash_time then s.flash_line else ~1)
+      val ok = ige(s.flash_line, 0) andalso now < s.flash_time
+      val res = (if ok then s.flash_line else ~1)
+      val () = out_st := (if ok then s.flash_start else 0)
+      val () = out_en := (if ok then s.flash_end else 0)
     in
       fold@(d); res
     end
+
+implement doc_get_flash(d, now) = let
+  var st: int = 0
+  var en: int = 0
+in
+  doc_get_flash_span(d, now, st, en)
+end
 
 implement doc_is_md(d) =
   case+ d of
@@ -134,6 +148,22 @@ implement doc_set_embed_level(d, level) =
   case+ d of
   | @DOC(s) => let
       val () = s.embed_level := level
+    in
+      fold@(d)
+    end
+
+implement doc_cursor_active(d) =
+  case+ d of
+  | @DOC(s) => let
+      val v = ine(s.cursor_active, 0)
+    in
+      fold@(d); v
+    end
+
+implement doc_set_cursor_active(d, active) =
+  case+ d of
+  | @DOC(s) => let
+      val () = s.cursor_active := (if active then 1 else 0)
     in
       fold@(d)
     end

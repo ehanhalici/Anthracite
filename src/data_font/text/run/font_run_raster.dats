@@ -14,8 +14,11 @@ staload "data_font/text/run/private/font_run_work.sats"
 fun quad(f: !Font,r: !Rend,g: gmet,scale: GlyphScale,origin: FontRunPen,p: GlyphPosition,x: double,y: double,c: uint): int =
   if ieq(g.bw,0) orelse ieq(g.bh,0) then 0 else let
     val box=font_run_quad(origin,p,scale,g,x,y)
+    val snap = ieq(scale.xPpem,scale.yPpem) andalso x = n_floor(x) andalso y = n_floor(y)
+    val qx = if snap then n_floor(box.x + 0.5) else box.x
+    val qy = if snap then n_floor(box.y + 0.5) else box.y
     val aw=n_i2d(font_atlas_w(f)) and ah=n_i2d(font_atlas_h(f))
-    val ()=rend_quad_pixels(r,font_tex(f),ShadeAlpha(),box.x,box.y,box.w,box.h,
+    val ()=rend_quad_pixels(r,font_tex(f),ShadeAlpha(),qx,qy,box.w,box.h,
       n_i2d(g.x0)/aw,n_i2d(g.y0)/ah,n_i2d(iadd(g.x0,g.bw))/aw,n_i2d(iadd(g.y0,g.bh))/ah,c)
   in 1 end
 implement font_run_raster(f,r,face,glyph,scale,origin,p,x,y,c) = let

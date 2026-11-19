@@ -15,3 +15,9 @@ fun layout_cache_matches(layout: !Buf, version: int, key: int, mode: int): bool
 fun layout_cache_height(layout: !Buf): int
 fun layout_cache_store(layout: &Buf >> _, version: int, key: int, height: int, mode: int, wrap: int): void
 fun layout_wrap(layout: !Buf): int
+fun layout_raw_matches(layout: !Buf, raw0: int, raw1: int): bool
+fun layout_raw_store(layout: &Buf >> _, raw0: int, raw1: int): void
+(* Dirty line range: ~1/~2 when empty; layout_cache_store clears it. *)
+fun layout_dirty_first(layout: !Buf): int
+fun layout_dirty_last(layout: !Buf): int
+fun layout_mark_dirty(layout: &Buf >> _, first: int, last: int): void

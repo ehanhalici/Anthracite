@@ -39,7 +39,7 @@ end
 implement reserve(f, r, bw, bh, x, y) = let
   val slot=font_atlas_plan(f,bw,bh)
   val () = if slot.reset then reset_atlas(f,r) else ()
-  val () = font_set_pen_x(f, iadd(iadd(slot.x,bw),1))
+  val () = font_set_pen_x(f, iadd(iadd(slot.x,bw),2))
   val () = font_set_pen_y(f, slot.y)
   val () = font_set_row_h(f, slot.row)
   val () = x := slot.x

@@ -15,6 +15,10 @@ target_link_libraries(document_performance PRIVATE anthracite_host native_text_e
 add_executable(performance_counter_contracts EXCLUDE_FROM_ALL tests/performance/performance_counter_contracts.c)
 add_test(NAME performance_counter_contracts COMMAND performance_counter_contracts)
 add_test(NAME performance_summary_contracts COMMAND python3 "${CMAKE_SOURCE_DIR}/tests/performance/test_summarize.py")
+# Counter budgets need an X display (or Xvfb); skipped with code 77 otherwise.
+add_test(NAME performance_budgets COMMAND python3 "${CMAKE_SOURCE_DIR}/tests/performance/perf_budget.py"
+  "$<TARGET_FILE:document_performance>" "$<TARGET_FILE:search_performance>")
+set_tests_properties(performance_budgets PROPERTIES SKIP_RETURN_CODE 77 LABELS perf TIMEOUT 900)
 add_test(NAME font_temporary_ownership_type_error COMMAND "${CMAKE_COMMAND}"
   "-DPATSOPT=${ANTHRACITE_OT_PATSOPT}" "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
   -P "${CMAKE_SOURCE_DIR}/tests/contracts/expect_font_temporary_error.cmake")
@@ -105,6 +109,9 @@ add_test(NAME selftest_no_display COMMAND "${CMAKE_COMMAND}"
   "-DEXECUTABLE=$<TARGET_FILE:anthracite>" "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
   "-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}" -P "${CMAKE_SOURCE_DIR}/tests/runtime/verify_no_display.cmake")
 set_tests_properties(selftest_no_display PROPERTIES LABELS "runtime;negative" TIMEOUT 30)
+add_test(NAME single_instance_contracts COMMAND python3
+  "${CMAKE_SOURCE_DIR}/tests/runtime/verify_single_instance.py" "$<TARGET_FILE:anthracite>")
+set_tests_properties(single_instance_contracts PROPERTIES LABELS "runtime;negative" TIMEOUT 30)
 add_test(NAME graphics_selftest_failure COMMAND "${CMAKE_COMMAND}"
   "-DEXECUTABLE=$<TARGET_FILE:anthracite>" "-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}"
   -P "${CMAKE_SOURCE_DIR}/tests/runtime/verify_selftest_failure.cmake")
@@ -135,7 +142,7 @@ set_tests_properties(fold_callout_alinti PROPERTIES LABELS fold)
 anthracite_contract_test(workspace_contracts tests/workspace/workspace_contracts.dats)
 target_link_libraries(workspace_contracts PRIVATE anthracite_host native_text_engine
   ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
-foreach(mode image config document)
+foreach(mode image config document keymap history)
   add_test(NAME workspace_${mode}_contracts COMMAND "${CMAKE_COMMAND}"
     "-DEXECUTABLE=$<TARGET_FILE:workspace_contracts>" "-DMODE=${mode}"
     "-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}" -P "${CMAKE_SOURCE_DIR}/tests/workspace/run_isolated.cmake")
@@ -166,3 +173,28 @@ foreach(fixture IN LISTS jpeg_rejections)
   add_test(NAME jpeg_reject_${case} COMMAND image_oracle_contracts reject "${fixture}")
   set_tests_properties(jpeg_reject_${case} PROPERTIES LABELS "image;jpeg;negative" TIMEOUT 30)
 endforeach()
+
+# Allocator: correctness under cross-thread frees, and contention-free scaling
+# measured with per-thread hardware counters (perf label, skipped when busy).
+add_executable(arena_contracts EXCLUDE_FROM_ALL tests/runtime/arena_contracts.c)
+target_include_directories(arena_contracts PRIVATE "${CMAKE_SOURCE_DIR}/src")
+set_target_properties(arena_contracts PROPERTIES C_STANDARD 11)
+add_test(NAME arena_contracts COMMAND arena_contracts)
+set_tests_properties(arena_contracts PROPERTIES LABELS "runtime;tsan" TIMEOUT 600)
+add_test(NAME arena_scaling_contracts COMMAND arena_contracts --scaling)
+set_tests_properties(arena_scaling_contracts PROPERTIES LABELS perf SKIP_RETURN_CODE 77 RUN_SERIAL TRUE TIMEOUT 300)
+anthracite_contract_test(closed_tab_contracts tests/workspace/closed_tab_contracts.dats)
+target_link_libraries(closed_tab_contracts PRIVATE anthracite_host native_text_engine
+  ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
+add_test(NAME closed_tab_contracts COMMAND closed_tab_contracts)
+set_tests_properties(closed_tab_contracts PROPERTIES LABELS "document;tsan" TIMEOUT 120)
+# Parallel line shaping must equal sequential shaping for every worker count.
+anthracite_contract_test(parallel_wrap_contracts tests/workspace/parallel_wrap_contracts.dats)
+target_link_libraries(parallel_wrap_contracts PRIVATE anthracite_host native_text_engine
+  ${X11_LIBRARIES} ${OPENGL_LIBRARIES})
+add_test(NAME parallel_wrap_contracts COMMAND python3 "${CMAKE_SOURCE_DIR}/tests/workspace/parallel_wrap_driver.py"
+  "$<TARGET_FILE:parallel_wrap_contracts>")
+set_tests_properties(parallel_wrap_contracts PROPERTIES LABELS "graphics;tsan" SKIP_RETURN_CODE 77 RUN_SERIAL TRUE TIMEOUT 2400)
+add_test(NAME pool_scaling_contracts COMMAND python3 "${CMAKE_SOURCE_DIR}/tests/performance/pool_scaling_driver.py"
+  "$<TARGET_FILE:parallel_wrap_contracts>")
+set_tests_properties(pool_scaling_contracts PROPERTIES LABELS perf SKIP_RETURN_CODE 77 RUN_SERIAL TRUE TIMEOUT 900)

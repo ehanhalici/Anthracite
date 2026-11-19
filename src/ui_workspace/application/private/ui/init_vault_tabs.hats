@@ -1,21 +1,21 @@
 fun init_vault_tabs(
   vb: !Buf, f_vsel: Toggle, font_path: &Buf >> Buf,
-  out_fpx: &int >> int, out_vm: &int >> int, out_sp: &int >> int,
+  out_fpx: &int >> int, out_dfpx: &int >> int, out_vm: &int >> int, out_sp: &int >> int,
   out_act: &int >> int, out_righti: &int >> int,
   out_side_open: &int >> int, out_sidew: &int >> int,
   out_tab_pane: &Buf >> Buf, out_open_dirs: &Buf >> Buf
 ): Tabs =
   if ieq(buf_len(vb), 0) orelse is_on(f_vsel) then
-    init_vault_tabs_empty(out_fpx, out_vm, out_sp, out_act, out_righti, out_side_open, out_sidew, out_tab_pane, out_open_dirs)
+    init_vault_tabs_empty(out_fpx, out_dfpx, out_vm, out_sp, out_act, out_righti, out_side_open, out_sidew, out_tab_pane, out_open_dirs)
   else let
     val () = conf_set_active_vault(buffer_c_string(vb))
   in
-    load_vault_tabs(buffer_c_string(vb), font_path, out_fpx, out_vm, out_sp, out_act, out_righti, out_side_open, out_sidew, out_tab_pane, out_open_dirs)
+    load_vault_tabs(buffer_c_string(vb), font_path, out_fpx, out_dfpx, out_vm, out_sp, out_act, out_righti, out_side_open, out_sidew, out_tab_pane, out_open_dirs)
   end
 
 fun switch_vault_tabs(
   old_tabs: Tabs, target: string, font_path: &Buf >> Buf,
-  out_fpx: &int >> int, out_vm: &int >> int, out_sp: &int >> int,
+  out_fpx: &int >> int, out_dfpx: &int >> int, out_vm: &int >> int, out_sp: &int >> int,
   out_act: &int >> int, out_righti: &int >> int,
   out_side_open: &int >> int, out_sidew: &int >> int,
   out_tab_pane: &Buf >> Buf, out_open_dirs: &Buf >> Buf
@@ -23,7 +23,7 @@ fun switch_vault_tabs(
   val () = tabs_save_all_physical(old_tabs)
   val () = tabs_free(old_tabs)
 in
-  load_vault_tabs(target, font_path, out_fpx, out_vm, out_sp, out_act, out_righti, out_side_open, out_sidew, out_tab_pane, out_open_dirs)
+  load_vault_tabs(target, font_path, out_fpx, out_dfpx, out_vm, out_sp, out_act, out_righti, out_side_open, out_sidew, out_tab_pane, out_open_dirs)
 end
 
 fun vault_switch_begin(s: &App_record >> _, target: string): void = let
@@ -46,13 +46,14 @@ in
 end
 
 fun vault_switch_finish(
-  s: &App_record >> _, new_t: Tabs, fpx: int, vm: int, sp: int,
+  s: &App_record >> _, new_t: Tabs, fpx: int, dfpx: int, vm: int, sp: int,
   act: int, righti: int, side_open: int, sidew: int
 ): void = let
   val ph = s.tabs
   val () = s.tabs := new_t
   val () = tabs_free(ph)
   val () = s.fontpx := fpx
+  val () = s.doc_fontpx := dfpx
   val () = s.btnw := 0
   val () = s.viewmode := view_mode_of_code(vm)
   val () = s.split := toggle_of(ieq(sp, 1))
@@ -73,14 +74,17 @@ fun switch_to_vault(s: &App_record >> _, target: string): void = let
   val old_t = s.tabs
   val () = s.tabs := TNil()
   var n_fpx: int = 18
+  var n_dfpx: int = 18
   var n_vm: int = 0
   var n_sp: int = 0
   var n_act: int = 0
   var n_righti: int = 0
   var n_side_open: int = 1
   var n_sidew: int = UI_SIDEBAR_WIDTH
-  val new_t = switch_vault_tabs(old_t, target, s.font_path, n_fpx, n_vm, n_sp, n_act, n_righti, n_side_open, n_sidew, s.tab_pane, s.open_dirs)
-  val () = vault_switch_finish(s, new_t, n_fpx, n_vm, n_sp, n_act, n_righti, n_side_open, n_sidew)
+  val new_t = switch_vault_tabs(old_t, target, s.font_path, n_fpx, n_dfpx, n_vm, n_sp, n_act, n_righti, n_side_open, n_sidew, s.tab_pane, s.open_dirs)
+  val () = vault_switch_finish(s, new_t, n_fpx, n_dfpx, n_vm, n_sp, n_act, n_righti, n_side_open, n_sidew)
+  val () = tab_hist_free(s.tab_hists)
+  val () = s.tab_hists := tab_hist_sync(THNil(), s.tabs)
 in
 end
 
@@ -113,10 +117,43 @@ fun resolve_vault_buffer(vb: &Buf >> Buf, out_vsel: &int >> int): void =
     ()
   end
 
-fun pick_first_font(fpath: &Buf >> Buf, fpaths: !Buf, fmeta: !Buf, fcnt: int): void =
+fun font_byte_lower(b: int): int =
+  if ige(b, 65) andalso ile(b, 90) then iadd(b, 32) else b
+
+fun fname_has_regular_at(b: !Buf, off: int): bool =
+  ieq(font_byte_lower(buf_get(b, off)), 114) andalso
+  ieq(font_byte_lower(buf_get(b, iadd(off, 1))), 101) andalso
+  ieq(font_byte_lower(buf_get(b, iadd(off, 2))), 103) andalso
+  ieq(font_byte_lower(buf_get(b, iadd(off, 3))), 117) andalso
+  ieq(font_byte_lower(buf_get(b, iadd(off, 4))), 108) andalso
+  ieq(font_byte_lower(buf_get(b, iadd(off, 5))), 97) andalso
+  ieq(font_byte_lower(buf_get(b, iadd(off, 6))), 114)
+
+fun fname_has_regular_m {n:nat} .<n>. (
+  rem: int(n), b: !Buf, off: int, len: int, p: int
+): bool =
+  if rem = 0 then false
+  else if igt(iadd(p, 7), len) then false
+  else if fname_has_regular_at(b, iadd(off, p)) then true
+  else fname_has_regular_m(rem - 1, b, off, len, iadd(p, 1))
+
+fun pick_regular_font_idx_m {n:nat} .<n>. (
+  rem: int(n), fnames: !Buf, fmeta: !Buf, i: int
+): int =
+  if rem = 0 then 0
+  else let
+    val noff = buf_get32(fmeta, iadd(imul(i, 4), 2))
+    val nlen = buf_get32(fmeta, iadd(imul(i, 4), 3))
+    val ok = ige(nlen, 7) andalso fname_has_regular_m(airlock_nat(isub(nlen, 6)), fnames, noff, nlen, 0)
+  in
+    if ok then i else pick_regular_font_idx_m(rem - 1, fnames, fmeta, iadd(i, 1))
+  end
+
+fun pick_first_font(fpath: &Buf >> Buf, fnames: !Buf, fpaths: !Buf, fmeta: !Buf, fcnt: int): void =
   if ieq(buf_len(fpath), 0) andalso igt(fcnt, 0) then let
-    val poff = buf_get32(fmeta, 0)
-    val plen = buf_get32(fmeta, 1)
+    val sel = pick_regular_font_idx_m(airlock_nat(fcnt), fnames, fmeta, 0)
+    val poff = buf_get32(fmeta, imul(sel, 4))
+    val plen = buf_get32(fmeta, iadd(imul(sel, 4), 1))
     val () = buffer_append_range(fpath, fpaths, poff, iadd(poff, plen))
   in
     ()
@@ -152,48 +189,68 @@ in
 end
 
 fun open_init_session(
-  vb: !Buf, f_vsel: Toggle, fpaths: !Buf, fmeta: !Buf, fcnt: int,
+  vb: !Buf, f_vsel: Toggle, fnames: !Buf, fpaths: !Buf, fmeta: !Buf, fcnt: int,
   tab_pane: &Buf >> Buf, open_dirs: &Buf >> Buf
-): @(Tabs, Buf, int, int, int, int, int, int, int) = let
+): @(Tabs, Buf, int, int, int, int, int, int, int, int) = let
   var fpath = buf_make(OPEN_INIT_SESSION_FPATH_INITIAL_BYTES)
   var fpx: int = 18
+  var dfpx: int = 18
   var vmode: int = 0
   var sp: int = 0
   var act_idx: int = 0
   var right_idx: int = 0
   var side_open: int = 1
   var sidew: int = UI_SIDEBAR_WIDTH
-  val tabs = init_vault_tabs(vb, f_vsel, fpath, fpx, vmode, sp, act_idx, right_idx, side_open, sidew, tab_pane, open_dirs)
-  val () = pick_first_font(fpath, fpaths, fmeta, fcnt)
+  val tabs = init_vault_tabs(vb, f_vsel, fpath, fpx, dfpx, vmode, sp, act_idx, right_idx, side_open, sidew, tab_pane, open_dirs)
+  val _ = conf_load_prefs(fpath, fpx, dfpx, sidew)
+  val () = pick_first_font(fpath, fnames, fpaths, fmeta, fcnt)
 in
-  @(tabs, fpath, fpx, vmode, sp, act_idx, right_idx, side_open, sidew)
+  @(tabs, fpath, fpx, dfpx, vmode, sp, act_idx, right_idx, side_open, sidew)
 end
 
 fun app_record_make(
   vb: Buf, tabs: Tabs, fpaths: Buf, fnames: Buf, fmeta: Buf, fcnt: int,
   vpaths: Buf, vnames: Buf, vmeta: Buf, vcnt: int, tab_pane: Buf, open_dirs: Buf,
-  fpath: Buf, fpx: int, vmode: int, sp: int, act_idx: int, right_idx: int,
+  fpath: Buf, fpx: int, dfpx: int, vmode: int, sp: int, act_idx: int, right_idx: int,
   side_open: int, sidew: int, f_vsel: int
-): App_record = @{
-  vault= vb, tabs= tabs, cache= CNil(), active= act_idx, righti= right_idx, split= toggle_of(ieq(sp, 1)),
-  focus= Off, side= (if ieq(side_open, 1) then SideFiles else SideNone), fontpx= fpx, clip= buf_make(APP_RECORD_MAKE_CLIP_INITIAL_BYTES), menu= MenuNone, menux= 0, menuy= 0,
-  drag= DragNone, dragi= ~1, prompt= PromptNone, promptb= buf_make(APP_RECORD_MAKE_PROMPTB_INITIAL_BYTES), query= buf_make(APP_RECORD_MAKE_QUERY_INITIAL_BYTES), qfocus= Off,
-  tree= buf_make(APP_RECORD_MAKE_TREE_INITIAL_BYTES), tmeta= buf_make(APP_RECORD_MAKE_TMETA_INITIAL_BYTES), topen= buf_make(APP_RECORD_MAKE_TOPEN_INITIAL_BYTES), tn= 0, treescroll= 0, hits= buf_make(APP_RECORD_MAKE_HITS_INITIAL_BYTES),
-  hmeta= buf_make(APP_RECORD_MAKE_HMETA_INITIAL_BYTES), hn= 0, ixf= buf_make(APP_RECORD_MAKE_IXF_INITIAL_BYTES), ixs= buf_make(APP_RECORD_MAKE_IXS_INITIAL_BYTES), ixp= buf_make(APP_RECORD_MAKE_IXP_INITIAL_BYTES), ixb= buf_make(APP_RECORD_MAKE_IXB_INITIAL_BYTES),
-  ixq= buf_make(APP_RECORD_MAKE_IXQ_INITIAL_BYTES), hjump= buf_make(APP_RECORD_MAKE_HJUMP_INITIAL_BYTES), jump_line= ~1, jump_col= ~1, jump_fid= ~1, scope= 0,
-  hscroll= 0, search_state= 0, search_nfiles= 0,
+): App_record = let
+  val th = tab_hist_sync(THNil(), tabs)
+  var km = buf_make(2048)
+  val () = conf_load_keybindings(km)
+in @{
+  vault= vb, tabs= tabs, cache= CNil(), closed= ClosedNone(), active= act_idx, righti= right_idx, split= toggle_of(ieq(sp, 1)),
+  focus= Off, side= (if ieq(side_open, 1) then SideFiles else SideNone), fontpx= fpx, doc_fontpx= dfpx,
+  clip= buf_make(APP_RECORD_MAKE_CLIP_INITIAL_BYTES), menu= MenuNone, menux= 0, menuy= 0, drag= DragNone, dragi= ~1,
+  prompt= PromptNone, promptb= buf_make(APP_RECORD_MAKE_PROMPTB_INITIAL_BYTES),
+  query= buf_make(APP_RECORD_MAKE_QUERY_INITIAL_BYTES), qfocus= Off,
+  tree= buf_make(APP_RECORD_MAKE_TREE_INITIAL_BYTES), tmeta= buf_make(APP_RECORD_MAKE_TMETA_INITIAL_BYTES),
+  topen= buf_make(APP_RECORD_MAKE_TOPEN_INITIAL_BYTES), tn= 0, treescroll= 0,
+  hits= buf_make(APP_RECORD_MAKE_HITS_INITIAL_BYTES), hmeta= buf_make(APP_RECORD_MAKE_HMETA_INITIAL_BYTES), hn= 0,
+  ixf= buf_make(APP_RECORD_MAKE_IXF_INITIAL_BYTES), ixs= buf_make(APP_RECORD_MAKE_IXS_INITIAL_BYTES),
+  ixp= buf_make(APP_RECORD_MAKE_IXP_INITIAL_BYTES), ixb= buf_make(APP_RECORD_MAKE_IXB_INITIAL_BYTES),
+  ixq= buf_make(APP_RECORD_MAKE_IXQ_INITIAL_BYTES), hjump= buf_make(APP_RECORD_MAKE_HJUMP_INITIAL_BYTES),
+  jump_line= ~1, jump_col= ~1, jump_fid= ~1, scope= 0, hscroll= 0, search_state= 0, search_nfiles= 0,
   search_pattern= None_vt(), search_cursor= 0, search_document= 0,
-  search_source= @{document=the_null_ptr,generation= ~1},
-  search_skipped= false, search_catalog_ready= false, search_layout= search_geometry(18,UI_SIDEBAR_WIDTH,0),
-  sel= ~1, treedirty= On, paste= Off, hitk= KNone,
-  hiti= ~1, downx= ~1, downy= ~1, scratch= buf_make(APP_RECORD_MAKE_SCRATCH_INITIAL_BYTES), imgpath= buf_make(APP_RECORD_MAKE_IMGPATH_INITIAL_BYTES),
-  viewmode= view_mode_of_code(vmode), font_idx= 0, fpaths= fpaths, fnames= fnames, fmeta= fmeta,
-  fcnt= fcnt, font_path= fpath, vault_select= toggle_of(ieq(f_vsel, 1)), vpaths= vpaths, vnames= vnames,
-  vmeta= vmeta, vcnt= vcnt, hoverx= ~1, hovery= ~1, sidew= (if igt(sidew, 0) then sidew else UI_SIDEBAR_WIDTH), btnw= 0, modew= 0,
-  menuw= 0, preview_tab= ~1, last_tree_row= ~1, last_tree_time= 0L, tab_pane= tab_pane,
-  open_dirs= open_dirs, selected_search_row= ~1, flash_until_ns= 0L,
-  fsm= StateIdle()
-}
+  search_source= @{document=the_null_ptr, generation= ~1}, search_skipped= false, search_catalog_ready= false,
+  search_layout= search_geometry(18, UI_SIDEBAR_WIDTH, 0), sel= ~1, treedirty= On, paste= Off, hitk= KNone,
+  hiti= ~1, downx= ~1, downy= ~1, scratch= buf_make(APP_RECORD_MAKE_SCRATCH_INITIAL_BYTES),
+  imgpath= buf_make(APP_RECORD_MAKE_IMGPATH_INITIAL_BYTES), viewmode= view_mode_of_code(vmode), font_idx= 0,
+  fpaths= fpaths, fnames= fnames, fmeta= fmeta, fcnt= fcnt, font_path= fpath,
+  vault_select= toggle_of(ieq(f_vsel, 1)), vpaths= vpaths, vnames= vnames, vmeta= vmeta, vcnt= vcnt,
+  hoverx= ~1, hovery= ~1, sidew= (if igt(sidew, 0) then sidew else UI_SIDEBAR_WIDTH), btnw= 0, modew= 0,
+  menuw= 0, tb_h= UI_TOPBAR_HEIGHT, hdr_h= UI_PANE_HEADER_HEIGHT,
+  editor_focused= Off, cursor_pane= 0, click_was_raw= Off, click_ctrl= Off,
+  tree_flash_row= ~1, tree_flash_until_ns= 0L, tab_pane= tab_pane, open_dirs= open_dirs,
+  selected_search_row= ~1, flash_until_ns= 0L, fsm= StateIdle(), tab_hists= th, keymap= km,
+  chord_active= Off, chord_mods= 0, chord_key= 0, doc_h_left= 0, doc_h_right= 0, doc_vh= 600, doc_top_y= UI_DOC_TOP_Y,
+  scroll_drag_pane= 0, scroll_drag_grab_y= 0, pan_start_y= 0, pan_start_scroll= 0,
+  tree_drag_pending= Off, last_w= 1100, last_h= 720,
+  last_click_ns= 0L, last_click_x= ~1, last_click_y= ~1, last_click_pos= ~1, last_click_tab= ~1,
+  settings_open= Off, settings_tab= SetVault, settings_scroll= 0,
+  menu_var= MenuVarEditText, menu_sub= SubNone,
+  menu_sub_x= 0, menu_sub_y= 0, menu_sub_w= 200,
+  menu_tree_idx= ~1, paste_plain= Off
+} end
 
 fun app_fsm_step(s: &App_record >> _, act: EditorAction): void = let
   val next_st = editor_fsm_step(s.fsm, act)
@@ -209,11 +266,11 @@ implement app_open(vault) = let
   val @(vpaths, vnames, vmeta, vcnt) = open_scan_vaults()
   var tab_pane = buf_make(APP_OPEN_TAB_PANE_INITIAL_BYTES)
   var open_dirs = buf_make(APP_OPEN_OPEN_DIRS_INITIAL_BYTES)
-  val @(tabs, fpath, fpx, vmode, sp, act_idx, right_idx, side_open, sidew) =
-    open_init_session(vb, toggle_of(ieq(f_vsel, 1)), fpaths, fmeta, fcnt, tab_pane, open_dirs)
+  val @(tabs, fpath, fpx, dfpx, vmode, sp, act_idx, right_idx, side_open, sidew) =
+    open_init_session(vb, toggle_of(ieq(f_vsel, 1)), fnames, fpaths, fmeta, fcnt, tab_pane, open_dirs)
   val r = app_record_make(
     vb, tabs, fpaths, fnames, fmeta, fcnt, vpaths, vnames, vmeta, vcnt,
-    tab_pane, open_dirs, fpath, fpx, vmode, sp, act_idx, right_idx,
+    tab_pane, open_dirs, fpath, fpx, dfpx, vmode, sp, act_idx, right_idx,
     side_open, sidew, f_vsel
   )
 in

@@ -21,4 +21,6 @@ fun property_serialized_value_valid{kind:int}(domain: PropertyDomain(kind),value
 fun property_load{kind:int}(path: string, domain: PropertyDomain(kind)): PropertyLoad(kind)
 fun property_parse{kind:int}(bytes: Buf, domain: PropertyDomain(kind)): PropertyLoad(kind)
 fun property_value{kind:int}(map: !PropertyMap(kind), cp: int): int
+(* Contract check: dense entries equal the binary search for every dense scalar. *)
+fun property_dense_match{kind:int}(map: !PropertyMap(kind)): bool
 fun property_dispose{kind:int}(map: PropertyMap(kind)): void

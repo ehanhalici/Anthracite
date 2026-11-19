@@ -4,6 +4,7 @@
 #define GL_GLEXT_PROTOTYPES 1
 #include <GL/gl.h>
 #include <stdint.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -59,6 +60,37 @@ static const char *anth_blur_fs_src =
   "  frag = v_col * (sum / 81.0);\n"
   "}\n";
 
+static const char *anth_rect_fs_src =
+  "#version 330 core\n"
+  "in vec4 v_col;\n"
+  "in vec2 v_uv;\n"
+  "uniform vec2 u_size;\n"
+  "uniform vec4 u_radii;\n"
+  "uniform vec4 u_border_col;\n"
+  "uniform vec4 u_params;\n"
+  "out vec4 frag;\n"
+  "void main() {\n"
+  "  vec2 half_sz = 0.5 * u_size;\n"
+  "  vec2 p = v_uv - half_sz;\n"
+  "  float r_top = (p.x < 0.0) ? u_radii.x : u_radii.y;\n"
+  "  float r_bot = (p.x < 0.0) ? u_radii.w : u_radii.z;\n"
+  "  float rad = clamp((p.y < 0.0) ? r_top : r_bot, 0.0, min(half_sz.x, half_sz.y));\n"
+  "  vec2 q = abs(p) - (half_sz - vec2(rad));\n"
+  "  float sdf = length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - rad;\n"
+  "  float soft = u_params.y;\n"
+  "  float outer_a = (soft <= 1.0) ? (1.0 - smoothstep(-0.5, 0.5, sdf)) : (1.0 - smoothstep(-0.5 * soft, soft, sdf));\n"
+  "  float bth = u_params.x;\n"
+  "  if (bth > 0.0) {\n"
+  "    float inner_a = 1.0 - smoothstep(-bth - 0.5, -bth + 0.5, sdf);\n"
+  "    float ba = clamp(1.0 - inner_a, 0.0, 1.0) * u_border_col.a;\n"
+  "    float out_a = ba + v_col.a * (1.0 - ba);\n"
+  "    vec3 out_rgb = (out_a > 0.0001) ? ((u_border_col.rgb * ba + v_col.rgb * v_col.a * (1.0 - ba)) / out_a) : vec3(0.0);\n"
+  "    frag = vec4(out_rgb, out_a * outer_a);\n"
+  "  } else {\n"
+  "    frag = vec4(v_col.rgb, v_col.a * outer_a);\n"
+  "  }\n"
+  "}\n";
+
 static unsigned anth_compile(GLenum type, const char *src) {
   GLuint s = glCreateShader(type);
   glShaderSource(s, 1, &src, 0);
@@ -100,6 +132,10 @@ static inline unsigned anth_make_blur_program(void) {
   return anth_link_program(anth_blur_fs_src);
 }
 
+static inline unsigned anth_make_rect_program(void) {
+  return anth_link_program(anth_rect_fs_src);
+}
+
 static inline int anth_uloc(unsigned prog, const char *name) {
   return glGetUniformLocation(prog, name);
 }
@@ -120,30 +156,38 @@ static inline unsigned col_rgba(int r, int g, int b, int a) {
           (unsigned)(a & 255));
 }
 
-static inline unsigned col_bg(void) { return 0x141516FFu; }
-static inline unsigned col_bar(void) { return 0x1E2024FFu; }
-static inline unsigned col_side(void) { return 0x18191CFFu; }
-static inline unsigned col_text(void) { return 0xE6E1D8FFu; }
+static inline unsigned col_bg(void) { return 0x181818FFu; }
+static inline unsigned col_bar(void) { return 0x141416FFu; }
+static inline unsigned col_side(void) { return 0x1C1C1FFFu; }
+static inline unsigned col_surface(void) { return 0x222226FFu; }
+static inline unsigned col_surface_hi(void) { return 0x2B2D35FFu; }
+static inline unsigned col_tab_hover(void) { return 0x1F2127FFu; }
+static inline unsigned col_text(void) { return 0xDCDDDEFFu; }
 static inline unsigned col_white(void) { return 0xFFFFFFFFu; }
-static inline unsigned col_muted(void) { return 0x8E8A84FFu; }
-static inline unsigned col_accent(void) { return 0xC4B8A5FFu; }
-static inline unsigned col_heading(void) { return 0xF4F1EAFFu; }
-static inline unsigned col_link(void) { return 0x58A6FFFFu; }
-static inline unsigned col_code(void) { return 0xD7C4A3FFu; }
-static inline unsigned col_codebg(void) { return 0x24262BFFu; }
-static inline unsigned col_quote(void) { return 0xA8B39CFFu; }
-static inline unsigned col_tag(void) { return 0xD7A36AFFu; }
-static inline unsigned col_highbg(void) { return 0x4A4332FFu; }
-static inline unsigned col_hightxt(void) { return 0xF0E6C8FFu; }
-static inline unsigned col_math(void) { return 0xC9B6D9FFu; }
-static inline unsigned col_caret(void) { return 0xF2EDE4FFu; }
-static inline unsigned col_sel(void) { return 0x3A4A5CFFu; }
-static inline unsigned col_line(void) { return 0x2C2E33FFu; }
-static inline unsigned col_task(void) { return 0x9BB8A0FFu; }
-static inline unsigned col_fm(void) { return 0x6E6A64FFu; }
-static inline unsigned col_menu(void) { return 0x2A2C31FFu; }
-static inline unsigned col_danger(void) { return 0xC47A6AFFu; }
-static inline unsigned col_overlay(void) { return 0x0A0C10D8u; }
+static inline unsigned col_muted(void) { return 0x94969BFFu; }
+static inline unsigned col_accent(void) { return 0x2C5594FFu; }
+static inline unsigned col_accent_hi(void) { return 0x6B9CE8FFu; }
+static inline unsigned col_accent_soft(void) { return 0x24457A55u; }
+static inline unsigned col_heading(void) { return 0xF2F3F5FFu; }
+static inline unsigned col_link(void) { return 0xA882FFFFu; }
+static inline unsigned col_code(void) { return 0xE0C285FFu; }
+static inline unsigned col_codebg(void) { return 0x1F2024FFu; }
+static inline unsigned col_quote(void) { return 0x9BA3B0FFu; }
+static inline unsigned col_tag(void) { return 0xA882FFFFu; }
+static inline unsigned col_highbg(void) { return 0xEAB30844u; }
+static inline unsigned col_hightxt(void) { return 0xF6F0D8FFu; }
+static inline unsigned col_math(void) { return 0xC8B4F8FFu; }
+static inline unsigned col_caret(void) { return 0xA882FFFFu; }
+static inline unsigned col_sel(void) { return 0x3E3762FFu; }
+static inline unsigned col_line(void) { return 0x2A2B30FFu; }
+static inline unsigned col_task(void) { return 0x7F6DF2FFu; }
+static inline unsigned col_fm(void) { return 0x7C7E85FFu; }
+static inline unsigned col_menu(void) { return 0x1B1C20F2u; }
+static inline unsigned col_danger(void) { return 0xE55B65FFu; }
+static inline unsigned col_danger_soft(void) { return 0xE55B6528u; }
+static inline unsigned col_overlay(void) { return 0x0B0B0ED0u; }
+static inline unsigned col_tree_guide(void) { return 0x28292EFFu; }
+static inline unsigned col_scroll_thumb(void) { return 0xFFFFFF38u; }
 
 /* GNU Unifont 17.0.04, SIL Open Font License 1.1 and GPLv2+ with the font exception.
    Packed from the upstream BDF; glyphs are not redrawn here. */
@@ -156,15 +200,16 @@ typedef struct {
 static anth_uf *anth_uf_tab;
 static int anth_uf_n;
 
-static void anth_uf_load(void) {
-  static int tried;
+/* Loaded once per process; workers may measure bitmap-fallback widths too. */
+static void anth_uf_load_once(void);
+static pthread_once_t anth_uf_once = PTHREAD_ONCE_INIT;
+static void anth_uf_load(void) { pthread_once(&anth_uf_once, anth_uf_load_once); }
+static void anth_uf_load_once(void) {
   const char *path;
   FILE *f;
   char magic[4];
   uint32_t ver = 0, n = 0;
   anth_uf *tab;
-  if (tried) return;
-  tried = 1;
 #ifndef ANTHRACITE_UNIFONT
 #define ANTHRACITE_UNIFONT "src/data_font/unifont.bin"
 #endif

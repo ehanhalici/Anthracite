@@ -34,10 +34,10 @@ fun append_scalar(text: &Buf >> _,starts: &Buf >> _,ends: &Buf >> _,cp: int,star
   val base=if ieq(size,1) then 0 else if ieq(size,2) then UTF8_TWO_BYTE_BASE
     else if ieq(size,3) then UTF8_THREE_BYTE_BASE else UTF8_FOUR_BYTE_BASE
   val ()=append_byte(text,starts,ends,iadd(base,idiv(cp,divisor)),start,finish)
-in continuation(airlock_nat(isub(size,1)),text,starts,ends,cp,idiv(divisor,UTF8_CONTINUATION_RADIX),start,finish) end
+in continuation(airlock_nat(imax(0,isub(size,1))),text,starts,ends,cp,idiv(divisor,UTF8_CONTINUATION_RADIX),start,finish) end
 fun fold{n:nat} .<n>. (left: int(n),table: !Buf,source: !Buf,p: int,length: int,
   text: &Buf >> _,starts: &Buf >> _,ends: &Buf >> _): void =
-  if ige(p,length) then () else if not(recursion_fuel_available(left)) then () else let
+  if ige(p,length) then () else if left = 0 then () else let
     val unit=utf8_unit(utf8_step(source,length,p),p)
     val ()=append_scalar(text,starts,ends,literal_case_lookup(table,unit.cp),p,unit.next)
   in fold(left-1,table,source,unit.next,length,text,starts,ends) end

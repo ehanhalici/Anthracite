@@ -19,8 +19,11 @@ if [ ! -d "${TMPDIR:-}" ]; then
 fi
 
 mkdir -p build
-cmake -S . -B build \
-  -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
-  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-cmake --build build --parallel
+CACHE_FILE="build/CMakeCache.txt"
+if [ ! -f "$CACHE_FILE" ] || ! grep -q "^CMAKE_BUILD_TYPE:STRING=${BUILD_TYPE}$" "$CACHE_FILE"; then
+  cmake -S . -B build \
+    -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+fi
+cmake --build build --target anthracite --parallel
 exec ./build/anthracite "$@"

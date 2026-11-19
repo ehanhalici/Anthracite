@@ -2,23 +2,6 @@
 #define ANTH_MEM_CATS
 
 #include <string.h>
-
-static int anth_allocs = 0;
-static int anth_frees = 0;
-static int anth_live = 0;
-
-static inline void anth_mem_alloc(int n) {
-  anth_allocs += 1;
-  anth_live += n;
-}
-
-static inline void anth_mem_free(int n) {
-  anth_frees += 1;
-  anth_live -= n;
-}
-
-static inline int anth_mem_live(void) { return anth_live; }
-
 static inline int anth_mem_byte(const void *p, int n, int i) {
   if (!p || i < 0 || i >= n) return 0;
   return ((const unsigned char *)p)[i];

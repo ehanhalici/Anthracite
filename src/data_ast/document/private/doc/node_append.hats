@@ -78,13 +78,16 @@ implement doc_ver(d) = d_ver(d)
 
 implement doc_layout_version(d) = d_ver(d)
 
-implement doc_layout_cache_match(d, version, key, mode) =
+implement doc_layout_cache_match(d, version, key, mode) = let
+  val @(r0, r1) = doc_raw_lines(d, mode)
+in
   case+ d of
   | @DOC(s) => let
-      val hit = layout_cache_matches(s.lay, version, key, mode)
+      val hit = layout_cache_matches(s.lay, version, key, mode) andalso layout_raw_matches(s.lay, r0, r1)
     in
       fold@(d); hit
     end
+end
 
 implement doc_layout_cache_height(d) =
   case+ d of
@@ -94,13 +97,17 @@ implement doc_layout_cache_height(d) =
       fold@(d); height
     end
 
-implement doc_layout_cache_store(d, version, key, height, mode, wrap) =
+implement doc_layout_cache_store(d, version, key, height, mode, wrap) = let
+  val @(r0, r1) = doc_raw_lines(d, mode)
+in
   case+ d of
   | @DOC(s) => let
       val () = layout_cache_store(s.lay, version, key, height, mode, wrap)
+      val () = layout_raw_store(s.lay, r0, r1)
     in
       fold@(d)
     end
+end
 
 implement doc_layout_cached_wrap(d) =
   case+ d of
@@ -199,3 +206,19 @@ fun node_block_rank(k: NodeKind): int =
   else if is_kind(k, KLi) then 2
   else if is_kind(k, KPara) then 1
   else 0
+
+implement doc_layout_mark_rows(d, first, last) =
+  case+ d of
+  | @DOC(s) => let
+      val () = layout_mark_dirty(s.lay, first, last)
+    in
+      fold@(d)
+    end
+
+implement doc_layout_dirty_rows(d) =
+  case+ d of
+  | @DOC(s) => let
+      val range = @(layout_dirty_first(s.lay), layout_dirty_last(s.lay))
+    in
+      fold@(d); range
+    end

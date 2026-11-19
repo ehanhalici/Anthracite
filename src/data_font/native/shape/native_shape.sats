@@ -12,6 +12,12 @@ fun native_shape_cache_parse(b: !Buf,info: SfntInfo,font: int): NativeShapeCache
 fun native_shape_cache_dispose(cache: NativeShapeCache): void
 fun native_shape_plan_parse(b: !Buf,cache: !NativeShapeCache,request: OtShapeRequest,masks: OtShapeMasks): NativeShapePlanRead
 fun native_shape_plan_dispose(plan: NativeShapePlan): void
+(* Plan cache: take a plan equal to (request, masks) from the face cache or parse
+   one; give it back with native_shape_plan_keep after shaping. *)
+fun native_shape_plan_take(b: !Buf,cache: !NativeShapeCache,request: OtShapeRequest,masks: OtShapeMasks): NativeShapePlanRead
+fun native_shape_plan_keep(cache: !NativeShapeCache,plan: NativeShapePlan): void
+fun native_shape_plans_dispose(plans: NativePlanCache): void
+fun native_shape_plans_count(cache: !NativeShapeCache): int
 fun native_shape_text_parse(b: !Buf,info: SfntInfo,plan: !NativeShapePlan,normalization: !NormalizationData,
   mcm: !PropertyMap(9),source: !ScalarText): NativeShapeTextRead
 fun native_shape_text_dispose(text: NativeShapeText): void

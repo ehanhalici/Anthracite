@@ -19,5 +19,9 @@
 #define UNICODE_REPLACEMENT_SCALAR 65533
 #define UNICODE_SURROGATE_START 55296
 #define UNICODE_SURROGATE_LIMIT 57344
+/* Loaded Unicode range tables also keep one entry per scalar below this limit
+   (Latin, Greek, Cyrillic, Hebrew, Arabic) after their data, so the common
+   lookup is one read instead of a binary search. */
+#define UNICODE_DENSE_SCALARS 2048
 
 #endif

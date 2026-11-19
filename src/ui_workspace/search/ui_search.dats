@@ -29,11 +29,15 @@ staload "search/ix_match.sats"
 staload "search/literal/literal_search.sats"
 staload "search/results/search_results.sats"
 staload "core_runtime/text_engine_startup.sats"
+staload "search/parallel/search_parallel.sats"
+staload "core_runtime/workers.sats"
 
-implement literal_pattern_open_default(query) = let
-  val location=workspace_text_location() var path=buf_make(0)
+implement search_case_map_path(path) = let
+  val location=workspace_text_location()
   val ()=buffer_append_string(path,location.generated)
-  val ()=buffer_append_string(path,"/search-case-map.bin")
+in buffer_append_string(path,"/search-case-map.bin") end
+implement literal_pattern_open_default(query) = let
+  var path=buf_make(0) val ()=search_case_map_path(path)
   val result=literal_pattern_open(query,buffer_c_string(path)) val ()=buf_free(path)
 in result end
 
@@ -46,17 +50,42 @@ fun refresh_files{n:nat} .<n>. (left: int(n),files: !Buf,paths: !Buf,pattern: !L
     var path=buf_make(length) val ()=buffer_append_range(path,paths,off,iadd(off,length))
     val result=search_append_file(path,tabs,pattern,file,hits,meta,jumps,rows) val ()=buf_free(path)
   in refresh_files(left-1,files,paths,pattern,tabs,iadd(file,1),hits,meta,jumps,rows) end
-fun refresh_pattern(pattern: LiteralPattern,vault: !Buf,hits: &Buf >> _,meta: &Buf >> _,rows: &int >> _): void = let
+extern fun pause_microseconds(us: int): int = "mac#usleep"
+macdef SEARCH_PARALLEL_POLL_MICROSECONDS = 50
+macdef SEARCH_PARALLEL_POLL_LIMIT = 2000000
+(* Waits for the workers (bounded: about 100 s), merging as chunks finish. *)
+fun refresh_parallel{n:nat} .<n>. (left: int(n),files: !Buf,paths: !Buf,query: !Buf,map: !Buf,tabs: !Tabs,
+  pattern: !LiteralPattern,hits: &Buf >> _,meta: &Buf >> _,jumps: &Buf >> _,rows: &int >> _): void =
+  if left = 0 then search_parallel_cancel() else let
+    val step=search_parallel_step(files,paths,query,map,tabs,pattern,hits,meta,jumps,rows)
+  in if step.done then () else let val _=pause_microseconds(SEARCH_PARALLEL_POLL_MICROSECONDS)
+    in refresh_parallel(left-1,files,paths,query,map,tabs,pattern,hits,meta,jumps,rows) end end
+fun settle{n:nat} .<n>. (left: int(n)): void =
+  if left = 0 then () else if ile(search_inflight(),0) then () else let
+    val ()=search_parallel_settle() val _=pause_microseconds(SEARCH_PARALLEL_POLL_MICROSECONDS)
+  in settle(left-1) end
+fun refresh_all(files: !Buf,paths: !Buf,query: !Buf,tabs: !Tabs,pattern: !LiteralPattern,
+  hits: &Buf >> _,meta: &Buf >> _,jumps: &Buf >> _,rows: &int >> _): void =
+  if search_parallel_available() then let
+    var map=buf_make(0) val ()=search_case_map_path(map)
+    val ()=search_parallel_begin(files)
+    val ()=refresh_parallel(airlock_nat(SEARCH_PARALLEL_POLL_LIMIT),files,paths,query,map,tabs,pattern,hits,meta,jumps,rows)
+    (* A run cut short by the row limit still has chunks on workers: wait for
+       them so this call returns with nothing of its own left in flight. *)
+    val ()=settle(airlock_nat(SEARCH_PARALLEL_POLL_LIMIT))
+  in buf_free(map) end
+  else refresh_files(airlock_nat(ix_file_count(files)),files,paths,pattern,tabs,0,hits,meta,jumps,rows)
+fun refresh_pattern(pattern: LiteralPattern,query: !Buf,vault: !Buf,hits: &Buf >> _,meta: &Buf >> _,rows: &int >> _): void = let
   var files=buf_make(0) var paths=buf_make(0) var jumps=buf_make(0) var truncated: int=0
   val ()=ix_walk_vault(vault,files,paths,truncated) val tabs=TNil()
-  val ()=refresh_files(airlock_nat(ix_file_count(files)),files,paths,pattern,tabs,0,hits,meta,jumps,rows)
+  val ()=refresh_all(files,paths,query,tabs,pattern,hits,meta,jumps,rows)
   val ()=tabs_free(tabs) val ()=literal_pattern_free(pattern)
   val ()=buf_free(files) val ()=buf_free(paths)
 in buf_free(jumps) end
 implement refresh_search(vault,q,hits,meta,rows) = let
   val ()=buffer_clear(hits) val ()=buffer_clear(meta) val ()=rows := 0
 in if ieq(buf_len(q),0) then () else case+ literal_pattern_open_default(q) of
-  | ~None_vt() => () | ~Some_vt(pattern) => refresh_pattern(pattern,vault,hits,meta,rows) end
+  | ~None_vt() => () | ~Some_vt(pattern) => refresh_pattern(pattern,q,vault,hits,meta,rows) end
 
 implement search_dir(path, q, hits, hmeta, hn, depth) =
   refresh_search(path, q, hits, hmeta, hn)

@@ -8,6 +8,7 @@ fun fs_atomic_write(path: string, buf: ptr, n: int): int = "mac#anth_atomic_writ
 fun fs_close(fd: int): void = "mac#anth_close"
 fun fs_size(path: string): int = "mac#anth_size"
 fun fs_mtime(path: string): int = "mac#anth_mtime"
+fun fs_size_mtime(path: string, mtime: &int >> _): int = "mac#anth_size_mtime"
 typedef FileStamp = @{exists=bool,seconds=lint,nanoseconds=int,length=lint,device=ullint,inode=ullint}
 fun fs_stat_stamp_raw(path: string,seconds: &lint >> _,nanoseconds: &int >> _,length: &lint >> _,
   device: &ullint >> _,inode: &ullint >> _): int = "mac#anth_stat_stamp"
@@ -20,8 +21,12 @@ fun fs_make_temp_dir(dst: ptr, capacity_bytes: int): int = "mac#anth_make_temp_d
 fun fs_rename(a: string, b: string): int = "mac#rename"
 fun fs_unlink(path: string): int = "mac#unlink"
 fun fs_rmdir(path: string): int = "mac#rmdir"
+fun fs_remove_tree(path: string): void = "mac#anth_remove_tree"
+fun fs_copy_file(src: string, dst: string): int = "mac#anth_copy_file"
 fun fs_vfs_path(path: string, dst: ptr, dstmax: int): void = "mac#anth_vfs_path"
 fun fs_open_url(url: string): void = "mac#anth_open_url"
+fun fs_instance_lock(path: string, owner_pid: &int >> _): int = "mac#anth_instance_lock"
+fun fs_instance_unlock(fd: int): void = "mac#anth_instance_unlock"
 
 fun dir_open(path: string): ptr = "mac#opendir"
 fun dir_close(d: ptr): void = "mac#anth_dirclose"

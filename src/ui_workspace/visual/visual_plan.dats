@@ -32,7 +32,9 @@ fun fresh(f: !Font,rows: !VisualRows,index: int,scratch: &Buf >> _): FontSpanRea
   val paragraph=visual_paragraph_take(plans,row.line)
 in case+ paragraph of | ~None_vt() => fallback(f,rows,index,scratch)
   | ~Some_vt(analysis) => from_paragraph(f,rows,index,analysis) end
-fun ready(status: FontRunStatus): bool = case+ status of | FontRunReady() => true | _ => false
+fun ready(status: FontRunStatus): bool = case+ status of
+  | FontRunReady() => true | FontRunFace() => false | FontRunScale() => false
+  | FontRunOverflow() => false | FontRunRaster() => false | FontRunGraph() => false
 fun acquire(f: !Font,rows: !VisualRows,index: int,scratch: &Buf >> _): FontSpanRead = let
   val+ VisualRows(text,map,lines,data,count,key,plans)=rows val cached=visual_plans_take(plans,index)
 in case+ cached of | ~None_vt() => fresh(f,rows,index,scratch)
@@ -43,7 +45,7 @@ fun base_x(layout: !FontSpanLayout,row: VisualRow,width: int,colx: int): int =
 fun painted(f: !Font,r: !Rend,rows: !VisualRows,index: int,layout: FontSpanLayout,paint: TextPaint,colx: int,y: int,color: uint): int = let
   val+ VisualRows(text,map,lines,data,count,key,plans)=rows val row=visual_rows_at(rows,index)
   val x=base_x(layout,row,key.width,colx)
-  val baseline=if paint.selection then y else iadd(y,key.ascent)
+  val baseline=if paint.selection then y else iadd(y,row.ascent)
   val status=font_span_paint(f,r,layout,paint,n_i2d(x),n_i2d(baseline),color)
   val units=font_span_width(layout)
   val pixels=iadd(idiv(units,SHAPE_UNITS_PER_PIXEL),if ieq(imod(units,SHAPE_UNITS_PER_PIXEL),0) then 0 else 1)

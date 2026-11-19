@@ -51,12 +51,14 @@ implement key_id(k) = case+ k of
 
 implement button_of(n) =
   if n = 1 then BtnLeft
+  else if n = 2 then BtnMiddle
   else if n = 3 then BtnRight
   else if n = 4 then BtnWheelUp
   else BtnOther
 
 fun btn_code(k: Btn): int = case+ k of
   | BtnLeft() => 1
+  | BtnMiddle() => 2
   | BtnRight() => 3
   | BtnWheelUp() => 4
   | BtnOther() => 0

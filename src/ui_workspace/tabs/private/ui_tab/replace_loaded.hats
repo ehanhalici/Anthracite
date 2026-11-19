@@ -1,6 +1,6 @@
 fun replace_loaded(ts: Tabs, idx: int, doc: Doc, path: Buf): Tabs = let
   var title = buf_make(REPLACE_LOADED_TITLE_INITIAL_BYTES)
-  val () = base_name(path, title)
+  val () = base_name_no_md(path, title)
 in
   tabs_replace(ts, idx, doc, path, title)
 end
@@ -189,26 +189,27 @@ fun tabs_toggle_task_impl(ts: Tabs, idx: int, ni: int): Tabs = tabs_toggle_task_
 
 implement tabs_toggle_task(ts, idx, ni) = tabs_toggle_task_impl(ts, idx, ni)
 
-fun doc_jump_loc(d: !Doc, line: int, col: int): void = let
+fun doc_jump_loc(d: !Doc, line: int, col: int, mlen: int): void = let
   val target=imin(imax(0,line),imax(0,isub(doc_nlines(d),1)))
   val ls = doc_line_start(d, target)
   val finish=if ilt(iadd(target,1),doc_nlines(d)) then doc_line_start(d,iadd(target,1)) else doc_len(d)
   val caret = iadd(ls,imin(imax(0,isub(finish,ls)),imax(0,col)))
+  val mend = iadd(caret,imin(imax(0,isub(finish,caret)),imax(0,mlen)))
   val () = doc_reveal(d, caret)
   val () = doc_set_caret_move(d, caret)
   val () = doc_request_jump(d,target)
-  val () = doc_set_flash(d,target,mono_ns()+UI_NAVIGATION_FLASH_NS)
+  val () = doc_set_flash_span(d,target,caret,mend,mono_ns()+UI_NAVIGATION_FLASH_NS)
 in
 end
 
-fun tabs_jump_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, line: int, col: int): Tabs =
+fun tabs_jump_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, line: int, col: int, mlen: int): Tabs =
   if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) => let
-        val () = if ieq(idx, 0) andalso ige(line, 0) then doc_jump_loc(doc, line, col) else ()
+        val () = if ieq(idx, 0) andalso ige(line, 0) then doc_jump_loc(doc, line, col, mlen) else ()
       in
         if ieq(idx, 0) then TCons(doc, path, title, sc, rest)
-        else TCons(doc, path, title, sc, tabs_jump_with_fuel(recfuel - 1, rest, isub(idx, 1), line, col))
+        else TCons(doc, path, title, sc, tabs_jump_with_fuel(recfuel - 1, rest, isub(idx, 1), line, col, mlen))
       end
   ) else ts

@@ -15,9 +15,14 @@ fun with_emoji(map: !PropertyMap(4),width: !PropertyMap(5),category: !PropertyMa
   | ~UnicodeLoaded(db) => let
     val units=line_contract_units(map,width,category,db)
     val stress=line_contract_stress(map,width,category,db)
+    val d1: int=if property_dense_match(map) then 0 else 1
+    val d2: int=if property_dense_match(width) then 0 else 1
+    val d3: int=if property_dense_match(category) then 0 else 1
+    val d4: int=if unicode_properties_dense_match(db) then 0 else 1
+    val dense=iadd(iadd(d1,d2),iadd(d3,d4))
     val ()=unicode_dispose(db)
-    val ()=println!("event=line_contracts units=15 errors=",units+stress)
-  in units+stress end
+    val ()=println!("event=line_contracts units=15 errors=",units+stress," dense_errors=",dense)
+  in units+stress+dense end
 
 fun with_category(map: !PropertyMap(4),width: !PropertyMap(5)): int =
   case+ property_load(c_argv(3),CategoryProperty()) of

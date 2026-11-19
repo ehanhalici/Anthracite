@@ -32,9 +32,12 @@ implement ui_draw_border(r, x, y, w, h, th, col) =
   end
 
 implement ui_draw_shadow(r, x, y, w, h, rad) = let
-  val () = rend_rect(r, isub(x, 2), iadd(y, 2), iadd(w, 4), iadd(h, 4), col_rgba(0, 0, 0, SHADOW_ALPHA_OUTER))
-  val () = rend_rect(r, isub(x, 1), iadd(y, 2), iadd(w, 2), iadd(h, 2), col_rgba(0, 0, 0, SHADOW_ALPHA_MID))
-  val () = rend_rect(r, x, iadd(y, 2), w, h, col_rgba(0, 0, 0, SHADOW_ALPHA_INNER))
+  val soft = imax(8, imul(rad, 2))
+  val tr = col_rgba(0, 0, 0, 0)
+  val () = rend_rrect_ex(r, x, iadd(y, 4), w, h, rad, rad, rad, rad,
+    col_rgba(0, 0, 0, 88), col_rgba(0, 0, 0, 88), 0, tr, soft)
+  val () = rend_rrect_ex(r, x, iadd(y, 1), w, h, rad, rad, rad, rad,
+    col_rgba(0, 0, 0, 40), col_rgba(0, 0, 0, 40), 0, tr, imax(4, rad))
 in
 end
 
@@ -50,8 +53,39 @@ fun arrow_right_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), r: !
     end else ()
   ) else arrow_right_fuel_exhausted(r, x, y, sz, col, i, steps)
 
+fun chevron_right_with_fuel {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int
+): void =
+  if recursion_fuel_available(recfuel) then (
+    if ilt(i, steps) then let
+      val t = if ige(sz, 12) then 2 else 1
+      val cx = iadd(x, iadd(idiv(sz, 4), i))
+      val () = rend_rect(r, cx, iadd(y, i), t, t, col)
+      val () = rend_rect(r, cx, isub(iadd(y, sz), iadd(i, t)), t, t, col)
+    in
+      chevron_right_with_fuel(recfuel - 1, r, x, y, sz, col, iadd(i, 1), steps)
+    end else ()
+  ) else ()
+
+fun chevron_down_with_fuel {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int
+): void =
+  if recursion_fuel_available(recfuel) then (
+    if ilt(i, steps) then let
+      val t = if ige(sz, 12) then 2 else 1
+      val cy = iadd(y, iadd(idiv(sz, 4), i))
+      val () = rend_rect(r, iadd(x, i), cy, t, t, col)
+      val () = rend_rect(r, isub(iadd(x, sz), iadd(i, t)), cy, t, t, col)
+    in
+      chevron_down_with_fuel(recfuel - 1, r, x, y, sz, col, iadd(i, 1), steps)
+    end else ()
+  ) else ()
+
 fun draw_arrow_right(r: !Rend, x: int, y: int, sz: int, col: uint): void =
-  arrow_right_with_fuel(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
+  if ige(sz, 8) then
+    chevron_right_with_fuel(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
+  else
+    arrow_right_with_fuel(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
 
 extern fun arrow_down_fuel_exhausted(r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void = "mac#anth_die_void"
 
@@ -66,7 +100,10 @@ fun arrow_down_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), r: !R
   ) else arrow_down_fuel_exhausted(r, x, y, sz, col, i, steps)
 
 fun draw_arrow_down(r: !Rend, x: int, y: int, sz: int, col: uint): void =
-  arrow_down_with_fuel(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
+  if ige(sz, 8) then
+    chevron_down_with_fuel(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
+  else
+    arrow_down_with_fuel(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
 
 extern fun arrow_left_fuel_exhausted(r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void = "mac#anth_die_void"
 
@@ -74,14 +111,30 @@ fun arrow_left_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), r: !R
   if recursion_fuel_available(recfuel) then (
     if ilt(i, steps) then let
       val h = isub(sz, imul(i, 2))
-      val () = if igt(h, 0) then rend_rect(r, isub(iadd(x, sz), i), iadd(y, i), 1, h, col) else ()
+      val () = if igt(h, 0) then rend_rect(r, isub(iadd(x, steps), iadd(i, 1)), iadd(y, i), 1, h, col) else ()
     in
       arrow_left_with_fuel(recfuel - 1, r, x, y, sz, col, iadd(i, 1), steps)
     end else ()
   ) else arrow_left_fuel_exhausted(r, x, y, sz, col, i, steps)
 
+fun chevron_left_with_fuel {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int
+): void =
+  if recursion_fuel_available(recfuel) then (
+    if ilt(i, steps) then let
+      val px = isub(iadd(x, steps), iadd(i, 1))
+      val () = rend_rect(r, px, iadd(y, i), 2, 2, col)
+      val () = rend_rect(r, px, isub(iadd(y, sz), iadd(i, 2)), 2, 2, col)
+    in
+      chevron_left_with_fuel(recfuel - 1, r, x, y, sz, col, iadd(i, 1), steps)
+    end else ()
+  ) else ()
+
 fun draw_arrow_left(r: !Rend, x: int, y: int, sz: int, col: uint): void =
-  arrow_left_with_fuel(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
+  if ige(sz, 12) then
+    chevron_left_with_fuel(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
+  else
+    arrow_left_with_fuel(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
 
 extern fun arrow_up_fuel_exhausted(r: !Rend, x: int, y: int, sz: int, col: uint, i: int, steps: int): void = "mac#anth_die_void"
 
@@ -112,8 +165,9 @@ extern fun close_icon_fuel_exhausted(r: !Rend, x: int, y: int, sz: int, col: uin
 fun close_icon_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), r: !Rend, x: int, y: int, sz: int, col: uint, i: int): void =
   if recursion_fuel_available(recfuel) then (
     if ilt(i, sz) then let
+      val ry = isub(isub(sz, 1), i)
       val () = rend_rect(r, iadd(x, i), iadd(y, i), 1, 1, col)
-      val () = rend_rect(r, iadd(x, isub(sz, i)), iadd(y, i), 1, 1, col)
+      val () = rend_rect(r, iadd(x, ry), iadd(y, i), 1, 1, col)
     in
       close_icon_with_fuel(recfuel - 1, r, x, y, sz, col, iadd(i, 1))
     end else ()
@@ -138,20 +192,35 @@ fun draw_file_icon(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
 in
 end
 
+fun diag_stroke_with_fuel {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), r: !Rend, x: int, y: int, i: int, n: int, col: uint
+): void =
+  if recursion_fuel_available(recfuel) then (
+    if ilt(i, n) then let
+      val () = rend_rect(r, iadd(x, i), iadd(y, i), 2, 2, col)
+    in
+      diag_stroke_with_fuel(recfuel - 1, r, x, y, iadd(i, 1), n, col)
+    end else ()
+  ) else ()
+
 fun draw_search_icon(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
-  val ring = isub(sz, 3)
-  val () = ui_draw_border(r, x, y, ring, ring, 1, col)
-  val () = rend_rect(r, iadd(x, isub(ring, 1)), iadd(y, isub(ring, 1)), 4, 2, col)
+  val ring = imax(6, isub(sz, 3))
+  val rad = idiv(ring, 2)
+  val tr = col_rgba(0, 0, 0, 0)
+  val () = rend_rrect_ex(r, x, y, ring, ring, rad, rad, rad, rad, tr, tr, 1, col, 1)
+  val hx = iadd(x, isub(ring, 2))
+  val hy = iadd(y, isub(ring, 2))
 in
+  diag_stroke_with_fuel(airlock_nat(MAX_REC_FUEL), r, hx, hy, 0, 4, col)
 end
 
 fun draw_settings_icon(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
   val () = rend_rect(r, x, iadd(y, 2), sz, 1, col)
   val () = rend_rect(r, iadd(x, 3), iadd(y, 1), 2, 3, col)
-  val () = rend_rect(r, x, iadd(y, 6), sz, 1, col)
-  val () = rend_rect(r, iadd(x, isub(sz, 4)), iadd(y, 5), 2, 3, col)
-  val () = rend_rect(r, x, iadd(y, 10), sz, 1, col)
-  val () = rend_rect(r, iadd(x, 2), iadd(y, 9), 2, 3, col)
+  val () = rend_rect(r, x, iadd(y, idiv(sz, 2)), sz, 1, col)
+  val () = rend_rect(r, iadd(x, isub(sz, 5)), isub(iadd(y, idiv(sz, 2)), 1), 2, 3, col)
+  val () = rend_rect(r, x, isub(iadd(y, sz), 3), sz, 1, col)
+  val () = rend_rect(r, iadd(x, 2), isub(iadd(y, sz), 4), 2, 3, col)
 in
 end
 
@@ -163,10 +232,57 @@ in
 end
 
 fun draw_split_icon(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
-  val () = ui_draw_border(r, x, y, sz, sz, 1, col)
-  val () = rend_rect(r, iadd(x, idiv(sz, 2)), y, 1, sz, col)
+  val tr = col_rgba(0, 0, 0, 0)
+  val () = rend_rrect_ex(r, x, y, sz, sz, 2, 2, 2, 2, tr, tr, 1, col, 1)
+  val () = rend_rect(r, iadd(x, idiv(sz, 2)), iadd(y, 1), 1, isub(sz, 2), col)
 in
 end
+
+fun draw_sidebar_icon(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
+  val tr = col_rgba(0, 0, 0, 0)
+  val h = imax(6, isub(sz, 2))
+  val div_x = iadd(x, imax(4, idiv(sz, 3)))
+  val () = rend_rrect_ex(r, x, iadd(y, 1), sz, h, 3, 3, 3, 3, tr, tr, 1, col, 1)
+  val () = rend_rect(r, div_x, iadd(y, 2), 1, isub(h, 2), col)
+  val () = rend_rect(r, iadd(x, 2), iadd(y, 5), imax(1, isub(div_x, iadd(x, 3))), 1, col)
+in
+  rend_rect(r, iadd(x, 2), iadd(y, 8), imax(1, isub(div_x, iadd(x, 3))), 1, col)
+end
+
+fun pencil_stroke_with_fuel {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), r: !Rend, x: int, y: int, i: int, n: int, col: uint
+): void =
+  if recursion_fuel_available(recfuel) then (
+    if ilt(i, n) then let
+      val () = rend_rect(r, iadd(x, i), isub(y, i), 2, 2, col)
+    in
+      pencil_stroke_with_fuel(recfuel - 1, r, x, y, iadd(i, 1), n, col)
+    end else ()
+  ) else ()
+
+fun draw_edit_icon(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
+  val tr = col_rgba(0, 0, 0, 0)
+  val steps = imax(4, isub(sz, 5))
+  val () = rend_rrect_ex(r, x, y, sz, sz, 3, 3, 3, 3, tr, tr, 1, col, 1)
+  val () = pencil_stroke_with_fuel(airlock_nat(MAX_REC_FUEL), r, iadd(x, 3), isub(iadd(y, sz), 5), 0, steps, col)
+in
+  rend_rect(r, iadd(x, 2), isub(iadd(y, sz), 3), 2, 1, col)
+end
+
+fun draw_eye_icon(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
+  val tr = col_rgba(0, 0, 0, 0)
+  val eh = imax(6, idiv(sz, 2))
+  val ey = iadd(y, idiv(isub(sz, eh), 2))
+  val rad = idiv(eh, 2)
+  val () = rend_rrect_ex(r, x, ey, sz, eh, rad, rad, rad, rad, tr, tr, 1, col, 1)
+  val pr = imax(2, idiv(eh, 4))
+  val psz = imul(pr, 2)
+in
+  rend_rrect(r, iadd(x, idiv(isub(sz, psz), 2)), iadd(y, idiv(isub(sz, psz), 2)), psz, psz, pr, col)
+end
+
+fun draw_chevron_thin_r(r: !Rend, x: int, y: int, sz: int, col: uint): void =
+  chevron_right_with_fuel(airlock_nat(MAX_REC_FUEL), r, x, y, sz, col, 0, idiv(sz, 2))
 
 implement ui_draw_icon(f, r, icon, x, y, sz, col) =
   if ieq(icon, UI_ICON_RIGHT_ARROW) then draw_arrow_right(r, x, y, sz, col)
@@ -182,6 +298,10 @@ implement ui_draw_icon(f, r, icon, x, y, sz, col) =
   else if ieq(icon, UI_ICON_SETTINGS) then draw_settings_icon(r, x, y, sz, col)
   else if ieq(icon, UI_ICON_PLUS) then draw_plus_icon(r, x, y, sz, col)
   else if ieq(icon, UI_ICON_SPLIT) then draw_split_icon(r, x, y, sz, col)
+  else if ieq(icon, UI_ICON_SIDEBAR) then draw_sidebar_icon(r, x, y, sz, col)
+  else if ieq(icon, UI_ICON_EDIT) then draw_edit_icon(r, x, y, sz, col)
+  else if ieq(icon, UI_ICON_EYE) then draw_eye_icon(r, x, y, sz, col)
+  else if ieq(icon, UI_ICON_CHEVRON_RIGHT) then draw_chevron_thin_r(r, x, y, sz, col)
   else ()
 
 implement ui_divider(r, x, y, len, is_vert) =
@@ -191,10 +311,10 @@ implement ui_divider(r, x, y, len, is_vert) =
 implement ui_badge(f, r, x, y, s, bg_col, text_col) = let
   val n = c_strlen(s)
   val tw = font_width(f, r, c_str_ptr(s), n)
-  val bw = iadd(tw, 12)
-  val bh = isub(font_line_h(f), 2)
-  val () = rend_rect(r, x, y, bw, bh, bg_col)
-  val () = ui_draw_border(r, x, y, bw, bh, 1, col_line())
-  val () = draw_s(f, r, iadd(x, 6), iadd(y, 1), s, text_col)
+  val bw = iadd(tw, 14)
+  val bh = iadd(font_line_h(f), 2)
+  val rad = idiv(bh, 2)
+  val () = rend_rrect_ex(r, x, y, bw, bh, rad, rad, rad, rad, bg_col, bg_col, 1, col_line(), 1)
+  val () = draw_s(f, r, iadd(x, 7), iadd(y, 1), s, text_col)
 in
 end

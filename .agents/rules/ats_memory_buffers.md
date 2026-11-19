@@ -23,9 +23,31 @@ When using 32-bit word operations on `Buf` in Anthracite:
   generation bindings synchronized when moving a storage module.
 
 ## 3. Temporary boxed results without GC
-- Production builds use `ATS_MEMALLOC_LIBC`. Payload-bearing nonlinear
-  `datatype`/`Option` constructors can allocate boxes without automatic release.
+- Every executable is built with `ATS_MEMALLOC_USER`: all ATS allocations go
+  through the ATS2 arena in `src/core_runtime/kernel/arena.dats` (`ANTHRACITE_ARENA=0` falls
+  back to libc). Payload-bearing nonlinear `datatype`/`Option` constructors
+  can allocate boxes without automatic release.
+- Never free ATS-allocated memory with libc `free`, and never let ATS free
+  memory from libc `malloc`: object libraries must use the same allocator flag
+  as the executables (`cmake/ATSGenerated.cmake` rewrites it for both).
 - Prefer flat temporary records or consumed `Option_vt` results; borrow indexed
   `!option_vt(T,b)` when a result is inspected repeatedly, then dispose it once.
 - `mem_live` tracks buffer payload, not every ATS constructor or GPU allocation.
+  It is the calling thread's own live bytes: a Buf is charged to the thread that
+  allocated it, whichever thread frees it (arena owner tag), so worker caches
+  never appear as main-thread leaks.
   Keep LeakSanitizer findings distinct from balanced tracked-buffer tests (BUG-032).
+
+## 4. Boundary Airlock & Recursion Fuel Discipline
+- `recursion_fuel_available` calls `abort()` at zero and is reserved **strictly**
+  for synthetic `MAX_REC_FUEL` ($2^{28}$) safety budgets. Natural loop counts,
+  binary search bounds, and per-frame batch caps (such as `EVENT_DRAIN_BATCH_LIMIT`)
+  MUST terminate normally on `left = 0` without calling `recursion_fuel_available`.
+- Always guard preconditions before crossing `airlock_*`:
+  - Guard `airlock_nat(x)` with `imax(0, x)` whenever `x` comes from subtraction or
+    unproven dynamic state.
+  - Guard `airlock_below(i, n)` with `0 <= i && i < n` (and `n > 0`).
+  - Guard `airlock_span(lo, hi)` with `lo <= hi`.
+- Recoverable layout/text-shaping rejections (`FontSpanRejected`,
+  `NativeAnalysisRejected`) must never call `anth_die_*`; dispose linear inputs
+  and degrade safely.

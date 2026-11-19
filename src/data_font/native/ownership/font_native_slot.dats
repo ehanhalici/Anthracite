@@ -6,7 +6,7 @@ fun owned(result: NativeItemShapeRead,token: FontNativeToken): FontNativeRead = 
 fun cached(cache: !NativeShapeCache,b: !Buf,info: SfntInfo,assets: !NativeTextAssets,
   a: !NativeTextAnalysis,contexts: !NativeTextContexts,item: NativeTextItem,token: FontNativeToken,
   language: OtShapeLanguage,masks: OtShapeMasks,scale: NativeShapeScale): FontNativeRead = let
-  val+ NativeShapeCache(m,sub,pos,key)=cache
+  val+ NativeShapeCache(m,sub,pos,key,plans)=cache
 in if ine(key.font,token.font) then FontNativeCacheError(@{reason=OtReference(),offset=0})
   else owned(native_text_item_shape(b,info,cache,assets,a,contexts,item,language,masks,scale),token) end
 fun borrowed(slot: &Option_vt(NativeShapeCache) >> _,b: !Buf,info: SfntInfo,assets: !NativeTextAssets,

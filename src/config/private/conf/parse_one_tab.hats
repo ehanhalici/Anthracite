@@ -96,15 +96,23 @@ fun extract_session_side(content: !Buf, side_open: &int >> int, sidew: &int >> i
 in
 end
 
-fun extract_session_fields(
-  content: !Buf, font_p: &Buf >> Buf, font_px: &int >> int,
-  viewmode: &int >> int, split: &int >> int, active: &int >> int,
-  righti: &int >> int, side_open: &int >> int, sidew: &int >> int
-): void = let
+fun extract_session_fonts(content: !Buf, font_p: &Buf >> Buf, font_px: &int >> int, doc_font_px: &int >> int): void = let
   val fp_pos = find_substr(content, KEY_FONT_PATH, 0)
   val () = if ige(fp_pos, 0) then (if extract_str_after(content, iadd(fp_pos, KEY_FONT_PATH_LEN), font_p) then () else ()) else ()
   val px_pos = find_substr(content, KEY_FONT_PX, 0)
   val () = if ige(px_pos, 0) then font_px := extract_int_after(content, iadd(px_pos, KEY_FONT_PX_LEN), SESSION_DEFAULT_FONT_PX) else ()
+  val dpx_pos = find_substr(content, KEY_DOC_FONT_PX, 0)
+in
+  if ige(dpx_pos, 0) then doc_font_px := extract_int_after(content, iadd(dpx_pos, KEY_DOC_FONT_PX_LEN), font_px)
+  else doc_font_px := (if igt(font_px, 0) then font_px else SESSION_DEFAULT_DOC_FONT_PX)
+end
+
+fun extract_session_fields(
+  content: !Buf, font_p: &Buf >> Buf, font_px: &int >> int, doc_font_px: &int >> int,
+  viewmode: &int >> int, split: &int >> int, active: &int >> int,
+  righti: &int >> int, side_open: &int >> int, sidew: &int >> int
+): void = let
+  val () = extract_session_fonts(content, font_p, font_px, doc_font_px)
   val vm_pos = find_substr(content, KEY_VIEWMODE, 0)
   val () = if ige(vm_pos, 0) then viewmode := extract_int_after(content, iadd(vm_pos, KEY_VIEWMODE_LEN), SESSION_DEFAULT_VIEWMODE) else ()
   val sp_pos = find_substr(content, KEY_SPLIT, 0)
@@ -118,12 +126,12 @@ in
 end
 
 fun apply_loaded_session(
-  content: !Buf, font_p: &Buf >> Buf, font_px: &int >> int,
+  content: !Buf, font_p: &Buf >> Buf, font_px: &int >> int, doc_font_px: &int >> int,
   viewmode: &int >> int, split: &int >> int, active: &int >> int,
   righti: &int >> int, side_open: &int >> int, sidew: &int >> int,
   tab_pane: &Buf >> Buf, open_dirs: &Buf >> Buf, ts: Tabs
 ): Tabs = let
-  val () = extract_session_fields(content, font_p, font_px, viewmode, split, active, righti, side_open, sidew)
+  val () = extract_session_fields(content, font_p, font_px, doc_font_px, viewmode, split, active, righti, side_open, sidew)
   val () = parse_open_dirs(content, open_dirs)
   val () = buffer_clear(tab_pane)
 in
@@ -131,9 +139,10 @@ in
 end
 
 fun fallback_empty_session(
-  side_open: &int >> int, sidew: &int >> int,
+  doc_font_px: &int >> int, side_open: &int >> int, sidew: &int >> int,
   tab_pane: &Buf >> Buf, open_dirs: &Buf >> Buf, ts: Tabs
 ): Tabs = let
+  val () = doc_font_px := SESSION_DEFAULT_DOC_FONT_PX
   val () = side_open := 1
   val () = sidew := 240
   val () = buffer_clear(tab_pane)
@@ -142,7 +151,7 @@ in
   ts
 end
 
-implement conf_load_session(vault, font_p, font_px, viewmode, split, active, righti, side_open, sidew, tab_pane, open_dirs, ts) = let
+implement conf_load_session_ex(vault, font_p, font_px, doc_font_px, viewmode, split, active, righti, side_open, sidew, tab_pane, open_dirs, ts) = let
   var spath = buf_make(BUF_SZ_PATH)
   val () = session_path_into(vault, spath)
   var content = buf_make(BUF_SZ_LARGE)
@@ -150,13 +159,19 @@ implement conf_load_session(vault, font_p, font_px, viewmode, split, active, rig
   val () = buf_free(spath)
 in
   if r_ok then let
-    val res = apply_loaded_session(content, font_p, font_px, viewmode, split, active, righti, side_open, sidew, tab_pane, open_dirs, ts)
+    val res = apply_loaded_session(content, font_p, font_px, doc_font_px, viewmode, split, active, righti, side_open, sidew, tab_pane, open_dirs, ts)
     val () = buf_free(content)
   in
     res
   end else let
     val () = buf_free(content)
   in
-    fallback_empty_session(side_open, sidew, tab_pane, open_dirs, ts)
+    fallback_empty_session(doc_font_px, side_open, sidew, tab_pane, open_dirs, ts)
   end
+end
+
+implement conf_load_session(vault, font_p, font_px, viewmode, split, active, righti, side_open, sidew, tab_pane, open_dirs, ts) = let
+  var dpx: int = SESSION_DEFAULT_DOC_FONT_PX
+in
+  conf_load_session_ex(vault, font_p, font_px, dpx, viewmode, split, active, righti, side_open, sidew, tab_pane, open_dirs, ts)
 end

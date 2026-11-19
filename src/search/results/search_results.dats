@@ -9,6 +9,7 @@ staload "os/fs.sats"
 staload "data_text/source/text_source.sats"
 staload "search/results/search_results.sats"
 staload "search/literal/literal_search.sats"
+staload "search/results/search_file_cache.sats"
 staload "ui_workspace/tabs/ui_tab.sats"
 staload "ui_workspace/common/ui_common.sats"
 macdef SEARCH_SNIPPET_BEFORE_BYTES = 80
@@ -43,9 +44,10 @@ fun aligned{n:nat} .<n>. (left: int(n),source: !Buf,at: int,limit: int): int =
   in if ige(byte,128) andalso ile(byte,191) then aligned(left-1,source,iadd(at,1),limit) else at end
 fun snippet(source: !Buf,state: ResultCursor,finish: int,text: &Buf >> _,metadata: &Buf >> _,row: int): void = let
   val length=buf_len(source)
-  val candidate=text_line_end(source,state.offset,imin(length,iadd(state.offset,SEARCH_SNIPPET_AFTER_BYTES)))
-  val start=aligned(UTF8_MAX_SEQUENCE_BYTES,source,imax(state.lineStart,isub(state.offset,SEARCH_SNIPPET_BEFORE_BYTES)),state.offset)
-  val stop=aligned(UTF8_MAX_SEQUENCE_BYTES,source,candidate,imin(length,iadd(candidate,UTF8_MAX_SEQUENCE_BYTES)))
+  val raw_st=imax(0,isub(state.offset,SEARCH_SNIPPET_BEFORE_BYTES))
+  val raw_en=imin(length,iadd(finish,SEARCH_SNIPPET_AFTER_BYTES))
+  val start=aligned(UTF8_MAX_SEQUENCE_BYTES,source,raw_st,state.offset)
+  val stop=aligned(UTF8_MAX_SEQUENCE_BYTES,source,raw_en,imin(length,iadd(raw_en,UTF8_MAX_SEQUENCE_BYTES)))
 in append_row(source,start,stop,isub(state.offset,start),isub(imin(finish,stop),state.offset),text,metadata,row) end
 fun emit_ranges{n:nat} .<n>. (left: int(n),source: !Buf,ranges: !Buf,file: int,i: int,state: ResultCursor,
   text: &Buf >> _,metadata: &Buf >> _,jumps: &Buf >> _,rows: &int >> _): int =
@@ -60,9 +62,11 @@ fun append_collected(source: !Buf,path: !Buf,ranges: !Buf,count: int,file: int,
   text: &Buf >> _,metadata: &Buf >> _,jumps: &Buf >> _,rows: &int >> _): SearchAppendResult =
   if ile(count,0) then @{matches=0,truncated=ilt(count,0)} else if ige(rows,isub(SEARCH_RESULT_LIMIT,1)) then @{matches=0,truncated=true}
   else let
+    val header_row=rows
     val ()=append_row(path,0,buf_len(path),SEARCH_RESULT_FILE_HEADER,0,text,metadata,rows)
     val ()=append_jump(jumps,rows,file,0,0) val ()=rows := iadd(rows,1)
     val n=emit_ranges(airlock_nat(count),source,ranges,file,0,@{offset=0,line=0,lineStart=0},text,metadata,jumps,rows)
+    val ()=buf_set32(metadata,iadd(row_base(header_row),SEARCH_RESULT_MATCH_LENGTH),n)
   in @{matches=n,truncated=ilt(n,count)} end
 implement search_append_matches(source,path,pattern,file,text,metadata,jumps,rows) = let
   var ranges=buf_make(0) val count=literal_collect(pattern,source,ranges,iadd(SEARCH_RESULT_LIMIT,1))
@@ -76,6 +80,14 @@ in result end
 fun disk_source(path: !Buf): Option_vt(Buf) = let var shadow=buf_make(SEARCH_VFS_PATH_CAPACITY_BYTES)
   val ()=fs_vfs_buf(buf_cstr(path),shadow,isub(SEARCH_VFS_PATH_CAPACITY_BYTES,1))
   val result=effective_source(path,shadow) val ()=buf_free(shadow)
+in result end
+implement search_disk_source(path) = disk_source(path)
+fun cached_effective(cache: &FileCache >> _,path: !Buf,shadow: !Buf): Option_vt(Buf) = let
+  val effective=if igt(fs_size(buf_cstr(shadow)),0) then buf_cstr(shadow) else buf_cstr(path)
+in search_file_cache_read(cache,effective,LITERAL_SOURCE_LIMIT_BYTES) end
+implement search_cached_source(cache,path) = let var shadow=buf_make(SEARCH_VFS_PATH_CAPACITY_BYTES)
+  val ()=fs_vfs_buf(buf_cstr(path),shadow,isub(SEARCH_VFS_PATH_CAPACITY_BYTES,1))
+  val result=cached_effective(cache,path,shadow) val ()=buf_free(shadow)
 in result end
 fun read_source(path: !Buf,tabs: !Tabs): Option_vt(Buf) = let var text=buf_make(0)
   val found=tabs_copy_doc_text(tabs,path,text)

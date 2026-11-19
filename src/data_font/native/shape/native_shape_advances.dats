@@ -19,7 +19,7 @@ fun walk{n,k:nat} .<k>. (left: int(k),s: !GlyphStorage(n),meta: GlyphRunMeta,m: 
     val ()=glyph_storage_set_position(s,node,cleared(m,core,p))
   in walk(left-1,s,meta,m,links.next) end
 implement native_shape_clear_advances(cache,p) = let
-  val+ NativeShapeCache(m,sub,pos,face)=cache
+  val+ NativeShapeCache(m,sub,pos,face,plans)=cache
   val+ ~PositionAccumulating(run,scale)=p val+ ~GlyphRun(phase,meta,s)=run
   val ()=walk(airlock_nat(meta.live),s,meta,m,meta.head)
 in PositionAccumulating(GlyphRun(phase,meta,s),scale) end

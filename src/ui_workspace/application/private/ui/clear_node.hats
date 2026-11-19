@@ -51,25 +51,25 @@ in
   end
 end
 
-fun open_hit_file(ts: Tabs, path: !Buf, act: &int >> _): Tabs = let
+fun open_hit_file(ts: Tabs, path: !Buf, act: &int >> _, kept: &ClosedDocs >> _): Tabs = let
   val existing = tabs_find_path(ts, path)
 in
   if ige(existing, 0) then (act := existing; ts)
   else let
-    val res = tabs_open(ts, buffer_clone(path))
+    val res = tabs_open_kept(ts, buffer_clone(path), kept)
     val () = act := isub(tabs_len(res), 1)
   in
     res
   end
 end
 
-fun open_hit_target(ts: Tabs,path: !Buf,scope: int,active: &int >> _): Tabs =
-  if ieq(scope,SEARCH_SCOPE_DOCUMENT) then ts else open_hit_file(ts,path,active)
+fun open_hit_target(ts: Tabs,path: !Buf,scope: int,active: &int >> _,kept: &ClosedDocs >> _): Tabs =
+  if ieq(scope,SEARCH_SCOPE_DOCUMENT) then ts else open_hit_file(ts,path,active,kept)
 fun open_hit(s: &App_record >> _, ts: Tabs, srow: int, go: Toggle): Tabs =
   if is_on(go) then let
     var hitfile = buf_make(OPEN_HIT_HITFILE_INITIAL_BYTES)
     val () = find_hit_file(s.hmeta, s.hits, srow, hitfile)
-    val ts2 = open_hit_target(ts,hitfile,s.scope,s.active)
+    val ts2 = open_hit_target(ts,hitfile,s.scope,s.active,s.closed)
     val () = if ieq(s.scope,SEARCH_SCOPE_VAULT) then s.focus := Off else ()
     val () = buf_free(hitfile)
     val () = open_hit_jump(s, srow)
@@ -89,8 +89,8 @@ fun open_created_file(ts: Tabs, dir: !Buf, name: !Buf, kind: PromptKind): Tabs =
     tabs_open(ts, new_file)
   end else ts
 
-fun apply_tab_cmd(ts: Tabs, cmd: Cmd, idx: int): Tabs =
-  if is_cmd(cmd, CMD_CLOSE_TAB) then close_active_tab(ts, idx)
+fun apply_tab_cmd(ts: Tabs, cmd: Cmd, idx: int, kept: &ClosedDocs >> _): Tabs =
+  if is_cmd(cmd, CMD_CLOSE_TAB) then close_active_tab(ts, idx, kept)
   else if is_cmd(cmd, CMD_NEW_TAB) then new_empty_tab(ts)
   else ts
 
@@ -134,23 +134,82 @@ in
   buffer_clear(s.promptb)
 end
 
-fun handle_prompt_submission(s: &App_record >> _, pr: EditResult): void =
-  if is_edit_submit(pr) andalso igt(buf_len(s.promptb), 0) then let
-    var dir = buf_make(HANDLE_PROMPT_SUBMISSION_DIR_INITIAL_BYTES)
-    var cur = buf_make(HANDLE_PROMPT_SUBMISSION_CUR_INITIAL_BYTES)
-    val () = prompt_fill_paths(s, dir, cur)
-    val prompt_kind = s.prompt
-    val () = act_prompt(dir, cur, s.promptb, prompt_kind)
-    val () = submit_open_new_file(s, dir, prompt_kind)
-    val () = if is_prompt_newfile(prompt_kind) then s.active := 0 else ()
-    val () = s.prompt := PromptNone
-    val () = app_fsm_step(s, ActDismissPrompt())
-    val () = buffer_clear(s.promptb)
-    val () = (s.treedirty := On; s.search_catalog_ready := false)
-    val () = buf_free(dir)
+fun trim_ws_l_m {rem:nat} .<rem>. (b: !Buf, i: int, n: int, rem: int(rem)): int =
+  if rem = 0 then n
+  else if ige(i, n) then n
+  else if ieq(buf_get(b, i), 32) orelse ieq(buf_get(b, i), 9) then trim_ws_l_m(b, iadd(i, 1), n, rem - 1)
+  else i
+
+fun trim_ws_r_m {rem:nat} .<rem>. (b: !Buf, st: int, en: int, rem: int(rem)): int =
+  if rem = 0 then st
+  else if ile(en, st) then st
+  else if ieq(buf_get(b, isub(en, 1)), 32) orelse ieq(buf_get(b, isub(en, 1)), 9) then trim_ws_r_m(b, st, isub(en, 1), rem - 1)
+  else en
+
+fun trim_buf_ws(b: &Buf >> _): void = let
+  val n = buf_len(b)
+  val st = trim_ws_l_m(b, 0, n, airlock_nat(n))
+  val en = trim_ws_r_m(b, st, n, airlock_nat(n))
+in
+  if ieq(st, 0) andalso ieq(en, n) then ()
+  else if ige(st, en) then buffer_clear(b)
+  else let
+    var tmp = buf_make(imax(16, isub(en, st)))
+    val () = buffer_append_range(tmp, b, st, en)
+    val () = buffer_clear(b)
+    val () = buffer_append_all(b, tmp)
   in
-    buf_free(cur)
-  end else if is_edit_submit(pr) orelse is_edit_cancel(pr) then prompt_reset(s)
+    buf_free(tmp)
+  end
+end
+
+fun apply_rename_tabs_if(ok: bool, s: &App_record >> _, cur: !Buf, newp: !Buf): void =
+  if ok then let
+    val ts0 = s.tabs
+    val () = s.tabs := TNil()
+    val ts1 = tabs_rename_prefix(ts0, cur, newp)
+    val ph = s.tabs
+    val () = s.tabs := ts1
+    val () = tabs_free(ph)
+  in
+    app_rename_tab_hists(s, cur, newp)
+  end else ()
+
+fun submit_rename_inline(s: &App_record >> _, cur: !Buf): void = let
+  var newp = buf_make(256)
+  val ok = do_rename_resolved(cur, s.promptb, newp)
+  val () = apply_rename_tabs_if(ok, s, cur, newp)
+in
+  buf_free(newp)
+end
+
+fun dispatch_prompt_action(s: &App_record >> _, prompt_kind: PromptKind, dir: !Buf, cur: !Buf): void =
+  if is_prompt_rename(prompt_kind) then submit_rename_inline(s, cur)
+  else (
+    act_prompt(dir, cur, s.promptb, prompt_kind);
+    submit_open_new_file(s, dir, prompt_kind);
+    if is_prompt_newfile(prompt_kind) then s.active := 0 else ()
+  )
+
+fun handle_prompt_submission(s: &App_record >> _, pr: EditResult): void =
+  if is_edit_submit(pr) then let
+    val () = trim_buf_ws(s.promptb)
+  in
+    if igt(buf_len(s.promptb), 0) then let
+      var dir = buf_make(HANDLE_PROMPT_SUBMISSION_DIR_INITIAL_BYTES)
+      var cur = buf_make(HANDLE_PROMPT_SUBMISSION_CUR_INITIAL_BYTES)
+      val () = prompt_fill_paths(s, dir, cur)
+      val prompt_kind = s.prompt
+      val () = dispatch_prompt_action(s, prompt_kind, dir, cur)
+      val () = s.prompt := PromptNone
+      val () = app_fsm_step(s, ActDismissPrompt())
+      val () = buffer_clear(s.promptb)
+      val () = (s.treedirty := On; s.search_catalog_ready := false)
+      val () = buf_free(dir)
+    in
+      buf_free(cur)
+    end else prompt_reset(s)
+  end else if is_edit_cancel(pr) then prompt_reset(s)
   else ()
 
 fun open_search_panel(s: &App_record >> _, sc: int): void = let
@@ -176,6 +235,9 @@ end
 
 fun escape_sidebar_state(s: &App_record >> _): void = let
   val () = s.menu := MenuNone
+  val () = s.menu_sub := SubNone
+  val () = s.menu_tree_idx := ~1
+  val () = s.paste_plain := Off
   val () = s.qfocus := Off
   val () = s.prompt := PromptNone
   val () = app_fsm_step(s, ActEscape())
@@ -183,8 +245,15 @@ in
   buffer_clear(s.promptb)
 end
 
+fun apply_doc_font_delta(s: &App_record >> _, delta: int): void = let
+  val next = imax(UI_FONT_PX_MIN, imin(UI_FONT_PX_MAX, iadd(s.doc_fontpx, delta)))
+in
+  if ine(next, s.doc_fontpx) then (s.doc_fontpx := next; save_app_session(s)) else ()
+end
+
 fun handle_sidebar_shortcut_cmd(s: &App_record >> _, cmd: Cmd, ev: &event): void =
-  if is_cmd(cmd, CMD_OPEN_SEARCH) then let
+  if is_cmd(cmd, CMD_OPEN_DOC_SEARCH) then open_search_panel(s, 1)
+  else if is_cmd(cmd, CMD_OPEN_SEARCH) then let
     val kc = key_char(ev)
     val is_doc = ieq(kc, 102) orelse ieq(kc, 70)
   in
@@ -193,16 +262,17 @@ fun handle_sidebar_shortcut_cmd(s: &App_record >> _, cmd: Cmd, ev: &event): void
   else if is_cmd(cmd, CMD_NEW_FILE) then begin_prompt(s, PromptNewFile)
   else if is_cmd(cmd, CMD_NEW_FOLDER) then begin_prompt(s, PromptNewFolder)
   else if is_cmd(cmd, CMD_TOGGLE_VIEW) then toggle_view_mode(s)
-  else if is_cmd(cmd, CMD_ESCAPE) then escape_sidebar_state(s)
+  else if is_cmd(cmd, CMD_SPLIT_TOGGLE) then toggle_split_pane(s)
+  else if is_cmd(cmd, CMD_RELOAD_KEYBINDINGS) then conf_load_keybindings(s.keymap)
+  else if is_cmd(cmd, CMD_DOC_FONT_INCREASE) then apply_doc_font_delta(s, 2)
+  else if is_cmd(cmd, CMD_DOC_FONT_DECREASE) then apply_doc_font_delta(s, ~2)
+  else if is_cmd(cmd, CMD_ESCAPE) then (escape_sidebar_state(s); s.editor_focused := Off)
   else ()
 
 fun tab_select_close_or_new(s: &App_record >> _, cmd: Cmd, ts_inter: !Tabs): void = let
   val max_i = isub(tabs_len(ts_inter), 1)
-  val () = if is_cmd(cmd, CMD_NEW_TAB) then (s.active := max_i; s.preview_tab := ~1)
-           else (
-             s.active := imax(0, imin(max_i, s.active));
-             if ige(s.preview_tab, tabs_len(ts_inter)) then s.preview_tab := ~1 else ()
-           )
+  val () = if is_cmd(cmd, CMD_NEW_TAB) then (s.active := max_i; s.editor_focused := Off)
+           else s.active := imax(0, imin(max_i, s.active))
   val () = s.righti := imax(0, imin(max_i, s.righti))
 in
   save_app_session(s)

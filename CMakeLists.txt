@@ -11,7 +11,7 @@ find_program(ANTHRACITE_CLANG clang REQUIRED)
 set(CMAKE_C_COMPILER "${ANTHRACITE_CLANG}" CACHE FILEPATH "clang" FORCE)
 set(CMAKE_EXE_LINKER_FLAGS "" CACHE STRING "" FORCE)
 set(CMAKE_C_FLAGS "-I${CMAKE_SOURCE_DIR}/src -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE -Wno-implicit-function-declaration -U_FORTIFY_SOURCE -Wall -Wextra -Wshadow -pedantic" CACHE STRING "" FORCE)
-set(CMAKE_C_FLAGS_DEBUG "-O0 -g" CACHE STRING "" FORCE)
+set(CMAKE_C_FLAGS_DEBUG "-Og -g -fno-omit-frame-pointer" CACHE STRING "" FORCE)
 set(CMAKE_C_FLAGS_RELEASE "-O2 -flto=thin -march=native -funroll-loops -fomit-frame-pointer -fvectorize -fslp-vectorize -DNDEBUG" CACHE STRING "" FORCE)
 option(ANTHRACITE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
 if(ANTHRACITE_SANITIZERS)
@@ -24,6 +24,13 @@ project(anthracite C)
 include(cmake/ATSSourceIndex.cmake)
 
 set(CMAKE_C_STANDARD 99)
+# ThreadSanitizer build for the threading tests (ctest -L tsan); use a
+# separate build directory: cmake -B build-tsan -DANTHRACITE_TSAN=ON.
+option(ANTHRACITE_TSAN "Build with ThreadSanitizer" OFF)
+if(ANTHRACITE_TSAN)
+  add_compile_options(-fsanitize=thread -g -O1 -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=thread)
+endif()
 
 set(PATSHOME $ENV{PATSHOME})
 if("${PATSHOME}" STREQUAL "")
@@ -59,6 +66,10 @@ if(NOT PRIMARY_FONT_SHA256 STREQUAL "9930d84013bfd7682df9d0d740d6417c111bfd49f29
 endif()
 
 file(GLOB_RECURSE ATS_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*.dats")
+# The runtime kernel (allocator, worker pool, per-thread statistics) is linked
+# into every executable through cmake/ATSGenerated.cmake, not only the app.
+file(GLOB ATS_KERNEL_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/core_runtime/kernel/*.dats")
+list(REMOVE_ITEM ATS_SOURCES ${ATS_KERNEL_SOURCES})
 configure_file("src/core_runtime/text_engine_paths.dats.in"
   "${CMAKE_CURRENT_BINARY_DIR}/text_engine_paths.dats" @ONLY)
 list(APPEND ATS_SOURCES "${CMAKE_CURRENT_BINARY_DIR}/text_engine_paths.dats")

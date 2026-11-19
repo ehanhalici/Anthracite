@@ -9,10 +9,10 @@ staload "data_font/resources/private/font_storage.sats"
 staload "data_font/atlas/private/font_atlas.sats"
 implement font_atlas_plan(f,bw,bh) = let
   val px=font_get_pen_x(f) and py=font_get_pen_y(f) and row=font_get_row_h(f)
-  val wrap=ige(iadd(iadd(px,bw),1),font_atlas_w(f))
-  val x: int=if wrap then 1 else px
-  val y: int=if wrap then iadd(iadd(py,row),1) else py
+  val wrap=ige(iadd(iadd(px,bw),2),font_atlas_w(f))
+  val x: int=if wrap then 2 else px
+  val y: int=if wrap then iadd(iadd(py,row),2) else py
   val height: int=if wrap then 0 else row
-  val reset=ige(iadd(iadd(y,bh),1),font_atlas_h(f))
-in @{x=if reset then 1 else x,y=if reset then 1 else y,
+  val reset=ige(iadd(iadd(y,bh),2),font_atlas_h(f))
+in @{x=if reset then 2 else x,y=if reset then 2 else y,
   row=imax(bh,if reset then 0 else height),reset=reset} end

@@ -32,6 +32,25 @@ fun ranges_valid {n:nat} .<n>. (
     else ranges_valid(n - 1, b, iadd(at, 3), finish)
   end
 
+fun dense_base(count: int): int = iadd(3, imul(count, 3))
+fun dense_span {n:nat} .<n>. (n: int(n), b: !Buf, at: int, value: int): void =
+  if n = 0 then () else let val () = buf_set32(b, at, value) in dense_span(n - 1, b, iadd(at, 1), value) end
+fun dense_fill {n:nat} .<n>. (n: int(n), b: !Buf, at: int, base: int): void =
+  if n = 0 then () else let val first = buf_get32(b, at) in
+    if ige(first, UNICODE_DENSE_SCALARS) then () else let
+      val last = imin(buf_get32(b, iadd(at, 1)), isub(UNICODE_DENSE_SCALARS, 1))
+      val () = dense_span(airlock_nat(iadd(isub(last, first), 1)), b, iadd(base, first), buf_get32(b, iadd(at, 2)))
+    in dense_fill(n - 1, b, iadd(at, 3), base) end end
+(* Called after validation: ranges are contiguous from 0, so all slots are written. *)
+fun with_dense(b0: Buf, count: int): Buf = let
+  var b: Buf = b0
+  val base = dense_base(count)
+  val bytes = imul(iadd(base, UNICODE_DENSE_SCALARS), WORD32_BYTES)
+  val () = buf_ensure(b, bytes)
+  val () = buf_set_len(b, bytes)
+  val () = dense_fill(airlock_nat(count), b, 3, base)
+in b end
+
 fun accept_database(b: Buf): UnicodeLoad = let
   val length = buf_len(b)
   val count = buf_get32(b, 2)
@@ -41,7 +60,7 @@ fun accept_database(b: Buf): UnicodeLoad = let
     andalso ieq(count, idiv(isub(length, 12), 12))
   val valid = size_ok andalso ranges_valid(airlock_nat(imax(0, count)), b, 3, ~1)
 in
-  if valid then UnicodeLoaded(UnicodeDb(b, count))
+  if valid then UnicodeLoaded(UnicodeDb(with_dense(b, count), count))
   else let val () = buf_free(b) in UnicodeDataError() end
 end
 
@@ -68,7 +87,17 @@ fun lookup {fuel:nat} .<fuel>. (
 
 fun properties(db: !UnicodeDb, cp: int): int = let
   val+ UnicodeDb(b, count) = db
-in lookup(airlock_nat(iadd(count, 1)), b, cp, 0, count) end
+in
+  if ige(cp, 0) andalso ilt(cp, UNICODE_DENSE_SCALARS) then buf_get32(b, iadd(dense_base(count), cp))
+  else lookup(airlock_nat(iadd(count, 1)), b, cp, 0, count)
+end
+implement unicode_properties_dense_match(db) = let
+  val+ UnicodeDb(b, count) = db
+  fun go {n:nat} .<n>. (n: int(n), b: !Buf, count: int, cp: int): bool =
+    if n = 0 then true
+    else ieq(buf_get32(b, iadd(dense_base(count), cp)), lookup(airlock_nat(iadd(count, 1)), b, cp, 0, count))
+      andalso go(n - 1, b, count, iadd(cp, 1))
+in go(airlock_nat(UNICODE_DENSE_SCALARS), b, count, 0) end
 
 implement unicode_grapheme(db, cp) = grapheme_class_of(imod(properties(db, cp), 16))
 implement unicode_conjunct(db, cp) = conjunct_class_of(imod(idiv(properties(db, cp), 16), 4))

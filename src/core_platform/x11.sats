@@ -65,7 +65,7 @@ datatype Key =
 
 fun key_id(k: Key): int
 
-datatype Btn = BtnLeft | BtnRight | BtnWheelUp | BtnOther
+datatype Btn = BtnLeft | BtnMiddle | BtnRight | BtnWheelUp | BtnOther
 
 fun button_of(n: int): Btn
 fun is_btn(a: Btn, b: Btn): bool
@@ -112,6 +112,7 @@ fun ev_mods(ev: &event): int = "mac#anth_ev_mods"
 fun ev_atom2(ev: &event): ulint = "mac#anth_ev_atom2"
 fun ev_text(ev: &event, dst: ptr, n: int): int = "mac#anth_ev_text"
 fun ev_key_char(ev: &event): int = "mac#anth_ev_key_char"
+fun ev_keysym(ev: &event): int = "mac#anth_ev_keysym"
 
 fun x_key_is(ev: &event, id: int): int = "mac#anth_key_is"
 fun mod_ctrl(): int = "mac#anth_mod_ctrl"

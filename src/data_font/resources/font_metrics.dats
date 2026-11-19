@@ -49,6 +49,7 @@ implement store_ttf_metrics(f) = let
   val () = font_set_has_ttf(f, On())
   val () = clear_atlas(f)
   val () = clear_cache(f, 0)
+  val () = drop_tex(f)
 in
 end
 
@@ -74,7 +75,7 @@ in
 end
 
 implement font_set_px(f, px0) = let
-  val px = if ilt(px0, 8) then 8 else if igt(px0, 48) then 48 else px0
+  val px = if ilt(px0, 8) then 8 else if igt(px0, 80) then 80 else px0
 in
   if ieq(font_get_px(f), px) then ()
   else let
@@ -82,11 +83,8 @@ in
     val ap = scaled_asc_px(f, px)
     val () = font_set_px_val(f, px)
     val () = font_set_line_h(f, if ilt(lh, 8) then 8 else lh)
-    val () = font_set_ascender_px(f, if igt(ap, 0) then ap else 12)
-    val () = clear_atlas(f)
-    val () = clear_cache(f, 0)
   in
-    drop_tex(f)
+    font_set_ascender_px(f, if igt(ap, 0) then ap else 12)
   end
 end
 

@@ -9,8 +9,10 @@ staload "airlock.sats"
 extern fun c_memcpy(dst: ptr, src: ptr, n: size_t): void = "mac#memcpy"
 extern fun c_memset(dst: ptr, src: int, n: size_t): void = "mac#memset"
 
-extern fun mem_note_alloc(n: int): void = "mac#anth_mem_alloc"
-extern fun mem_note_free(n: int): void = "mac#anth_mem_free"
+staload "core_runtime/kernel/thread_stats.sats"
+macdef mem_note_alloc(n) = thread_stats_alloc(,(n))
+(* After the block went back to the allocator (see thread_stats_freed). *)
+macdef mem_note_freed(n) = thread_stats_freed(,(n))
 
 (* The buffer owns an arrayptr: the byte view and the free-proof travel
    together. The static size n is shared by the arrayptr and the cap,
@@ -95,7 +97,7 @@ fun resize_pos{n:pos}(b: &Buf >> _, n: int(n)): void = let
   val ncopy: int = (if cap < n then cap else n): int
   val () = c_memcpy(p, arrayptr2ptr(A), g0int2uint_int_size(ncopy))
   val () = arrayptr_free(A)
-  val () = mem_note_free(cap)
+  val () = mem_note_freed(cap)
   val () = mem_note_alloc(n)
   val len2: int = (if len < n then len else n): int
   val A2 = arrayptr_encode(b0ytes2bytes_v(pf), pfgc | p)
@@ -110,9 +112,9 @@ implement buf_make(n0) =
 
 implement buf_free(b) = let
   val+~BUF(A, cap, len) = b
-  val () = mem_note_free(cap)
+  val () = arrayptr_free(A)
 in
-  arrayptr_free(A)
+  mem_note_freed(cap)
 end
 
 implement buf_cap(b) =
@@ -287,8 +289,7 @@ implement buf_copy_to_ptr(src, src_off, dst, dst_cap, dst_off, n) =
   in
   end else ()
 
-extern fun mem_live_c(): int = "mac#anth_mem_live"
-implement mem_live() = mem_live_c()
+implement mem_live() = thread_stats_live()
 
 implement u_zero() = g0int2uint_int_uint(0)
 

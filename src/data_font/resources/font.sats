@@ -31,3 +31,7 @@ fun font_width(f: !Font, r: !Rend, p: ptr, n: int): int
 fun font_width_buf(f: !Font, r: !Rend, b: !Buf, n: int): int
 fun font_scan_fonts(dir: string, paths: &Buf >> _, names: &Buf >> _, meta: &Buf >> _, cnt: &int >> _): void
 fun font_selftest(r: !Rend): int
+(* Which face files the Font was loaded from (0 = none yet). Appends copies of
+   the primary and fallback paths (empty when unset). *)
+fun font_source_id(f: !Font): int
+fun font_source_paths(f: !Font,primary: &Buf >> _,fallback: &Buf >> _): void

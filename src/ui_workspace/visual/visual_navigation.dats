@@ -17,6 +17,7 @@ staload "ui_workspace/common/ui_common.sats"
 staload "ui_workspace/visual/visual_layout.sats"
 staload "ui_workspace/visual/visual_query.sats"
 staload "ui_workspace/visual/visual_navigation.sats"
+macdef NAVIGATION_WRAP_LINES = 8
 datatype VerticalEdit = MoveUp | MoveDown | SelectUp | SelectDown
 fun vertical_of(cmd: Cmd): Option_vt(VerticalEdit) =
   if is_cmd(cmd,CMD_CARET_UP) then Some_vt(MoveUp()) else if is_cmd(cmd,CMD_CARET_DOWN) then Some_vt(MoveDown())
@@ -27,7 +28,12 @@ fun refresh(f: !Font,r: !Rend,d: !Doc): bool = let val state=doc_visual_take(d)
   val key=snapshot(state) val ()=doc_visual_put(d,state)
 in case+ key of | ~None_vt() => false | ~Some_vt(k) => let
   val mode=case+ k.projection of | VisualSource() => ViewEdit() | VisualRendered() => ViewRead()
-  val lh=font_document_line_height(f,font_line_h(f)) val ()=visual_layout_prepare(f,r,d,k.width,mode)
+  val lh=font_document_line_height(f,font_line_h(f)) val ()=visual_layout_prepare_deferred(f,r,d,k.width,mode)
+  (* Vertical moves query the caret row and its neighbours; folded lines in
+     between can still land on a placeholder row, which maps to row 0 of its line. *)
+  val caret_line=doc_line_of(d,doc_caret(d))
+  val near: VisualLineRange= @{first=isub(caret_line,NAVIGATION_WRAP_LINES),last=iadd(caret_line,NAVIGATION_WRAP_LINES)}
+  val ()=seen_int(visual_layout_wrap_range(f,r,d,k.width,mode,near,0L))
   val height=doc_layout_mode(d,lh,if is_view_read(mode) then 1 else 0,iadd(k.width,80))
 in true end end
 fun move(f: !Font,d: !Doc,m: VerticalEdit,scratch: &Buf >> _): void = let

@@ -7,10 +7,12 @@ typedef SfntSpan = @{offset=int, length=int}
 datatype SfntTable =
   | TableHead | TableHhea | TableMaxp | TableCmap | TableLoca | TableGlyf
   | TableHmtx | TableKern | TableGsub | TableGpos | TableGdef | TableFvar
+  | TableCff
 
 datavtype SfntOptional = NoSfntTable | HasSfntTable of SfntSpan
 datatype SfntCmapKind = CmapSegmented | CmapGrouped
 typedef SfntCmap = @{kind=SfntCmapKind,span=SfntSpan,count=int}
+datatype SfntOutlineKind = OutlineTrueType | OutlineCff
 
 datatype SfntErrorKind = SfntReadError | SfntDirectoryError | SfntContainerError
   | SfntOutlineError | SfntVariableError | SfntMetricsError | SfntCharacterMapError | SfntLocationsError
@@ -26,8 +28,14 @@ macdef SfntLocations() = @{kind=SfntLocationsError(),code=0}
 
 typedef SfntInfo = @{
   tables=int, units=int, ascender=int, descender=int, line_gap=int,
-  glyphs=int, hmetrics=int, long_loca=bool,
-  glyf=SfntSpan, loca=SfntSpan, hmtx=SfntSpan, cmap=SfntCmap
+  glyphs=int, hmetrics=int, long_loca=bool, outline=SfntOutlineKind,
+  glyf=SfntSpan, loca=SfntSpan, cff=SfntSpan, hmtx=SfntSpan, cmap=SfntCmap
+}
+
+typedef SfntCffContext = @{
+  valid=bool, cff=SfntSpan,
+  charstrings=int, gsubrs=int, lsubrs=int,
+  fdarray=int, fdselect=int
 }
 
 datavtype SfntParsed = ValidSfnt of SfntInfo | InvalidSfnt of SfntError
@@ -54,3 +62,12 @@ fun sfnt_map(b: !Buf, info: SfntInfo, cp: int): int
 fun sfnt_metrics(b: !Buf, info: SfntInfo, gid: int): GlyphMetrics
 fun sfnt_glyph(face: !SfntFace, cp: int): int
 fun sfnt_glyph_metrics(face: !SfntFace, gid: int): GlyphMetrics
+
+fun sfnt_cff_context_empty(): SfntCffContext
+fun sfnt_cff_context(b: !Buf, cff: SfntSpan): SfntCffContext
+fun sfnt_cff_subr_bias(count: int): int
+fun sfnt_cff_glyph_span(b: !Buf, ctx: SfntCffContext, gid: int): SfntOptional
+fun sfnt_cff_gsubr_count(b: !Buf, ctx: SfntCffContext): int
+fun sfnt_cff_gsubr_span(b: !Buf, ctx: SfntCffContext, idx: int): SfntOptional
+fun sfnt_cff_lsubr_count(b: !Buf, ctx: SfntCffContext, gid: int): int
+fun sfnt_cff_lsubr_span(b: !Buf, ctx: SfntCffContext, gid: int, idx: int): SfntOptional

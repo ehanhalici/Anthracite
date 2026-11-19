@@ -1,5 +1,27 @@
 # Refactoring çalışma kaydı
 
+## 2026-11-16 — Gezinme geçmişi, sürükle-bırak, scrollbar, odak ve kısayol sistemi
+
+Kullanıcının sekiz çalışma alanı ve kararlılık maddesi uygulandı: çok satırlı geri
+almada (`replace_all_raw`) eski `nlines`/AST/görsel durumdan kaynaklanan çökme
+düzeltildi (`selftest_multiline_undo_check` + `undo_crash_regression`); Emacs tarzı
+iki adımlı chord destekli `keybindings.json` motoru
+([ui_keymap.sats](../src/ui_workspace/commands/ui_keymap.sats)) ve Ayarlar
+görünümünden yeniden yükleme eklendi.
+
+Sekme başına 64 girdilik gezinme geçmişi (`ui_tab_history.sats`) ile 28 px bölme
+üst şeridinde `<`/`>` düğmeleri ve tıklanabilir breadcrumb, `UI_TAB_FIXED_WIDTH=160`
+sabit sekme + tam başlık tooltip'i, 28 px ferah dosya ağacı + 20 px girinti
+çizgileri, 5 px eşikli sürükle-taşıma (klasör/ebeveyn/kasa/bölme), belge orta-tuş/Alt
+kaydırma panı, 4/6 px tıklanabilir ince scrollbar'lar, bölünmüş pencerede
+hover-odak ve sekme çubukları arası canlı sürükleme eklendi.
+
+Doğrulama: `build` altında CPU testleri **254/254** (yeni `workspace_keymap_contracts`
+ve `workspace_history_contracts` dahil) ve grafik testleri **3/3** geçti; `build/sanitize`
+(Debug + ASan/UBSan + `detect_leaks=1`) altında `workspace_*_contracts` **5/5**,
+`anchor_contracts`, `selftest_memory_contracts`, `editor_fsm_contracts` ve
+`graphics_selftest` **4/4** sızıntısız/temiz geçti.
+
 ## 2026-10-18 — BUG-036 editör durum makinesinde kutu sızıntısı
 
 Tam uygulama LSan koşusunda bulunan 56 bayt/4 tahsis, `addr2line -afi` ile

@@ -33,6 +33,7 @@ implement sfnt_table_code(t) = case+ t of
   | TableHmtx() => table_tag("hmtx") | TableKern() => table_tag("kern")
   | TableGsub() => table_tag("GSUB") | TableGpos() => table_tag("GPOS")
   | TableGdef() => table_tag("GDEF") | TableFvar() => table_tag("fvar")
+  | TableCff() => table_tag("CFF ")
 
 fun table_span(b: !Buf, p: int): SfntSpan =
   @{offset=sfnt_be32(b,iadd(p,8)),length=sfnt_be32(b,iadd(p,12))}
@@ -46,35 +47,41 @@ fun directory_search {n:nat} .<n>. (
     else directory_search(n-1,b,iadd(p,16),tag)
   end
 
-implement sfnt_table(b,count,table) =
-  directory_search(airlock_nat(count),b,12,sfnt_table_code(table))
+fun sfnt_table_at(b: !Buf, dir_off: int, count: int, table: SfntTable): SfntOptional =
+  directory_search(airlock_nat(count),b,iadd(dir_off,12),sfnt_table_code(table))
 
-fun span_valid(span: SfntSpan, length: int, floor: int): bool =
+implement sfnt_table(b,count,table) = sfnt_table_at(b,0,count,table)
+
+fun span_disjoint_dir(span: SfntSpan, dir_off: int, dir_end: int): bool =
+  ige(span.offset,dir_end) orelse ile(iadd(span.offset,span.length),dir_off)
+
+fun span_valid(span: SfntSpan, length: int, floor: int, dir_off: int, dir_end: int): bool =
   ige(span.offset,floor) andalso ieq(imod(span.offset,4),0)
   andalso ile(span.offset,length) andalso ige(span.length,0)
   andalso ile(span.length,isub(length,span.offset))
+  andalso span_disjoint_dir(span,dir_off,dir_end)
 
 fun directory_valid {n:nat} .<n>. (
-  n: int(n), b: !Buf, p: int, previous: int, floor: int
+  n: int(n), b: !Buf, p: int, previous: int, floor: int, dir_off: int, dir_end: int
 ): bool =
   if n = 0 then true else let val tag = sfnt_be32(b,p) in
-    if ile(tag,previous) orelse not(span_valid(table_span(b,p),buf_len(b),floor)) then false
-    else directory_valid(n-1,b,iadd(p,16),tag,floor)
+    if ile(tag,previous) orelse not(span_valid(table_span(b,p),buf_len(b),floor,dir_off,dir_end)) then false
+    else directory_valid(n-1,b,iadd(p,16),tag,floor,dir_off,dir_end)
   end
 
 fun index_fill {n:nat} .<n>. (n: int(n), indices: !Buf, i: int): void =
   if n = 0 then () else let val () = buf_set32(indices,i,i) in index_fill(n-1,indices,iadd(i,1)) end
 
-fun offset_digit(b: !Buf, index: int, divisor: int): int =
-  imod(idiv(sfnt_be32(b,iadd(20,imul(index,16))),divisor),256)
+fun offset_digit(b: !Buf, rec_off: int, index: int, divisor: int): int =
+  imod(idiv(sfnt_be32(b,iadd(iadd(rec_off,8),imul(index,16))),divisor),256)
 
 fun radix_count {n:nat} .<n>. (
-  n: int(n), b: !Buf, indices: !Buf, counts: !Buf, i: int, divisor: int
+  n: int(n), b: !Buf, rec_off: int, indices: !Buf, counts: !Buf, i: int, divisor: int
 ): void =
   if n = 0 then () else let
-    val digit = offset_digit(b,buf_get32(indices,i),divisor)
+    val digit = offset_digit(b,rec_off,buf_get32(indices,i),divisor)
     val () = buf_set32(counts,digit,iadd(buf_get32(counts,digit),1))
-  in radix_count(n-1,b,indices,counts,iadd(i,1),divisor) end
+  in radix_count(n-1,b,rec_off,indices,counts,iadd(i,1),divisor) end
 
 fun radix_prefix {n:nat} .<n>. (n: int(n), counts: !Buf, i: int, total: int): void =
   if n = 0 then () else let
@@ -83,54 +90,66 @@ fun radix_prefix {n:nat} .<n>. (n: int(n), counts: !Buf, i: int, total: int): vo
   in radix_prefix(n-1,counts,iadd(i,1),iadd(total,count)) end
 
 fun radix_scatter {n:nat} .<n>. (
-  n: int(n), b: !Buf, input: !Buf, output: !Buf, counts: !Buf, i: int, divisor: int
+  n: int(n), b: !Buf, rec_off: int, input: !Buf, output: !Buf, counts: !Buf, i: int, divisor: int
 ): void =
   if n = 0 then () else let
     val index = buf_get32(input,i)
-    val digit = offset_digit(b,index,divisor)
+    val digit = offset_digit(b,rec_off,index,divisor)
     val at = buf_get32(counts,digit)
     val () = buf_set32(output,at,index)
     val () = buf_set32(counts,digit,iadd(at,1))
-  in radix_scatter(n-1,b,input,output,counts,iadd(i,1),divisor) end
+  in radix_scatter(n-1,b,rec_off,input,output,counts,iadd(i,1),divisor) end
 
 fun radix_passes {n:nat} .<n>. (
-  n: int(n), b: !Buf, input: !Buf, output: !Buf, counts: !Buf, count: int, divisor: int
+  n: int(n), b: !Buf, rec_off: int, input: !Buf, output: !Buf, counts: !Buf, count: int, divisor: int
 ): void =
   if n = 0 then () else let
     val () = buf_zero(counts)
-    val () = radix_count(airlock_nat(count),b,input,counts,0,divisor)
+    val () = radix_count(airlock_nat(count),b,rec_off,input,counts,0,divisor)
     val () = radix_prefix(256,counts,0,0)
-    val () = radix_scatter(airlock_nat(count),b,input,output,counts,0,divisor)
+    val () = radix_scatter(airlock_nat(count),b,rec_off,input,output,counts,0,divisor)
     val next = if n = 1 then divisor else imul(divisor,256)
-  in radix_passes(n-1,b,output,input,counts,count,next) end
+  in radix_passes(n-1,b,rec_off,output,input,counts,count,next) end
 
 fun disjoint_ranges {n:nat} .<n>. (
-  n: int(n), b: !Buf, sorted: !Buf, i: int, previous_end: int
+  n: int(n), b: !Buf, rec_off: int, sorted: !Buf, i: int, previous_end: int
 ): bool =
   if n = 0 then true else let
-    val span = table_span(b,iadd(12,imul(buf_get32(sorted,i),16)))
-  in if ieq(span.length,0) then disjoint_ranges(n-1,b,sorted,iadd(i,1),previous_end)
+    val span = table_span(b,iadd(rec_off,imul(buf_get32(sorted,i),16)))
+  in if ieq(span.length,0) then disjoint_ranges(n-1,b,rec_off,sorted,iadd(i,1),previous_end)
     else if ilt(span.offset,previous_end) then false
-    else disjoint_ranges(n-1,b,sorted,iadd(i,1),iadd(span.offset,span.length)) end
+    else disjoint_ranges(n-1,b,rec_off,sorted,iadd(i,1),iadd(span.offset,span.length)) end
 
-fun tables_disjoint(b: !Buf, count: int): bool = let
+fun tables_disjoint(b: !Buf, rec_off: int, count: int): bool = let
   val indices = buf_make(imul(count,4))
   val scratch = buf_make(imul(count,4))
   val counts = buf_make(TABLES_DISJOINT_COUNTS_INITIAL_BYTES)
   val () = index_fill(airlock_nat(count),indices,0)
-  val () = radix_passes(4,b,indices,scratch,counts,count,1)
-  val result = disjoint_ranges(airlock_nat(count),b,indices,0,0)
+  val () = radix_passes(4,b,rec_off,indices,scratch,counts,count,1)
+  val result = disjoint_ranges(airlock_nat(count),b,rec_off,indices,0,0)
   val () = buf_free(indices)
   val () = buf_free(scratch)
   val () = buf_free(counts)
 in result end
 
-fun directory_header(b: !Buf): bool = let
-  val n = sfnt_be16(b,4)
-  val floor = iadd(12,imul(n,16))
-in ige(buf_len(b),floor) andalso igt(n,0)
-  andalso directory_valid(airlock_nat(n),b,12,0,floor)
-  andalso tables_disjoint(b,n) end
+fun directory_header_at(b: !Buf, dir_off: int, floor: int): bool =
+  if ilt(dir_off,0) orelse igt(iadd(dir_off,12),buf_len(b)) then false
+  else let
+    val n = sfnt_be16(b,iadd(dir_off,4))
+    val rec_off = iadd(dir_off,12)
+    val dir_end = iadd(rec_off,imul(n,16))
+  in igt(n,0) andalso ige(buf_len(b),dir_end)
+    andalso directory_valid(airlock_nat(n),b,rec_off,0,floor,dir_off,dir_end)
+    andalso tables_disjoint(b,rec_off,n) end
+
+fun sfnt_container_valid(ver: int): bool =
+  ieq(ver,WORD16_MODULUS) orelse ieq(ver,1953658213) orelse ieq(ver,table_tag("OTTO"))
+
+fun outline_kind_of(ver: int): SfntOutlineKind =
+  if ieq(ver,table_tag("OTTO")) then OutlineCff() else OutlineTrueType()
+
+#include "data_font/sfnt/private/cff_parse.hats"
+#include "data_font/sfnt/private/ttc_parse.hats"
 
 fun present_size(table: SfntOptional, size: int): bool = case+ table of
   | ~NoSfntTable() => false | ~HasSfntTable(span) => ige(span.length,size)
@@ -138,19 +157,29 @@ fun present_size(table: SfntOptional, size: int): bool = case+ table of
 fun table_offset(table: SfntOptional): int = case+ table of
   | ~NoSfntTable() => ~1 | ~HasSfntTable(span) => span.offset
 
-fun required_tables(b: !Buf, n: int): bool =
-  present_size(sfnt_table(b,n,TableHead()),54)
-  andalso present_size(sfnt_table(b,n,TableHhea()),36)
-  andalso present_size(sfnt_table(b,n,TableMaxp()),32)
-  andalso present_size(sfnt_table(b,n,TableCmap()),4)
-  andalso present_size(sfnt_table(b,n,TableLoca()),2)
-  andalso present_size(sfnt_table(b,n,TableGlyf()),0)
-  andalso present_size(sfnt_table(b,n,TableHmtx()),4)
+fun required_tables(b: !Buf, dir_off: int, n: int, outline: SfntOutlineKind): bool = let
+  val base_ok = present_size(sfnt_table_at(b,dir_off,n,TableHead()),54)
+    andalso present_size(sfnt_table_at(b,dir_off,n,TableHhea()),36)
+    andalso present_size(sfnt_table_at(b,dir_off,n,TableCmap()),4)
+    andalso present_size(sfnt_table_at(b,dir_off,n,TableHmtx()),4)
+in case+ outline of
+  | OutlineTrueType() => base_ok
+      andalso present_size(sfnt_table_at(b,dir_off,n,TableMaxp()),32)
+      andalso present_size(sfnt_table_at(b,dir_off,n,TableLoca()),2)
+      andalso present_size(sfnt_table_at(b,dir_off,n,TableGlyf()),0)
+  | OutlineCff() => base_ok
+      andalso present_size(sfnt_table_at(b,dir_off,n,TableMaxp()),6)
+      andalso present_size(sfnt_table_at(b,dir_off,n,TableCff()),4)
+end
 
-fun metrics_valid(b: !Buf, n: int): bool = let
-  val h = table_offset(sfnt_table(b,n,TableHead()))
-  val a = table_offset(sfnt_table(b,n,TableHhea()))
-  val m = table_offset(sfnt_table(b,n,TableMaxp()))
+fun maxp_version_ok(ver: int, outline: SfntOutlineKind): bool = case+ outline of
+  | OutlineTrueType() => ieq(ver,WORD16_MODULUS)
+  | OutlineCff() => ieq(ver,20480)
+
+fun metrics_valid(b: !Buf, dir_off: int, n: int, outline: SfntOutlineKind): bool = let
+  val h = table_offset(sfnt_table_at(b,dir_off,n,TableHead()))
+  val a = table_offset(sfnt_table_at(b,dir_off,n,TableHhea()))
+  val m = table_offset(sfnt_table_at(b,dir_off,n,TableMaxp()))
   val units = sfnt_be16(b,iadd(h,18))
   val fmt = sfnt_signed16(b,iadd(h,50))
   val glyphs = sfnt_be16(b,iadd(m,4))
@@ -160,8 +189,9 @@ in ieq(sfnt_be32(b,iadd(h,12)),1594834165)
   andalso ige(units,16) andalso ile(units,16384)
   andalso (ieq(fmt,0) orelse ieq(fmt,1))
   andalso ieq(sfnt_signed16(b,iadd(a,32)),0)
-  andalso ieq(sfnt_be32(b,m),WORD16_MODULUS) andalso igt(hm,0) andalso ile(hm,glyphs)
-  andalso present_size(sfnt_table(b,n,TableHmtx()),bytes) end
+  andalso maxp_version_ok(sfnt_be32(b,m),outline)
+  andalso igt(hm,0) andalso ile(hm,glyphs)
+  andalso present_size(sfnt_table_at(b,dir_off,n,TableHmtx()),bytes) end
 
 fun optional_span(table: SfntOptional): SfntSpan = case+ table of
   | ~HasSfntTable(span) => span | ~NoSfntTable() => @{offset=0,length=0}
@@ -178,15 +208,26 @@ fun loca_check {n:nat} .<n>. (
     else loca_check(n-1,b,span,long,iadd(i,1),at,limit)
   end
 
-fun locations_valid(b: !Buf, n: int): bool = let
-  val head = table_offset(sfnt_table(b,n,TableHead()))
-  val maxp = table_offset(sfnt_table(b,n,TableMaxp()))
+fun ttf_locations_valid(b: !Buf, dir_off: int, n: int): bool = let
+  val head = table_offset(sfnt_table_at(b,dir_off,n,TableHead()))
+  val maxp = table_offset(sfnt_table_at(b,dir_off,n,TableMaxp()))
   val count = iadd(sfnt_be16(b,iadd(maxp,4)),1)
   val long = ieq(sfnt_signed16(b,iadd(head,50)),1)
-  val loca = optional_span(sfnt_table(b,n,TableLoca()))
-  val glyf = optional_span(sfnt_table(b,n,TableGlyf()))
+  val loca = optional_span(sfnt_table_at(b,dir_off,n,TableLoca()))
+  val glyf = optional_span(sfnt_table_at(b,dir_off,n,TableGlyf()))
 in ige(loca.length,imul(count,if long then 4 else 2))
   andalso loca_check(airlock_nat(count),b,loca,long,0,0,glyf.length) end
+
+fun cff_locations_valid(b: !Buf, dir_off: int, n: int): bool = let
+  val maxp = table_offset(sfnt_table_at(b,dir_off,n,TableMaxp()))
+  val glyphs = sfnt_be16(b,iadd(maxp,4))
+  val cff = optional_span(sfnt_table_at(b,dir_off,n,TableCff()))
+  val ctx = cff_build_ctx(b,cff,glyphs)
+in ctx.valid end
+
+fun locations_valid(b: !Buf, dir_off: int, n: int, outline: SfntOutlineKind): bool = case+ outline of
+  | OutlineTrueType() => ttf_locations_valid(b,dir_off,n)
+  | OutlineCff() => cff_locations_valid(b,dir_off,n)
 
 typedef cmap_candidate = @{span=SfntSpan,format=int,score=int}
 
@@ -284,8 +325,8 @@ in ige(span.length,16) andalso ieq(sfnt_be16(b,iadd(span.offset,2)),0)
   andalso ige(n,0) andalso ile(n,idiv(isub(span.length,16),12))
   andalso cmap12_groups(airlock_nat(imax(0,n)),b,iadd(span.offset,16),~1,glyphs) end
 
-fun character_map(b: !Buf, n: int, glyphs: int): Option_vt(SfntCmap) = let
-  val selected = cmap_selection(b,optional_span(sfnt_table(b,n,TableCmap())))
+fun character_map(b: !Buf, dir_off: int, n: int, glyphs: int): Option_vt(SfntCmap) = let
+  val selected = cmap_selection(b,optional_span(sfnt_table_at(b,dir_off,n,TableCmap())))
   val span = selected.span
 in if ile(selected.score,0) then None_vt()
   else if ieq(selected.format,4) andalso cmap4_valid(b,span,glyphs)
@@ -294,39 +335,64 @@ in if ile(selected.score,0) then None_vt()
     then Some_vt(@{kind=CmapGrouped(),span=span,count=sfnt_be32(b,iadd(span.offset,12))})
   else None_vt() end
 
-fun build_info(b: !Buf, n: int, cmap: SfntCmap): SfntInfo = let
-  val h = table_offset(sfnt_table(b,n,TableHead()))
-  val a = table_offset(sfnt_table(b,n,TableHhea()))
-  val m = table_offset(sfnt_table(b,n,TableMaxp()))
+fun build_info(b: !Buf, dir_off: int, n: int, outline: SfntOutlineKind, cmap: SfntCmap): SfntInfo = let
+  val h = table_offset(sfnt_table_at(b,dir_off,n,TableHead()))
+  val a = table_offset(sfnt_table_at(b,dir_off,n,TableHhea()))
+  val m = table_offset(sfnt_table_at(b,dir_off,n,TableMaxp()))
 in @{tables=n,units=sfnt_be16(b,iadd(h,18)),
   ascender=sfnt_signed16(b,iadd(a,4)),descender=sfnt_signed16(b,iadd(a,6)),line_gap=sfnt_signed16(b,iadd(a,8)),
   glyphs=sfnt_be16(b,iadd(m,4)),hmetrics=sfnt_be16(b,iadd(a,34)),long_loca=ieq(sfnt_signed16(b,iadd(h,50)),1),
-  glyf=optional_span(sfnt_table(b,n,TableGlyf())),loca=optional_span(sfnt_table(b,n,TableLoca())),
-  hmtx=optional_span(sfnt_table(b,n,TableHmtx())),cmap=cmap} end
+  outline=outline,
+  glyf=optional_span(sfnt_table_at(b,dir_off,n,TableGlyf())),
+  loca=optional_span(sfnt_table_at(b,dir_off,n,TableLoca())),
+  cff=optional_span(sfnt_table_at(b,dir_off,n,TableCff())),
+  hmtx=optional_span(sfnt_table_at(b,dir_off,n,TableHmtx())),cmap=cmap} end
 
-fun parse_static(b: !Buf, n: int): SfntParsed =
-  if not(required_tables(b,n)) then InvalidSfnt(SfntOutline())
-  else if not(metrics_valid(b,n)) then InvalidSfnt(SfntMetrics())
-  else if not(locations_valid(b,n)) then InvalidSfnt(SfntLocations())
-  else let val m = table_offset(sfnt_table(b,n,TableMaxp())) in
-    case+ character_map(b,n,sfnt_be16(b,iadd(m,4))) of
+fun parse_static(b: !Buf, dir_off: int, n: int, outline: SfntOutlineKind): SfntParsed =
+  if not(required_tables(b,dir_off,n,outline)) then InvalidSfnt(SfntOutline())
+  else if not(metrics_valid(b,dir_off,n,outline)) then InvalidSfnt(SfntMetrics())
+  else if not(locations_valid(b,dir_off,n,outline)) then InvalidSfnt(SfntLocations())
+  else let val m = table_offset(sfnt_table_at(b,dir_off,n,TableMaxp())) in
+    case+ character_map(b,dir_off,n,sfnt_be16(b,iadd(m,4))) of
     | ~None_vt() => InvalidSfnt(SfntCharacterMap())
-    | ~Some_vt(cmap) => ValidSfnt(build_info(b,n,cmap)) end
+    | ~Some_vt(cmap) => ValidSfnt(build_info(b,dir_off,n,outline,cmap)) end
+
+fun parse_face_at(b: !Buf, dir_off: int, floor: int): SfntParsed = let
+  val ver = sfnt_be32(b,dir_off)
+in
+  if not(sfnt_container_valid(ver)) then InvalidSfnt(SfntContainer())
+  else if not(directory_header_at(b,dir_off,floor)) then InvalidSfnt(SfntDirectory())
+  else let val n = sfnt_be16(b,iadd(dir_off,4)) in case+ sfnt_table_at(b,dir_off,n,TableFvar()) of
+    | ~HasSfntTable(span) => InvalidSfnt(SfntVariable())
+    | ~NoSfntTable() => parse_static(b,dir_off,n,outline_kind_of(ver)) end
+end
+
+fun parse_ttc(b: !Buf): SfntParsed = let
+  val ends = ttc_hdr_end(b)
+  val dir_off = ttc_face0_dir(b)
+in
+  if ilt(ends,0) orelse ilt(dir_off,0) then InvalidSfnt(SfntDirectory())
+  else parse_face_at(b,dir_off,ends)
+end
 
 implement sfnt_parse(b) =
   if ilt(buf_len(b),12) then InvalidSfnt(SfntDirectory())
-  else if not(ieq(sfnt_be32(b,0),WORD16_MODULUS) orelse ieq(sfnt_be32(b,0),1953658213))
-    then InvalidSfnt(SfntContainer())
-  else if not(directory_header(b)) then InvalidSfnt(SfntDirectory())
-  else let val n = sfnt_be16(b,4) in case+ sfnt_table(b,n,TableFvar()) of
-    | ~HasSfntTable(span) => InvalidSfnt(SfntVariable())
-    | ~NoSfntTable() => parse_static(b,n) end
+  else if ieq(sfnt_be32(b,0),table_tag("ttcf")) then parse_ttc(b)
+  else if not(sfnt_container_valid(sfnt_be32(b,0))) then InvalidSfnt(SfntContainer())
+  else parse_face_at(b,0,iadd(12,imul(sfnt_be16(b,4),16)))
+
+fun open_parsed(b: Buf): SfntLoaded = case+ sfnt_parse(b) of
+  | ~ValidSfnt(info) => LoadedSfnt(SfntFace(b,info))
+  | ~InvalidSfnt(error) => let val () = buf_free(b) in RejectedSfnt(error) end
 
 implement sfnt_open(path) = case+ text_file_read(path) of
   | ~TextFileError(code) => RejectedSfnt(SfntIo(code))
-  | ~TextFile(b) => (case+ sfnt_parse(b) of
-    | ~ValidSfnt(info) => LoadedSfnt(SfntFace(b,info))
-    | ~InvalidSfnt(error) => let val () = buf_free(b) in RejectedSfnt(error) end)
+  | ~TextFile(b) =>
+      if ige(buf_len(b),4) andalso ieq(sfnt_be32(b,0),table_tag("ttcf")) then (
+        case+ ttc_unpack_face0(b) of
+        | ~Some_vt(standalone) => let val () = buf_free(b) in open_parsed(standalone) end
+        | ~None_vt() => open_parsed(b)
+      ) else open_parsed(b)
 
 implement sfnt_dispose(face) = let val+ ~SfntFace(b,info) = face in buf_free(b) end
 implement sfnt_info(face) = let val+ SfntFace(b,info) = face in info end
@@ -366,7 +432,8 @@ implement sfnt_metadata_empty() = let
   val empty: SfntSpan= @{offset=0,length=0}
   val cmap: SfntCmap= @{kind=CmapSegmented(),span=empty,count=0}
   val info: SfntInfo= @{tables=0,units=0,ascender=0,descender=0,line_gap=0,
-    glyphs=0,hmetrics=0,long_loca=false,glyf=empty,loca=empty,hmtx=empty,cmap=cmap}
+    glyphs=0,hmetrics=0,long_loca=false,outline=OutlineTrueType(),
+    glyf=empty,loca=empty,cff=empty,hmtx=empty,cmap=cmap}
 in @{present=false,info=info} end
 
 extern fun bad_glyph(): int = "mac#anth_die_int"

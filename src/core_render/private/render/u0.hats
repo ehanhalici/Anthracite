@@ -25,15 +25,20 @@ fun gl_init_state(prog: uint): void = let
 in
 end
 
-fun make_rend(prog: uint, blur_prog: uint, vao: uint, vbo: uint, nbytes: int): Rend =
+fun make_rend(prog: uint, blur_prog: uint, rect_prog: uint, vao: uint, vbo: uint, nbytes: int): Rend =
   REND(@{
-    prog= prog, blur_prog= blur_prog, blur_tex= u0(), vao= vao, vbo= vbo
+    prog= prog, blur_prog= blur_prog, rect_prog= rect_prog, blur_tex= u0(), vao= vao, vbo= vbo
   , loc_view= gl_uloc(prog, "u_view")
   , loc_mode= gl_uloc(prog, "u_mode")
   , loc_tex= gl_uloc(prog, "u_tex")
   , blur_loc_view= gl_uloc(blur_prog, "u_view")
   , blur_loc_tex= gl_uloc(blur_prog, "u_tex")
   , blur_loc_pixel= gl_uloc(blur_prog, "u_pixel")
+  , rect_loc_view= gl_uloc(rect_prog, "u_view")
+  , rect_loc_size= gl_uloc(rect_prog, "u_size")
+  , rect_loc_radii= gl_uloc(rect_prog, "u_radii")
+  , rect_loc_border= gl_uloc(rect_prog, "u_border_col")
+  , rect_loc_params= gl_uloc(rect_prog, "u_params")
   , batch= buf_make(nbytes)
   , clips= buf_make(RENDER_CLIP_INITIAL_BYTES)
   , nvert= 0, mode= ShadeNone, tex= u0(), vw= 1, vh= 1, blur_w= 0, blur_h= 0
@@ -42,6 +47,7 @@ fun make_rend(prog: uint, blur_prog: uint, vao: uint, vbo: uint, nbytes: int): R
 implement rend_open() = let
   val prog = gl_program()
   val blur_prog = gl_blur_program()
+  val rect_prog = gl_rect_program()
   var vao: uint = u0()
   var vbo: uint = u0()
   val () = glGenVertexArrays(1, vao)
@@ -50,7 +56,7 @@ implement rend_open() = let
   val () = gl_batch_bind(vao, vbo, nbytes)
   val () = gl_init_state(prog)
 in
-  make_rend(prog, blur_prog, vao, vbo, nbytes)
+  make_rend(prog, blur_prog, rect_prog, vao, vbo, nbytes)
 end
 
 implement rend_close(r) = let
@@ -58,6 +64,7 @@ implement rend_close(r) = let
   val () = buf_free(s.clips)
   val () = glDeleteProgram(s.prog)
   val () = glDeleteProgram(s.blur_prog)
+  val () = glDeleteProgram(s.rect_prog)
   var blur_tex: uint = s.blur_tex
   val () = if blur_tex <> u0() then glDeleteTextures(1, blur_tex) else ()
   var vao: uint = s.vao
@@ -90,11 +97,14 @@ implement rend_flush(r) =
       val n = s.nvert
       val () =
         if n > 0 then let
+          val t0 = performance_now_ns()
+          val () = performance_note(PERF_GL_FLUSH_CALLS, 1)
           val () = gl_airlock_upload_batch(s.vao, s.vbo, s.batch, n)
           val () = glUniform1i(s.loc_mode, shade_code(s.mode))
           val () = glActiveTexture(GL_TEXTURE0)
           val () = glBindTexture(GL_TEXTURE_2D, s.tex)
           val () = glDrawArrays(GL_TRIANGLES, 0, n)
+          val () = performance_phase_end(PERF_PHASE_REND_FLUSH, t0)
         in
           s.nvert := 0
         end else ()
@@ -109,6 +119,7 @@ fun bind_mode(r: !Rend, mode: Shade, tex: uint): void =
     in
       fold@(r);
       if changed then let
+        val () = performance_note(PERF_GL_MODE_SWITCHES, 1)
         val () = rend_flush(r)
       in
         case+ r of
@@ -179,25 +190,24 @@ implement rend_begin(r, w, h) =
       fold@(r)
     end
 
-implement rend_rect(r, x, y, w, h, c) = let
+implement rend_rect_grad(r, x, y, w, h, c_top, c_bot) = let
+  val () = performance_note(PERF_GL_QUADS, 1)
   val () = bind_mode(r, ShadeSolid, u0())
-  val x0 = i2f(x)
-  val y0 = i2f(y)
-  val x1 = i2f(x + w)
-  val y1 = i2f(y + h)
-  val cr = gl_rf(c)
-  val cg = gl_gf(c)
-  val cb = gl_bf(c)
-  val ca = gl_af(c)
+  val x0 = i2f(x); val y0 = i2f(y); val x1 = i2f(x + w); val y1 = i2f(y + h)
+  val rt = gl_rf(c_top); val gt = gl_gf(c_top); val bt = gl_bf(c_top); val at = gl_af(c_top)
+  val rb = gl_rf(c_bot); val gb = gl_gf(c_bot); val bb = gl_bf(c_bot); val ab = gl_af(c_bot)
   val z = i2f(0)
-  val () = push(r, x0, y0, cr, cg, cb, ca, z, z)
-  val () = push(r, x1, y0, cr, cg, cb, ca, z, z)
-  val () = push(r, x1, y1, cr, cg, cb, ca, z, z)
-  val () = push(r, x0, y0, cr, cg, cb, ca, z, z)
-  val () = push(r, x1, y1, cr, cg, cb, ca, z, z)
-  val () = push(r, x0, y1, cr, cg, cb, ca, z, z)
+  val () = push(r, x0, y0, rt, gt, bt, at, z, z)
+  val () = push(r, x1, y0, rt, gt, bt, at, z, z)
+  val () = push(r, x1, y1, rb, gb, bb, ab, z, z)
+  val () = push(r, x0, y0, rt, gt, bt, at, z, z)
+  val () = push(r, x1, y1, rb, gb, bb, ab, z, z)
+  val () = push(r, x0, y1, rb, gb, bb, ab, z, z)
 in
 end
+
+implement rend_rect(r, x, y, w, h, c) =
+  rend_rect_grad(r, x, y, w, h, c, c)
 
 fun push_quad(r: !Rend, x0: float, y0: float, x1: float, y1: float, cr: float, cg: float, cb: float, ca: float, uu0: float, vv0: float, uu1: float, vv1: float): void = let
   val () = push(r, x0, y0, cr, cg, cb, ca, uu0, vv0)

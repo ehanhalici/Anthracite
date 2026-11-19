@@ -50,8 +50,8 @@ fun push_out(f: !Font, n: int, x: int, y: int, on: int): int =
     iadd(n, 1)
   end
 
-fun pix_x(x: int, minx: int, sc: double): int = iround(n_i2d(x - minx) * sc) + 1
-fun pix_y(y: int, maxy: int, sc: double): int = iround(n_i2d(maxy - y) * sc) + 1
+fun pix_x(x: int, minx: int, sc: double): int = iround(n_i2d(x - minx) * sc) + 8
+fun pix_y(y: int, maxy: int, sc: double): int = iround(n_i2d(maxy - y) * sc) + 8
 
 fun emit_xy(f: !Font, x0: int, y0: int, x1: int, y1: int, minx: int, maxy: int, sc: double): void =
   edge_push(f, pix_x(x0, minx, sc), pix_y(y0, maxy, sc), pix_x(x1, minx, sc), pix_y(y1, maxy, sc))
@@ -147,7 +147,7 @@ fun emit_curve_at(f: !Font, i: int, n: int, minx: int, maxy: int, sc: double): v
 in
   quad(f, pix_x(x0, minx, sc), pix_y(y0, maxy, sc),
           pix_x(x1, minx, sc), pix_y(y1, maxy, sc),
-          pix_x(x2, minx, sc), pix_y(y2, maxy, sc), 3)
+          pix_x(x2, minx, sc), pix_y(y2, maxy, sc), 4)
 end
 
 extern fun contour_walk_fuel_exhausted(f: !Font, i: int, n: int, minx: int, maxy: int, sc: double): void = "mac#anth_die_void"
@@ -198,6 +198,78 @@ fun contours_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Fon
   ) else contours_fuel_exhausted(f, ci, nends, minx, maxy, sc)
 
 implement contours(f, ci, nends, minx, maxy, sc) = contours_with_fuel(airlock_nat(MAX_REC_FUEL), f, ci, nends, minx, maxy, sc)
+
+fun dpix_x(x: int, minx: int, sc: double): double = n_i2d(x - minx) * sc + 8.0
+fun dpix_y(y: int, maxy: int, sc: double): double = n_i2d(maxy - y) * sc + 8.0
+fun dabs(v: double): double = if v < 0.0 then ~v else v
+
+fun cubic_flat(x0: double, y0: double, x1: double, y1: double, x2: double, y2: double, x3: double, y3: double): bool = let
+  val e1x = dabs(3.0 * x1 - 2.0 * x0 - x3)
+  val e1y = dabs(3.0 * y1 - 2.0 * y0 - y3)
+  val e2x = dabs(3.0 * x2 - x0 - 2.0 * x3)
+  val e2y = dabs(3.0 * y2 - y0 - 2.0 * y3)
+in
+  e1x + e1y + e2x + e2y <= 6.0
+end
+
+fun cubic_subdiv {d:nat} .<d>. (
+  depth: int(d), f: !Font,
+  x0: double, y0: double, x1: double, y1: double,
+  x2: double, y2: double, x3: double, y3: double
+): void =
+  if depth = 0 then
+    edge_push(f, iround(x0), iround(y0), iround(x3), iround(y3))
+  else if cubic_flat(x0, y0, x1, y1, x2, y2, x3, y3) then
+    edge_push(f, iround(x0), iround(y0), iround(x3), iround(y3))
+  else let
+    val x01 = (x0 + x1) * 0.5 and y01 = (y0 + y1) * 0.5
+    val x12 = (x1 + x2) * 0.5 and y12 = (y1 + y2) * 0.5
+    val x23 = (x2 + x3) * 0.5 and y23 = (y2 + y3) * 0.5
+    val x012 = (x01 + x12) * 0.5 and y012 = (y01 + y12) * 0.5
+    val x123 = (x12 + x23) * 0.5 and y123 = (y12 + y23) * 0.5
+    val xm = (x012 + x123) * 0.5 and ym = (y012 + y123) * 0.5
+    val () = cubic_subdiv(depth - 1, f, x0, y0, x01, y01, x012, y012, xm, ym)
+  in
+    cubic_subdiv(depth - 1, f, xm, ym, x123, y123, x23, y23, x3, y3)
+  end
+
+fun cff_emit_cubic(f: !Font, i: int, minx: int, maxy: int, sc: double): void =
+  cubic_subdiv(6, f,
+    dpix_x(pt_x(f, i), minx, sc), dpix_y(pt_y(f, i), maxy, sc),
+    dpix_x(pt_x(f, i + 1), minx, sc), dpix_y(pt_y(f, i + 1), maxy, sc),
+    dpix_x(pt_x(f, i + 2), minx, sc), dpix_y(pt_y(f, i + 2), maxy, sc),
+    dpix_x(pt_x(f, i + 3), minx, sc), dpix_y(pt_y(f, i + 3), maxy, sc))
+
+fun cff_walk_pts {n:nat} .<n>. (
+  rem: int(n), f: !Font, a: int, b: int, i: int, minx: int, maxy: int, sc: double
+): void =
+  if rem = 0 then emit_xy(f, pt_x(f, b), pt_y(f, b), pt_x(f, a), pt_y(f, a), minx, maxy, sc)
+  else if ige(i, b) then emit_xy(f, pt_x(f, b), pt_y(f, b), pt_x(f, a), pt_y(f, a), minx, maxy, sc)
+  else if ieq(pt_on(f, i + 1), 1) then let
+    val () = emit_xy(f, pt_x(f, i), pt_y(f, i), pt_x(f, i + 1), pt_y(f, i + 1), minx, maxy, sc)
+  in
+    cff_walk_pts(rem - 1, f, a, b, i + 1, minx, maxy, sc)
+  end else if ieq(pt_on(f, i + 1), 2) andalso ile(i + 3, b) then let
+    val () = cff_emit_cubic(f, i, minx, maxy, sc)
+  in
+    cff_walk_pts(rem - 1, f, a, b, i + 3, minx, maxy, sc)
+  end else emit_xy(f, pt_x(f, b), pt_y(f, b), pt_x(f, a), pt_y(f, a), minx, maxy, sc)
+
+fun cff_contours_loop {n:nat} .<n>. (
+  rem: int(n), f: !Font, ci: int, nends: int, minx: int, maxy: int, sc: double
+): void =
+  if rem = 0 then ()
+  else if ige(ci, nends) then ()
+  else let
+    val a = (if ci = 0 then 0 else iadd(end_get(f, isub(ci, 1)), 1)) : int
+    val b = end_get(f, ci)
+    val () = if igt(b, a) then cff_walk_pts(airlock_nat(iadd(isub(b, a), 1)), f, a, b, a, minx, maxy, sc) else ()
+  in
+    cff_contours_loop(rem - 1, f, iadd(ci, 1), nends, minx, maxy, sc)
+  end
+
+implement cff_contours(f, ci, nends, minx, maxy, sc) =
+  cff_contours_loop(airlock_nat(imax(0, isub(nends, ci))), f, ci, nends, minx, maxy, sc)
 
 extern fun bbox_fuel_exhausted(f: !Font, i: int, n: int, minx: &int, miny: &int, maxx: &int, maxy: &int): void = "mac#anth_die_void"
 

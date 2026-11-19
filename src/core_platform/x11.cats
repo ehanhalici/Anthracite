@@ -303,6 +303,28 @@ enum anth_key {
   ANTH_KEY_PAGE_DOWN
 };
 
+static inline int anth_ev_keysym(anth_event *e) {
+  if (!e) return 0;
+  unsigned long ks = e->keysym;
+  if (ks >= 'A' && ks <= 'Z') return (int)(ks - 'A' + 'a');
+  if (ks >= 0x20 && ks <= 0x7E) return (int)ks;
+  if (ks == XK_Left || ks == XK_KP_Left) return 0x101;
+  if (ks == XK_Right || ks == XK_KP_Right) return 0x102;
+  if (ks == XK_Up || ks == XK_KP_Up) return 0x103;
+  if (ks == XK_Down || ks == XK_KP_Down) return 0x104;
+  if (ks == XK_BackSpace) return 0x105;
+  if (ks == XK_Delete || ks == XK_KP_Delete) return 0x106;
+  if (ks == XK_Home || ks == XK_KP_Home) return 0x107;
+  if (ks == XK_End || ks == XK_KP_End) return 0x108;
+  if (ks == XK_Return || ks == XK_KP_Enter) return 0x109;
+  if (ks == XK_Tab || ks == XK_KP_Tab || ks == ANTH_KEYSYM_ISO_LEFT_TAB) return 0x10A;
+  if (ks == XK_Escape) return 0x10B;
+  if (ks == XK_Page_Up || ks == XK_KP_Page_Up) return 0x10C;
+  if (ks == XK_Page_Down || ks == XK_KP_Page_Down) return 0x10D;
+  if (ks >= XK_F1 && ks <= XK_F12) return (int)(0x110 + (ks - XK_F1));
+  return 0;
+}
+
 static inline int anth_key_is(anth_event *e, int key) {
   if (!e) return 0;
   unsigned long ks = e->keysym;

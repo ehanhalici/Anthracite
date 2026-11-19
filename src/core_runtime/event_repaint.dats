@@ -1,6 +1,7 @@
 #define ATS_DYNLOADFLAG 0
 #include "share/atspre_define.hats"
 #include "share/atspre_staload.hats"
+#include "common.hats"
 staload "core_platform/x11.sats"
 staload "core_runtime/event_repaint.sats"
 implement event_repaint(k) = case+ k of
@@ -12,3 +13,5 @@ implement event_repaint(k) = case+ k of
   | EvWheel() => RepaintNeeded() | EvSelNotify() => RepaintNeeded()
 implement repaint_merge(a,b) = case+ a of
   | RepaintNeeded() => RepaintNeeded() | RepaintClean() => b
+implement event_batch_has_budget(batch_left, pending) =
+  igt(batch_left, 0) andalso igt(pending, 0)

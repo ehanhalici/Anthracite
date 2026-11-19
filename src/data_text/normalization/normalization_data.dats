@@ -11,9 +11,20 @@ staload "data_text/normalization/normalization_data.sats"
 
 implement normalization_header(data) = let val+ NormalizationData(bytes,header) = data in header end
 
+fun dense_base(bytes: !Buf): int = isub(idiv(buf_len(bytes),WORD32_BYTES),UNICODE_DENSE_SCALARS)
+fun row_of(bytes: !Buf,header: NormalizationHeader,cp: int): int =
+  if ige(cp,0) andalso ilt(cp,UNICODE_DENSE_SCALARS) then buf_get32(bytes,iadd(dense_base(bytes),cp))
+  else normalization_row_search(bytes,NORMALIZATION_HEADER_WORDS,header.rows,cp)
+implement normalization_dense_match(data) = let
+  val+ NormalizationData(bytes,header) = data
+  fun go{n:nat} .<n>. (n: int(n),bytes: !Buf,header: NormalizationHeader,cp: int): bool =
+    if n = 0 then true
+    else ieq(row_of(bytes,header,cp),normalization_row_search(bytes,NORMALIZATION_HEADER_WORDS,header.rows,cp))
+      andalso go(n-1,bytes,header,iadd(cp,1))
+in go(airlock_nat(UNICODE_DENSE_SCALARS),bytes,header,0) end
 implement normalization_info(data,cp) = let
   val+ NormalizationData(bytes,header) = data
-  val row = normalization_row_search(bytes,NORMALIZATION_HEADER_WORDS,header.rows,cp)
+  val row = row_of(bytes,header,cp)
 in if ilt(row,0) then normalization_leaf_info(cp)
   else normalization_row_read(bytes,iadd(NORMALIZATION_HEADER_WORDS,imul(row,NORMALIZATION_ROW_WORDS))) end
 

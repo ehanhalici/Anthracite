@@ -1,28 +1,39 @@
 extern fun draw_tabrow_impl_fuel_exhausted(f: !Font, r: !Rend, ts: Tabs, x: int, active: int, i: int): Tabs = "mac#anth_die_box"
 
 fun draw_tabrow_pane_with_fuel {recfuel:nat} .<recfuel>. (
-  recfuel: int(recfuel), f: !Font, r: !Rend, ts: Tabs, x: int, active: int, i: int,
-  filter: int, tab_pane: !Buf
+  recfuel: int(recfuel), f: !Font, r: !Rend, ts: Tabs, x: int, box_w: int, active: int, i: int,
+  filter: int, tab_pane: !Buf, hx: int, hy: int, prev_plain: bool
 ): Tabs =
   if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) => let
         val match = tab_pane_match(filter, tab_pane, i)
-        val tab_w = (if match then tab_item_width(f, r, title) else 0)
-        val bx = x
-        val next_x = (if match then iadd(bx, iadd(tab_w, 4)) else bx)
-        val () = if match then draw_tab_frame(f, r, title, bx, tab_w, i, active) else ()
+        val next_x = (if match then iadd(x, box_w) else x)
+        val tb_h = chrome_topbar_h(font_line_h(f))
+        val plain = not(ieq(i, active)) andalso not(tab_is_hovered(x, box_w, tb_h, hx, hy))
+        val () = if match then draw_tab_frame_hover(f, r, title, x, box_w, i, active, hx, hy, prev_plain) else ()
         val () = touch_doc(doc)
         val () = seen_int(sc)
-        val rest2 = draw_tabrow_pane_with_fuel(recfuel - 1, f, r, rest, next_x, active, iadd(i, 1), filter, tab_pane)
+        val nxt_plain = if match then plain else prev_plain
+        val rest2 = draw_tabrow_pane_with_fuel(recfuel - 1, f, r, rest, next_x, box_w, active, iadd(i, 1), filter, tab_pane, hx, hy, nxt_plain)
       in
         TCons(doc, path, title, sc, rest2)
       end
   ) else draw_tabrow_impl_fuel_exhausted(f, r, ts, x, active, i)
 
+implement draw_tabrow_pane_hover(f, r, ts, x, avail_w, active, i, filter, tab_pane, hx, hy) = let
+  val n = count_pane_tabs_with_fuel(airlock_nat(MAX_REC_FUEL), ts, i, filter, tab_pane, 0)
+  val box_w = tab_box_width_for_bar(avail_w, n)
+in
+  draw_tabrow_pane_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, ts, x, box_w, active, i, filter, tab_pane, hx, hy, false)
+end
+
+implement draw_tabrow_pane_w(f, r, ts, x, avail_w, active, i, filter, tab_pane) =
+  draw_tabrow_pane_hover(f, r, ts, x, avail_w, active, i, filter, tab_pane, ~1, ~1)
+
 implement draw_tabrow_pane(f, r, ts, x, active, i, filter, tab_pane) =
-  draw_tabrow_pane_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, ts, x, active, i, filter, tab_pane)
+  draw_tabrow_pane_w(f, r, ts, x, 0, active, i, filter, tab_pane)
 
 implement draw_tabrow(f, r, ts, x, active, i) = let
   var empty_b = buf_make(DRAW_TABROW_EMPTY_B_INITIAL_BYTES)
@@ -34,11 +45,9 @@ end
 
 extern fun tab_hit_test_impl_fuel_exhausted(f: !Font, r: !Rend, ts: !Tabs, x: int, click_x: int, i: int, out_ti: &int >> _, out_close: &bool >> _): void = "mac#anth_die_void"
 
-fun tab_hit_step(f: !Font, r: !Rend, title: !Buf, x: int, click_x: int, i: int, out_ti: &int >> _, out_close: &bool >> _): int = let
-  val tlen = buf_len(title)
-  val tw = if igt(tlen, 0) then font_width_buf(f, r, title, tlen) else 0
-  val tab_w = imin(200, imax(100, iadd(tw, 36)))
-  val close_x = isub(iadd(x, tab_w), 24)
+fun tab_hit_step(tab_w: int, x: int, click_x: int, i: int, out_ti: &int >> _, out_close: &bool >> _): int = let
+  val close_w = if ige(tab_w, 44) then 24 else imin(16, idiv(tab_w, 2))
+  val close_x = isub(iadd(x, tab_w), close_w)
 in
   if ige(click_x, x) andalso ilt(click_x, iadd(x, tab_w)) then (
     out_ti := i; out_close := ige(click_x, close_x); tab_w
@@ -46,7 +55,7 @@ in
 end
 
 fun tab_hit_test_pane_with_fuel {recfuel:nat} .<recfuel>. (
-  recfuel: int(recfuel), f: !Font, r: !Rend, ts: !Tabs, x: int, click_x: int, i: int,
+  recfuel: int(recfuel), f: !Font, r: !Rend, ts: !Tabs, x: int, box_w: int, click_x: int, i: int,
   filter: int, tab_pane: !Buf, out_ti: &int >> _, out_close: &bool >> _
 ): void =
   if recursion_fuel_available(recfuel) then (
@@ -54,15 +63,22 @@ fun tab_hit_test_pane_with_fuel {recfuel:nat} .<recfuel>. (
     | TNil() => ()
     | TCons(_, _, title, _, rest) =>
         if tab_pane_match(filter, tab_pane, i) then let
-          val tab_w = tab_hit_step(f, r, title, x, click_x, i, out_ti, out_close)
+          val tab_w = tab_hit_step(box_w, x, click_x, i, out_ti, out_close)
         in
           if ige(out_ti, 0) then ()
-          else tab_hit_test_pane_with_fuel(recfuel - 1, f, r, rest, iadd(x, iadd(tab_w, 4)), click_x, iadd(i, 1), filter, tab_pane, out_ti, out_close)
-        end else tab_hit_test_pane_with_fuel(recfuel - 1, f, r, rest, x, click_x, iadd(i, 1), filter, tab_pane, out_ti, out_close)
+          else tab_hit_test_pane_with_fuel(recfuel - 1, f, r, rest, iadd(x, tab_w), box_w, click_x, iadd(i, 1), filter, tab_pane, out_ti, out_close)
+        end else tab_hit_test_pane_with_fuel(recfuel - 1, f, r, rest, x, box_w, click_x, iadd(i, 1), filter, tab_pane, out_ti, out_close)
   ) else tab_hit_test_impl_fuel_exhausted(f, r, ts, x, click_x, i, out_ti, out_close)
 
+implement tab_hit_test_pane_w(f, r, ts, start_x, avail_w, click_x, filter, tab_pane, out_ti, out_close) = let
+  val n = count_pane_tabs_with_fuel(airlock_nat(MAX_REC_FUEL), ts, 0, filter, tab_pane, 0)
+  val box_w = tab_box_width_for_bar(avail_w, n)
+in
+  tab_hit_test_pane_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, ts, start_x, box_w, click_x, 0, filter, tab_pane, out_ti, out_close)
+end
+
 implement tab_hit_test_pane(f, r, ts, start_x, click_x, filter, tab_pane, out_ti, out_close) =
-  tab_hit_test_pane_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, ts, start_x, click_x, 0, filter, tab_pane, out_ti, out_close)
+  tab_hit_test_pane_w(f, r, ts, start_x, 0, click_x, filter, tab_pane, out_ti, out_close)
 
 implement tab_hit_test(f, r, ts, start_x, click_x, out_ti, out_close) = let
   var empty_b = buf_make(TAB_HIT_TEST_EMPTY_B_INITIAL_BYTES)
@@ -71,13 +87,46 @@ implement tab_hit_test(f, r, ts, start_x, click_x, out_ti, out_close) = let
 in
 end
 
-implement tab_find_at_x(f, r, ts, start_x, hover_x, filter, tab_pane) = let
+implement tab_find_at_x_w(f, r, ts, start_x, avail_w, hover_x, filter, tab_pane) = let
   var ti: int = ~1
   var close: bool = false
-  val () = tab_hit_test_pane(f, r, ts, start_x, hover_x, filter, tab_pane, ti, close)
+  val () = tab_hit_test_pane_w(f, r, ts, start_x, avail_w, hover_x, filter, tab_pane, ti, close)
 in
   ti
 end
+
+implement tab_find_at_x(f, r, ts, start_x, hover_x, filter, tab_pane) =
+  tab_find_at_x_w(f, r, ts, start_x, 0, hover_x, filter, tab_pane)
+
+fun tab_hover_info_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), f: !Font, r: !Rend, ts: !Tabs, x: int, box_w: int, hover_x: int, i: int,
+  filter: int, tab_pane: !Buf, out_ti: &int >> _, out_bx: &int >> _, out_over: &bool >> _
+): void =
+  if recursion_fuel_available(recfuel) then (
+    case+ ts of
+    | TNil() => ()
+    | TCons(_, _, title, _, rest) =>
+        if tab_pane_match(filter, tab_pane, i) then (
+          if ige(hover_x, x) andalso ilt(hover_x, iadd(x, box_w)) then let
+            val tlen = buf_len(title)
+            val tw = if igt(tlen, 0) then font_width_buf(f, r, title, tlen) else 0
+            val close_pad = if ige(box_w, 44) then 30 else 18
+            val () = (out_ti := i; out_bx := x)
+          in
+            out_over := igt(tw, isub(box_w, close_pad))
+          end else tab_hover_info_m(recfuel - 1, f, r, rest, iadd(x, box_w), box_w, hover_x, iadd(i, 1), filter, tab_pane, out_ti, out_bx, out_over)
+        ) else tab_hover_info_m(recfuel - 1, f, r, rest, x, box_w, hover_x, iadd(i, 1), filter, tab_pane, out_ti, out_bx, out_over)
+  ) else ()
+
+implement tab_hover_info_w(f, r, ts, start_x, avail_w, hover_x, filter, tab_pane, out_ti, out_bx, out_over) = let
+  val n = count_pane_tabs_with_fuel(airlock_nat(MAX_REC_FUEL), ts, 0, filter, tab_pane, 0)
+  val box_w = tab_box_width_for_bar(avail_w, n)
+in
+  tab_hover_info_m(airlock_nat(MAX_REC_FUEL), f, r, ts, start_x, box_w, hover_x, 0, filter, tab_pane, out_ti, out_bx, out_over)
+end
+
+implement tab_hover_info(f, r, ts, start_x, hover_x, filter, tab_pane, out_ti, out_bx, out_over) =
+  tab_hover_info_w(f, r, ts, start_x, 0, hover_x, filter, tab_pane, out_ti, out_bx, out_over)
 
 fun seal_cs(c: &Cache >> _, scratch: &Buf >> _): void = let
   val saved = c
@@ -156,28 +205,44 @@ in
     draw_image_viewer_failed(f, r, path, ox, oy, pw, ph, scratch)
 end
 
-fun draw_tab_content(
+fun draw_tab_content_ex(
   f: !Font, r: !Rend, doc: !Doc, path: !Buf, ox: int, oy: int, pw: int, ph: int,
-  sc: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, viewmode: ViewMode
+  sc: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, viewmode: ViewMode,
+  shover: Toggle, sdrag: Toggle, out_h: &int >> _
 ): int =
   if is_image_path(path) then
-    (draw_image_viewer(f, r, path, ox, oy, pw, ph, c, scratch); sc)
+    (out_h := 0; draw_image_viewer(f, r, path, ox, oy, pw, ph, c, scratch); sc)
   else
-    draw_document_scrolled(f, r, doc, ox, oy, pw, ph, sc, lh, vault, c, scratch, viewmode)
+    draw_document_scrolled_ex(f, r, doc, ox, oy, pw, ph, sc, lh, vault, c, scratch, viewmode, shover, sdrag, out_h)
 
 extern fun draw_focus_impl_fuel_exhausted(f: !Font, r: !Rend, ts: Tabs, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, viewmode: ViewMode): Tabs = "mac#anth_die_box"
 
 fun pending_anchor_scroll(f: !Font,r: !Rend,doc: !Doc,ox: int,pw: int,ph: int,lh: int,
-  vault: !Buf,cache: &Cache >> _,scroll: int,mode: ViewMode): int = let
+  vault: !Buf,cache: &Cache >> _,scroll: int,mode: ViewMode,scratch: &Buf >> _): int = let
   val line=doc_take_jump(doc)
 in if ilt(line,0) then scroll else let
     val colx=editor_colx(f,r,ox,pw)
-    val width=if font_text_active(f) then imax(1,imin(column_w(pw),isub(iadd(ox,pw),iadd(colx,16)))) else column_w(pw)
+    val width=editor_colw(f,r,ox,pw)
     val line_height=if font_text_active(f) then font_document_line_height(f,lh) else lh
-    val height=prepare_document_layout(f,doc,cache,r,vault,line_height,width,mode)
-  in imin(imax(0,isub(height,ph)),imax(0,isub(doc_line_y(doc,line),idiv(ph,3)))) end end
+    (* Anchor the viewport on the target so a deferred document shapes the band
+       around it instead of the whole file; lines above keep estimated heights. *)
+    val state=work_state(airlock_nat(MAX_REC_FUEL),cache)
+    val scope: EmbedWorkScope= @{active=state.enabled,document=doc_identity(doc),anchorLine=line,
+      scroll=isub(idiv(line_height,2),idiv(ph,2)),height=ph,foreground=true,childDelta=0,band=EmbedWorkVisible()}
+    val ()=work_set_scope(cache,scope)
+    val raw_height=prepare_document_layout(f,doc,cache,r,vault,line_height,width,mode)
+    val ()=work_set_scope(cache,state.scope)
+    val target_y=if doc_visual_active(doc) then let
+        val pt=visual_caret_point(f,doc,colx,0,0,line_height,scratch)
+      in pt.y end else doc_line_y(doc,line)
+    val centered=isub(iadd(target_y,idiv(line_height,2)),idiv(ph,2))
+  in imin(imax(0,isub(raw_height,line_height)),imax(0,centered)) end end
 
-fun draw_focus_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, ts: Tabs, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, viewmode: ViewMode): Tabs =
+fun draw_focus_impl_with_fuel {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), f: !Font, r: !Rend, ts: Tabs, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int,
+  vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, viewmode: ViewMode,
+  shover: Toggle, sdrag: Toggle, out_h: &int >> _
+): Tabs =
   if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => let
@@ -186,15 +251,16 @@ fun draw_focus_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), 
         TNil()
       end
     | ~TCons(doc, path, title, sc, rest) => let
-        val scroll=if ieq(i,idx) then pending_anchor_scroll(f,r,doc,ox,pw,ph,lh,vault,c,sc,viewmode) else sc
-        val adjusted = if ieq(i, idx) then draw_tab_content(f, r, doc, path, ox, oy, pw, ph, scroll, lh, vault, c, scratch, viewmode) else scroll
-        val rest2 = draw_focus_impl_with_fuel(recfuel - 1, f, r, rest, idx, ox, oy, pw, ph, lh, vault, c, scratch, iadd(i, 1), viewmode)
+        val scroll=if ieq(i,idx) then pending_anchor_scroll(f,r,doc,ox,pw,ph,lh,vault,c,sc,viewmode,scratch) else sc
+        val adjusted = if ieq(i, idx) then draw_tab_content_ex(f, r, doc, path, ox, oy, pw, ph, scroll, lh, vault, c, scratch, viewmode, shover, sdrag, out_h) else scroll
+        val rest2 = draw_focus_impl_with_fuel(recfuel - 1, f, r, rest, idx, ox, oy, pw, ph, lh, vault, c, scratch, iadd(i, 1), viewmode, shover, sdrag, out_h)
       in
         TCons(doc, path, title, adjusted, rest2)
       end
   ) else draw_focus_impl_fuel_exhausted(f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, viewmode)
 
-fun draw_focus_impl(f: !Font, r: !Rend, ts: Tabs, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, viewmode: ViewMode): Tabs = draw_focus_impl_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, viewmode)
+implement draw_focus_pane(f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, viewmode, shover, sdrag, out_h) =
+  draw_focus_impl_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, viewmode, shover, sdrag, out_h)
 
 implement draw_right(f, r, ts, split, idx, ox, oy, pw, ph, lh, vault, c, scratch, viewmode) =
   if is_on(split) then draw_focus(f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, 0, viewmode)
@@ -204,7 +270,11 @@ implement draw_right(f, r, ts, split, idx, ox, oy, pw, ph, lh, vault, c, scratch
     ts
   end
 
-implement draw_focus(f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, viewmode) = draw_focus_impl(f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, viewmode)
+implement draw_focus(f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, viewmode) = let
+  var dummy_h: int = 0
+in
+  draw_focus_pane(f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, viewmode, Off, Off, dummy_h)
+end
 
 extern fun node_covering_impl_fuel_exhausted(d: !Doc, y: int, oy: int, scroll: int, i: int, best: int): int = "mac#anth_die_int"
 

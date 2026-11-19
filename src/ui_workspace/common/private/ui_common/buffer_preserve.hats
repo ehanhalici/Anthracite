@@ -111,11 +111,18 @@ fun ends_ci_at(b: !Buf, s: string, n: int, m: int, i: int): bool =
   if ige(i, m) then true
   else ends_ci_loop(b, s, n, m, airlock_span(i, m), i)
 
-fun ends_ci(b: !Buf, s: string): bool = let
+implement ends_ci(b, s) = let
   val n = buf_len(b)
   val m = c_strlen(s)
 in
   if ilt(n, m) then false else ends_ci_at(b, s, n, m, 0)
+end
+
+implement strip_md_ext(b) = let
+  val n = buf_len(b)
+in
+  if igt(n, 3) andalso ends_ci(b, ".md") then buf_set_len(b, isub(n, 3))
+  else ()
 end
 
 implement is_image_path(b) =
@@ -150,6 +157,12 @@ implement base_name(path, dst) = let
   val () = buffer_clear(dst)
 in
   buffer_append_range(dst, path, a, buf_len(path))
+end
+
+implement base_name_no_md(path, dst) = let
+  val () = base_name(path, dst)
+in
+  strip_md_ext(dst)
 end
 
 fun slash_loop {rem:nat} .<rem>. (path: !Buf, rem: int(rem), i: int, a: int): int =

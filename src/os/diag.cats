@@ -2,6 +2,7 @@
 #define ANTH_DIAG_CATS
 
 #include <stdio.h>
+#include <pthread.h>
 #include <unistd.h>
 #include <string.h>
 
@@ -23,6 +24,8 @@ typedef struct {
 } anth_log_entry_t;
 
 static int anth_log_level = ANTH_LOG_LEVEL_INFO;
+/* Workers may log while loading fonts: the ring and stderr writes are serialized. */
+static pthread_mutex_t anth_log_lock = PTHREAD_MUTEX_INITIALIZER;
 static anth_log_entry_t anth_log_ring[ANTH_LOG_RING_SIZE];
 static int anth_log_ring_head = 0;
 static int anth_log_ring_count = 0;
@@ -55,6 +58,7 @@ static inline void anth_diag_log(
     const char *detail
 ) {
     int prio = anth_level_priority(level);
+    pthread_mutex_lock(&anth_log_lock);
 
     /* Record in ring buffer for diagnostics */
     int idx = (anth_log_ring_head + anth_log_ring_count) % ANTH_LOG_RING_SIZE;
@@ -78,6 +82,7 @@ static inline void anth_diag_log(
 
     /* Level filter: swallow if lower than current threshold or silent */
     if (anth_log_level == ANTH_LOG_LEVEL_SILENT || prio < anth_log_level) {
+        pthread_mutex_unlock(&anth_log_lock);
         return;
     }
 
@@ -103,6 +108,7 @@ static inline void anth_diag_log(
                 tag ? tag : "SYS", msg ? msg : "");
     }
     fflush(stderr);
+    pthread_mutex_unlock(&anth_log_lock);
 }
 
 #endif
