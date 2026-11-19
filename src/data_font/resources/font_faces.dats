@@ -76,7 +76,7 @@ in fit_px_after_load(f); init_fallback_font(f) end
 implement font_use_file(f, path) = let
   val sz = fs_size(path)
 in
-  if sz <= 12 orelse sz > 20000000 then false
+  if sz <= 12 orelse sz > 128000000 then false
   else case+ sfnt_open(path) of
     | ~RejectedSfnt(error) => false
     | ~LoadedSfnt(face) => let val () = font_note_primary_path(f,path) val () = commit_font(f,face) in true end

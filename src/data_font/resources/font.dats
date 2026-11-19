@@ -51,6 +51,8 @@ datavtype Font_ = FONT of @{
 , fb_kern= int
 , native_primary= Option_vt(NativeShapeCache), native_fallback= Option_vt(NativeShapeCache)
 , native_generation= int, native_fb_generation= int
+, cff_ctx= SfntCffContext, fb_cff_ctx= SfntCffContext
+, cff_stk= Buf, cff_ret= Buf
 , text_session= Option_vt(FontTextSession)
 , registry= int
 (* Face files this Font was loaded from, so another thread can open the same faces. *)

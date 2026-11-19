@@ -14,20 +14,21 @@ staload "data_font/sfnt/sfnt.sats"
 staload "data_font/glyph/core/glyph_component.sats"
 staload "data_text/source/text_source.sats"
 
-
-
-(* Scanline coverage and supersample reduction. *)
+(* 4x vertical sub-scanline + 1/16px horizontal analytical coverage rasterizer. *)
 staload "data_font/resources/private/font_storage.sats"
 staload "data_font/raster/private/font_math.sats"
 staload "data_font/resources/private/font_scan.sats"
 
-fun collect_cross(f: !Font, y: int, e: int, nc: int): int = let
+macdef SUBPIX_SCALE = 16
+macdef SUBSCAN_LINES = 4
+macdef MAX_ROW_CROSSINGS = 250
+
+fun collect_cross(f: !Font, y_sub: int, e: int, nc: int): int = let
   val y0 = edge_get(f, e, 1)
   val y1 = edge_get(f, e, 3)
   val x0 = edge_get(f, e, 0)
   val x1 = edge_get(f, e, 2)
-  val den = n_i2d(y1 - y0)
-  val t = (n_i2d(y) - n_i2d(y0)) / den
+  val t = n_i2d(y_sub - y0) / n_i2d(y1 - y0)
   val x = iround(n_i2d(x0) + t * n_i2d(x1 - x0))
   val dir = if y1 > y0 then 1 else ~1
   val () = end_set(f, nc * 2, x)
@@ -38,20 +39,23 @@ end
 
 extern fun collect_fuel_exhausted(f: !Font, y: int, e: int, ne: int, nc: int): int = "mac#anth_die_int"
 
-fun collect_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, y: int, e: int, ne: int, nc: int): int =
+fun collect_with_fuel {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), f: !Font, y_sub: int, e: int, ne: int, nc: int
+): int =
   if recursion_fuel_available(recfuel) then (
-    if e >= ne orelse nc >= 100 then nc
+    if e >= ne orelse nc >= MAX_ROW_CROSSINGS then nc
     else let
       val y0 = edge_get(f, e, 1)
       val y1 = edge_get(f, e, 3)
-      val hit = (y0 <= y andalso y1 > y) orelse (y1 <= y andalso y0 > y)
-      val nc2 = if y0 = y1 then nc else if hit then collect_cross(f, y, e, nc) else nc
+      val hit = (y0 <= y_sub andalso y1 > y_sub) orelse (y1 <= y_sub andalso y0 > y_sub)
+      val nc2 = if y0 = y1 then nc else if hit then collect_cross(f, y_sub, e, nc) else nc
     in
-      collect_with_fuel(recfuel - 1, f, y, e + 1, ne, nc2)
+      collect_with_fuel(recfuel - 1, f, y_sub, e + 1, ne, nc2)
     end
-  ) else collect_fuel_exhausted(f, y, e, ne, nc)
+  ) else collect_fuel_exhausted(f, y_sub, e, ne, nc)
 
-fun collect(f: !Font, y: int, e: int, ne: int, nc: int): int = collect_with_fuel(airlock_nat(MAX_REC_FUEL), f, y, e, ne, nc)
+fun collect(f: !Font, y_sub: int, e: int, ne: int, nc: int): int =
+  collect_with_fuel(airlock_nat(MAX_REC_FUEL), f, y_sub, e, ne, nc)
 
 extern fun cross_swap_fuel_exhausted(f: !Font, i: int): void = "mac#anth_die_void"
 
@@ -76,98 +80,120 @@ fun cross_swap_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !F
     end
   ) else cross_swap_fuel_exhausted(f, i)
 
-fun cross_swap(f: !Font, i: int): void = cross_swap_with_fuel(airlock_nat(MAX_REC_FUEL), f, i)
-
-extern fun cross_sort_fuel_exhausted(f: !Font, n: int, i: int): void = "mac#anth_die_void"
-
 fun cross_sort_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, n: int, i: int): void =
   if recursion_fuel_available(recfuel) then (
     if i >= n then ()
     else let
-      val () = cross_swap(f, i)
+      val () = cross_swap_with_fuel(airlock_nat(MAX_REC_FUEL), f, i)
     in
       cross_sort_with_fuel(recfuel - 1, f, n, i + 1)
     end
-  ) else cross_sort_fuel_exhausted(f, n, i)
+  ) else ()
 
-fun cross_sort(f: !Font, n: int, i: int): void = cross_sort_with_fuel(airlock_nat(MAX_REC_FUEL), f, n, i)
+fun add_cov_px(f: !Font, px: int, bw: int, amt: int): void =
+  if ige(px, 0) andalso ilt(px, bw) andalso igt(amt, 0) then
+    cov_set(f, px, imin(64, iadd(cov_get(f, px), amt)))
+  else ()
 
-extern fun paint_pix_fuel_exhausted(f: !Font, x: int, y: int, sw: int, b: int): void = "mac#anth_die_void"
+fun fill_mid_cov {n:nat} .<n>. (left: int(n), f: !Font, px: int, bw: int): void =
+  if left = 0 then ()
+  else let
+    val () = add_cov_px(f, px, bw, SUBPIX_SCALE)
+  in
+    fill_mid_cov(left - 1, f, iadd(px, 1), bw)
+  end
 
-fun paint_pix {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, x: int, y: int, sw: int, b: int): void =
-  if recursion_fuel_available(recfuel) then (
-    if x >= b then ()
-    else let
-      val () = cov_set(f, y * sw + x, 255)
-    in
-      paint_pix(recfuel - 1, f, x + 1, y, sw, b)
-    end
-  ) else paint_pix_fuel_exhausted(f, x, y, sw, b)
-
-fun paint(f: !Font, sw: int, y: int, x0: int, x1: int): void = let
-  val a = (if x0 < 0 then 0 else x0) : int
-  val b = (if x1 > sw then sw else x1) : int
+fun paint_sub_span(f: !Font, bw: int, prev_x: int, cur_x: int): void = let
+  val a = imax(0, prev_x)
+  val b = imin(imul(bw, SUBPIX_SCALE), cur_x)
 in
-  if a < b andalso y >= 0 andalso y < 256 then paint_pix(airlock_nat(MAX_REC_FUEL), f, a, y, sw, b) else ()
+  if ilt(a, b) then let
+    val px0 = idiv(a, SUBPIX_SCALE)
+    val px1 = idiv(isub(b, 1), SUBPIX_SCALE)
+  in
+    if ieq(px0, px1) then add_cov_px(f, px0, bw, isub(b, a))
+    else let
+      val left_amt = isub(SUBPIX_SCALE, imod(a, SUBPIX_SCALE))
+      val right_amt = isub(b, imul(px1, SUBPIX_SCALE))
+      val mid_cnt = imax(0, isub(px1, iadd(px0, 1)))
+      val () = add_cov_px(f, px0, bw, left_amt)
+      val () = fill_mid_cov(airlock_nat(mid_cnt), f, iadd(px0, 1), bw)
+    in
+      add_cov_px(f, px1, bw, right_amt)
+    end
+  end else ()
 end
 
-extern fun wind_fuel_exhausted(f: !Font, sw: int, y: int, n: int, i: int, w: int, prev: int): void = "mac#anth_die_void"
-
-fun wind_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, sw: int, y: int, n: int, i: int, w: int, prev: int): void =
+fun wind_sub_row {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), f: !Font, bw: int, n: int, i: int, w: int, prev: int
+): void =
   if recursion_fuel_available(recfuel) then (
     if i >= n then ()
     else let
       val x = end_get(f, i * 2)
       val d = end_get(f, i * 2 + 1)
-      val () = if w <> 0 then paint(f, sw, y, prev, x) else ()
+      val () = if w <> 0 then paint_sub_span(f, bw, prev, x) else ()
     in
-      wind_with_fuel(recfuel - 1, f, sw, y, n, i + 1, w + d, x)
+      wind_sub_row(recfuel - 1, f, bw, n, iadd(i, 1), iadd(w, d), x)
     end
-  ) else wind_fuel_exhausted(f, sw, y, n, i, w, prev)
+  ) else ()
 
-fun wind(f: !Font, sw: int, y: int, n: int, i: int, w: int, prev: int): void = wind_with_fuel(airlock_nat(MAX_REC_FUEL), f, sw, y, n, i, w, prev)
+fun zero_row_cov {n:nat} .<n>. (left: int(n), f: !Font, px: int): void =
+  if left = 0 then ()
+  else let
+    val () = cov_set(f, px, 0)
+  in
+    zero_row_cov(left - 1, f, iadd(px, 1))
+  end
 
-extern fun scan_rows_fuel_exhausted(f: !Font, sw: int, sh: int, y: int): void = "mac#anth_die_void"
+fun scan_sub_lines {n:nat} .<n>. (
+  left: int(n), f: !Font, bw: int, py: int, sy: int, ne: int
+): void =
+  if left = 0 then ()
+  else let
+    val y_sub = iadd(imul(py, SUBPIX_SCALE), iadd(imul(sy, 4), 2))
+    val nc = collect(f, y_sub, 0, ne, 0)
+    val () = cross_sort_with_fuel(airlock_nat(MAX_REC_FUEL), f, nc, 1)
+    val () = wind_sub_row(airlock_nat(MAX_REC_FUEL), f, bw, nc, 0, 0, 0)
+  in
+    scan_sub_lines(left - 1, f, bw, py, iadd(sy, 1), ne)
+  end
 
-fun scan_rows_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, sw: int, sh: int, y: int): void =
-  if recursion_fuel_available(recfuel) then (
-    if y >= sh then ()
-    else let
-      val ne = font_get_edge_count(f)
-      val nc = collect(f, y, 0, ne, 0)
-      val () = cross_sort(f, nc, 1)
-      val () = wind(f, sw, y, nc, 0, 0, 0)
-    in
-      scan_rows_with_fuel(recfuel - 1, f, sw, sh, y + 1)
-    end
-  ) else scan_rows_fuel_exhausted(f, sw, sh, y)
+fun cov_to_alpha(f: !Font, cov_val: int): int = let
+  val a0 = imin(255, idiv(iadd(imul(cov_val, 255), 32), 64))
+in
+  if ile(font_get_px(f), 18) andalso igt(a0, 0) then
+    imin(255, iadd(a0, idiv(imul(a0, isub(255, a0)), 640)))
+  else a0
+end
 
-implement scan_rows(f, sw, sh, y) = scan_rows_with_fuel(airlock_nat(MAX_REC_FUEL), f, sw, sh, y)
+fun emit_row_to_atlas {n:nat} .<n>. (
+  left: int(n), f: !Font, x0: int, y0: int, py: int, px: int
+): void =
+  if left = 0 then ()
+  else let
+    val alpha = cov_to_alpha(f, cov_get(f, px))
+    val () = atlas_set(f, iadd(x0, px), iadd(y0, py), alpha)
+  in
+    emit_row_to_atlas(left - 1, f, x0, y0, py, iadd(px, 1))
+  end
 
-extern fun blit_col_fuel_exhausted(f: !Font, x: int, y: int, x0: int, y0: int, sw: int, bw: int): void = "mac#anth_die_void"
+fun scan_atlas_rows {n:nat} .<n>. (
+  left: int(n), f: !Font, x0: int, y0: int, bw: int, py: int, ne: int
+): void =
+  if left = 0 then ()
+  else let
+    val () = zero_row_cov(airlock_nat(imax(0, bw)), f, 0)
+    val () = scan_sub_lines(airlock_nat(SUBSCAN_LINES), f, bw, py, 0, ne)
+    val () = emit_row_to_atlas(airlock_nat(imax(0, bw)), f, x0, y0, py, 0)
+  in
+    scan_atlas_rows(left - 1, f, x0, y0, bw, iadd(py, 1), ne)
+  end
 
-fun blit_col {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, x: int, y: int, x0: int, y0: int, sw: int, bw: int): void =
-  if recursion_fuel_available(recfuel) then (
-    if x >= bw then ()
-    else let
-      val i00 = (y * 2) * sw + x * 2
-      val s = cov_get(f, i00) + cov_get(f, i00 + 1) + cov_get(f, i00 + sw) + cov_get(f, i00 + sw + 1)
-      val () = atlas_set(f, x0 + x, y0 + y, (s / 4): int)
-    in
-      blit_col(recfuel - 1, f, x + 1, y, x0, y0, sw, bw)
-    end
-  ) else blit_col_fuel_exhausted(f, x, y, x0, y0, sw, bw)
-
-extern fun blit_fuel_exhausted(f: !Font, x0: int, y0: int, sw: int, bw: int, bh: int, y: int): void = "mac#anth_die_void"
-
-fun blit_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, x0: int, y0: int, sw: int, bw: int, bh: int, y: int): void =
-  if recursion_fuel_available(recfuel) then (
-    if y >= bh then ()
-    else let
-      val () = blit_col(airlock_nat(MAX_REC_FUEL), f, 0, y, x0, y0, sw, bw)
-    in
-      blit_with_fuel(recfuel - 1, f, x0, y0, sw, bw, bh, y + 1)
-    end
-  ) else blit_fuel_exhausted(f, x0, y0, sw, bw, bh, y)
-
-implement blit(f, x0, y0, sw, bw, bh, y) = blit_with_fuel(airlock_nat(MAX_REC_FUEL), f, x0, y0, sw, bw, bh, y)
+implement raster_scan_to_atlas(f, x0, y0, bw, bh) =
+  if ile(bw, 0) orelse ile(bh, 0) then ()
+  else let
+    val ne = font_get_edge_count(f)
+  in
+    scan_atlas_rows(airlock_nat(bh), f, x0, y0, bw, 0, ne)
+  end

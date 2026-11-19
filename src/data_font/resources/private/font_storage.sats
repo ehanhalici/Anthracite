@@ -76,3 +76,14 @@ fun upload_atlas(f: !Font, r: !Rend, tex: uint, x: int, y: int, w: int, h: int):
 fun kern_fmt0_value(f: !Font, p: int, left: int, right: int): int
 fun font_note_primary_path(f: !Font,path: string): void
 fun font_note_fallback_path(f: !Font,path: string): void
+fun font_outline_is_cff(f: !Font): bool
+fun font_cff_glyph_span(f: !Font, gid: int): SfntOptional
+fun font_cff_gsubr_count(f: !Font): int
+fun font_cff_gsubr_span(f: !Font, idx: int): SfntOptional
+fun font_cff_lsubr_count(f: !Font, gid: int): int
+fun font_cff_lsubr_span(f: !Font, gid: int, idx: int): SfntOptional
+fun font_cff_stk_get(f: !Font, i: int): int
+fun font_cff_stk_set(f: !Font, i: int, v: int): void
+fun font_cff_ret_get(f: !Font, frame: int, k: int): int
+fun font_cff_ret_set(f: !Font, frame: int, k: int, v: int): void
+fun font_cff_i32(f: !Font, off: int): int

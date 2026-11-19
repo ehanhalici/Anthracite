@@ -35,6 +35,8 @@ implement font_open() = FONT(@{
 , fb_nglyph= 0, fb_num_h= 0
 , fb_kern= ~1
 , native_primary= None_vt(), native_fallback= None_vt(), native_generation= 0, native_fb_generation= 0
+, cff_ctx= sfnt_cff_context_empty(), fb_cff_ctx= sfnt_cff_context_empty()
+, cff_stk= buf_make(64 * 4), cff_ret= buf_make(16 * 3 * 4)
 , text_session= None_vt(), registry= font_registry_next()
 , source_id= 0, primary_path= buf_make(0), fallback_path= buf_make(0)
 })
@@ -59,6 +61,8 @@ implement font_free(f) = let
   val () = buf_free(s.fl)
   val () = buf_free(s.ends)
   val () = buf_free(s.edges)
+  val () = buf_free(s.cff_stk)
+  val () = buf_free(s.cff_ret)
 in
   buf_free(s.cov)
 end

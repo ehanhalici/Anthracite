@@ -81,6 +81,9 @@ implement install_face_tables(f, info) = case+ f of
       val () = s.loca_off := info.loca.offset
       val () = s.hmtx_off := info.hmtx.offset
       val () = s.kern_off := optional_offset(sfnt_table(s.file,info.tables,TableKern()))
+      val () = s.cff_ctx := (case+ info.outline of
+        | OutlineTrueType() => sfnt_cff_context_empty()
+        | OutlineCff() => sfnt_cff_context(s.file, info.cff))
     in fold@(f) end
 
 fun swap_fb_loca(f: !Font): void =
@@ -108,6 +111,7 @@ fun swap_fb_source(f: !Font): void = case+ f of
       val () = s.file := source
       val () = s.fb_file := Some_vt(previous)
       val ti = s.info; val () = s.info := s.fb_info; val () = s.fb_info := ti
+      val tc = s.cff_ctx; val () = s.cff_ctx := s.fb_cff_ctx; val () = s.fb_cff_ctx := tc
       val tk = s.kern_off; val () = s.kern_off := s.fb_kern; val () = s.fb_kern := tk
     in fold@(f) end
 
@@ -138,8 +142,12 @@ implement install_fallback(f, b, info) = case+ f of
       val () = s.native_fb_generation := font_native_generation_next(s.native_fb_generation)
       val cmap = optional_offset(sfnt_table(b,info.tables,TableCmap()))
       val kern = optional_offset(sfnt_table(b,info.tables,TableKern()))
+      val cff_ctx = (case+ info.outline of
+        | OutlineTrueType() => sfnt_cff_context_empty()
+        | OutlineCff() => sfnt_cff_context(b, info.cff)) : SfntCffContext
       val old = s.fb_file; val () = s.fb_file := Some_vt(b)
       val () = s.fb_info := @{present=true,info=info}
+      val () = s.fb_cff_ctx := cff_ctx
       val () = s.fb_units := info.units
       val () = s.fb_loca_fmt := toggle_of(info.long_loca)
       val () = s.fb_cmap := cmap

@@ -24,24 +24,9 @@ staload "data_font/atlas/private/font_atlas.sats"
 staload "data_font/raster/private/font_math.sats"
 staload "data_font/atlas/private/font_cache.sats"
 staload "data_font/raster/private/font_outline_compound.sats"
+staload "data_font/raster/private/font_outline_cff.sats"
 staload "data_font/resources/private/font_metrics.sats"
 staload "data_font/raster/private/font_raster.sats"
-
-fun ttf_rasterize(f: !Font, sc: double, minx: int, maxy: int, sw: int, sh: int): void = let
-  val () = contours(f, 0, font_get_contour_count(f), minx, maxy, sc)
-  val () = zero_cov(f)
-in
-  scan_rows(f, sw, sh, 0)
-end
-
-fun ttf_upload_glyph(f: !Font, r: !Rend, sw: int, sh: int, x0: &int >> _, y0: &int >> _): void = let
-  val bw = sw / 2
-  val bh = sh / 2
-  val () = reserve(f, r, bw, bh, x0, y0)
-  val () = blit(f, x0, y0, sw, bw, bh, 0)
-in
-  upload(f, r, x0, y0, bw, bh)
-end
 
 fun ttf_glyph_bitmap(f: !Font, r: !Rend, sc1: double, ax: int, npts: int, g: &gmet >> _): void = let
   var minx: int = pt_x(f, 0)
@@ -49,21 +34,24 @@ fun ttf_glyph_bitmap(f: !Font, r: !Rend, sc1: double, ax: int, npts: int, g: &gm
   var maxx: int = minx
   var maxy: int = miny
   val () = bbox(f, 1, npts, minx, miny, maxx, maxy)
-  val sc = sc1 * 2.0
-  val sw = clamp_even(iround(n_i2d(maxx - minx) * sc) + 4)
-  val sh = clamp_even(iround(n_i2d(maxy - miny) * sc) + 4)
-  val () = ttf_rasterize(f, sc, minx, maxy, sw, sh)
+  val bw = imax(2, imin(254, iround(n_i2d(maxx - minx) * sc1) + 2))
+  val bh = imax(2, imin(254, iround(n_i2d(maxy - miny) * sc1) + 2))
+  val nends = font_get_contour_count(f)
+  val () = if font_outline_is_cff(f) then cff_contours(f, 0, nends, minx, maxy, sc1 * 16.0)
+           else contours(f, 0, nends, minx, maxy, sc1 * 16.0)
   var x0: int = 0
   var y0: int = 0
-  val () = ttf_upload_glyph(f, r, sw, sh, x0, y0)
+  val () = reserve(f, r, bw, bh, x0, y0)
+  val () = raster_scan_to_atlas(f, x0, y0, bw, bh)
+  val () = upload(f, r, x0, y0, bw, bh)
   val top = iround(n_i2d(maxy) * sc1)
   val bx = iround(n_i2d(minx) * sc1)
 in
-  fill_g(g, ax, bx, top, sw / 2, sh / 2, x0, y0)
+  fill_g(g, ax, bx, top, bw, bh, x0, y0)
 end
 
 implement raster_ttf(f, r, gid, g) = let
-  val () = load_ttf_outline(f, gid)
+  val () = if font_outline_is_cff(f) then load_cff_outline(f, gid) else load_ttf_outline(f, gid)
   val adv = hmtx_adv(f, gid)
   val sc1 = scale_of(f)
   val ax = iround(n_i2d(adv) * sc1)

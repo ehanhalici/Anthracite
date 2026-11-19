@@ -191,3 +191,66 @@ staload "data_font/resources/font_document_metrics.sats"
 #include "data_font/native/ownership/private/font_native_shape_impl.hats"
 #include "data_font/native/ownership/private/font_native_coverage_impl.hats"
 #include "data_font/text/private/font_text_owner_impl.hats"
+
+implement font_outline_is_cff(f) = case+ f of
+  | @FONT(s) => let
+      val is_cff = if s.info.present then (case+ s.info.info.outline of
+        | OutlineTrueType() => false
+        | OutlineCff() => true) else false
+    in fold@(f); is_cff end
+
+implement font_cff_glyph_span(f, gid) = case+ f of
+  | @FONT(s) => let
+      val res = sfnt_cff_glyph_span(s.file, s.cff_ctx, gid)
+    in fold@(f); res end
+
+implement font_cff_gsubr_count(f) = case+ f of
+  | @FONT(s) => let
+      val n = sfnt_cff_gsubr_count(s.file, s.cff_ctx)
+    in fold@(f); n end
+
+implement font_cff_gsubr_span(f, idx) = case+ f of
+  | @FONT(s) => let
+      val res = sfnt_cff_gsubr_span(s.file, s.cff_ctx, idx)
+    in fold@(f); res end
+
+implement font_cff_lsubr_count(f, gid) = case+ f of
+  | @FONT(s) => let
+      val n = sfnt_cff_lsubr_count(s.file, s.cff_ctx, gid)
+    in fold@(f); n end
+
+implement font_cff_lsubr_span(f, gid, idx) = case+ f of
+  | @FONT(s) => let
+      val res = sfnt_cff_lsubr_span(s.file, s.cff_ctx, gid, idx)
+    in fold@(f); res end
+
+implement font_cff_stk_get(f, i) = case+ f of
+  | @FONT(s) => let
+      val v = if ige(i, 0) andalso ilt(i, 64) then buf_get32(s.cff_stk, i) else 0
+    in fold@(f); v end
+
+implement font_cff_stk_set(f, i, v) = case+ f of
+  | @FONT(s) => let
+      val () = if ige(i, 0) andalso ilt(i, 64) then buf_set32(s.cff_stk, i, v) else ()
+    in fold@(f) end
+
+implement font_cff_ret_get(f, frame, k) = case+ f of
+  | @FONT(s) => let
+      val v = if ige(frame, 0) andalso ilt(frame, 16) andalso ige(k, 0) andalso ilt(k, 3)
+              then buf_get32(s.cff_ret, iadd(imul(frame, 3), k)) else 0
+    in fold@(f); v end
+
+implement font_cff_ret_set(f, frame, k, v) = case+ f of
+  | @FONT(s) => let
+      val () = if ige(frame, 0) andalso ilt(frame, 16) andalso ige(k, 0) andalso ilt(k, 3)
+               then buf_set32(s.cff_ret, iadd(imul(frame, 3), k), v) else ()
+    in fold@(f) end
+
+implement font_cff_i32(f, off) = let
+  val hi = file_u16(f, off)
+  val lo = file_u16(f, iadd(off, 2))
+in
+  if ilt(hi, 32768) then iadd(imul(hi, WORD16_MODULUS), lo)
+  else if ieq(hi, 32768) andalso ieq(lo, 0) then ~2147483647 - 1
+  else iadd(imul(isub(hi, WORD16_MODULUS), WORD16_MODULUS), lo)
+end
