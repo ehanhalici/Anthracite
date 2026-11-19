@@ -1,76 +1,77 @@
 # Anthracite
 
-Anthracite is a native Markdown editor written in ATS2/Postiats 0.4.2, using
-X11/GLX and OpenGL directly. It does not use a browser runtime or a GUI toolkit.
-System libraries and checked FFI remain part of its trusted boundary;
-ATS proofs cover the contracts actually represented in its types. JPEG decoding
-is implemented in ATS2; the bundled C stb implementation is a test oracle only.
+Anthracite, Linux için yazılmış yerel bir **Markdown not alma editörüdür**.
+Tarayıcı motoru, Electron ya da GTK/Qt gibi bir arayüz çatısı kullanmaz; pencereyi
+X11/GLX ile açar, her şeyi OpenGL ile kendisi çizer. Hedefi hızlı açılan, boşta
+neredeyse hiç işlemci harcamayan ve büyük notlarla dolu klasörlerde de akıcı kalan
+sade bir editör olmaktır.
 
-## Build and verify
+## Amaç
 
-Run inside `nix-shell` (or an equivalent environment providing ATS2, Clang,
-CMake, X11, OpenGL and `PATSHOME`):
+- Markdown dosyalarını yazmak, düzenlemek ve bir klasörü (vault) not defteri gibi
+  gezmek.
+- Sekmeler, bölünmüş görünüm, dosya ağacı, belge içi katlama ve vault genelinde
+  arama.
+- Görsel (PNG/BMP/JPEG) gömme, çok dilli metin (Unicode, çift yönlü metin, Arapça
+  bağlamsal şekillendirme) ve gerçek font şekillendirme desteği.
+- Bunların hepsini mümkün olan en az dış bağımlılıkla sağlamak.
+
+## Sistem tasarımı
+
+Anthracite [ATS2/Postiats](http://www.ats-lang.org/) ile yazılmıştır. ATS2'nin
+bağımlı ve doğrusal (linear) tipleri sayesinde bellek sahipliği, tampon sınırları ve
+durum geçişleri gibi kurallar mümkün olduğunca çalışma zamanında değil, **derleme
+sırasında** denetlenir. Çöp toplayıcı yoktur; bellek sahipliği tiplerle açıkça
+taşınır.
+
+Bağımlılık anlayışı: ihtiyaç duyulan şey, işletim sisteminin sunmak zorunda olduğu
+şey değilse projenin içinde yazılır.
+
+| Alan | Dışarıdan alınan | Projenin kendisinin yazdığı |
+|---|---|---|
+| Pencere / girdi | X11 (`libX11`, `libXext`) | Olay döngüsü, pano, odak ve bölme yönetimi |
+| Çizim | OpenGL (`libGL`) | Arayüz bileşenleri, metin ve görsel çizimi |
+| Metin | – | UTF-8, Unicode özellikleri, normalizasyon, satır/kelime sınırları, bidi |
+| Font | – | TTF/OTF (SFNT) ayrıştırma, GSUB/GPOS şekillendirme, rasterleştirme, glif atlası |
+| Görsel | – | PNG, BMP ve JPEG çözücüleri |
+| Markdown | – | Ayrıştırıcı, sözdizimi ağacı (AST), düzenleme/geri alma, katlama, yerleşim |
+| Arama | – | Vault geneli, kareler arasında ilerleyen literal arama |
+
+Yani FreeType, HarfBuzz, ICU, bir görsel kütüphanesi ya da bir GUI toolkit'i yoktur.
+Gerçekte bağlanılanlar yalnızca `libm`, X11 ve OpenGL'dir. C ile yazılmış küçük
+kısımlar (sistem çağrıları, X11/GL köprüsü) denetlenen bir FFI sınırının arkasında
+tutulur. `vendor/` altındaki `stb` yalnızca testlerde karşılaştırma ölçütü olarak
+kullanılır, uygulamaya girmez.
+
+Fontlar derleme sırasında çalıştırılabilir dosyanın içine gömülür; çalışırken ayrı
+bir `fonts/` dizini gerekmez. Font bulunmazsa sistem varsayılanı (fontconfig)
+kullanılır.
+
+Kaynak ağacı konuya göre bölünmüştür (`src/data_text`, `data_font`, `data_ast`,
+`data_image`, `core_render`, `core_runtime`, `ui_workspace`, `search`, `os`,
+`config`). Ayrıntılar için [docs/README.md](docs/README.md) dizinine bakın.
+
+## Derleme
+
+Gereksinimler [`shell.nix`](shell.nix) içinde tanımlıdır (ATS2, Clang, lld, CMake,
+X11, OpenGL):
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel "$(( $(nproc) / 2 ))"
-./build/anthracite
+nix-shell
+./compile.sh -r    # Release derle ve çalıştır
+./compile.sh -d    # Debug derle ve çalıştır
 ```
 
-`./compile.sh -r` and `./compile.sh -d` configure, build and start the app.
-Every `.ttf`/`.otf`/`.ttc` under `fonts/` is embedded into the executable at
-build time (`cmake/EmbeddedFonts.cmake`); `fonts/` is optional at build time and
-unused at run time. Without it nothing is embedded and the system default font
-(fontconfig) is used. The default face is `SourceCodePro-Regular` (hash checked
-by CMake when present); embedded faces are addressed as `embedded:<file name>`. The pinned
-Arabic font is still read from `vendor/fonts/`.
+`compile.sh` kalan argümanları doğrudan editöre geçirir. Testler için:
 
 ```sh
 cmake --build build --target check-build --parallel "$(( $(nproc) / 2 ))"
 ctest --test-dir build --output-on-failure -LE graphics
-# Requires a working X11/GLX display, for example a separate Xvfb instance:
-DISPLAY=:1 ctest --test-dir build --output-on-failure -L graphics
 ```
 
-With a display available, `cmake --build build --target check` builds all test
-executables, including those excluded from the default build, and runs CTest.
-Use a separate build directory for Debug verification. Optional real-font cases
-are enabled by `ANTHRACITE_OT_LATIN_TTF`, `ANTHRACITE_OT_ARABIC_TTF` and
-`ANTHRACITE_OT_KERN_TTF`; record these paths when comparing test runs.
+(`graphics` etiketli testler çalışan bir X11/GLX ekranı ister, örn. Xvfb.)
 
-## Architecture
+## Daha fazlası
 
-`src/data_text` contains Unicode analysis; `src/data_font` contains font parsing,
-shaping, rasterization and atlas ownership. `src/data_ast` owns documents,
-parsing, editing, folding and layout. `src/ui_workspace` implements workspace
-interaction and painting. Platform, renderer, runtime, image, search, configuration
-and OS services remain separate subsystems.
-
-Sources and tests are grouped by subject. A large owner can include private
-`.hats` implementation groups so its linear representation stays private without
-adding unsafe casts or new opaque pointer types. CMake indexes nested ATS modules
-by unique basename and shares compiled host/text-engine objects between consumers.
-
-See the [Turkish architecture index](docs/README.md), [development rules](docs/skill.md),
-[refactoring record](docs/refactoring_durumu.md) and [known issues](docs/olasi_hatalar.md).
-Generated C, Unicode binaries and build outputs are not edited by hand.
-
-The search panel uses case-insensitive literal matching over raw text, with
-original UTF-8 result offsets and collapsible file groups. Its Unicode 18
-simple-case map is generated from the bundled data; regex/filter syntax and
-multi-character case expansions are not applied. Vault work advances between
-frames without building an AST for every file. See the
-[search contracts and limits](docs/arama_ve_indeksleme.md).
-
-The pre-existing callout boundary and incremental AST copying bugs (BUG-008 and
-BUG-011) have been fixed without weakening their original expectations.
-Regression tests are included in `check`; resolved issue details remain in Git
-and the refactoring record. The known-issues document contains only open items.
-
-## Verification limits
-
-Dependent and linear types, compile-rejection tests, conformance datasets, finite
-state matrices and runtime ownership checks complement one another. Passing tests
-does not prove correctness for every possible document, font or image. Performance
-figures require a recorded environment and workload; a fixed live-byte reading is
-not a universal leak-freedom guarantee.
+[Sistem tanımı](docs/tanim.md) · [Mimari dizini](docs/README.md) ·
+[Geliştirme kuralları](docs/skill.md) · [Bilinen sorunlar](docs/olasi_hatalar.md)
