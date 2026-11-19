@@ -20,17 +20,21 @@ fun source{n:nat} .<n>. (fuel: int(n),rows: !VisualRows,value: int,lo: int,hi: i
   if fuel = 0 then exhausted() else if ige(lo,hi) then imax(0,isub(lo,1)) else let
     val mid=iadd(lo,idiv(isub(hi,lo),2)) val at=visual_rows_offset(rows,mid)
   in if ile(at,value) then source(fuel-1,rows,value,iadd(mid,1),hi) else source(fuel-1,rows,value,lo,mid) end
-fun caret(f: !Font,d: !Doc,rows: !VisualRows,colx: int,oy: int,scroll: int,scratch: &Buf >> _): VisualPoint = let
-  val at=visual_rows_offset(rows,doc_caret(d)) val i=visual_rows_find(rows,at) val row=visual_rows_at(rows,i)
+fun caret(f: !Font,d: !Doc,rows: !VisualRows,offset: int,colx: int,oy: int,scroll: int,scratch: &Buf >> _): VisualPoint = let
+  val at=visual_rows_offset(rows,offset) val i=visual_rows_find(rows,at) val row=visual_rows_at(rows,i)
   val ()=font_set_px_val(f,row.px)
   val hit=visual_plan_query(f,rows,i,colx,QueryCaret(isub(at,row.start)),scratch)
 in @{x=iadd(hit.base,hit.value),y=isub(iadd(oy,iadd(doc_line_y(d,row.line),iadd(row.top,imul(row.ordinal,row.height)))),scroll)} end
-fun fixed_caret(f: !Font,d: !Doc,rows: !VisualRows,colx: int,oy: int,scroll: int,scratch: &Buf >> _): VisualPoint = let
+fun fixed_caret(f: !Font,d: !Doc,rows: !VisualRows,offset: int,colx: int,oy: int,scroll: int,scratch: &Buf >> _): VisualPoint = let
   val old=font_get_px(f)
-  val point=caret(f,d,rows,colx,oy,scroll,scratch) val ()=font_set_px_val(f,old)
+  val point=caret(f,d,rows,offset,colx,oy,scroll,scratch) val ()=font_set_px_val(f,old)
 in point end
 implement visual_caret_point(f,d,colx,oy,scroll,lh0,scratch) = let val state=doc_visual_take(d)
-  val result=case+ state of | None_vt() => @{x=colx,y=oy} | Some_vt(rows) => fixed_caret(f,d,rows,colx,oy,scroll,scratch)
+  val result=case+ state of | None_vt() => @{x=colx,y=oy} | Some_vt(rows) => fixed_caret(f,d,rows,doc_caret(d),colx,oy,scroll,scratch)
+  val ()=doc_visual_put(d,state)
+in result end
+implement visual_offset_point(f,d,offset,colx,oy,scroll,scratch) = let val state=doc_visual_take(d)
+  val result=case+ state of | None_vt() => @{x=colx,y=oy} | Some_vt(rows) => fixed_caret(f,d,rows,offset,colx,oy,scroll,scratch)
   val ()=doc_visual_put(d,state)
 in result end
 fun line{n:nat} .<n>. (fuel: int(n),d: !Doc,y: int,lo: int,hi: int): int =

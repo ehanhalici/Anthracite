@@ -295,7 +295,10 @@ fun handle_down_tab_bar_selection(
     tab_hit_test_pane_w(f, r, ts, sx, avail_w, hit.x, filter, s.tab_pane, ti, close)
   else ()
   val ntabs = tabs_len(ts)
-  val pick = onbar andalso ige(ti, 0) andalso ilt(ti, ntabs) andalso not(close)
+  val on_tab = onbar andalso ige(ti, 0) andalso ilt(ti, ntabs)
+  (* Orta tuş sekmeyi kapatma düğmesine basılmış gibi kapatır. *)
+  val () = if on_tab andalso is_btn(hit.button, BtnMiddle) then close := true else ()
+  val pick = on_tab andalso not(close)
 in
   if pick then down_pick_tab(s, hit.x, ti, pane) else ()
 end

@@ -156,38 +156,60 @@ static inline unsigned col_rgba(int r, int g, int b, int a) {
           (unsigned)(a & 255));
 }
 
-static inline unsigned col_bg(void) { return 0x181818FFu; }
-static inline unsigned col_bar(void) { return 0x141416FFu; }
-static inline unsigned col_side(void) { return 0x1C1C1FFFu; }
-static inline unsigned col_surface(void) { return 0x222226FFu; }
-static inline unsigned col_surface_hi(void) { return 0x2B2D35FFu; }
-static inline unsigned col_tab_hover(void) { return 0x1F2127FFu; }
-static inline unsigned col_text(void) { return 0xDCDDDEFFu; }
+/* Tüm renk tanımları yalnızca bu dosyadadır; diğer modüller col_*() çağırır.
+   Zemin: nötr gri skala. Ön plan: soğuk indigo/periwinkle tonları. */
+static inline unsigned col_clear(void) { return 0x00000000u; }
+
+/* #151515 Koyu Karbon Arka Plan Katmanları */
+static inline unsigned col_bg(void) { return 0x151515FFu; }
+static inline unsigned col_bar(void) { return 0x111112FFu; }
+static inline unsigned col_side(void) { return 0x1A1A1CFFu; }
+static inline unsigned col_surface(void) { return 0x202023FFu; }
+static inline unsigned col_surface_hi(void) { return 0x28292EFFu; }
+static inline unsigned col_tab_hover(void) { return 0x1E1F24FFu; }
+
+/* Yumuşak Taş Grisi & Kemik Beyazı Metinler */
+static inline unsigned col_text(void) { return 0xE3E3E3FFu; }
 static inline unsigned col_white(void) { return 0xFFFFFFFFu; }
-static inline unsigned col_muted(void) { return 0x94969BFFu; }
-static inline unsigned col_accent(void) { return 0x2C5594FFu; }
-static inline unsigned col_accent_hi(void) { return 0x6B9CE8FFu; }
-static inline unsigned col_accent_soft(void) { return 0x24457A55u; }
-static inline unsigned col_heading(void) { return 0xF2F3F5FFu; }
-static inline unsigned col_link(void) { return 0xA882FFFFu; }
-static inline unsigned col_code(void) { return 0xE0C285FFu; }
-static inline unsigned col_codebg(void) { return 0x1F2024FFu; }
-static inline unsigned col_quote(void) { return 0x9BA3B0FFu; }
-static inline unsigned col_tag(void) { return 0xA882FFFFu; }
-static inline unsigned col_highbg(void) { return 0xEAB30844u; }
-static inline unsigned col_hightxt(void) { return 0xF6F0D8FFu; }
-static inline unsigned col_math(void) { return 0xC8B4F8FFu; }
-static inline unsigned col_caret(void) { return 0xA882FFFFu; }
-static inline unsigned col_sel(void) { return 0x3E3762FFu; }
-static inline unsigned col_line(void) { return 0x2A2B30FFu; }
-static inline unsigned col_task(void) { return 0x7F6DF2FFu; }
-static inline unsigned col_fm(void) { return 0x7C7E85FFu; }
-static inline unsigned col_menu(void) { return 0x1B1C20F2u; }
-static inline unsigned col_danger(void) { return 0xE55B65FFu; }
-static inline unsigned col_danger_soft(void) { return 0xE55B6528u; }
-static inline unsigned col_overlay(void) { return 0x0B0B0ED0u; }
-static inline unsigned col_tree_guide(void) { return 0x28292EFFu; }
-static inline unsigned col_scroll_thumb(void) { return 0xFFFFFF38u; }
+static inline unsigned col_muted(void) { return 0x8E9096FFu; }
+static inline unsigned col_gutter(void) { return 0x8E909675u; }
+
+/* Yoğun Gece Laciverti & Derin Safir Vurgular */
+static inline unsigned col_accent(void) { return 0x122a55FFu; }
+static inline unsigned col_accent_hi(void) { return 0x4E86E4FFu; }
+static inline unsigned col_accent_soft(void) { return 0x122a5548u; }
+static inline unsigned col_heading(void) { return 0xF1F3F4FFu; }
+
+static inline unsigned col_link(void) { return 0x5B92ECFFu; }
+static inline unsigned col_code(void) { return 0x467EDBFFu; }
+static inline unsigned col_codebg(void) { return 0x1E1F22FFu; }
+static inline unsigned col_quote(void) { return 0x9AA0A6FFu; }
+static inline unsigned col_tag(void) { return 0x6D9FF0FFu; }
+static inline unsigned col_highbg(void) { return 0x2D5BB048u; }
+static inline unsigned col_hightxt(void) { return 0xF1F3F4FFu; }
+static inline unsigned col_math(void) { return 0x8BB2F4FFu; }
+static inline unsigned col_caret(void) { return 0x5C93EDFFu; }
+static inline unsigned col_sel(void) { return 0x1C386BFFu; }
+static inline unsigned col_line(void) { return 0x2C2D30FFu; }
+static inline unsigned col_task(void) { return 0x4E86E4FFu; }
+static inline unsigned col_fm(void) { return 0x75777DFFu; }
+static inline unsigned col_menu(void) { return 0x1A1A1CF4u; }
+static inline unsigned col_menu_pane(void) { return 0x24252970u; }
+static inline unsigned col_flash_line(void) { return 0x2D5BB038u; }
+static inline unsigned col_flash_word(void) { return 0x4E86E47Au; }
+static inline unsigned col_match_badge(void) { return 0x4E86E4E0u; }
+static inline unsigned col_match_badge_text(void) { return 0x151515FFu; }
+static inline unsigned col_row_flash(void) { return 0x2D5BB048u; }
+
+static inline unsigned col_press_overlay(void) { return 0xFFFFFF0Cu; }
+static inline unsigned col_shadow_strong(void) { return 0x00000068u; }
+static inline unsigned col_shadow_soft(void) { return 0x00000034u; }
+static inline unsigned col_danger(void) { return 0xF28B82FFu; }
+static inline unsigned col_danger_soft(void) { return 0xF28B8224u; }
+static inline unsigned col_overlay(void) { return 0x0A0A0AD4u; }
+static inline unsigned col_tree_guide(void) { return 0x252629FFu; }
+static inline unsigned col_scroll_thumb(void) { return 0xFFFFFF2Eu; }
+
 
 /* GNU Unifont 17.0.04, SIL Open Font License 1.1 and GPLv2+ with the font exception.
    Packed from the upstream BDF; glyphs are not redrawn here. */

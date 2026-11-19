@@ -15,11 +15,9 @@ set(ATS_KERNEL_C_SOURCES "")
 foreach(ATS_FILE IN LISTS ATS_KERNEL_SOURCES)
   get_filename_component(BASE_NAME "${ATS_FILE}" NAME_WE)
   set(C_OUT "${CMAKE_CURRENT_BINARY_DIR}/kernel_${BASE_NAME}_dats.c")
-  add_custom_command(OUTPUT "${C_OUT}"
-    COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -d "${ATS_FILE}"
-    COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "$ENV{PATSHOME}" -IATS "$ENV{PATSHOME}/share"
-      -o "${C_OUT}" -d "${ATS_FILE}"
-    DEPENDS "${ATS_FILE}" ${ATS_INTERFACES}
+  anthracite_ats_compile("${C_OUT}" "${ATS_FILE}"
+    TYPECHECK
+    INCLUDES "${CMAKE_SOURCE_DIR}/src" "$ENV{PATSHOME}" "$ENV{PATSHOME}/share"
     COMMENT "[ATS kernel] ${ATS_FILE}")
   list(APPEND ATS_KERNEL_C_SOURCES "${C_OUT}")
 endforeach()

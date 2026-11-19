@@ -208,12 +208,12 @@ end
 fun draw_tab_content_ex(
   f: !Font, r: !Rend, doc: !Doc, path: !Buf, ox: int, oy: int, pw: int, ph: int,
   sc: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, viewmode: ViewMode,
-  shover: Toggle, sdrag: Toggle, out_h: &int >> _
+  shover: Toggle, sdrag: Toggle, hovy: int, out_h: &int >> _
 ): int =
   if is_image_path(path) then
     (out_h := 0; draw_image_viewer(f, r, path, ox, oy, pw, ph, c, scratch); sc)
   else
-    draw_document_scrolled_ex(f, r, doc, ox, oy, pw, ph, sc, lh, vault, c, scratch, viewmode, shover, sdrag, out_h)
+    draw_document_scrolled_ex(f, r, doc, ox, oy, pw, ph, sc, lh, vault, c, scratch, viewmode, shover, sdrag, hovy, out_h)
 
 extern fun draw_focus_impl_fuel_exhausted(f: !Font, r: !Rend, ts: Tabs, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, viewmode: ViewMode): Tabs = "mac#anth_die_box"
 
@@ -241,7 +241,7 @@ in if ilt(line,0) then scroll else let
 fun draw_focus_impl_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), f: !Font, r: !Rend, ts: Tabs, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int,
   vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, viewmode: ViewMode,
-  shover: Toggle, sdrag: Toggle, out_h: &int >> _
+  shover: Toggle, sdrag: Toggle, hovy: int, out_h: &int >> _
 ): Tabs =
   if recursion_fuel_available(recfuel) then (
     case+ ts of
@@ -252,15 +252,15 @@ fun draw_focus_impl_with_fuel {recfuel:nat} .<recfuel>. (
       end
     | ~TCons(doc, path, title, sc, rest) => let
         val scroll=if ieq(i,idx) then pending_anchor_scroll(f,r,doc,ox,pw,ph,lh,vault,c,sc,viewmode,scratch) else sc
-        val adjusted = if ieq(i, idx) then draw_tab_content_ex(f, r, doc, path, ox, oy, pw, ph, scroll, lh, vault, c, scratch, viewmode, shover, sdrag, out_h) else scroll
-        val rest2 = draw_focus_impl_with_fuel(recfuel - 1, f, r, rest, idx, ox, oy, pw, ph, lh, vault, c, scratch, iadd(i, 1), viewmode, shover, sdrag, out_h)
+        val adjusted = if ieq(i, idx) then draw_tab_content_ex(f, r, doc, path, ox, oy, pw, ph, scroll, lh, vault, c, scratch, viewmode, shover, sdrag, hovy, out_h) else scroll
+        val rest2 = draw_focus_impl_with_fuel(recfuel - 1, f, r, rest, idx, ox, oy, pw, ph, lh, vault, c, scratch, iadd(i, 1), viewmode, shover, sdrag, hovy, out_h)
       in
         TCons(doc, path, title, adjusted, rest2)
       end
   ) else draw_focus_impl_fuel_exhausted(f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, viewmode)
 
-implement draw_focus_pane(f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, viewmode, shover, sdrag, out_h) =
-  draw_focus_impl_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, viewmode, shover, sdrag, out_h)
+implement draw_focus_pane(f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, viewmode, shover, sdrag, hovy, out_h) =
+  draw_focus_impl_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, viewmode, shover, sdrag, hovy, out_h)
 
 implement draw_right(f, r, ts, split, idx, ox, oy, pw, ph, lh, vault, c, scratch, viewmode) =
   if is_on(split) then draw_focus(f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, 0, viewmode)
@@ -273,7 +273,7 @@ implement draw_right(f, r, ts, split, idx, ox, oy, pw, ph, lh, vault, c, scratch
 implement draw_focus(f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, viewmode) = let
   var dummy_h: int = 0
 in
-  draw_focus_pane(f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, viewmode, Off, Off, dummy_h)
+  draw_focus_pane(f, r, ts, idx, ox, oy, pw, ph, lh, vault, c, scratch, i, viewmode, Off, Off, ~1, dummy_h)
 end
 
 extern fun node_covering_impl_fuel_exhausted(d: !Doc, y: int, oy: int, scroll: int, i: int, best: int): int = "mac#anth_die_int"

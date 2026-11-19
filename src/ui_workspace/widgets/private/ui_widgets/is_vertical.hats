@@ -33,11 +33,11 @@ implement ui_draw_border(r, x, y, w, h, th, col) =
 
 implement ui_draw_shadow(r, x, y, w, h, rad) = let
   val soft = imax(8, imul(rad, 2))
-  val tr = col_rgba(0, 0, 0, 0)
+  val tr = col_clear()
   val () = rend_rrect_ex(r, x, iadd(y, 4), w, h, rad, rad, rad, rad,
-    col_rgba(0, 0, 0, 88), col_rgba(0, 0, 0, 88), 0, tr, soft)
+    col_shadow_strong(), col_shadow_strong(), 0, tr, soft)
   val () = rend_rrect_ex(r, x, iadd(y, 1), w, h, rad, rad, rad, rad,
-    col_rgba(0, 0, 0, 40), col_rgba(0, 0, 0, 40), 0, tr, imax(4, rad))
+    col_shadow_soft(), col_shadow_soft(), 0, tr, imax(4, rad))
 in
 end
 
@@ -206,7 +206,7 @@ fun diag_stroke_with_fuel {recfuel:nat} .<recfuel>. (
 fun draw_search_icon(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
   val ring = imax(6, isub(sz, 3))
   val rad = idiv(ring, 2)
-  val tr = col_rgba(0, 0, 0, 0)
+  val tr = col_clear()
   val () = rend_rrect_ex(r, x, y, ring, ring, rad, rad, rad, rad, tr, tr, 1, col, 1)
   val hx = iadd(x, isub(ring, 2))
   val hy = iadd(y, isub(ring, 2))
@@ -232,14 +232,14 @@ in
 end
 
 fun draw_split_icon(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
-  val tr = col_rgba(0, 0, 0, 0)
+  val tr = col_clear()
   val () = rend_rrect_ex(r, x, y, sz, sz, 2, 2, 2, 2, tr, tr, 1, col, 1)
   val () = rend_rect(r, iadd(x, idiv(sz, 2)), iadd(y, 1), 1, isub(sz, 2), col)
 in
 end
 
 fun draw_sidebar_icon(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
-  val tr = col_rgba(0, 0, 0, 0)
+  val tr = col_clear()
   val h = imax(6, isub(sz, 2))
   val div_x = iadd(x, imax(4, idiv(sz, 3)))
   val () = rend_rrect_ex(r, x, iadd(y, 1), sz, h, 3, 3, 3, 3, tr, tr, 1, col, 1)
@@ -261,7 +261,7 @@ fun pencil_stroke_with_fuel {recfuel:nat} .<recfuel>. (
   ) else ()
 
 fun draw_edit_icon(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
-  val tr = col_rgba(0, 0, 0, 0)
+  val tr = col_clear()
   val steps = imax(4, isub(sz, 5))
   val () = rend_rrect_ex(r, x, y, sz, sz, 3, 3, 3, 3, tr, tr, 1, col, 1)
   val () = pencil_stroke_with_fuel(airlock_nat(MAX_REC_FUEL), r, iadd(x, 3), isub(iadd(y, sz), 5), 0, steps, col)
@@ -270,7 +270,7 @@ in
 end
 
 fun draw_eye_icon(r: !Rend, x: int, y: int, sz: int, col: uint): void = let
-  val tr = col_rgba(0, 0, 0, 0)
+  val tr = col_clear()
   val eh = imax(6, idiv(sz, 2))
   val ey = iadd(y, idiv(isub(sz, eh), 2))
   val rad = idiv(eh, 2)

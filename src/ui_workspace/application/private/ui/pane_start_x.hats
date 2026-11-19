@@ -145,8 +145,10 @@ fun motion_changes(s: &App_record,ev: &event): bool = let
     orelse (igt(sidew, 0) andalso (ige(iabs(isub(s.hoverx, sidew)), 0) andalso ile(iabs(isub(s.hoverx, sidew)), 20)
                                    orelse ile(iabs(isub(nx, sidew)), 20)))
     orelse (is_on(s.split) andalso (ile(iabs(isub(s.hoverx, mid)), 20) orelse ile(iabs(isub(nx, mid)), 20)))
+  (* Okuma modunda katlama oku satır hover'ına bağlı; satır değişince yeniden çizilmeli. *)
+  val hover_row_moved=is_view_read(s.viewmode) andalso new_editor andalso ine(s.hovery,ny)
 in case+ s.drag of
-  | DragNone() => is_on(s.vault_select) orelse not(is_menu_none(s.menu)) orelse ige(s.downx,0) orelse not(old_editor andalso new_editor) orelse split_cross orelse near_sb
+  | DragNone() => is_on(s.vault_select) orelse not(is_menu_none(s.menu)) orelse ige(s.downx,0) orelse not(old_editor andalso new_editor) orelse split_cross orelse near_sb orelse hover_row_moved
   | DragTab() => true | DragFile() => true | DragSplit() => true | DragEditor() => true
   | DragDocScroll() => true | DragTreeScroll() => true | DragEditorPan() => true
   | DragEditorFontSlider() => true | DragDocFontSlider() => true

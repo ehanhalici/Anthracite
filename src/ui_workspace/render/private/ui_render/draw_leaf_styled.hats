@@ -29,7 +29,7 @@ fun draw_container_box(r: !Rend, d: !Doc, i: int, k: NodeKind, colx: int, y: int
     rend_rect(r, isub(colx, 8), y, 4, imax(h, lh), col_accent_hi())
   else if is_kind(k, KCode) orelse is_kind(k, KMathBlock) then let
     val fl = doc_node_flags(d, i)
-    val () = rend_rect(r, colx, y, colw, imax(h, lh), col_highbg())
+    val () = rend_rect(r, colx, y, colw, imax(h, lh), col_codebg())
   in
     if iand(fl, FL_ERROR) != 0 then rend_rect(r, colx, y, 3, imax(h, lh), col_danger()) else ()
   end else ()
@@ -88,7 +88,7 @@ in
     draw_container_box(r, d, i, k, colx, y, h, lh, editor_colw(f, r, ox, pw))
 end
 
-fun draw_node(f: !Font, r: !Rend, d: !Doc, i: int, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode): void = let
+fun draw_node(f: !Font, r: !Rend, d: !Doc, i: int, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode, hovy: int): void = let
   val k = doc_node_kind(d, i)
   val y = isub(iadd(oy, doc_node_y(d, i)), scroll)
   val h = doc_node_height(d, i)
@@ -100,15 +100,15 @@ fun draw_node(f: !Font, r: !Rend, d: !Doc, i: int, ox: int, oy: int, pw: int, ph
 in
   if skip then ()
   else let
-    val () = draw_arrow(f, r, d, i, k, colx, y)
+    val () = draw_arrow(f, r, d, i, k, colx, y, imax(lh, h), hovy, viewmode)
   in
     draw_node_content(f, r, d, i, k, ox, oy, pw, ph, scroll, lh, colx, y, h, vault, c, scratch, py, pa, pen_x, pen_line, viewmode)
   end
 end
 
-extern fun draw_nodes_impl_fuel_exhausted(f: !Font, r: !Rend, d: !Doc, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode): void = "mac#anth_die_void"
+extern fun draw_nodes_impl_fuel_exhausted(f: !Font, r: !Rend, d: !Doc, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode, hovy: int): void = "mac#anth_die_void"
 
-fun draw_nodes_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode): void =
+fun draw_nodes_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, d: !Doc, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode, hovy: int): void =
   if recursion_fuel_available(recfuel) then (
     if ige(i, doc_nnodes(d)) then ()
     else let
@@ -116,14 +116,14 @@ fun draw_nodes_impl_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), 
     in
       if igt(y, iadd(scroll, iadd(ph, 64))) then ()
       else let
-        val () = draw_node(f, r, d, i, ox, oy, pw, ph, scroll, lh, vault, c, scratch, py, pa, pen_x, pen_line, viewmode)
+        val () = draw_node(f, r, d, i, ox, oy, pw, ph, scroll, lh, vault, c, scratch, py, pa, pen_x, pen_line, viewmode, hovy)
       in
-        draw_nodes_impl_with_fuel(recfuel - 1, f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, iadd(i, 1), py, pa, pen_x, pen_line, viewmode)
+        draw_nodes_impl_with_fuel(recfuel - 1, f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, iadd(i, 1), py, pa, pen_x, pen_line, viewmode, hovy)
       end
     end
-  ) else draw_nodes_impl_fuel_exhausted(f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, i, py, pa, pen_x, pen_line, viewmode)
+  ) else draw_nodes_impl_fuel_exhausted(f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, i, py, pa, pen_x, pen_line, viewmode, hovy)
 
-fun draw_nodes_impl(f: !Font, r: !Rend, d: !Doc, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode): void = draw_nodes_impl_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, i, py, pa, pen_x, pen_line, viewmode)
+fun draw_nodes_impl(f: !Font, r: !Rend, d: !Doc, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, viewmode: ViewMode, hovy: int): void = draw_nodes_impl_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, i, py, pa, pen_x, pen_line, viewmode, hovy)
 
 implement line_quote_prefix(d, ls, le) = let
   val p = skip_spaces(d, ls, le)

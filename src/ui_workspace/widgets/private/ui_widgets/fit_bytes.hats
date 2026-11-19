@@ -56,13 +56,13 @@ in
       in
         seen_int(font_draw(f, r, iadd(cx, dx_g), ty, p, n, col))
       end else let
-        val ell_w = font_width(f, r, c_str_ptr("..."), 3)
+        val ell_w = font_width(f, r, c_str_ptr("…"), 3)
       in
         if igt(cw_g, ell_w) then let
           val fit_n = fit_str_bytes(f, r, p, n, isub(cw_g, ell_w))
           val adv = if igt(fit_n, 0) then font_draw(f, r, cx, ty, p, fit_n, col) else 0
         in
-          draw_s(f, r, iadd(cx, adv), ty, "...", col)
+          draw_s(f, r, iadd(cx, adv), ty, "…", col)
         end else let
           val fit_n = fit_str_bytes(f, r, p, n, cw_g)
         in

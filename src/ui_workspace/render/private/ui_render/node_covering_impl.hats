@@ -133,5 +133,5 @@ implement draw_nodes(f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, i, 
   var px: int = column_x(ox, pw)
   var pl: int = ~1
 in
-  draw_nodes_impl(f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, i, py, pa, px, pl, viewmode)
+  draw_nodes_impl(f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, i, py, pa, px, pl, viewmode, ~1)
 end

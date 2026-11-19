@@ -57,7 +57,7 @@ fun tab_find_at_x_w(f: !Font, r: !Rend, ts: !Tabs, start_x: int, avail_w: int, h
 fun tab_hover_info(f: !Font, r: !Rend, ts: !Tabs, start_x: int, hover_x: int, filter: int, tab_pane: !Buf, out_ti: &int >> _, out_bx: &int >> _, out_over: &bool >> _): void
 fun tab_hover_info_w(f: !Font, r: !Rend, ts: !Tabs, start_x: int, avail_w: int, hover_x: int, filter: int, tab_pane: !Buf, out_ti: &int >> _, out_bx: &int >> _, out_over: &bool >> _): void
 fun draw_focus(f: !Font, r: !Rend, ts: Tabs, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, viewmode: ViewMode): Tabs
-fun draw_focus_pane(f: !Font, r: !Rend, ts: Tabs, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, viewmode: ViewMode, shover: Toggle, sdrag: Toggle, out_h: &int >> _): Tabs
+fun draw_focus_pane(f: !Font, r: !Rend, ts: Tabs, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, viewmode: ViewMode, shover: Toggle, sdrag: Toggle, hovy: int, out_h: &int >> _): Tabs
 fun draw_right(f: !Font, r: !Rend, ts: Tabs, split: Toggle, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, viewmode: ViewMode): Tabs
 fun tabs_click(f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, pw: int, scroll_hint: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &NodeKind >> _, hiti: &int >> _, i: int): Tabs
 fun tabs_click_oy(f: !Font, r: !Rend, ts: Tabs, idx: int, x: int, y: int, ox: int, oy: int, pw: int, lh: int, scratch: &Buf >> _, keep: Toggle, hitk: &NodeKind >> _, hiti: &int >> _, i: int): Tabs

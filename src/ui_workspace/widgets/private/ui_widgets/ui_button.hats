@@ -43,7 +43,7 @@ end
 
 implement ui_scroll_bar(r, x, y, w, h, is_vert, total_len, visible_len, scroll_pos, is_hover, is_dragging) = let
   val active = is_on(is_hover) orelse is_on(is_dragging)
-  val () = if active then rend_rrect(r, x, y, w, h, 3, col_rgba(255, 255, 255, 14)) else ()
+  val () = if active then rend_rrect(r, x, y, w, h, 3, col_press_overlay()) else ()
   val () = if igt(total_len, visible_len) andalso igt(visible_len, 0) then let
     val travel = if is_vertical(is_vert) then h else w
     val thumb_len = imax(SCROLLBAR_MIN_THUMB, idiv(imul(travel, visible_len), total_len))

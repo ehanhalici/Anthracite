@@ -106,8 +106,8 @@ in
   if ige(fl, 0) andalso ilt(fl, doc_nlines(d)) then let
     val fy = isub(iadd(oy, doc_line_y(d, fl)), scroll)
     val fh = imax(lh, doc_line_step(d, fl))
-    val () = rend_rect(r, colx, fy, editor_colw(f, r, ox, pw), fh, col_rgba(147, 51, 234, 110))
-    val wcol = col_rgba(234, 179, 8, 185)
+    val () = rend_rect(r, colx, fy, editor_colw(f, r, ox, pw), fh, col_flash_line())
+    val wcol = col_flash_word()
   in
     if igt(f_en, f_st) then (
       if doc_visual_active(d) then
@@ -118,13 +118,13 @@ in
   end else ()
 end
 
-fun draw_doc_content(f: !Font, r: !Rend, d: !Doc, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, viewmode: ViewMode, colx: int, py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _): void = let
+fun draw_doc_content(f: !Font, r: !Rend, d: !Doc, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, viewmode: ViewMode, colx: int, py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _, hovy: int): void = let
   val () = draw_flash_line(f, r, d, oy, scroll, lh, ox, colx, pw, ph, scratch)
 in
   if doc_nnodes(d) > 0 then let
     val start_i = first_vis_node(d, scroll)
   in
-    draw_nodes_impl(f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, start_i, py, pa, pen_x, pen_line, viewmode)
+    draw_nodes_impl(f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, start_i, py, pa, pen_x, pen_line, viewmode, hovy)
   end else if doc_visual_active(d) then
     seen_int(visual_draw_slice(f,r,d,0,doc_len(d),colx,oy,scroll,lh,ph,col_text(),scratch))
   else
@@ -139,7 +139,7 @@ fun draw_gutter_num(f: !Font, r: !Rend, line: int, colx: int, yy: int, scratch: 
   val num_end = gutter_num_end_x(f, r, colx)
   val tx = isub(num_end, tw)
 in
-  seen_int(font_draw_buf(f, r, tx, yy, scratch, slen, col_muted()))
+  seen_int(font_draw_buf(f, r, tx, yy, scratch, slen, col_gutter()))
 end
 
 fun draw_gutter_line(f: !Font, r: !Rend, d: !Doc, line: int, colx: int, oy: int, scroll: int, ph: int, scratch: &Buf >> _): void = let
@@ -177,7 +177,7 @@ end
 
 fun draw_document_prepared_ex(f: !Font,r: !Rend,d: !Doc,ox: int,oy: int,pw: int,ph: int,
   scroll: int,lh: int,vault: !Buf,c: &Cache >> _,scratch: &Buf >> _,viewmode: ViewMode,height: int,colx: int,
-  shover: Toggle, sdrag: Toggle): void = let
+  shover: Toggle, sdrag: Toggle, hovy: int): void = let
   var py: int = oy
   var pa: int = 0
   var pen_x: int = colx
@@ -187,7 +187,7 @@ fun draw_document_prepared_ex(f: !Font,r: !Rend,d: !Doc,ox: int,oy: int,pw: int,
   val show_active = is_view_edit(viewmode) andalso doc_cursor_active(d)
   val show_sel = is_view_read(viewmode) orelse doc_cursor_active(d)
   val () = if show_sel then draw_selection(f, r, d, colx, oy, scroll, lh, scratch) else ()
-  val () = draw_doc_content(f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, viewmode, colx, py, pa, pen_x, pen_line)
+  val () = draw_doc_content(f, r, d, ox, oy, pw, ph, scroll, lh, vault, c, scratch, viewmode, colx, py, pa, pen_x, pen_line, hovy)
   val () = if show_active then draw_caret(f, r, d, colx, oy, scroll, lh, scratch) else ()
   val () = rend_clip_pop(r)
   val () = if igt(height, ph) then ui_scroll_bar(r, isub(iadd(ox, pw), 8), oy, 8, ph, Vertical, height, ph, scroll, shover, sdrag) else ()
@@ -198,7 +198,7 @@ end
 
 fun draw_document_scrolled_ex(f: !Font,r: !Rend,d: !Doc,ox: int,oy: int,pw: int,ph: int,
   scroll: int,lh0: int,vault: !Buf,c: &Cache >> _,scratch: &Buf >> _,mode: ViewMode,
-  shover: Toggle, sdrag: Toggle, out_h: &int >> _): int = let
+  shover: Toggle, sdrag: Toggle, hovy: int, out_h: &int >> _): int = let
   val lh=if font_text_active(f) then font_document_line_height(f,lh0) else lh0
   val colx=editor_colx(f,r,ox,pw)
   val width=editor_colw(f,r,ox,pw)
@@ -212,7 +212,7 @@ fun draw_document_scrolled_ex(f: !Font,r: !Rend,d: !Doc,ox: int,oy: int,pw: int,
   val max_scroll = imax(0, isub(raw_height, lh))
   val () = out_h := total_height
   val adjusted = if state.enabled then imin(max_scroll, imax(0, work_top(d, scope))) else imin(max_scroll, imax(0, scroll))
-  val () = draw_document_prepared_ex(f, r, d, ox, oy, pw, ph, adjusted, lh, vault, c, scratch, mode, total_height, colx, shover, sdrag)
+  val () = draw_document_prepared_ex(f, r, d, ox, oy, pw, ph, adjusted, lh, vault, c, scratch, mode, total_height, colx, shover, sdrag, hovy)
   val () = work_set_scope(c, state.scope)
 in adjusted end
 
@@ -220,7 +220,7 @@ fun draw_document_scrolled(f: !Font,r: !Rend,d: !Doc,ox: int,oy: int,pw: int,ph:
   scroll: int,lh0: int,vault: !Buf,c: &Cache >> _,scratch: &Buf >> _,mode: ViewMode): int = let
   var dummy_h: int = 0
 in
-  draw_document_scrolled_ex(f, r, d, ox, oy, pw, ph, scroll, lh0, vault, c, scratch, mode, Off, Off, dummy_h)
+  draw_document_scrolled_ex(f, r, d, ox, oy, pw, ph, scroll, lh0, vault, c, scratch, mode, Off, Off, ~1, dummy_h)
 end
 
 implement draw_doc(f,r,d,ox,oy,pw,ph,scroll,lh,vault,c,scratch,mode) =

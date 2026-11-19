@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.20)
 
 # Release (-O2, LTO) is the default: the Debug profile (-O0) is roughly ten times
 # slower on the first frame and uses the call stack without tail-call elimination.
@@ -22,6 +22,7 @@ endif()
 project(anthracite C)
 
 include(cmake/ATSSourceIndex.cmake)
+include(cmake/ATSCompile.cmake)
 
 set(CMAKE_C_STANDARD 99)
 # ThreadSanitizer build for the threading tests (ctest -L tsan); use a
@@ -98,18 +99,11 @@ foreach(ATS_FILE ${ATS_SOURCES})
   list(APPEND SEEN_BASE ${BASE_NAME})
 
   set(C_OUT "${CMAKE_CURRENT_BINARY_DIR}/${BASE_NAME}_dats.c")
-  add_custom_command(
-    OUTPUT ${C_OUT}
-    COMMAND patsopt -tc -IATS ${CMAKE_CURRENT_SOURCE_DIR}/src -d ${ATS_FILE}
-    COMMAND patsopt --debug --debug2
-      -IATS ${CMAKE_CURRENT_SOURCE_DIR}/src
-      -IATS $ENV{PATSHOME}
-      -IATS $ENV{PATSHOME}/share
-      -o ${C_OUT}
-      -d ${ATS_FILE}
-    DEPENDS ${ATS_FILE} ${ATS_INTERFACES}
-    COMMENT "[ATS] ${ATS_FILE} -> ${BASE_NAME}_dats.c"
-  )
+  anthracite_ats_compile("${C_OUT}" "${ATS_FILE}"
+    TYPECHECK
+    INCLUDES "${CMAKE_CURRENT_SOURCE_DIR}/src" "$ENV{PATSHOME}" "$ENV{PATSHOME}/share"
+    OPTIONS --debug --debug2
+    COMMENT "[ATS] ${ATS_FILE} -> ${BASE_NAME}_dats.c")
   list(APPEND GENERATED_C_SOURCES ${C_OUT})
 endforeach()
 

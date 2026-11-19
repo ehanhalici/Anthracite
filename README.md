@@ -13,7 +13,7 @@ CMake, X11, OpenGL and `PATSHOME`):
 
 ```sh
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel
+cmake --build build --parallel "$(( $(nproc) / 2 ))"
 ./build/anthracite
 ```
 
@@ -26,7 +26,7 @@ by CMake when present); embedded faces are addressed as `embedded:<file name>`. 
 Arabic font is still read from `vendor/fonts/`.
 
 ```sh
-cmake --build build --target check-build --parallel
+cmake --build build --target check-build --parallel "$(( $(nproc) / 2 ))"
 ctest --test-dir build --output-on-failure -LE graphics
 # Requires a working X11/GLX display, for example a separate Xvfb instance:
 DISPLAY=:1 ctest --test-dir build --output-on-failure -L graphics

@@ -33,8 +33,13 @@ in
   imin(max_x, imax(min_left, ideal_x))
 end
 
-fun draw_arrow(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, colx: int, y: int): void =
-  if doc_is_foldable(d, i) then let
+fun arrow_revealed(d: !Doc, i: int, y: int, lh: int, hovy: int, viewmode: ViewMode): bool =
+  if not(is_view_read(viewmode)) then true
+  else if ige(hovy, y) andalso ilt(hovy, iadd(y, lh)) then true
+  else ieq(doc_line_of(d, doc_caret(d)), doc_line_of(d, doc_node_start(d, i)))
+
+fun draw_arrow(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, colx: int, y: int, lh: int, hovy: int, viewmode: ViewMode): void =
+  if doc_is_foldable(d, i) andalso arrow_revealed(d, i, y, lh, hovy, viewmode) then let
     val folded = doc_node_collapsed(d, i)
     val arr = if is_on(folded) then ">" else "v"
     val acol = if is_on(folded) then col_accent_hi() else col_muted()

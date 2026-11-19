@@ -158,7 +158,7 @@ fun on_down(a: !App, p: !Plat, f: !Font, r: !Rend, ev: &event, w: int, h: int): 
   case+ a of
   | @APP(s) =>
       if is_on(s.vault_select) then let
-        val () = handle_vault_select_click(s, ev_x(ev), ev_y(ev), w, h)
+        val () = handle_vault_select_click(s, f, r, ev_x(ev), ev_y(ev), w, h)
       in
         fold@(a)
       end else let

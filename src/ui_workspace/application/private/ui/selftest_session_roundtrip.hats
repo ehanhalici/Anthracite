@@ -254,7 +254,7 @@ fun chk_tabs_width_m {n:nat} .<n>. (
     val text_w = imax(0, isub(tw, iadd(8, 26)))
     val title = "Çok Uzun Türkçe Sekme Başlığı Örneği.md"
     val tlen = c_strlen(title)
-    val ell_w = font_width(fnt, r, c_str_ptr("..."), 3)
+    val ell_w = font_width(fnt, r, c_str_ptr("…"), 3)
     val fit_ok =
       if igt(text_w, ell_w) then let
         val fit_n = ui_fit_str_bytes(fnt, r, c_str_ptr(title), tlen, isub(text_w, ell_w))

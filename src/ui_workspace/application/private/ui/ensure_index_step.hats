@@ -87,69 +87,6 @@ fun ui_draw_prompt(f: !Font, r: !Rend, a: !App): void =
       fold@(a)
     end
 
-fun draw_vault_item(f: !Font, r: !Rend, s: &App_record, mx: int, my: int, mw: int, vi: int): void = let
-  var nbuf = buf_make(DRAW_VAULT_ITEM_NBUF_INITIAL_BYTES)
-  var pbuf = buf_make(DRAW_VAULT_ITEM_PBUF_INITIAL_BYTES)
-  val ry = iadd(my, iadd(68, imul(vi, 26)))
-  val poff = buf_get32(s.vmeta, imul(vi, 4))
-  val plen = buf_get32(s.vmeta, iadd(imul(vi, 4), 1))
-  val noff = buf_get32(s.vmeta, iadd(imul(vi, 4), 2))
-  val nlen = buf_get32(s.vmeta, iadd(imul(vi, 4), 3))
-  val () = buffer_append_range(pbuf, s.vpaths, poff, iadd(poff, plen))
-  val () = buffer_append_range(nbuf, s.vnames, noff, iadd(noff, nlen))
-  val is_curr = ieq(c_strcmp(buffer_c_string(pbuf), buffer_c_string(s.vault)), 0)
-  val is_hov = ige(s.hoverx, iadd(mx, 16)) andalso ilt(s.hoverx, isub(iadd(mx, mw), 16)) andalso ige(s.hovery, ry) andalso ilt(s.hovery, iadd(ry, 24))
-  val () = ui_cell(f, r, iadd(mx, 16), ry, isub(mw, 32), 24, 0, Off, Off, UI_ICON_FOLDER, buffer_c_string(nbuf), buffer_c_string(pbuf), toggle_of(is_curr), toggle_of(is_hov))
-  val () = buf_free(nbuf)
-in
-  buf_free(pbuf)
-end
-
-extern fun draw_vault_items_fuel_exhausted(f: !Font, r: !Rend, s: &App_record, mx: int, my: int, mw: int, vi: int, max_cnt: int): void = "mac#anth_die_void"
-
-fun draw_vault_items_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, s: &App_record, mx: int, my: int, mw: int, vi: int, max_cnt: int): void =
-  if recursion_fuel_available(recfuel) then (
-    if ige(vi, max_cnt) then ()
-    else let
-      val () = draw_vault_item(f, r, s, mx, my, mw, vi)
-    in
-      draw_vault_items_with_fuel(recfuel - 1, f, r, s, mx, my, mw, iadd(vi, 1), max_cnt)
-    end
-  ) else draw_vault_items_fuel_exhausted(f, r, s, mx, my, mw, vi, max_cnt)
-
-fun draw_vault_items(f: !Font, r: !Rend, s: &App_record, mx: int, my: int, mw: int, vi: int, max_cnt: int): void = draw_vault_items_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, s, mx, my, mw, vi, max_cnt)
-
-fun draw_vault_dialog_body(f: !Font, r: !Rend, s: &App_record, mx: int, my: int, mw: int): void = let
-  val () = draw_s(f, r, iadd(mx, 16), iadd(my, 44), "Mevcut kasalardan birini secin veya yeni kasa olusturun:", col_muted())
-  val () = draw_vault_items(f, r, s, mx, my, mw, 0, imin(s.vcnt, 6))
-  val iy = iadd(my, 248)
-  val () = draw_s(f, r, iadd(mx, 16), iy, "Yeni Kasa Konumu (Klasor Yolu):", col_text())
-  val qlen = buf_len(s.promptb)
-  val () = ui_line_edit_draw(f, r, iadd(mx, 16), iadd(iy, 20), isub(mw, 32), 26, s.promptb, qlen, qlen, On, "ornegin: /home/kullanici/Notlar")
-  val by = iadd(my, 310)
-  val () = ui_button(f, r, iadd(mx, 16), by, 140, 30, "Ac / Olustur", Off, On)
-in
-  if igt(buf_len(s.vault), 0) then ui_button(f, r, isub(iadd(mx, mw), 116), by, 100, 30, "Iptal", Off, Off) else ()
-end
-
-fun draw_vault_select(f: !Font, r: !Rend, a: !App, w: int, h: int): void =
-  case+ a of
-  | @APP(s) => let
-      val () = if is_on(s.vault_select) then let
-        val () = rend_rect(r, 0, 0, w, h, col_overlay())
-        val mw = 520
-        val mh = 360
-        val mx = idiv(isub(w, mw), 2)
-        val my = idiv(isub(h, mh), 2)
-        val () = ui_pane_begin(r, mx, my, mw, mh, col_bg())
-        val () = ui_pane_draw_header(f, r, mx, my, mw, "Kasa Secimi / Vault Secimi", toggle_of(igt(buf_len(s.vault), 0)))
-        val () = draw_vault_dialog_body(f, r, s, mx, my, mw)
-      in
-      end else ()
-    in
-      fold@(a)
-    end
-
 fun menu_item_count(menu: MenuKind): int = case+ menu of
   | MenuNone() => 0
   | MenuText() => 4

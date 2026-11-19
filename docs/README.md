@@ -30,7 +30,7 @@ API'leri ile panelin varsayılan yolu birbirine karıştırılmamalıdır.
 
 ## Doğrulama
 
-Önce `cmake --build build --target check-build --parallel`, ardından CTest
+Önce `cmake --build build --target check-build --parallel "$(( $(nproc) / 2 ))"`, ardından CTest
 çalıştırılır. `check` hedefi iki işlemi birleştirir. Grafik etiketli testler
 X11/GLX ekranı ister; CPU paketini `ctest --test-dir build -LE graphics
 --output-on-failure` ile ayrı çalıştırabilirsiniz.
@@ -48,7 +48,7 @@ Sızıntı denetimi için ayrı bir dizin kullanın:
 
 ```sh
 cmake -S . -B build/sanitize -DCMAKE_BUILD_TYPE=RelWithDebInfo -DANTHRACITE_SANITIZERS=ON
-cmake --build build/sanitize --target check-build --parallel
+cmake --build build/sanitize --target check-build --parallel "$(( $(nproc) / 2 ))"
 ASAN_OPTIONS=detect_leaks=1 ctest --test-dir build/sanitize --output-on-failure -R '^(sfnt_conformance|component_conformance|native_text_analysis_conformance|anchor_contracts|native_graphics_contracts|font_temporary_ownership_type_error|editor_fsm_contracts|graphics_selftest|literal_search_contracts|search_results_contracts|search_geometry_contracts)$'
 ```
 

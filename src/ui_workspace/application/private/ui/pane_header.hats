@@ -254,7 +254,7 @@ fun draw_pane_split_button(r: !Rend, s: &App_record, ox: int, pw: int): void = l
   val iy = iadd(by, 5)
   val iw = imax(6, isub(bw, 10))
   val ih = imax(6, isub(bw, 10))
-  val tr = col_rgba(0, 0, 0, 0)
+  val tr = col_clear()
   val () = rend_rrect_ex(r, ix, iy, iw, ih, 2, 2, 2, 2, tr, tr, 1, fg, 1)
 in
   if is_off(s.split) then rend_rect(r, iadd(ix, idiv(iw, 2)), iadd(iy, 1), 1, isub(ih, 2), fg)

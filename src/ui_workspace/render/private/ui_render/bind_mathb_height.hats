@@ -1,5 +1,7 @@
-fun bind_mathb_height(d: !Doc, i: int, lh: int): void = let
-  val dh = doc_math_block_height(lh)
+fun bind_mathb_height(f: !Font, r: !Rend, d: !Doc, i: int, lh: int): void = let
+  val @(st, en) = mathb_slice_bounds(d, i)
+  val mb = math_layout_measure(f, r, d, st, en, 1)
+  val dh = imax(doc_math_block_height(lh), iadd(iadd(mb.a, mb.d), imul(MATH_BLOCK_VERTICAL_PADDING_PIXELS, 2)))
   val old_h = doc_node_height(d, i)
   val () = if ine(old_h, dh) then doc_bump_ver(d) else ()
 in
@@ -10,7 +12,7 @@ end
 fun bind_one_kind(f: !Font,d: !Doc, i: int, k: NodeKind, c: &Cache >> _, r: !Rend, vault: !Buf, lh: int, colw: int, shown: !Buf): void =
   if is_kind(k, KImage) then bind_image_height(d, i, c, r, shown, colw)
   else if is_kind(k, KEmbed) then bind_embed_height(f,d, i, c, r, vault, shown, lh, colw)
-  else if is_kind(k, KMathb) then bind_mathb_height(d, i, lh)
+  else if is_kind(k, KMathb) then bind_mathb_height(f, r, d, i, lh)
   else ()
 
 fun media_in_view(d: !Doc,i: int): bool = let val range=doc_view_range(d)

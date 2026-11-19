@@ -186,6 +186,9 @@ fun draw_pane_scroll_hover(s: &App_record, ox: int, pw: int): bool =
   ige(s.hoverx, isub(iadd(ox, pw), UI_SCROLLBAR_HIT_WIDTH)) andalso ilt(s.hoverx, iadd(ox, pw))
     andalso ige(s.hovery, s.doc_top_y)
 
+fun pane_hover_y(s: &App_record, ox: int, pw: int): int =
+  if ige(s.hoverx, ox) andalso ilt(s.hoverx, iadd(ox, pw)) then s.hovery else ~1
+
 fun draw_editor_right_pane(
   f: !Font, r: !Rend, s: &App_record >> _, ts: Tabs, mid: int, rw: int, h: int
 ): Tabs =
@@ -199,8 +202,9 @@ fun draw_editor_right_pane(
     val () = draw_pane_doc_title(f, r, s, ts, mid, rw, s.righti, doc_lh)
     val r_hov = draw_pane_scroll_hover(s, mid, rw)
     val r_drag = is_drag_doc_scroll(s.drag) andalso ieq(s.scroll_drag_pane, 1)
+    val r_hy = pane_hover_y(s, mid, rw)
     var rh: int = 0
-    val ts_out = draw_focus_pane(f, r, ts, s.righti, mid, doc_oy, rw, doc_ph, doc_lh, s.vault, s.cache, s.scratch, 0, s.viewmode, toggle_of(r_hov), toggle_of(r_drag), rh)
+    val ts_out = draw_focus_pane(f, r, ts, s.righti, mid, doc_oy, rw, doc_ph, doc_lh, s.vault, s.cache, s.scratch, 0, s.viewmode, toggle_of(r_hov), toggle_of(r_drag), r_hy, rh)
     val () = s.doc_h_right := rh
   in
     ts_out
@@ -221,8 +225,9 @@ fun draw_editor_left_pane(
   val () = draw_pane_doc_title(f, r, s, ts2, ox, half, s.active, doc_lh)
   val l_hov = draw_pane_scroll_hover(s, ox, half)
   val l_drag = is_drag_doc_scroll(s.drag) andalso ieq(s.scroll_drag_pane, 0)
+  val l_hy = pane_hover_y(s, ox, half)
   var lh_total: int = 0
-  val ts3 = draw_focus_pane(f, r, ts2, s.active, ox, doc_oy, half, doc_ph, doc_lh, s.vault, s.cache, s.scratch, 0, s.viewmode, toggle_of(l_hov), toggle_of(l_drag), lh_total)
+  val ts3 = draw_focus_pane(f, r, ts2, s.active, ox, doc_oy, half, doc_ph, doc_lh, s.vault, s.cache, s.scratch, 0, s.viewmode, toggle_of(l_hov), toggle_of(l_drag), l_hy, lh_total)
   val () = s.doc_h_left := lh_total
 in
   ts3

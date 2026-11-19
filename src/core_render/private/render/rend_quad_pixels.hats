@@ -178,7 +178,7 @@ implement rend_rrect_ex(r, x, y, w, h, rtl, rtr, rbr, rbl, c_top, c_bot, bth, bc
   end
 
 implement rend_rrect(r, x, y, w, h, rad, c) =
-  rend_rrect_ex(r, x, y, w, h, rad, rad, rad, rad, c, c, 0, col_rgba(0, 0, 0, 0), 1)
+  rend_rrect_ex(r, x, y, w, h, rad, rad, rad, rad, c, c, 0, col_clear(), 1)
 
 implement rend_scissor(r, x, y, w, h) = let
   val () = rend_flush(r)

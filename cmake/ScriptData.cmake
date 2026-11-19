@@ -2,10 +2,8 @@ set(SCRIPT_TOOL_C_SOURCES "")
 foreach(MODULE script_compile script_source_range script_aliases_read script_aliases_query script_source_compile
     script_extensions_source script_extensions_write script_extensions_compile)
   set(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/${MODULE}_dats.c")
-  add_custom_command(OUTPUT "${OUTPUT}"
-    COMMAND patsopt -tc -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tools/script" -d "${ANTHRACITE_TOOL_${MODULE}}"
-    COMMAND patsopt -IATS "${CMAKE_SOURCE_DIR}/src" -IATS "${CMAKE_SOURCE_DIR}/tools/script" -o "${OUTPUT}" -d "${ANTHRACITE_TOOL_${MODULE}}"
-    DEPENDS "${ANTHRACITE_TOOL_${MODULE}}" tools/script/script_compile.sats tools/script/script_compile_internal.hats ${ATS_INTERFACES})
+  anthracite_ats_compile("${OUTPUT}" "${ANTHRACITE_TOOL_${MODULE}}"
+    TYPECHECK INCLUDES "${CMAKE_SOURCE_DIR}/src" "${CMAKE_SOURCE_DIR}/tools/script")
   list(APPEND SCRIPT_TOOL_C_SOURCES "${OUTPUT}")
 endforeach()
 set(SCRIPT_C_SOURCES "")

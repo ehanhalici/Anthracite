@@ -11,6 +11,7 @@
 #include <time.h>
 #include <ctype.h>
 #include "data_font/legacy/text_layout.h"
+#include "core_render/gl.cats"
 
 static inline int anth_is_arabic(int cp) {
     return ((cp >= 0x0600 && cp <= 0x06FF) ||
@@ -646,15 +647,15 @@ static inline int anth_buf_count_cps(const char *p, int n, int start, int end) {
     return count;
 }
 
-#define ANTH_COL_TEXT    0xE6E1D8FFu
-#define ANTH_COL_HEADING 0xF4F1EAFFu
-#define ANTH_COL_LINK    0x58A6FFFFu
-#define ANTH_COL_WHITE   0xFFFFFFFFu
-#define ANTH_COL_ACCENT  0xC4B8A5FFu
-#define ANTH_COL_MUTED   0x8E8A84FFu
-#define ANTH_COL_CODE    0xD7C4A3FFu
-#define ANTH_COL_TAG     0xD7A36AFFu
-#define ANTH_COL_TASK    0x9BB8A0FFu
+#define ANTH_COL_TEXT    col_text()
+#define ANTH_COL_HEADING col_heading()
+#define ANTH_COL_LINK    col_link()
+#define ANTH_COL_WHITE   col_white()
+#define ANTH_COL_ACCENT  col_accent_hi()
+#define ANTH_COL_MUTED   col_muted()
+#define ANTH_COL_CODE    col_code()
+#define ANTH_COL_TAG     col_tag()
+#define ANTH_COL_TASK    col_task()
 
 typedef struct {
     const char *text;

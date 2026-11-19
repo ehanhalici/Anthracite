@@ -77,7 +77,7 @@ implement draw_menu(f, r, menu, menux, menuy, menuw) = let
           else 0
   val mw = if igt(menuw, 0) then menuw else UI_MENU_WIDTH
   val mh = imul(n, UI_MENU_ITEM_HEIGHT)
-  val () = if igt(n, 0) then ui_pane_begin(r, menux, menuy, mw, mh, col_rgba(42, 44, 49, 108)) else ()
+  val () = if igt(n, 0) then ui_pane_begin(r, menux, menuy, mw, mh, col_menu_pane()) else ()
 in
   if is_menu_text(menu) then draw_menu_text_items(f, r, menux, menuy, mw)
   else if is_menu_image(menu) then draw_menu_image_items(f, r, menux, menuy, mw)

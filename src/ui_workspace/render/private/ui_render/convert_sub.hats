@@ -93,15 +93,6 @@ fun math_append_preview_with_fuel {recfuel:nat} .<recfuel>. (
 implement math_append_preview(d, st, en, out) =
   math_append_preview_with_fuel(airlock_nat(MAX_REC_FUEL), d, st, en, out)
 
-fun mathb_slice_bounds(d: !Doc, i: int): @(int, int) = let
-  val a = doc_node_start(d, i)
-  val b = doc_node_end(d, i)
-  val st = (if ilt(iadd(a, 2), b) andalso ieq(doc_byte(d, a), CHAR_DOLLAR) andalso ieq(doc_byte(d, iadd(a, 1)), CHAR_DOLLAR) then iadd(a, 2) else a)
-  val en = (if igt(isub(b, 2), st) andalso ieq(doc_byte(d, isub(b, 1)), CHAR_DOLLAR) andalso ieq(doc_byte(d, isub(b, 2)), CHAR_DOLLAR) then isub(b, 2) else b)
-in
-  @(st, en)
-end
-
 fun draw_node_mathb(
   f: !Font, r: !Rend, d: !Doc, i: int, colx: int, y: int, lh: int, colw: int,
   pen_x: &int >> _, pen_line: &int >> _
@@ -109,20 +100,18 @@ fun draw_node_mathb(
   val () = pen_line := ~1
   val () = pen_x := colx
   val @(st, en) = mathb_slice_bounds(d, i)
-  var mb = buf_make(DRAW_NODE_MATHB_BUFFER_INITIAL_BYTES)
-  val () = math_append_preview(d, st, en, mb)
-  val mlen = buf_len(mb)
-  val tw = font_width_buf(f, r, mb, mlen)
+  val mb = math_layout_measure(f, r, d, st, en, 1)
+  val tw = mb.w
   val bw = imin(colw, iadd(tw, 32))
   val bx = iadd(colx, imax(0, idiv(isub(colw, bw), 2)))
   val tx = iadd(bx, idiv(isub(bw, tw), 2))
-  val bh = iadd(lh, 8)
+  val bh = imax(iadd(lh, 8), isub(doc_node_height(d, i), 4))
   val by = isub(y, 4)
+  val base = iadd(by, iadd(idiv(isub(bh, iadd(mb.a, mb.d)), 2), mb.a))
   val fl = doc_node_flags(d, i)
   val () = rend_rect(r, bx, by, bw, bh, col_side())
   val () = ui_draw_border(r, bx, by, bw, bh, 1, (if iand(fl, FL_ERROR) != 0 then col_danger() else col_line()))
-  val () = seen_int(font_draw_buf(f, r, tx, iadd(by, 4), mb, mlen, col_math()))
-  val () = buf_free(mb)
+  val () = math_layout_paint(f, r, d, st, en, 1, tx, base)
 in
 end
 
@@ -136,31 +125,29 @@ fun draw_leaf_effects(r: !Rend, x0: int, yy: int, tw: int, lh: int, style: int):
   end else ()
 
 fun draw_math_text(
-  f: !Font, r: !Rend, x0: int, yy: int, oy: int, ph: int, lh: int, mb: !Buf, mlen: int
+  f: !Font, r: !Rend, d: !Doc, st: int, en: int, x0: int, yy: int, oy: int, ph: int, lh: int
 ): void =
   if ilt(iadd(yy, lh), oy) orelse igt(yy, iadd(oy, ph)) then ()
-  else seen_int(font_draw_buf(f, r, x0, yy, mb, mlen, col_math()))
+  else math_layout_paint(f, r, d, st, en, 0, x0, iadd(yy, font_asc(f)))
 
 fun draw_leaf_math_inline(
   f: !Font, r: !Rend, d: !Doc, i: int, oy: int, ph: int, scroll: int,
   lh: int, colx: int, st: int, en: int, scratch: &Buf >> _,
   pen_x: &int >> _, pen_line: &int >> _
 ): void = let
-  val () = seen_buf(scratch)
-  var mb = buf_make(DRAW_LEAF_MATH_INLINE_BUFFER_INITIAL_BYTES)
-  val () = math_append_preview(d, st, en, mb)
-  val mlen = buf_len(mb)
+  val mb = math_layout_measure(f, r, d, st, en, 0)
   val line = doc_line_of(d, st)
   val pl_line = pen_unpack_line(pen_line)
   val cur_row = (if ieq(line, pl_line) then pen_unpack_row(pen_line) else 0)
-  val yy = isub(iadd(oy, iadd(doc_line_y(d, line), imul(cur_row, lh))), scroll)
-  val x0 = (if ine(line, pl_line) then colx else pen_x) : int
-  val tw = font_width_buf(f, r, mb, mlen)
-  val () = draw_math_text(f, r, x0, yy, oy, ph, lh, mb, mlen)
+  val pt = visual_offset_point(f, d, st, colx, oy, scroll, scratch)
+  val vis = doc_visual_active(d)
+  val yy = if vis then pt.y else isub(iadd(oy, iadd(doc_line_y(d, line), imul(cur_row, lh))), scroll)
+  val x0 = (if vis then pt.x else if ine(line, pl_line) then colx else pen_x) : int
+  val tw = mb.w
+  val () = draw_math_text(f, r, d, st, en, x0, yy, oy, ph, lh)
   val () = pen_x := iadd(x0, tw)
   val () = pen_line := pen_pack(line, cur_row)
   val () = draw_leaf_effects(r, x0, yy, tw, lh, ast_style(d, i))
-  val () = buf_free(mb)
 in
 end
 

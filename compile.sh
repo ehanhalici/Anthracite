@@ -25,5 +25,8 @@ if [ ! -f "$CACHE_FILE" ] || ! grep -q "^CMAKE_BUILD_TYPE:STRING=${BUILD_TYPE}$"
     -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
 fi
-cmake --build build --target anthracite --parallel
+# Çekirdeklerin yarısı derlemeye ayrılır, makine boşta kalan yarıyla kullanılabilir.
+# Bayraksız `--parallel` Make'e sınırsız iş verdiği için sayı açıkça verilir.
+JOBS="${ANTHRACITE_JOBS:-$(( ($(nproc) + 1) / 2 ))}"
+nice -n 10 cmake --build build --target anthracite --parallel "$JOBS"
 exec ./build/anthracite "$@"

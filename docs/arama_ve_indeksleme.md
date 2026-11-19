@@ -67,7 +67,7 @@ Mevcut sekme yeniden kullanılır; belge kapsamı yanlışlıkla başka sekme a�
 Enter/Shift+Enter başlıkları atlayarak eşleşmeler arasında döner.
 
 Hedefin katlanmış ataları açılır. Kaydırma isteği gerçek layout hazırlandıktan
-sonra uygulanır; satır bir saniye mor vurgulanır. Olay beklemesi flash sonuna
+sonra uygulanır; satır bir saniye vurgulanır. Olay beklemesi flash sonuna
 kadar süreli bekler ve giriş olmasa da temizleme karesi üretir; animasyon için
 sürekli busy-loop yapılmaz.
 

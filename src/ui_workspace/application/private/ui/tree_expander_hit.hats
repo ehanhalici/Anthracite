@@ -221,9 +221,9 @@ fun draw_search_card_keyword(
   f: !Font, r: !Rend, kbuf: !Buf, klen: int, tx: int, ty1: int, tw: int, lh: int, mx: int, kw_w: int
 ): void =
   if igt(klen, 0) then let
-    val () = rend_rrect(r, imax(tx, isub(mx, 2)), ty1, imin(tw, iadd(kw_w, 4)), lh, 3, col_rgba(234, 179, 8, 210))
+    val () = rend_rrect(r, imax(tx, isub(mx, 2)), ty1, imin(tw, iadd(kw_w, 4)), lh, 3, col_match_badge())
   in
-    seen_int(font_draw_buf(f, r, mx, ty1, kbuf, klen, col_rgba(18, 19, 22, 255)))
+    seen_int(font_draw_buf(f, r, mx, ty1, kbuf, klen, col_match_badge_text()))
   end else ()
 
 fun fit_keyword_end(f: !Font, r: !Rend, b: !Buf, st: int, en: int, mw: int, seg: &Buf >> _): int =
@@ -361,7 +361,7 @@ in
       icon, buffer_c_string(s.scratch), "", toggle_of(is_sel), toggle_of(is_hov))
     val flashing = ieq(source, s.tree_flash_row) andalso s.tree_flash_until_ns > 0L andalso mono_ns() < s.tree_flash_until_ns
     val () = if flashing then
-      rend_rect(r, 6, iadd(row_y, 1), isub(sidew, 12), imax(1, isub(row_h, 2)), col_rgba(234, 179, 8, 95))
+      rend_rect(r, 6, iadd(row_y, 1), isub(sidew, 12), imax(1, isub(row_h, 2)), col_row_flash())
     else ()
   in
     buf_free(base)

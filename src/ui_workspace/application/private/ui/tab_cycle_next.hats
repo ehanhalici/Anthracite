@@ -158,24 +158,6 @@ in
   switch_to_vault(s, target)
 end
 
-fun handle_vault_select_click(s: &App_record >> _, x: int, y: int, w: int, h: int): void = let
-  val mw = 520
-  val mh = 360
-  val mx = idiv(isub(w, mw), 2)
-  val my = idiv(isub(h, mh), 2)
-  val in_list_y = ige(y, iadd(my, 74)) andalso ilt(y, iadd(my, iadd(74, imul(imin(s.vcnt, 6), 28))))
-  val in_list_x = ige(x, iadd(mx, 16)) andalso ilt(x, isub(iadd(mx, mw), 16))
-  val () = if in_list_x andalso in_list_y then select_vault_row(s, idiv(isub(y, iadd(my, 74)), 28)) else ()
-  val on_open_btn = ige(x, iadd(mx, 16)) andalso ilt(x, iadd(mx, 156)) andalso ige(y, iadd(my, 312)) andalso ilt(y, iadd(my, 342))
-  val () = if on_open_btn andalso igt(buf_len(s.promptb), 0) then vault_open_from_prompt(s) else ()
-  val on_cancel_btn = ige(x, isub(iadd(mx, mw), 116)) andalso ilt(x, isub(iadd(mx, mw), 16)) andalso ige(y, iadd(my, 312)) andalso ilt(y, iadd(my, 342))
-  val () = if on_cancel_btn andalso igt(buf_len(s.vault), 0) then let
-    val () = s.vault_select := Off
-  in
-  end else ()
-in
-end
-
 fun handle_context_menu_action(s: &App_record >> _, inside: Toggle, item: int): void =
   if is_on(inside) andalso is_menu_filetree(s.menu) then (
     if ieq(item, tree_row(TreeNewFile)) then s.prompt := PromptNewFile
