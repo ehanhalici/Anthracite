@@ -56,6 +56,8 @@ fun sfnt_table_code(table: SfntTable): int
 fun sfnt_table(b: !Buf, count: int, table: SfntTable): SfntOptional
 fun sfnt_parse(b: !Buf): SfntParsed
 fun sfnt_open(path: string): SfntLoaded
+(* Takes ownership of the whole file image; the face owns it on success. *)
+fun sfnt_open_buffer(b: Buf): SfntLoaded
 fun sfnt_dispose(face: SfntFace): void
 fun sfnt_info(face: !SfntFace): SfntInfo
 fun sfnt_map(b: !Buf, info: SfntInfo, cp: int): int

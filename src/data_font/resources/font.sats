@@ -29,7 +29,10 @@ fun font_draw_scaled(f: !Font, r: !Rend, x: int, y: int, p: ptr, n: int, c: uint
 fun font_draw_scaled_buf(f: !Font, r: !Rend, x: int, y: int, b: !Buf, n: int, c: uint, snum: int, sden: int): int
 fun font_width(f: !Font, r: !Rend, p: ptr, n: int): int
 fun font_width_buf(f: !Font, r: !Rend, b: !Buf, n: int): int
-fun font_scan_fonts(dir: string, paths: &Buf >> _, names: &Buf >> _, meta: &Buf >> _, cnt: &int >> _): void
+(* Lists the embedded faces in name order. paths holds "embedded:<name>" references,
+   names the bare face names; meta has four words per face: path offset and bytes,
+   name offset and bytes. *)
+fun font_list_embedded(paths: &Buf >> _, names: &Buf >> _, meta: &Buf >> _, cnt: &int >> _): void
 fun font_selftest(r: !Rend): int
 (* Which face files the Font was loaded from (0 = none yet). Appends copies of
    the primary and fallback paths (empty when unset). *)

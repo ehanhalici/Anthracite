@@ -1,5 +1,9 @@
 get_filename_component(root "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
+# BINARY_DIR (optional) resolves headers generated at configure time.
 set(search_roots "${root}/src" "${root}/tests" "${root}/tools/script" "${root}/vendor" "$ENV{PATSHOME}")
+if(BINARY_DIR)
+  list(APPEND search_roots "${BINARY_DIR}")
+endif()
 file(GLOB_RECURSE sources "${root}/src/*.dats" "${root}/src/*.sats"
   "${root}/src/*.hats" "${root}/src/*.cats" "${root}/src/*.h"
   "${root}/tests/*.dats" "${root}/tests/*.sats" "${root}/tests/*.hats"

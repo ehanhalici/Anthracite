@@ -385,14 +385,16 @@ fun open_parsed(b: Buf): SfntLoaded = case+ sfnt_parse(b) of
   | ~ValidSfnt(info) => LoadedSfnt(SfntFace(b,info))
   | ~InvalidSfnt(error) => let val () = buf_free(b) in RejectedSfnt(error) end
 
+implement sfnt_open_buffer(b) =
+  if ige(buf_len(b),4) andalso ieq(sfnt_be32(b,0),table_tag("ttcf")) then (
+    case+ ttc_unpack_face0(b) of
+    | ~Some_vt(standalone) => let val () = buf_free(b) in open_parsed(standalone) end
+    | ~None_vt() => open_parsed(b)
+  ) else open_parsed(b)
+
 implement sfnt_open(path) = case+ text_file_read(path) of
   | ~TextFileError(code) => RejectedSfnt(SfntIo(code))
-  | ~TextFile(b) =>
-      if ige(buf_len(b),4) andalso ieq(sfnt_be32(b,0),table_tag("ttcf")) then (
-        case+ ttc_unpack_face0(b) of
-        | ~Some_vt(standalone) => let val () = buf_free(b) in open_parsed(standalone) end
-        | ~None_vt() => open_parsed(b)
-      ) else open_parsed(b)
+  | ~TextFile(b) => sfnt_open_buffer(b)
 
 implement sfnt_dispose(face) = let val+ ~SfntFace(b,info) = face in buf_free(b) end
 implement sfnt_info(face) = let val+ SfntFace(b,info) = face in info end

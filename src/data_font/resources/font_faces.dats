@@ -4,6 +4,9 @@
 #include "common.hats"
 (* Initial allocation policy; capacities are measured in bytes. *)
 macdef INIT_FALLBACK_FONT_PBUF_INITIAL_BYTES = 512
+(* Accepted size window of a font file, in bytes. *)
+macdef FACE_FILE_MIN_BYTES = 12
+macdef FACE_FILE_MAX_BYTES = 128000000
 
 
 staload "mem.sats"
@@ -13,6 +16,7 @@ staload "os/fs.sats"
 staload "core_render/gl.sats"
 staload "core_render/render.sats"
 staload "data_font/resources/font.sats"
+staload "data_font/resources/font_embedded.sats"
 staload "data_font/sfnt/sfnt.sats"
 staload "data_font/glyph/core/glyph_component.sats"
 staload "data_text/source/text_source.sats"
@@ -33,7 +37,19 @@ fun install_face_metrics(f: !Font, info: SfntInfo): void = let
   val () = font_set_glyph_count(f,info.glyphs)
 in font_set_loca_fmt(f,toggle_of(info.long_loca)) end
 
-implement font_use_fallback_file(f,path) = case+ sfnt_open(path) of
+(* A face is either an embedded reference or a file path. *)
+fun open_face(path: string): SfntLoaded =
+  if embedded_font_is_ref(path) then (
+    case+ embedded_font_read(path) of
+    | ~TextFileError(code) => RejectedSfnt(SfntIo(code))
+    | ~TextFile(image) => sfnt_open_buffer(image)
+  ) else sfnt_open(path)
+
+fun face_size_acceptable(path: string): bool =
+  if embedded_font_is_ref(path) then true
+  else let val sz = fs_size(path) in igt(sz, FACE_FILE_MIN_BYTES) andalso ile(sz, FACE_FILE_MAX_BYTES) end
+
+implement font_use_fallback_file(f,path) = case+ open_face(path) of
   | ~RejectedSfnt(error) => false
   | ~LoadedSfnt(face) => let
       val+ ~SfntFace(b,info) = face
@@ -73,11 +89,8 @@ fun commit_font(f: !Font, face: SfntFace): void = let
   val () = store_ttf_metrics(f)
 in fit_px_after_load(f); init_fallback_font(f) end
 
-implement font_use_file(f, path) = let
-  val sz = fs_size(path)
-in
-  if sz <= 12 orelse sz > 128000000 then false
-  else case+ sfnt_open(path) of
+implement font_use_file(f, path) =
+  if not(face_size_acceptable(path)) then false
+  else case+ open_face(path) of
     | ~RejectedSfnt(error) => false
     | ~LoadedSfnt(face) => let val () = font_note_primary_path(f,path) val () = commit_font(f,face) in true end
-end

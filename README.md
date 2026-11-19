@@ -18,8 +18,12 @@ cmake --build build --parallel
 ```
 
 `./compile.sh -r` and `./compile.sh -d` configure, build and start the app.
-The primary font under `fonts/` is required and its hash is checked by CMake;
-the pinned Arabic font is in `vendor/fonts/`.
+Every `.ttf`/`.otf`/`.ttc` under `fonts/` is embedded into the executable at
+build time (`cmake/EmbeddedFonts.cmake`); `fonts/` is optional at build time and
+unused at run time. Without it nothing is embedded and the system default font
+(fontconfig) is used. The default face is `SourceCodePro-Regular` (hash checked
+by CMake when present); embedded faces are addressed as `embedded:<file name>`. The pinned
+Arabic font is still read from `vendor/fonts/`.
 
 ```sh
 cmake --build build --target check-build --parallel

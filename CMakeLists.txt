@@ -60,9 +60,13 @@ file(SHA256 "${CMAKE_SOURCE_DIR}/vendor/fonts/notonaskh-arabic/NotoNaskhArabic-R
 if(NOT ARABIC_FONT_SHA256 STREQUAL "2d5d78e9cc27d7193926c7e460314c9da7dbec1268494dbf117adc53c171ac06")
   message(FATAL_ERROR "Pinned Arabic font SHA-256 mismatch")
 endif()
-file(SHA256 "${CMAKE_SOURCE_DIR}/fonts/Source-Code-Pro-Regular/sourcecodepro/SourceCodePro-Regular.ttf" PRIMARY_FONT_SHA256)
-if(NOT PRIMARY_FONT_SHA256 STREQUAL "9930d84013bfd7682df9d0d740d6417c111bfd49f29123e9da0cadb082483753")
-  message(FATAL_ERROR "Pinned Primary font SHA-256 mismatch")
+# fonts/ is optional: when the pinned default face is present it must match its hash.
+set(PRIMARY_FONT_FILE "${CMAKE_SOURCE_DIR}/fonts/Source-Code-Pro-Regular/sourcecodepro/SourceCodePro-Regular.ttf")
+if(EXISTS "${PRIMARY_FONT_FILE}")
+  file(SHA256 "${PRIMARY_FONT_FILE}" PRIMARY_FONT_SHA256)
+  if(NOT PRIMARY_FONT_SHA256 STREQUAL "9930d84013bfd7682df9d0d740d6417c111bfd49f29123e9da0cadb082483753")
+    message(FATAL_ERROR "Pinned Primary font SHA-256 mismatch")
+  endif()
 endif()
 
 file(GLOB_RECURSE ATS_SOURCES CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/src/*.dats")
@@ -110,6 +114,7 @@ foreach(ATS_FILE ${ATS_SOURCES})
 endforeach()
 
 add_custom_target(ats_generated DEPENDS ${GENERATED_C_SOURCES})
+include(cmake/EmbeddedFonts.cmake)
 
 enable_testing()
 include(cmake/UnicodeData.cmake)

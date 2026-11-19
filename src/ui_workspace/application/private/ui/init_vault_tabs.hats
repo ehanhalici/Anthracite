@@ -173,7 +173,7 @@ fun open_scan_fonts(): @(Buf, Buf, Buf, int) = let
   var fnames = buf_make(OPEN_SCAN_FONTS_FNAMES_INITIAL_BYTES)
   var fmeta = buf_make(OPEN_SCAN_FONTS_FMETA_INITIAL_BYTES)
   var fcnt: int = 0
-  val () = font_scan_fonts("fonts", fpaths, fnames, fmeta, fcnt)
+  val () = font_list_embedded(fpaths, fnames, fmeta, fcnt)
 in
   @(fpaths, fnames, fmeta, fcnt)
 end

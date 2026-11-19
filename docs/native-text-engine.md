@@ -4,7 +4,10 @@ Uygulama başlangıcında [text_engine_startup](../src/core_runtime/text_engine_
 veriyi ve fontları yükler. Ortam yolları [şablonda](../src/core_runtime/text_engine_paths.dats.in)
 tanımlıdır: `ANTHRACITE_TEXT_DATA`, `ANTHRACITE_UNICODE_SOURCE`,
 `ANTHRACITE_PRIMARY_FONT`, `ANTHRACITE_ARABIC_FONT`; `ANTHRACITE_FONT`
-birincil font için mevcut geri dönüş anahtarıdır.
+birincil font için mevcut geri dönüş anahtarıdır. Ayarlanmazsa birincil font,
+derleme sırasında `fonts/` altından çalıştırılabilir dosyaya gömülen
+`embedded:SourceCodePro-Regular` yüzüdür ([EmbeddedFonts.cmake](../cmake/EmbeddedFonts.cmake));
+`embedded:<ad>` başvurusu dosya yolunun kabul edildiği her yerde (işçi thread'ler dahil) geçerlidir.
 
 ## Paylaşılan hat
 
