@@ -9,6 +9,8 @@ end
 
 fun topbar_toggle_config(s: &App_record >> _): void = let
   val () = s.side := (if is_side_config(s.side) then SideNone else SideConfig)
+  val () = s.settings_open := Off
+  val () = s.settings_scroll := 0
   val () = s.qfocus := Off
 in
   save_app_session(s)
@@ -62,12 +64,13 @@ fun handle_sidebar_config_action(s: &App_record >> _, f: !Font, x: int, y: int):
   val lay = config_layout(f, s)
   val on_kasa = ige(x, 12) andalso ilt(x, iadd(12, lay.vault_btn_w))
     andalso ige(y, lay.vault_btn_y) andalso ilt(y, iadd(lay.vault_btn_y, lay.btn_h))
-  val on_fonts = ige(x, 12) andalso ilt(x, isub(s.sidew, 12))
-    andalso ige(y, lay.font_list_y) andalso ilt(y, iadd(lay.font_list_y, imul(imin(s.fcnt, 12), lay.frow_h)))
+  val on_fonts = ige(x, 10) andalso ilt(x, isub(s.sidew, 10))
+    andalso ige(y, lay.font_list_y) andalso ilt(y, iadd(lay.font_list_y, imul(s.fcnt, lay.frow_h)))
   val on_kb = ige(x, lay.kb_btn_x) andalso ilt(x, iadd(lay.kb_btn_x, lay.kb_btn_w))
-    andalso ige(y, isub(lay.kb_y, 3)) andalso ilt(y, iadd(lay.kb_y, lay.btn_h))
+    andalso ige(y, lay.kb_y) andalso ilt(y, iadd(lay.kb_y, lay.btn_h))
 in
-  config_click_dispatch(s, f, lay, x, y, on_kasa, on_fonts, on_kb)
+  if ilt(y, doc_top_y_of(s)) then ()
+  else config_click_dispatch(s, f, lay, x, y, on_kasa, on_fonts, on_kb)
 end
 
 fun editor_wiki_focus_act(s: &App_record >> _, cur_len: int, target_act: int): void = let

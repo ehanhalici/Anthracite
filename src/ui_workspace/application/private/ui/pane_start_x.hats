@@ -103,8 +103,12 @@ fun motion_drag(s: &App_record >> _, f: !Font, r: !Rend, x: int, y: int, w: int)
   | DragDocScroll() => motion_doc_scroll(s, y)
   | DragTreeScroll() => motion_tree_scroll(s, y)
   | DragEditorPan() => motion_editor_pan(s, y)
-  | DragEditorFontSlider() => (s.fontpx := slider_px_from_x(x, s.sidew); s.btnw := 0)
-  | DragDocFontSlider() => (s.doc_fontpx := slider_px_from_x(x, s.sidew))
+  | DragEditorFontSlider() => (
+      s.fontpx := slider_px_from_x(x, s.sidew);
+      s.btnw := 0
+    )
+  | DragDocFontSlider() =>
+      s.doc_fontpx := slider_px_from_x(x, s.sidew)
 
 fun hover_focus_pane(s: &App_record >> _, x: int, y: int, w: int): void =
   if is_on(s.split) andalso is_drag_none(s.drag) andalso is_menu_none(s.menu)
@@ -123,6 +127,7 @@ fun on_motion(a: !App, f: !Font, r: !Rend, ev: &event, w: int): void =
       val () = s.last_w := w
       val () = s.hoverx := x
       val () = s.hovery := y
+      val () = menu_hover_update(s, f, r, x, y, w, s.last_h)
       val () = hover_focus_pane(s, x, y, w)
       val () = motion_drag(s, f, r, x, y, w)
     in
@@ -141,7 +146,7 @@ fun motion_changes(s: &App_record,ev: &event): bool = let
                                    orelse ile(iabs(isub(nx, sidew)), 20)))
     orelse (is_on(s.split) andalso (ile(iabs(isub(s.hoverx, mid)), 20) orelse ile(iabs(isub(nx, mid)), 20)))
 in case+ s.drag of
-  | DragNone() => is_on(s.vault_select) orelse ige(s.downx,0) orelse not(old_editor andalso new_editor) orelse split_cross orelse near_sb
+  | DragNone() => is_on(s.vault_select) orelse not(is_menu_none(s.menu)) orelse ige(s.downx,0) orelse not(old_editor andalso new_editor) orelse split_cross orelse near_sb
   | DragTab() => true | DragFile() => true | DragSplit() => true | DragEditor() => true
   | DragDocScroll() => true | DragTreeScroll() => true | DragEditorPan() => true
   | DragEditorFontSlider() => true | DragDocFontSlider() => true

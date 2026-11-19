@@ -75,9 +75,11 @@ fun on_wheel(a: !App, ev: &event, w: int, h: int): void =
   case+ a of
   | @APP(s) => let
       val upward = is_btn(button_of(ev_button(ev)), BtnWheelUp)
+      val delta = if upward then ~32 else 32
       val in_side = not(is_side_none(s.side)) andalso ilt(ev_x(ev), s.sidew) andalso ige(ev_y(ev), s.tb_h)
       val () = if in_side andalso is_side_search(s.side) then scroll_search(s, if upward then ~3 else 3, h)
         else if in_side andalso is_side_files(s.side) then scroll_tree(s, if upward then ~3 else 3, h)
+        else if in_side andalso is_side_config(s.side) then s.settings_scroll := imax(0, imin(sidebar_config_max_scroll(s, h), iadd(s.settings_scroll, delta)))
         else if not(in_side) then wheel_editor(s, ev, upward)
         else ()
       val () = seen_int(w)
@@ -85,9 +87,25 @@ fun on_wheel(a: !App, ev: &event, w: int, h: int): void =
       fold@(a)
     end
 
+fun sanitize_plain_paste_m {rem:nat} .<rem>. (
+  b: !Buf, i: int, j: int, rem: int(rem)
+): int =
+  if rem = 0 then j
+  else let
+    val c = buf_get(b, i)
+    val keep = ige(c, 32) orelse ieq(c, 9) orelse ieq(c, 10)
+    val nj = if keep then (buf_set(b, j, c); iadd(j, 1)) else j
+  in
+    sanitize_plain_paste_m(b, iadd(i, 1), nj, rem - 1)
+  end
+
 fun on_sel_paste(s: &App_record >> _, p: !Plat, ev: &event): void = let
   val cap = buf_cap(s.scratch)
-  val n = plat_read_buf(p, ev, s.scratch, cap)
+  val raw_n = plat_read_buf(p, ev, s.scratch, cap)
+  val n =
+    if is_on(s.paste_plain) andalso igt(raw_n, 0) then
+      sanitize_plain_paste_m(s.scratch, 0, 0, airlock_nat(raw_n))
+    else raw_n
   val idx = pane_of(s.focus, s.active, s.righti)
   val ts = s.tabs
   val () = s.tabs := TNil()
@@ -97,6 +115,7 @@ fun on_sel_paste(s: &App_record >> _, p: !Plat, ev: &event): void = let
   val () = s.tabs := ts2
   val () = tabs_free(ph)
   val () = s.paste := Off
+  val () = s.paste_plain := Off
 in
 end
 

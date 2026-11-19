@@ -47,21 +47,8 @@ in
   save_app_session(s)
 end
 
-fun handle_down_context_menu(
-  s: &App_record >> _, p: !Plat, ts0: Tabs, idx: int, hit: DownHit,
-  ti: int, close: Toggle,
-  imgdel: &Toggle >> _, clear: &Toggle >> _
-): Tabs = let
-  val cut = text_item_hit(s, hit, TextCut)
-  val copy = text_item_hit(s, hit, TextCopy)
-  val paste = text_item_hit(s, hit, TextPaste)
-  val () = clear := toggle_of(text_item_hit(s, hit, TextClear))
-  val imgcopy = image_item_hit(s, hit, ImageCopy)
-  val imgrev = image_item_hit(s, hit, ImageReveal)
-  val () = imgdel := toggle_of(image_item_hit(s, hit, ImageDelete))
-  val () = down_menu_clip(s, p, ts0, idx, toggle_of(cut), toggle_of(copy), toggle_of(imgcopy), toggle_of(paste), toggle_of(imgrev))
-  val ts1 = cmd_if(ts0, idx, CMD_CUT, toggle_of(cut))
-  val ts2 = tab_keep_one(drop_if(ts1, ti, close, s.closed), close)
+fun close_clicked_tab_step(s: &App_record >> _, ts0: Tabs, ti: int, close: Toggle): Tabs = let
+  val ts2 = tab_keep_one(drop_if(ts0, ti, close, s.closed), close)
   val () = if is_on(close) then down_menu_close(s, ts2, ti) else ()
 in
   ts2
@@ -268,14 +255,28 @@ fun handle_down_sidebar_click(
   | DownMenu() => ts | DownResize() => ts
   | DownTopbar() => ts | DownEditor() => ts
 
-fun open_tree_context(s: &App_record >> _, hit: DownHit): void = let
-  val row = tree_source_at_y(s, hit.y)
-  val valid_row = ige(row, 0) andalso ilt(row, s.tn)
-  val () = s.menu := MenuFileTree
-  val () = app_fsm_step(s, ActOpenMenu(MenuFileTree))
-in
-  s.sel := (if valid_row then row else ~1)
-end
+fun open_tree_context(s: &App_record >> _, f: !Font, r: !Rend, hit: DownHit): void =
+  if not(is_side_files(s.side)) then ()
+  else let
+    val row = tree_source_at_y(s, hit.y)
+    val valid_row = ige(row, 0) andalso ilt(row, s.tn)
+    val mv = (if valid_row then MenuVarTreeItem else MenuVarTreeEmpty): MenuVariant
+    val () = font_set_px(f, s.fontpx)
+    val mw = imin(imax(40, isub(s.last_w, 8)), menu_var_measure_width(f, r, mv))
+    val () = s.menuw := mw
+    var mx = hit.x
+    var my = hit.y
+    val () = menu_clamp_root(mv, mx, my, mw, s.last_w, s.last_h)
+    val () = s.menux := mx
+    val () = s.menuy := my
+    val () = s.menu := MenuFileTree
+    val () = s.menu_var := mv
+    val () = s.menu_sub := SubNone
+    val () = s.menu_tree_idx := (if valid_row then row else ~1)
+    val () = s.sel := (if valid_row then row else ~1)
+  in
+    app_fsm_step(s, ActOpenMenu(MenuFileTree))
+  end
 
 fun place_context(s: &App_record >> _, hit: DownHit): void = let
   val () = s.menux := hit.x

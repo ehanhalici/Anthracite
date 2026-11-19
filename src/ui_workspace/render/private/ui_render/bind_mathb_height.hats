@@ -139,14 +139,14 @@ fun kind_col(k: NodeKind): uint =
   else if is_kind(k, KTag) then col_tag()
   else if is_kind(k, KHigh) then col_hightxt()
   else if is_kind(k, KBold) then col_white()
-  else if is_kind(k, KItalic) then col_accent()
+  else if is_kind(k, KItalic) then col_task()
   else if is_kind(k, KStrike) then col_muted()
   else if is_kind(k, KMath) orelse is_kind(k, KMathb) then col_math()
   else if is_kind(k, KCode) then col_code()
   else if is_kind(k, KQuote) then col_quote()
   else if is_kind(k, KTask) then col_task()
   else if is_kind(k, KFm) then col_fm()
-  else if is_kind(k, KFn) orelse is_kind(k, KFndef) then col_accent()
+  else if is_kind(k, KFn) orelse is_kind(k, KFndef) then col_task()
   else col_text()
 
 fun is_box(k: NodeKind): bool =

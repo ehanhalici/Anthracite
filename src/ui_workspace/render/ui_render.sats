@@ -47,6 +47,8 @@ fun draw_doc(f: !Font, r: !Rend, d: !Doc, ox: int, oy: int, pw: int, ph: int, sc
 fun draw_tabrow(f: !Font, r: !Rend, ts: Tabs, x: int, active: int, i: int): Tabs
 fun draw_tabrow_pane(f: !Font, r: !Rend, ts: Tabs, x: int, active: int, i: int, filter: int, tab_pane: !Buf): Tabs
 fun draw_tabrow_pane_w(f: !Font, r: !Rend, ts: Tabs, x: int, avail_w: int, active: int, i: int, filter: int, tab_pane: !Buf): Tabs
+fun draw_tabrow_pane_hover(f: !Font, r: !Rend, ts: Tabs, x: int, avail_w: int, active: int, i: int, filter: int, tab_pane: !Buf, hx: int, hy: int): Tabs
+fun tab_box_width_for_bar(avail_w: int, pane_tabs: int): int
 fun tab_hit_test(f: !Font, r: !Rend, ts: !Tabs, start_x: int, click_x: int, out_ti: &int >> _, out_close: &bool >> _): void
 fun tab_hit_test_pane(f: !Font, r: !Rend, ts: !Tabs, start_x: int, click_x: int, filter: int, tab_pane: !Buf, out_ti: &int >> _, out_close: &bool >> _): void
 fun tab_hit_test_pane_w(f: !Font, r: !Rend, ts: !Tabs, start_x: int, avail_w: int, click_x: int, filter: int, tab_pane: !Buf, out_ti: &int >> _, out_close: &bool >> _): void

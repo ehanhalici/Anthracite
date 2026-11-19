@@ -2,10 +2,10 @@ fun tree_expander_hit(s: &App_record, source: int, x: int): bool =
   if ilt(source, 0) then false
   else let
     val depth = meta_depth(s.tmeta, source)
-    val expander_x = iadd(6, imul(depth, UI_TREE_INDENT_PIXELS))
+    val expander_x = iadd(14, imul(depth, UI_TREE_INDENT_PIXELS))
   in
     is_dir_mark(meta_dir(s.tmeta, source), DirYes)
-      andalso ige(x, expander_x) andalso ilt(x, iadd(expander_x, 16))
+      andalso ige(x, expander_x) andalso ilt(x, iadd(expander_x, 18))
   end
 
 fun ensure_tree_fresh(s: &App_record >> _): void =
@@ -204,24 +204,24 @@ fun draw_search_header(f: !Font, r: !Rend, s: &App_record, row: int, y: int): vo
   val hdr_y = iadd(y, idiv(imax(0, isub(g.rowHeight, hdr_h)), 2))
   val is_sel = ieq(row, s.selected_search_row)
   val () = ui_cell(f, r, SEARCH_LEFT_PIXELS, hdr_y, isub(s.sidew, imul(2, SEARCH_LEFT_PIXELS)), hdr_h, 0, On,
-    toggle_of(expanded), UI_ICON_FILE, buffer_c_string(label), buffer_c_string(cbuf), toggle_of(is_sel), Off)
+    toggle_of(expanded), UI_ICON_NONE, buffer_c_string(label), buffer_c_string(cbuf), toggle_of(is_sel), Off)
   val () = buf_free(cbuf)
 in
   buf_free(label)
 end
 
 fun draw_search_card_box(r: !Rend, cx: int, cy: int, cw: int, ch: int, sel: bool): void = let
-  val () = rend_rect(r, cx, cy, cw, ch, col_rgba(14, 15, 18, 255))
+  val bg = if sel then col_surface() else col_bg()
   val bcol = if sel then col_accent() else col_line()
 in
-  ui_draw_border(r, cx, cy, cw, ch, 1, bcol)
+  rend_rrect_ex(r, cx, cy, cw, ch, 6, 6, 6, 6, bg, bg, 1, bcol, 1)
 end
 
 fun draw_search_card_keyword(
   f: !Font, r: !Rend, kbuf: !Buf, klen: int, tx: int, ty1: int, tw: int, lh: int, mx: int, kw_w: int
 ): void =
   if igt(klen, 0) then let
-    val () = rend_rect(r, imax(tx, isub(mx, 2)), ty1, imin(tw, iadd(kw_w, 4)), lh, col_rgba(234, 179, 8, 220))
+    val () = rend_rrect(r, imax(tx, isub(mx, 2)), ty1, imin(tw, iadd(kw_w, 4)), lh, 3, col_rgba(234, 179, 8, 210))
   in
     seen_int(font_draw_buf(f, r, mx, ty1, kbuf, klen, col_rgba(18, 19, 22, 255)))
   end else ()
@@ -304,39 +304,68 @@ fun draw_sidebar_search(f: !Font, r: !Rend, s: &App_record, sidew: int,h: int): 
   val total=search_visible_count(s.hmeta,s.ixq)
   val ()=s.hscroll := imin(s.hscroll,imax(0,isub(total,g.rows)))
   val qn = buf_len(s.query)
-  val () = ui_button(f, r, SEARCH_LEFT_PIXELS,g.buttonTop,g.buttonWidth,g.buttonHeight,"Kasa",Off,toggle_of(ieq(s.scope,SEARCH_SCOPE_VAULT)))
-  val () = ui_button(f, r, g.secondX,g.secondY,g.buttonWidth,g.buttonHeight,"Belge",Off,toggle_of(ieq(s.scope,SEARCH_SCOPE_DOCUMENT)))
+  val in_bar = ige(s.hovery, g.buttonTop) andalso ilt(s.hovery, iadd(g.buttonTop, g.buttonHeight))
+  val hov_seg = if not(in_bar) then ~1 else if ige(s.hoverx, SEARCH_LEFT_PIXELS) andalso ilt(s.hoverx, g.secondX) then 0
+    else if ige(s.hoverx, g.secondX) andalso ilt(s.hoverx, isub(sidew, SEARCH_LEFT_PIXELS)) then 1 else ~1
+  val () = ui_segmented_pair(f, r, SEARCH_LEFT_PIXELS, g.buttonTop, isub(sidew, imul(2, SEARCH_LEFT_PIXELS)), g.buttonHeight, "Kasa", "Belge", toggle_of(ieq(s.scope, SEARCH_SCOPE_DOCUMENT)), hov_seg)
   val ph = (if ieq(s.scope, 1) then "Belgede ara (Enter: bul)..." else "Kasada ara..."): string
-  val () = ui_line_edit_draw(f, r, SEARCH_LEFT_PIXELS,g.queryTop,isub(sidew,imul(2,SEARCH_LEFT_PIXELS)),g.queryHeight,s.query,qn,qn,s.qfocus,ph)
+  val () = ui_search_input_draw(f, r, SEARCH_LEFT_PIXELS,g.queryTop,isub(sidew,imul(2,SEARCH_LEFT_PIXELS)),g.queryHeight,s.query,qn,qn,s.qfocus,ph)
   val st = search_status_text(s.search_state, s.hn, qn, s.scope)
   val () = if igt(c_strlen(st), 0) then draw_s(f,r,SEARCH_LEFT_PIXELS,g.statusTop,st,col_muted()) else ()
 in
   search_rows(airlock_nat(imax(0,g.rows)),f,r,s,0)
 end
 
+fun draw_inline_guides_m {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), r: !Rend, y: int, h: int, d: int, depth: int
+): void =
+  if recursion_fuel_available(recfuel) then (
+    if ilt(d, depth) then let
+      val gx = iadd(18, imul(d, UI_TREE_INDENT_PIXELS))
+      val () = rend_rect(r, gx, y, 1, h, col_tree_guide())
+    in
+      draw_inline_guides_m(recfuel - 1, r, y, h, iadd(d, 1), depth)
+    end else ()
+  ) else ()
+
 fun draw_tree_row(f: !Font, r: !Rend, s: &App_record, source: int, viewrow: int, sidew: int): void = let
   val depth = meta_depth(s.tmeta, source)
   val mark = meta_dir(s.tmeta, source)
   val off = meta_text_off(s.tmeta, source)
   val n = meta_text_len(s.tmeta, source)
-  var base = buf_make(DRAW_TREE_ROW_BASE_INITIAL_BYTES)
-  val () = buffer_append_range(base, s.tree, off, iadd(off, n))
-  val () = base_name(base, s.scratch)
-  val () = if is_dir_mark(mark, DirNo) then strip_md_ext(s.scratch) else ()
-  val icon = if is_dir_mark(mark, DirYes) then UI_ICON_FOLDER else UI_ICON_FILE
   val is_sel = ieq(s.sel, source)
   val row_h = tree_row_h(s.fontpx)
   val row_y = iadd(tree_top_y_of(s), imul(viewrow, row_h))
-  val is_hov = ige(s.hoverx, 6) andalso ilt(s.hoverx, isub(sidew, 6)) andalso ige(s.hovery, row_y) andalso ilt(s.hovery, iadd(row_y, row_h))
-  val () = ui_cell(f, r, 6, row_y, isub(sidew, 12), row_h, depth,
-    toggle_of(is_dir_mark(mark, DirYes)), toggle_of(tree_row_is_open(s, source)),
-    icon, buffer_c_string(s.scratch), "", toggle_of(is_sel), toggle_of(is_hov))
-  val flashing = ieq(source, s.tree_flash_row) andalso s.tree_flash_until_ns > 0L andalso mono_ns() < s.tree_flash_until_ns
-  val () = if flashing then
-    rend_rect(r, 6, iadd(row_y, 1), isub(sidew, 12), imax(1, isub(row_h, 2)), col_rgba(234, 179, 8, 95))
-  else ()
-  val () = buf_free(base)
 in
+  if is_prompt_rename(s.prompt) andalso is_sel then let
+    val () = rend_rrect(r, 6, iadd(row_y, 2), imax(1, isub(sidew, 12)), imax(1, isub(row_h, 4)), 6, col_accent_soft())
+    val () = if igt(depth, 0) then draw_inline_guides_m(airlock_nat(MAX_REC_FUEL), r, row_y, row_h, 0, depth) else ()
+    val exp_x = iadd(14, imul(depth, UI_TREE_INDENT_PIXELS))
+    val () = if is_dir_mark(mark, DirYes) then
+      ui_expander(f, r, exp_x, iadd(row_y, idiv(isub(row_h, 8), 2)), toggle_of(tree_row_is_open(s, source)), Off)
+    else ()
+    val edit_x = iadd(22, imul(depth, UI_TREE_INDENT_PIXELS))
+    val edit_w = imax(48, isub(isub(sidew, 10), edit_x))
+    val cur_n = buf_len(s.promptb)
+  in
+    ui_line_edit_draw(f, r, edit_x, iadd(row_y, 3), edit_w, imax(20, isub(row_h, 6)), s.promptb, cur_n, cur_n, On, "")
+  end else let
+    var base = buf_make(DRAW_TREE_ROW_BASE_INITIAL_BYTES)
+    val () = buffer_append_range(base, s.tree, off, iadd(off, n))
+    val () = base_name(base, s.scratch)
+    val () = if is_dir_mark(mark, DirNo) then strip_md_ext(s.scratch) else ()
+    val icon = UI_ICON_NONE
+    val is_hov = ige(s.hoverx, 6) andalso ilt(s.hoverx, isub(sidew, 6)) andalso ige(s.hovery, row_y) andalso ilt(s.hovery, iadd(row_y, row_h))
+    val () = ui_cell(f, r, 6, row_y, isub(sidew, 12), row_h, depth,
+      toggle_of(is_dir_mark(mark, DirYes)), toggle_of(tree_row_is_open(s, source)),
+      icon, buffer_c_string(s.scratch), "", toggle_of(is_sel), toggle_of(is_hov))
+    val flashing = ieq(source, s.tree_flash_row) andalso s.tree_flash_until_ns > 0L andalso mono_ns() < s.tree_flash_until_ns
+    val () = if flashing then
+      rend_rect(r, 6, iadd(row_y, 1), isub(sidew, 12), imax(1, isub(row_h, 2)), col_rgba(234, 179, 8, 95))
+    else ()
+  in
+    buf_free(base)
+  end
 end
 
 extern fun file_rows_fuel_exhausted(f: !Font, r: !Rend, s: &App_record, viewrow: int, limit: int, sidew: int): void = "mac#anth_die_void"
@@ -369,21 +398,25 @@ in
 end
 
 fun draw_config_vault_section(f: !Font, r: !Rend, s: &App_record, lay: CfgLayout): void = let
-  val () = draw_s(f, r, 12, lay.vault_lbl_y, "Kasa", col_muted())
+  val cw = imax(40, isub(s.sidew, 24))
+  val () = ui_draw_fitted_text(f, r, 12, lay.vault_lbl_y, cw, lay.lh, 0, 0, Off, "Kasa Konumu", col_muted())
   val vn = buf_len(s.vault)
   val () =
-    if igt(vn, 0) then seen_int(font_draw_buf(f, r, 12, lay.vault_path_y, s.vault, imin(vn, 28), col_text()))
-    else seen_int(font_draw(f, r, 12, lay.vault_path_y, c_str_ptr("(Secilmedi)"), 10, col_text()))
-  val () = ui_button(f, r, 12, lay.vault_btn_y, lay.vault_btn_w, lay.btn_h, "Kasayi Degistir", Off, Off)
+    if igt(vn, 0) then ui_draw_fitted_buf(f, r, 12, lay.vault_path_y, cw, lay.lh, 0, 0, Off, s.vault, col_text())
+    else ui_draw_fitted_text(f, r, 12, lay.vault_path_y, cw, lay.lh, 0, 0, Off, "(Seçilmedi)", col_text())
+  val body_y = doc_top_y_of(s)
+  val hov = ige(s.hoverx, 12) andalso ilt(s.hoverx, iadd(12, lay.vault_btn_w))
+    andalso ige(s.hovery, body_y) andalso ige(s.hovery, lay.vault_btn_y) andalso ilt(s.hovery, iadd(lay.vault_btn_y, lay.btn_h))
 in
+  ui_button(f, r, 12, lay.vault_btn_y, lay.vault_btn_w, lay.btn_h, "Kasayı Değiştir", toggle_of(hov), On)
 end
 
 macdef UI_CFG_SLIDER_X = 12
 macdef UI_CFG_SLIDER_TRACK_H = 6
-macdef UI_CFG_SLIDER_HIT_PAD = 6
-macdef UI_CFG_SLIDER_HIT_H = 22
-macdef UI_CFG_SLIDER_KNOB_W = 10
-macdef UI_CFG_SLIDER_KNOB_H = 16
+macdef UI_CFG_SLIDER_HIT_PAD = 8
+macdef UI_CFG_SLIDER_HIT_H = 24
+macdef UI_CFG_SLIDER_KNOB_W = 14
+macdef UI_CFG_SLIDER_KNOB_H = 14
 
 fun slider_track_w(sidew: int): int = imax(80, isub(sidew, 24))
 
@@ -403,14 +436,16 @@ in
     andalso ige(y, top) andalso ilt(y, iadd(top, UI_CFG_SLIDER_HIT_H))
 end
 
-fun draw_px_badge(f: !Font, r: !Rend, sidew: int, y: int, px: int): void = let
+fun draw_slider_header(f: !Font, r: !Rend, sidew: int, y: int, lh: int, title: string, px: int): void = let
   var b = buf_make(16)
   val () = buffer_append_integer(b, px)
   val () = buffer_append_string(b, " px")
   val n = buf_len(b)
-  val bw = iadd(font_width_buf(f, r, b, n), 12)
-  val bx = imax(12, isub(sidew, iadd(bw, 12)))
-  val () = ui_badge(f, r, bx, isub(y, 2), buffer_c_string(b), col_bar(), col_accent())
+  val bw = iadd(font_width_buf(f, r, b, n), 14)
+  val bx = imax(UI_CFG_SLIDER_X, isub(sidew, iadd(bw, 12)))
+  val lw = imax(0, isub(bx, iadd(UI_CFG_SLIDER_X, 6)))
+  val () = ui_draw_fitted_text(f, r, UI_CFG_SLIDER_X, y, lw, lh, 0, 0, Off, title, col_text())
+  val () = ui_badge(f, r, bx, isub(y, 2), buffer_c_string(b), col_bar(), col_accent_hi())
 in
   buf_free(b)
 end
@@ -420,61 +455,70 @@ fun draw_px_slider_track(r: !Rend, sx: int, sy: int, tw: int, px: int, active: T
   val span = isub(UI_FONT_PX_MAX, UI_FONT_PX_MIN)
   val fill_w = idiv(imul(isub(clamped, UI_FONT_PX_MIN), tw), span)
   val knob_x = imax(sx, imin(isub(iadd(sx, tw), UI_CFG_SLIDER_KNOB_W), isub(iadd(sx, fill_w), idiv(UI_CFG_SLIDER_KNOB_W, 2))))
-  val knob_y = isub(sy, 5)
-  val () = rend_rect(r, sx, sy, tw, UI_CFG_SLIDER_TRACK_H, col_bar())
-  val () = ui_draw_border(r, sx, sy, tw, UI_CFG_SLIDER_TRACK_H, 1, col_line())
-  val () = if igt(fill_w, 0) then rend_rect(r, sx, sy, fill_w, UI_CFG_SLIDER_TRACK_H, col_accent()) else ()
-  val () = rend_rect(r, knob_x, knob_y, UI_CFG_SLIDER_KNOB_W, UI_CFG_SLIDER_KNOB_H, if is_on(active) then col_white() else col_heading())
+  val knob_y = isub(sy, 4)
+  val () = rend_rrect_ex(r, sx, sy, tw, UI_CFG_SLIDER_TRACK_H, 3, 3, 3, 3, col_bar(), col_bar(), 1, col_line(), 1)
+  val () = if igt(fill_w, 0) then rend_rrect(r, sx, sy, fill_w, UI_CFG_SLIDER_TRACK_H, 3, col_accent()) else ()
+  val kc = if is_on(active) then col_white() else col_heading()
 in
-  ui_draw_border(r, knob_x, knob_y, UI_CFG_SLIDER_KNOB_W, UI_CFG_SLIDER_KNOB_H, 1, col_accent())
+  rend_rrect_ex(r, knob_x, knob_y, UI_CFG_SLIDER_KNOB_W, UI_CFG_SLIDER_KNOB_H, 7, 7, 7, 7, kc, kc, 1, col_accent_hi(), 1)
 end
 
 fun draw_config_font_sliders(f: !Font, r: !Rend, s: &App_record, lay: CfgLayout): void = let
   val tw = slider_track_w(s.sidew)
-  val () = draw_s(f, r, UI_CFG_SLIDER_X, lay.ed_lbl_y, "Editör Yazı Boyutu", col_text())
-  val () = draw_px_badge(f, r, s.sidew, lay.ed_lbl_y, s.fontpx)
+  val () = draw_slider_header(f, r, s.sidew, lay.ed_lbl_y, lay.lh, "Editör Yazı Boyutu", s.fontpx)
   val () = draw_px_slider_track(r, UI_CFG_SLIDER_X, lay.ed_sldr_y, tw, s.fontpx, toggle_of(is_drag_editor_font_slider(s.drag)))
-  val () = draw_s(f, r, UI_CFG_SLIDER_X, lay.doc_lbl_y, "Dosya İçeriği Boyutu", col_text())
-  val () = draw_px_badge(f, r, s.sidew, lay.doc_lbl_y, s.doc_fontpx)
+  val () = draw_slider_header(f, r, s.sidew, lay.doc_lbl_y, lay.lh, "Dosya İçeriği Boyutu", s.doc_fontpx)
 in
   draw_px_slider_track(r, UI_CFG_SLIDER_X, lay.doc_sldr_y, tw, s.doc_fontpx, toggle_of(is_drag_doc_font_slider(s.drag)))
 end
 
-fun draw_config_font_row(f: !Font, r: !Rend, s: &App_record, lay: CfgLayout, fi: int): void = let
-  var pbuf = buf_make(DRAW_CONFIG_FONT_ROW_PBUF_INITIAL_BYTES)
-  var nbuf = buf_make(DRAW_CONFIG_FONT_ROW_NBUF_INITIAL_BYTES)
+fun draw_config_font_row(f: !Font, r: !Rend, s: &App_record, lay: CfgLayout, fi: int, body_y: int, h: int): void = let
   val fy = iadd(lay.font_list_y, imul(fi, lay.frow_h))
-  val poff = buf_get32(s.fmeta, imul(fi, 4))
-  val plen = buf_get32(s.fmeta, iadd(imul(fi, 4), 1))
-  val noff = buf_get32(s.fmeta, iadd(imul(fi, 4), 2))
-  val nlen = buf_get32(s.fmeta, iadd(imul(fi, 4), 3))
-  val () = buffer_append_range(pbuf, s.fpaths, poff, iadd(poff, plen))
-  val () = buffer_append_range(nbuf, s.fnames, noff, iadd(noff, nlen))
-  val is_sel = ieq(c_strcmp(buffer_c_string(pbuf), buffer_c_string(s.font_path)), 0)
-  val f_icon = if is_sel then UI_ICON_CHECK else UI_ICON_CHECK_EMPTY
-  val rw = imax(80, isub(s.sidew, 24))
-  val is_hov = ige(s.hoverx, 12) andalso ilt(s.hoverx, isub(s.sidew, 12)) andalso ige(s.hovery, fy) andalso ilt(s.hovery, iadd(fy, lay.frow_h))
-  val () = ui_cell(f, r, 12, fy, rw, lay.frow_h, 0, Off, Off, f_icon, buffer_c_string(nbuf), "", toggle_of(is_sel), toggle_of(is_hov))
-  val () = buf_free(pbuf)
-  val () = buf_free(nbuf)
 in
+  if ile(iadd(fy, lay.frow_h), body_y) orelse ige(fy, h) then ()
+  else let
+    var pbuf = buf_make(DRAW_CONFIG_FONT_ROW_PBUF_INITIAL_BYTES)
+    var nbuf = buf_make(DRAW_CONFIG_FONT_ROW_NBUF_INITIAL_BYTES)
+    val poff = buf_get32(s.fmeta, imul(fi, 4))
+    val plen = buf_get32(s.fmeta, iadd(imul(fi, 4), 1))
+    val noff = buf_get32(s.fmeta, iadd(imul(fi, 4), 2))
+    val nlen = buf_get32(s.fmeta, iadd(imul(fi, 4), 3))
+    val () = buffer_append_range(pbuf, s.fpaths, poff, iadd(poff, plen))
+    val () = buffer_append_range(nbuf, s.fnames, noff, iadd(noff, nlen))
+    val is_sel = ieq(c_strcmp(buffer_c_string(pbuf), buffer_c_string(s.font_path)), 0)
+    val f_icon = if is_sel then UI_ICON_CHECK else UI_ICON_NONE
+    val rw = imax(40, isub(s.sidew, 20))
+    val is_hov = ige(s.hoverx, 10) andalso ilt(s.hoverx, isub(s.sidew, 10))
+      andalso ige(s.hovery, body_y) andalso ilt(s.hovery, h)
+      andalso ige(s.hovery, fy) andalso ilt(s.hovery, iadd(fy, lay.frow_h))
+    val () = ui_cell(f, r, 10, fy, rw, lay.frow_h, 0, Off, Off, f_icon, buffer_c_string(nbuf), "", toggle_of(is_sel), toggle_of(is_hov))
+    val () = buf_free(pbuf)
+  in
+    buf_free(nbuf)
+  end
 end
 
-extern fun font_rows_fuel_exhausted(f: !Font, r: !Rend, s: &App_record, lay: CfgLayout, fi: int, fcnt: int): void = "mac#anth_die_void"
+extern fun font_rows_fuel_exhausted(f: !Font, r: !Rend, s: &App_record, lay: CfgLayout, fi: int, fcnt: int, body_y: int, h: int): void = "mac#anth_die_void"
 
-fun font_rows_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, s: &App_record, lay: CfgLayout, fi: int, fcnt: int): void =
+fun font_rows_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), f: !Font, r: !Rend, s: &App_record, lay: CfgLayout, fi: int, fcnt: int, body_y: int, h: int): void =
   if recursion_fuel_available(recfuel) then (
-    if ilt(fi, fcnt) andalso ilt(fi, 12) then let
-      val () = draw_config_font_row(f, r, s, lay, fi)
+    if ilt(fi, fcnt) then let
+      val () = draw_config_font_row(f, r, s, lay, fi, body_y, h)
     in
-      font_rows_with_fuel(recfuel - 1, f, r, s, lay, iadd(fi, 1), fcnt)
+      font_rows_with_fuel(recfuel - 1, f, r, s, lay, iadd(fi, 1), fcnt, body_y, h)
     end else ()
-  ) else font_rows_fuel_exhausted(f, r, s, lay, fi, fcnt)
+  ) else font_rows_fuel_exhausted(f, r, s, lay, fi, fcnt, body_y, h)
 
-fun draw_keymap_line(f: !Font, r: !Rend, y: int, line: !Buf): int = let
+fun draw_keymap_line(f: !Font, r: !Rend, sidew: int, y: int, kb_rh: int, line: !Buf): int = let
   val n = buf_len(line)
+  val bw = imax(40, isub(sidew, 24))
+  val bh = imax(16, isub(kb_rh, 2))
 in
-  if igt(n, 0) then (seen_int(font_draw_buf(f, r, 12, y, line, n, col_muted())); 1) else 0
+  if igt(n, 0) then (
+    rend_rrect(r, 12, y, bw, bh, 5, col_bar());
+    ui_draw_fitted_buf(f, r, 12, y, bw, bh, 8, 8, Off, line, col_muted());
+    1
+  ) else 0
 end
 
 fun draw_keymap_rows_m {recfuel:nat} .<recfuel>. (
@@ -485,7 +529,7 @@ fun draw_keymap_rows_m {recfuel:nat} .<recfuel>. (
     if ilt(idx, total) andalso ilt(shown, UI_KEYMAP_MAX_SHOW) then let
       var line = buf_make(64)
       val () = keymap_format_entry(s.keymap, idx, line)
-      val drew = draw_keymap_line(f, r, y, line)
+      val drew = draw_keymap_line(f, r, s.sidew, y, step_y, line)
       val () = buf_free(line)
     in
       draw_keymap_rows_m(recfuel - 1, f, r, s, iadd(idx, 1), total,
@@ -495,21 +539,49 @@ fun draw_keymap_rows_m {recfuel:nat} .<recfuel>. (
   ) else ()
 
 fun draw_sidebar_keybindings(f: !Font, r: !Rend, s: &App_record, lay: CfgLayout): void = let
-  val () = draw_s(f, r, 12, lay.kb_y, "Klavye Kisayollari", col_text())
-  val () = ui_button(f, r, lay.kb_btn_x, isub(lay.kb_y, 3), lay.kb_btn_w, lay.btn_h, "Yenile", Off, Off)
+  val body_y = doc_top_y_of(s)
+  val lw = imax(0, isub(lay.kb_btn_x, 18))
+  val () = ui_draw_fitted_text(f, r, 12, lay.kb_y, lw, lay.btn_h, 0, 0, Off, "Klavye Kısayolları", col_heading())
+  val hov = ige(s.hoverx, lay.kb_btn_x) andalso ilt(s.hoverx, iadd(lay.kb_btn_x, lay.kb_btn_w))
+    andalso ige(s.hovery, body_y) andalso ige(s.hovery, lay.kb_y) andalso ilt(s.hovery, iadd(lay.kb_y, lay.btn_h))
+  val () = ui_button(f, r, lay.kb_btn_x, lay.kb_y, lay.kb_btn_w, lay.btn_h, "Yenile", toggle_of(hov), Off)
   val total = keymap_count(s.keymap)
+  val kb_rh = imax(24, iadd(lay.lh, 6))
 in
-  draw_keymap_rows_m(airlock_nat(MAX_REC_FUEL), f, r, s, 0, total, lay.kb_rows_y, lay.lh, 0)
+  draw_keymap_rows_m(airlock_nat(MAX_REC_FUEL), f, r, s, 0, total, lay.kb_rows_y, kb_rh, 0)
 end
 
-fun draw_sidebar_config(f: !Font, r: !Rend, s: &App_record): void = let
+fun sidebar_config_content_h(s: &App_record, lh: int): int = let
+  val lay0 = config_layout_step(0, imax(18, lh), s.fontpx, s.sidew, s.fcnt)
+  val shown = imin(keymap_count(s.keymap), UI_KEYMAP_MAX_SHOW)
+  val kb_rh = imax(24, iadd(lay0.lh, 6))
+in
+  iadd(12, iadd(lay0.kb_rows_y, iadd(imul(shown, kb_rh), 16)))
+end
+
+fun sidebar_config_max_scroll(s: &App_record, h: int): int = let
+  val body_h = imax(1, isub(h, doc_top_y_of(s)))
+  val ch = sidebar_config_content_h(s, imax(18, s.fontpx))
+in
+  imax(0, isub(ch, body_h))
+end
+
+fun draw_sidebar_config(f: !Font, r: !Rend, s: &App_record, h: int): void = let
+  val body_y = doc_top_y_of(s)
+  val body_h = imax(1, isub(h, body_y))
   val lay = config_layout(f, s)
+  val () = rend_clip_push(r, 0, body_y, imax(1, isub(s.sidew, 1)), body_h)
   val () = draw_config_vault_section(f, r, s, lay)
   val () = draw_config_font_sliders(f, r, s, lay)
-  val () = draw_s(f, r, UI_CFG_SLIDER_X, lay.eng_title_y, ui_text_engine_title(f), col_text())
-  val () = font_rows_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, s, lay, 0, s.fcnt)
+  val () = ui_draw_fitted_text(f, r, UI_CFG_SLIDER_X, lay.eng_title_y, imax(40, isub(s.sidew, 24)), lay.lh, 0, 0, Off, ui_text_engine_title(f), col_muted())
+  val () = font_rows_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, s, lay, 0, s.fcnt, body_y, h)
+  val () = draw_sidebar_keybindings(f, r, s, lay)
+  val () = rend_clip_pop(r)
+  val ch = sidebar_config_content_h(s, font_line_h(f))
 in
-  draw_sidebar_keybindings(f, r, s, lay)
+  if igt(ch, body_h) then
+    ui_scroll_bar(r, isub(s.sidew, 8), body_y, 7, body_h, Vertical, ch, body_h, s.settings_scroll, Off, Off)
+  else ()
 end
 
 fun draw_side_frame(r: !Rend, s: &App_record, h: int): void = let
@@ -524,12 +596,9 @@ in
 end
 
 fun side_title(sd: Sidebar): string =
-  if is_side_files(sd) then "Dosya Gezgini Aç/Kapa"
+  if is_side_files(sd) then "Gezgin"
   else if is_side_search(sd) then "Genel Arama"
   else "Ayarlar"
 
-fun draw_side_title(f: !Font, r: !Rend, s: &App_record): void = let
-  val ty = iadd(s.tb_h, imax(0, idiv(isub(s.hdr_h, font_line_h(f)), 2)))
-  val () = draw_s(f, r, 12, ty, side_title(s.side), col_heading())
-in
-end
+fun draw_side_title(f: !Font, r: !Rend, s: &App_record): void =
+  ui_draw_fitted_text(f, r, 0, s.tb_h, s.sidew, s.hdr_h, 12, 12, Off, side_title(s.side), col_heading())

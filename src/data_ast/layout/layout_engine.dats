@@ -219,9 +219,9 @@ in
 end
 
 implement doc_wrap_cols(colw) = let
-  val width = isub(colw, 80)
+  val width = isub(colw, 16)
 in
-  if width <= 180 then 25 else imin(120, idiv(width, 9))
+  imin(120, imax(25, idiv(width, 9)))
 end
 
 implement doc_layout_mode(d, line_height, is_read, colw) = let

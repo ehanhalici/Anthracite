@@ -156,24 +156,36 @@ fun menu_item_count(menu: MenuKind): int = case+ menu of
   | MenuImage() => 3
   | MenuFileTree() => 4
 
-fun draw_overlay_blur(
-  r: !Rend, prompt: PromptKind, menu: MenuKind,
-  menux: int, menuy: int, menuw: int, vault_select: Toggle, w: int, h: int
-): void = let
-  val menu_n = menu_item_count(menu)
-  val active = not(is_prompt_none(prompt)) orelse igt(menu_n, 0) orelse is_on(vault_select)
+typedef OverlaySnap = @{
+  side= Sidebar, prompt= PromptKind, menu= MenuKind, mv= MenuVariant, sub= SubmenuL1,
+  mx= int, my= int, mw= int, sx= int, sy= int, sw= int,
+  vault_select= Toggle
+}
+
+fun draw_overlay_blur(r: !Rend, ov: OverlaySnap, w: int, h: int): void = let
+  val menu_open = not(is_menu_none(ov.menu))
+  val mh = if menu_open then menu_var_height(ov.mv) else 0
+  val sub_open = menu_open andalso not(is_sub_none(ov.sub)) andalso igt(menu_sub_count(ov.sub), 0)
+  val sh = if sub_open then menu_sub_height(ov.sub) else 0
+  val floating_p = is_prompt_newfile(ov.prompt) orelse is_prompt_newfolder(ov.prompt)
+  val active = floating_p orelse igt(mh, 0) orelse is_on(ov.vault_select)
   val () = if active then rend_capture(r) else ()
-  val () = if is_on(vault_select) then rend_blur_rect(r, 0, 0, w, h, 4) else ()
-  val () = if not(is_prompt_none(prompt)) then rend_blur_rect(r, 12, 68, 256, 56, 6) else ()
+  val () = if is_on(ov.vault_select) then rend_blur_rect(r, 0, 0, w, h, 8) else ()
+  val () = if floating_p then rend_blur_rect(r, 12, 68, 256, 56, 6) else ()
+  val () = if igt(mh, 0) then rend_blur_rect(r, ov.mx, ov.my, ov.mw, mh, 6) else ()
 in
-  if igt(menu_n, 0) then rend_blur_rect(r, menux, menuy,
-    menuw, imul(menu_n, UI_MENU_ITEM_HEIGHT), 6) else ()
+  if igt(sh, 0) then rend_blur_rect(r, ov.sx, ov.sy, ov.sw, sh, 6) else ()
 end
 
-fun app_overlay_state(a: !App): @(Sidebar, PromptKind, MenuKind, int, int, int, Toggle) =
+fun app_overlay_state(a: !App): OverlaySnap =
   case+ a of
   | @APP(s) => let
-      val result = @(s.side, s.prompt, s.menu, s.menux, s.menuy, s.menuw, s.vault_select)
+      val mw = if igt(s.menuw, 0) then s.menuw else UI_MENU_WIDTH
+      val result: OverlaySnap = @{
+        side= s.side, prompt= s.prompt, menu= s.menu, mv= s.menu_var, sub= s.menu_sub,
+        mx= s.menux, my= s.menuy, mw= mw, sx= s.menu_sub_x, sy= s.menu_sub_y, sw= s.menu_sub_w,
+        vault_select= s.vault_select
+      }
     in
       fold@(a);
       result
@@ -201,13 +213,13 @@ implement app_draw(a, f, r, w, h) = let
   val t_panes = performance_now_ns()
   val () = draw_panes(f, r, a, w, h)
   val () = performance_phase_end(PERF_PHASE_DRAW_PANES, t_panes)
-  val @(show, prompt, menu, menux, menuy, menuw, vault_select) = app_overlay_state(a)
+  val ov = app_overlay_state(a)
   val t_side = performance_now_ns()
-  val () = if not(is_side_none(show)) then draw_side(f, r, a, h) else ()
+  val () = if not(is_side_none(ov.side)) then draw_side(f, r, a, h) else ()
   val () = performance_phase_end(PERF_PHASE_DRAW_SIDEBAR, t_side)
   val t_over = performance_now_ns()
   val () = draw_app_hover_overlays(f, r, a, w, h)
-  val () = draw_overlay_blur(r, prompt, menu, menux, menuy, menuw, vault_select, w, h)
+  val () = draw_overlay_blur(r, ov, w, h)
   val () = ui_draw_prompt(f, r, a)
   val () = ui_draw_menu(f, r, a)
   val () = draw_vault_select(f, r, a, w, h)

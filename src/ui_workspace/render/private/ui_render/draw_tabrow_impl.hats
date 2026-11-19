@@ -2,29 +2,35 @@ extern fun draw_tabrow_impl_fuel_exhausted(f: !Font, r: !Rend, ts: Tabs, x: int,
 
 fun draw_tabrow_pane_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), f: !Font, r: !Rend, ts: Tabs, x: int, box_w: int, active: int, i: int,
-  filter: int, tab_pane: !Buf
+  filter: int, tab_pane: !Buf, hx: int, hy: int, prev_plain: bool
 ): Tabs =
   if recursion_fuel_available(recfuel) then (
     case+ ts of
     | ~TNil() => TNil()
     | ~TCons(doc, path, title, sc, rest) => let
         val match = tab_pane_match(filter, tab_pane, i)
-        val next_x = (if match then iadd(x, iadd(box_w, 4)) else x)
-        val () = if match then draw_tab_frame(f, r, title, x, box_w, i, active) else ()
+        val next_x = (if match then iadd(x, box_w) else x)
+        val tb_h = chrome_topbar_h(font_line_h(f))
+        val plain = not(ieq(i, active)) andalso not(tab_is_hovered(x, box_w, tb_h, hx, hy))
+        val () = if match then draw_tab_frame_hover(f, r, title, x, box_w, i, active, hx, hy, prev_plain) else ()
         val () = touch_doc(doc)
         val () = seen_int(sc)
-        val rest2 = draw_tabrow_pane_with_fuel(recfuel - 1, f, r, rest, next_x, box_w, active, iadd(i, 1), filter, tab_pane)
+        val nxt_plain = if match then plain else prev_plain
+        val rest2 = draw_tabrow_pane_with_fuel(recfuel - 1, f, r, rest, next_x, box_w, active, iadd(i, 1), filter, tab_pane, hx, hy, nxt_plain)
       in
         TCons(doc, path, title, sc, rest2)
       end
   ) else draw_tabrow_impl_fuel_exhausted(f, r, ts, x, active, i)
 
-implement draw_tabrow_pane_w(f, r, ts, x, avail_w, active, i, filter, tab_pane) = let
+implement draw_tabrow_pane_hover(f, r, ts, x, avail_w, active, i, filter, tab_pane, hx, hy) = let
   val n = count_pane_tabs_with_fuel(airlock_nat(MAX_REC_FUEL), ts, i, filter, tab_pane, 0)
   val box_w = tab_box_width_for_bar(avail_w, n)
 in
-  draw_tabrow_pane_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, ts, x, box_w, active, i, filter, tab_pane)
+  draw_tabrow_pane_with_fuel(airlock_nat(MAX_REC_FUEL), f, r, ts, x, box_w, active, i, filter, tab_pane, hx, hy, false)
 end
+
+implement draw_tabrow_pane_w(f, r, ts, x, avail_w, active, i, filter, tab_pane) =
+  draw_tabrow_pane_hover(f, r, ts, x, avail_w, active, i, filter, tab_pane, ~1, ~1)
 
 implement draw_tabrow_pane(f, r, ts, x, active, i, filter, tab_pane) =
   draw_tabrow_pane_w(f, r, ts, x, 0, active, i, filter, tab_pane)
@@ -60,7 +66,7 @@ fun tab_hit_test_pane_with_fuel {recfuel:nat} .<recfuel>. (
           val tab_w = tab_hit_step(box_w, x, click_x, i, out_ti, out_close)
         in
           if ige(out_ti, 0) then ()
-          else tab_hit_test_pane_with_fuel(recfuel - 1, f, r, rest, iadd(x, iadd(tab_w, 4)), box_w, click_x, iadd(i, 1), filter, tab_pane, out_ti, out_close)
+          else tab_hit_test_pane_with_fuel(recfuel - 1, f, r, rest, iadd(x, tab_w), box_w, click_x, iadd(i, 1), filter, tab_pane, out_ti, out_close)
         end else tab_hit_test_pane_with_fuel(recfuel - 1, f, r, rest, x, box_w, click_x, iadd(i, 1), filter, tab_pane, out_ti, out_close)
   ) else tab_hit_test_impl_fuel_exhausted(f, r, ts, x, click_x, i, out_ti, out_close)
 
@@ -108,7 +114,7 @@ fun tab_hover_info_m {recfuel:nat} .<recfuel>. (
             val () = (out_ti := i; out_bx := x)
           in
             out_over := igt(tw, isub(box_w, close_pad))
-          end else tab_hover_info_m(recfuel - 1, f, r, rest, iadd(x, iadd(box_w, 4)), box_w, hover_x, iadd(i, 1), filter, tab_pane, out_ti, out_bx, out_over)
+          end else tab_hover_info_m(recfuel - 1, f, r, rest, iadd(x, box_w), box_w, hover_x, iadd(i, 1), filter, tab_pane, out_ti, out_bx, out_over)
         ) else tab_hover_info_m(recfuel - 1, f, r, rest, x, box_w, hover_x, iadd(i, 1), filter, tab_pane, out_ti, out_bx, out_over)
   ) else ()
 

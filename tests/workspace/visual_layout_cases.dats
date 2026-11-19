@@ -43,7 +43,7 @@ fun snapshot(d: !Doc): int = let val state=doc_visual_take(d)
 in errors end
 fun pixel{n:nat} .<n>. (left: int(n),image: !Buf,i: int,height: int,found: &int >> _): int =
   if left = 0 then 0 else let val at=imul(i,4)
-    val blue=ieq(buf_get(image,at),58) andalso ieq(buf_get(image,iadd(at,1)),74) andalso ieq(buf_get(image,iadd(at,2)),92)
+    val blue=ieq(buf_get(image,at),62) andalso ieq(buf_get(image,iadd(at,1)),55) andalso ieq(buf_get(image,iadd(at,2)),98)
     val x=imod(i,128) val y=isub(127,idiv(i,128))
     val ()=if blue then found := iadd(found,1) else ()
     val error=if blue andalso (ige(x,90) orelse ige(y,height)) then 1 else 0
@@ -384,11 +384,11 @@ in iadd(widths,iadd(refresh,if ieq(written,1) andalso loaded andalso ranged anda
 fun selection_parent_draw(f: !Font,r: !Rend,tabs: !Tabs,root: !Buf,cache: &Cache >> _,scratch: &Buf >> _): void =
   case+ tabs of | TNil() => () | TCons(d,path,title,scroll,rest) => let
     val ()=rend_begin(r,640,480)
-    val ()=draw_doc(f,r,d,0,36,640,444,0,font_line_h(f),root,cache,scratch,ViewRead)
+    val ()=draw_doc(f,r,d,0,UI_TOPBAR_HEIGHT,640,isub(480,UI_TOPBAR_HEIGHT),0,font_line_h(f),root,cache,scratch,ViewRead)
   in rend_flush(r) end
 fun embed_top{n:nat} .<n>. (left: int(n),d: !Doc,wanted: int,i: int): int =
   if left = 0 then ~1 else let val embedded=is_kind(doc_node_kind(d,i),KEmbed)
-  in if embedded andalso ieq(wanted,0) then iadd(36,doc_node_y(d,i))
+  in if embedded andalso ieq(wanted,0) then iadd(UI_TOPBAR_HEIGHT,doc_node_y(d,i))
     else embed_top(left-1,d,if embedded then isub(wanted,1) else wanted,iadd(i,1)) end
 fun selection_top(tabs: !Tabs,wanted: int): int = case+ tabs of
   | TNil() => ~1 | TCons(d,p,t,s,rest) => embed_top(airlock_nat(doc_nnodes(d)),d,wanted,0)
@@ -400,7 +400,7 @@ fun selection_x(f: !Font,r: !Rend,tabs: !Tabs): int = case+ tabs of
   in editor_colx(f,r,x,isub(doc_visual_width(d),indent)) end
 fun selection_pixels{n:nat} .<n>. (left: int(n),pixels: !Buf,i: int,bottom: int,found: &int >> _,errors: int): int =
   if left = 0 then errors else let val at=imul(i,4)
-    val selected=ieq(buf_get(pixels,at),58) andalso ieq(buf_get(pixels,iadd(at,1)),74) andalso ieq(buf_get(pixels,iadd(at,2)),92)
+    val selected=ieq(buf_get(pixels,at),62) andalso ieq(buf_get(pixels,iadd(at,1)),55) andalso ieq(buf_get(pixels,iadd(at,2)),98)
     val y=isub(479,idiv(i,640)) val ()=if selected then found := iadd(found,1) else ()
     val error=if selected andalso ige(y,bottom) then 1 else 0
   in selection_pixels(left-1,pixels,iadd(i,1),bottom,found,iadd(errors,error)) end
@@ -470,7 +470,7 @@ fun nested_embed_case(f: !Font,r: !Rend,root: !Buf,text: string,expected: int): 
   val ()=performance_enable(1) val ()=performance_reset()
   val height=prepare_document_layout(f,d,cache,r,root,24,300,ViewRead)
   val loaded=performance_value(PERF_DOCUMENT_LOADS)=g0int2uint_int_ullint(expected)
-  val ()=rend_begin(r,640,480) val ()=draw_doc(f,r,d,0,36,640,444,0,font_line_h(f),root,cache,scratch,ViewRead)
+  val ()=rend_begin(r,640,480) val ()=draw_doc(f,r,d,0,UI_TOPBAR_HEIGHT,640,isub(480,UI_TOPBAR_HEIGHT),0,font_line_h(f),root,cache,scratch,ViewRead)
   val stats=cache_embed_stats(cache)
   val bounded=ieq(stats.documents,expected) andalso ieq(stats.pending,0) andalso ilt(height,5000)
   val ()=performance_reset() val warm=prepare_document_layout(f,d,cache,r,root,24,300,ViewRead)
@@ -519,7 +519,7 @@ in if not(created) then let val ()=buf_free(root) in 1 end else let
 fun blue_y_span{n:nat} .<n>. (left: int(n), image: !Buf, i: int, min_y: &int >> _, max_y: &int >> _): void =
   if left = 0 then () else let
     val at = imul(i, 4)
-    val blue = ieq(buf_get(image, at), 58) andalso ieq(buf_get(image, iadd(at, 1)), 74) andalso ieq(buf_get(image, iadd(at, 2)), 92)
+    val blue = ieq(buf_get(image, at), 62) andalso ieq(buf_get(image, iadd(at, 1)), 55) andalso ieq(buf_get(image, iadd(at, 2)), 98)
     val y = isub(127, idiv(i, 128))
     val () = if blue then (min_y := imin(min_y, y); max_y := imax(max_y, y)) else ()
   in

@@ -17,6 +17,10 @@ staload "data_font/resources/font.sats"
 #define UI_ICON_SETTINGS 11
 #define UI_ICON_PLUS 12
 #define UI_ICON_SPLIT 13
+#define UI_ICON_SIDEBAR 14
+#define UI_ICON_EDIT 15
+#define UI_ICON_EYE 16
+#define UI_ICON_CHEVRON_RIGHT 17
 
 (* Two-state visual flags and orientation (Toggle lives in flag.sats). *)
 datatype Axis = Horizontal | Vertical
@@ -40,9 +44,34 @@ fun ui_pane_draw_header(f: !Font, r: !Rend, x: int, y: int, w: int, title: strin
 
 fun ui_menu_bar_button(f: !Font, r: !Rend, x: int, y: int, w: int, h: int, text: string, is_active: Toggle, is_hover: Toggle): void
 fun ui_icon_button(f: !Font, r: !Rend, icon: int, text: string, x: int, y: int, w: int, h: int, is_active: Toggle, is_hover: Toggle): void
+fun ui_icon_only_button(f: !Font, r: !Rend, icon: int, x: int, y: int, sz: int, is_active: Toggle, is_hover: Toggle): void
+fun ui_segmented_pair(f: !Font, r: !Rend, x: int, y: int, w: int, h: int, left_lbl: string, right_lbl: string, right_active: Toggle, hover_idx: int): void
+fun ui_search_input_draw(f: !Font, r: !Rend, x: int, y: int, w: int, h: int, b: !Buf, cursor: int, mark: int, is_focused: Toggle, placeholder: string): void
 fun ui_cell(f: !Font, r: !Rend, x: int, y: int, w: int, h: int, depth: int, is_expandable: Toggle, is_expanded: Toggle, icon: int, label: string, value_text: string, is_selected: Toggle, is_hover: Toggle): void
 fun ui_loading_overlay(f: !Font, r: !Rend, w: int, h: int, progress_pct: int, title: string, status_msg: string): void
 fun ui_code_slice(f: !Font, r: !Rend, x: int, y: int, w: int, h: int, line_num: int, code_text: string, is_active: Toggle, has_bp: Toggle, is_hover: Toggle): void
 fun ui_error_label(f: !Font, r: !Rend, x: int, y: int, text: string): void
 fun ui_help_label(f: !Font, r: !Rend, x: int, y: int, text: string): void
 fun ui_fit_str_bytes(f: !Font, r: !Rend, p: ptr, n: int, max_w: int): int
+
+dataprop SPAN_FITS(bw: int, off: int, cw: int) =
+  | {bw,off,cw:nat | off + cw <= bw} SpanFits(bw, off, cw) of ()
+
+fun ui_inner_span {bw,pl,pr:nat}
+  (bw: int(bw), pl: int(pl), pr: int(pr)):
+  [off,cw:nat | off + cw <= bw]
+  (SPAN_FITS(bw, off, cw) | int(off), int(cw))
+
+fun ui_align_in_span {cw,tw:nat | tw <= cw}
+  (cw: int(cw), tw: int(tw), centered: bool):
+  [dx:nat | dx + tw <= cw] int(dx)
+
+fun ui_draw_fitted_text(
+  f: !Font, r: !Rend, bx: int, by: int, bw: int, bh: int,
+  pad_l: int, pad_r: int, centered: Toggle, text: string, col: uint
+): void
+
+fun ui_draw_fitted_buf(
+  f: !Font, r: !Rend, bx: int, by: int, bw: int, bh: int,
+  pad_l: int, pad_r: int, centered: Toggle, b: !Buf, col: uint
+): void

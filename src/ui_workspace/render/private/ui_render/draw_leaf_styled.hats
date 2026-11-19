@@ -26,7 +26,7 @@ fun draw_container_box(r: !Rend, d: !Doc, i: int, k: NodeKind, colx: int, y: int
   if is_kind(k, KQuote) then
     rend_rect(r, isub(colx, 8), y, 3, imax(h, lh), col_quote())
   else if is_kind(k, KCallout) then
-    rend_rect(r, isub(colx, 8), y, 4, imax(h, lh), col_accent())
+    rend_rect(r, isub(colx, 8), y, 4, imax(h, lh), col_accent_hi())
   else if is_kind(k, KCode) orelse is_kind(k, KMathBlock) then let
     val fl = doc_node_flags(d, i)
     val () = rend_rect(r, colx, y, colw, imax(h, lh), col_highbg())

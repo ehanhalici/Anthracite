@@ -21,6 +21,8 @@ staload "ui_workspace/tabs/ui_tab.sats"
 staload "ui_workspace/tabs/ui_tab_history.sats"
 staload "ui_workspace/commands/ui_cmd.sats"
 staload "ui_workspace/commands/ui_keymap.sats"
+staload "ui_workspace/commands/ui_menu.sats"
+staload "ui_workspace/tree/ui_tree.sats"
 
 macdef TEST_BUFFER_BYTES = 1024
 macdef SESSION_FONT_PIXELS = 18
@@ -123,6 +125,169 @@ fun check_md_strip_one(input: string, expected: string): int = let
   val ()=buf_free(src); val ()=buf_free(out)
 in check(ok) end
 
+fun is_ctx_copy(a: ContextAction): bool = case+ a of | CtxCopy() => true | _ => false
+fun is_ctx_sel_all(a: ContextAction): bool = case+ a of | CtxSelectAll() => true | _ => false
+fun is_ctx_new_note(a: ContextAction): bool = case+ a of | CtxTreeNewNote() => true | _ => false
+fun is_ctx_new_dir(a: ContextAction): bool = case+ a of | CtxTreeNewDir() => true | _ => false
+fun is_ctx_hl(a: ContextAction): bool = case+ a of | CtxHighlight() => true | _ => false
+
+fun hit_all_root_m {n:nat} .<n>. (
+  rem: int(n), mv: MenuVariant, i: int
+): bool =
+  if rem = 0 then true
+  else let
+    val ry = iadd(20, menu_var_row_y(mv, i))
+    val mid_y = iadd(ry, idiv(UI_MENU_ITEM_HEIGHT, 2))
+  in
+    if ieq(menu_hit_root(mv, 20, 20, 260, 40, mid_y), i) then
+      hit_all_root_m(rem - 1, mv, iadd(i, 1))
+    else false
+  end
+
+fun hit_all_sub_m {n:nat} .<n>. (
+  rem: int(n), sub: SubmenuL1, i: int
+): bool =
+  if rem = 0 then true
+  else let
+    val ry = iadd(30, menu_sub_row_y(sub, i))
+    val mid_y = iadd(ry, idiv(UI_MENU_ITEM_HEIGHT, 2))
+  in
+    if ieq(menu_hit_sub(sub, 30, 30, 240, 50, mid_y), i) then
+      hit_all_sub_m(rem - 1, sub, iadd(i, 1))
+    else false
+  end
+
+fun menu_contract_checks(): int = let
+  val counts_ok =
+    ieq(menu_var_count(MenuVarEditText), 10) andalso ieq(menu_var_count(MenuVarImage), 3)
+    andalso ieq(menu_var_count(MenuVarReadText), 2) andalso ieq(menu_var_count(MenuVarTreeItem), 5)
+    andalso ieq(menu_var_count(MenuVarTreeEmpty), 2) andalso ieq(menu_sub_count(SubNone), 0)
+    andalso ieq(menu_sub_count(SubFormat), 4) andalso ieq(menu_sub_count(SubParagraph), 9)
+    andalso ieq(menu_sub_count(SubInsert), 6)
+  val read_ok = is_ctx_copy(menu_var_action(MenuVarReadText, 0)) andalso is_ctx_sel_all(menu_var_action(MenuVarReadText, 1))
+  val empty_ok = is_ctx_new_note(menu_var_action(MenuVarTreeEmpty, 0)) andalso is_ctx_new_dir(menu_var_action(MenuVarTreeEmpty, 1))
+  val hl_ok = is_ctx_hl(menu_sub_action(SubFormat, 3)) andalso ieq(c_strcmp(menu_sub_label(SubFormat, 3), "Vurgula"), 0)
+  val hit_ok =
+    hit_all_root_m(airlock_nat(menu_var_count(MenuVarEditText)), MenuVarEditText, 0)
+    andalso hit_all_root_m(airlock_nat(menu_var_count(MenuVarTreeItem)), MenuVarTreeItem, 0)
+    andalso hit_all_sub_m(airlock_nat(menu_sub_count(SubParagraph)), SubParagraph, 0)
+    andalso igt(menu_var_height(MenuVarEditText), imul(10, UI_MENU_ITEM_HEIGHT))
+    andalso igt(menu_sub_height(SubParagraph), imul(9, UI_MENU_ITEM_HEIGHT))
+in
+  check(counts_ok andalso read_ok andalso empty_ok andalso hl_ok andalso hit_ok)
+end
+
+fun make_child_path(base: string, tail: string): Buf = let
+  var b = buf_make(128)
+  val () = buffer_append_string(b, base)
+  val () = buffer_append_string(b, "/")
+  val () = buffer_append_string(b, tail)
+in b end
+
+fun check_dup_file(vs: string, out_file: &Buf >> Buf): bool = let
+  val note = make_child_path(vs, "note.md")
+  val body = "merhaba\n"
+  val _ = fs_atomic_write(buffer_c_string(note), c_str_ptr(body), 8)
+  val dup_ok = do_duplicate(note, false, out_file)
+  val name_ok = ends(out_file, "note 1.md")
+  val sz_ok = ieq(fs_size(buffer_c_string(out_file)), 8)
+  val () = buf_free(note)
+in
+  dup_ok andalso name_ok andalso sz_ok
+end
+
+fun check_dup_dir(vs: string, out_dir: &Buf >> Buf): bool = let
+  val fdir = make_child_path(vs, "folder")
+  val sub = make_child_path(vs, "folder/sub")
+  val _ = fs_mkdir(buffer_c_string(fdir))
+  val _ = fs_mkdir(buffer_c_string(sub))
+  val nested = make_child_path(vs, "folder/sub/a.md")
+  val _ = fs_atomic_write(buffer_c_string(nested), c_str_ptr("nested\n"), 7)
+  val dup_ok = do_duplicate(fdir, true, out_dir)
+  val copied = make_child_path(buffer_c_string(out_dir), "sub/a.md")
+  val child_ok = ieq(fs_exists(buffer_c_string(copied)), 1) andalso ieq(fs_size(buffer_c_string(copied)), 7)
+  val () = (buf_free(fdir); buf_free(sub); buf_free(nested); buf_free(copied))
+in
+  dup_ok andalso child_ok
+end
+
+fun check_delete_guards(v: !Buf, vs: string, out_dir: !Buf, out_file: !Buf): bool = let
+  val v_copy = buffer_clone(v)
+  val ref_root = not(do_delete_in_vault(v, v_copy, true))
+  val dir_kept = ieq(fs_isdir(vs), 1)
+  val esc = make_child_path(vs, "../escape")
+  val ref_esc = not(do_delete_in_vault(v, esc, false))
+  val del_d = do_delete_in_vault(v, out_dir, true)
+  val d_gone = ieq(fs_exists(buffer_c_string(out_dir)), 0)
+  val del_f = do_delete_in_vault(v, out_file, false)
+  val f_gone = ieq(fs_exists(buffer_c_string(out_file)), 0)
+  val () = (buf_free(v_copy); buf_free(esc))
+in
+  ref_root andalso dir_kept andalso ref_esc andalso del_d andalso d_gone andalso del_f andalso f_gone
+end
+
+fun do_rn_str(old: !Buf, raw: string, out_p: &Buf >> Buf): bool = let
+  var nb = buf_make(32)
+  val () = buffer_append_string(nb, raw)
+  val ok = do_rename_resolved(old, nb, out_p)
+  val () = buf_free(nb)
+in
+  ok
+end
+
+fun tree_rename_contracts(v: !Buf, vs: string): bool = let
+  val n0 = make_child_path(vs, "rn_init.md")
+  val _ = fs_atomic_write(buffer_c_string(n0), c_str_ptr("abc\n"), 4)
+  var p1 = buf_make(128)
+  var p2 = buf_make(128)
+  var p3 = buf_make(128)
+  var p_empty = buf_make(128)
+  var p_ws = buf_make(128)
+  val ok1 = do_rn_str(n0, "renamed", p1)
+  val e1a = ends(p1, "renamed.md")
+  val e1b = ieq(fs_exists(buffer_c_string(p1)), 1)
+  val ok2 = do_rn_str(p1, "v1.2", p2)
+  val e2a = ends(p2, "v1.2.md")
+  val e2b = ieq(fs_exists(buffer_c_string(p2)), 1)
+  val ok3 = do_rn_str(p2, "final.md", p3)
+  val e3a = ends(p3, "final.md")
+  val e3b = not(ends(p3, ".md.md"))
+  val e3c = ieq(fs_exists(buffer_c_string(p3)), 1)
+  val emp1 = not(do_rn_str(p3, "", p_empty))
+  val emp2 = not(do_rn_str(p3, "   ", p_ws))
+  val kept = ieq(fs_exists(buffer_c_string(p3)), 1)
+  val c1 = do_delete_in_vault(v, p3, false)
+  val dA = make_child_path(vs, "dirA")
+  val _ = fs_mkdir(buffer_c_string(dA))
+  var dB = buf_make(128)
+  val okd = do_rn_str(dA, "dirB", dB)
+  val eda = ends(dB, "dirB")
+  val edb = not(ends(dB, ".md"))
+  val edc = ieq(fs_isdir(buffer_c_string(dB)), 1)
+  val cd = do_delete_in_vault(v, dB, true)
+  val () = (buf_free(n0); buf_free(p1); buf_free(p2); buf_free(p3); buf_free(p_empty); buf_free(p_ws); buf_free(dA); buf_free(dB))
+in
+  ok1 andalso e1a andalso e1b andalso ok2 andalso e2a andalso e2b
+    andalso ok3 andalso e3a andalso e3b andalso e3c
+    andalso emp1 andalso emp2 andalso kept andalso c1
+    andalso okd andalso eda andalso edb andalso edc andalso cd
+end
+
+fun tree_dup_delete_contracts(root: string): int = let
+  val v = make_child_path(root, "dup_vault")
+  val _ = fs_mkdir(buffer_c_string(v))
+  val vs = buffer_c_string(v)
+  var out_file = buf_make(128)
+  var out_dir = buf_make(128)
+  val ok_f = check_dup_file(vs, out_file)
+  val ok_d = check_dup_dir(vs, out_dir)
+  val ok_del = check_delete_guards(v, vs, out_dir, out_file)
+  val ok_rn = tree_rename_contracts(v, vs)
+  val () = (buf_free(v); buf_free(out_file); buf_free(out_dir))
+in
+  check(ok_f andalso ok_d andalso ok_del andalso ok_rn)
+end
+
 fun configuration(root: string): int = let
   val ()=save_session(root)
   var active: Buf=buf_make(TEST_BUFFER_BYTES)
@@ -133,7 +298,8 @@ fun configuration(root: string): int = let
     iadd(check_md_strip_one("/a/din/not.MD","not"),
     iadd(check_md_strip_one("/a/din/resim.png","resim.png"),
     check_md_strip_one("/a/din/.md",".md"))))
-in iadd(check(selected),iadd(load_session(root),strip_err)) end
+  val ui_err = iadd(menu_contract_checks(), tree_dup_delete_contracts(root))
+in iadd(check(selected),iadd(load_session(root),iadd(strip_err, ui_err))) end
 
 fun document_case(index: int): string =
   if ieq(index,0) then "" else if ieq(index,1) then "alpha\nbeta\n"

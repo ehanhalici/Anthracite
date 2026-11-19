@@ -129,6 +129,57 @@ implement rend_blur_rect(r, x, y, w, h, radius) =
     blur_restore(r)
   end
 
+fun rect_push_quad(
+  r: !Rend, x: int, y: int, w: int, h: int, pad: int, c_top: uint, c_bot: uint
+): void = let
+  val x0 = i2f(x - pad); val y0 = i2f(y - pad)
+  val x1 = i2f(x + w + pad); val y1 = i2f(y + h + pad)
+  val u0 = i2f(~pad); val v0 = i2f(~pad)
+  val u1 = i2f(w + pad); val v1 = i2f(h + pad)
+  val rt = gl_rf(c_top); val gt = gl_gf(c_top); val bt = gl_bf(c_top); val at = gl_af(c_top)
+  val rb = gl_rf(c_bot); val gb = gl_gf(c_bot); val bb = gl_bf(c_bot); val ab = gl_af(c_bot)
+  val () = push(r, x0, y0, rt, gt, bt, at, u0, v0)
+  val () = push(r, x1, y0, rt, gt, bt, at, u1, v0)
+  val () = push(r, x1, y1, rb, gb, bb, ab, u1, v1)
+  val () = push(r, x0, y0, rt, gt, bt, at, u0, v0)
+  val () = push(r, x1, y1, rb, gb, bb, ab, u1, v1)
+  val () = push(r, x0, y1, rb, gb, bb, ab, u0, v1)
+in
+end
+
+fun rect_draw(
+  r: !Rend, w: int, h: int, rtl: int, rtr: int, rbr: int, rbl: int,
+  bth: int, bcol: uint, softness: int
+): void =
+  case+ r of
+  | @REND(s) => let
+      val () = glUseProgram(s.rect_prog)
+      val () = glUniform2f(s.rect_loc_view, i2f(s.vw), i2f(s.vh))
+      val () = glUniform2f(s.rect_loc_size, i2f(w), i2f(h))
+      val () = glUniform4f(s.rect_loc_radii, i2f(rtl), i2f(rtr), i2f(rbr), i2f(rbl))
+      val () = glUniform4f(s.rect_loc_border, gl_rf(bcol), gl_gf(bcol), gl_bf(bcol), gl_af(bcol))
+      val () = glUniform4f(s.rect_loc_params, i2f(bth), i2f(softness), i2f(0), i2f(0))
+      val () = glDrawArrays(GL_TRIANGLES, 0, s.nvert)
+    in
+      fold@(r)
+    end
+
+implement rend_rrect_ex(r, x, y, w, h, rtl, rtr, rbr, rbl, c_top, c_bot, bth, bcol, softness) =
+  if w <= 0 orelse h <= 0 then ()
+  else let
+    val () = performance_note(PERF_GL_QUADS, 1)
+    val () = rend_flush(r)
+    val pad = if softness > 1 then softness else 0
+    val () = rect_push_quad(r, x, y, w, h, pad, c_top, c_bot)
+    val () = blur_upload(r)
+    val () = rect_draw(r, w, h, rtl, rtr, rbr, rbl, bth, bcol, softness)
+  in
+    blur_restore(r)
+  end
+
+implement rend_rrect(r, x, y, w, h, rad, c) =
+  rend_rrect_ex(r, x, y, w, h, rad, rad, rad, rad, c, c, 0, col_rgba(0, 0, 0, 0), 1)
+
 implement rend_scissor(r, x, y, w, h) = let
   val () = rend_flush(r)
 in

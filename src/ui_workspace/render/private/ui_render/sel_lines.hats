@@ -226,49 +226,54 @@ end
 implement draw_doc(f,r,d,ox,oy,pw,ph,scroll,lh,vault,c,scratch,mode) =
   seen_int(draw_document_scrolled(f,r,d,ox,oy,pw,ph,scroll,lh,vault,c,scratch,mode))
 
-fun draw_tab_ell_prefix(f: !Font, r: !Rend, title: !Buf, tlen: int, bx: int, ty: int, text_w: int, tcol: uint): void =
-  if ile(text_w, 20) then let
-    val fit_n = ui_fit_str_bytes(f, r, buf_ptr(title), tlen, imax(0, text_w))
+fun draw_tab_bg_and_sep(
+  r: !Rend, bx: int, tab_w: int, tb_h: int, is_act: bool, is_hov: bool, show_left_sep: bool
+): void =
+  if is_act then let
+    val () = rend_rrect_ex(r, bx, 4, tab_w, isub(tb_h, 4), 8, 8, 0, 0, col_bg(), col_bg(), 1, col_line(), 1)
   in
-    if igt(fit_n, 0) then seen_int(font_draw(f, r, iadd(bx, 8), ty, buf_ptr(title), fit_n, tcol)) else ()
-  end else let
-    val ell_w = font_width(f, r, c_str_ptr("..."), 3)
-    val fit_n = ui_fit_str_bytes(f, r, buf_ptr(title), tlen, imax(0, isub(text_w, ell_w)))
-    val adv = if igt(fit_n, 0) then font_draw(f, r, iadd(bx, 8), ty, buf_ptr(title), fit_n, tcol) else 0
+    rend_rect(r, iadd(bx, 1), isub(tb_h, 1), imax(0, isub(tab_w, 2)), 1, col_bg())
+  end else if is_hov then
+    rend_rrect(r, iadd(bx, 2), 6, imax(1, isub(tab_w, 4)), imax(1, isub(tb_h, 12)), 6, col_tab_hover())
+  else if show_left_sep then
+    rend_rect(r, bx, idiv(isub(tb_h, 16), 2), 1, 16, col_line())
+  else ()
+
+fun draw_tab_close_btn(
+  f: !Font, r: !Rend, bx: int, tab_w: int, tb_h: int, hx: int, hy: int, show_close: bool
+): void =
+  if not(show_close) then ()
+  else let
+    val pill_x = isub(iadd(bx, tab_w), 22)
+    val pill_y = idiv(isub(tb_h, 18), 2)
+    val over_x = ige(hx, isub(iadd(bx, tab_w), 24)) andalso ilt(hx, iadd(bx, tab_w)) andalso ige(hy, 0) andalso ilt(hy, tb_h)
+    val () = if over_x then rend_rrect(r, pill_x, pill_y, 18, 18, 5, col_surface_hi()) else ()
+    val xcol = if over_x then col_heading() else col_muted()
   in
-    draw_s(f, r, iadd(iadd(bx, 8), adv), ty, "...", tcol)
+    ui_draw_icon(f, r, UI_ICON_CLOSE, isub(iadd(bx, tab_w), 17), idiv(isub(tb_h, 8), 2), 8, xcol)
   end
 
-fun draw_tab_title_clipped(f: !Font, r: !Rend, title: !Buf, bx: int, ty: int, text_w: int, tcol: uint): void = let
-  val tlen = buf_len(title)
-  val tw = if igt(tlen, 0) then font_width_buf(f, r, title, tlen) else 0
-in
-  if ile(tlen, 0) orelse ile(text_w, 0) then ()
-  else if ile(tw, text_w) then seen_int(font_draw_buf(f, r, iadd(bx, 8), ty, title, tlen, tcol))
-  else draw_tab_ell_prefix(f, r, title, tlen, bx, ty, text_w, tcol)
-end
+fun tab_is_hovered(bx: int, tab_w: int, tb_h: int, hx: int, hy: int): bool =
+  ige(hx, bx) andalso ilt(hx, iadd(bx, tab_w)) andalso ige(hy, 0) andalso ilt(hy, tb_h)
 
-fun draw_tab_frame(f: !Font, r: !Rend, title: !Buf, bx: int, tab_w: int, i: int, active: int): void = let
+fun draw_tab_frame_hover(
+  f: !Font, r: !Rend, title: !Buf, bx: int, tab_w: int, i: int, active: int,
+  hx: int, hy: int, show_left_sep: bool
+): void = let
   val lh = font_line_h(f)
   val tb_h = chrome_topbar_h(lh)
-  val box_h = isub(tb_h, 8)
-  val ty = idiv(isub(tb_h, lh), 2)
-  val close_y = idiv(isub(tb_h, 8), 2)
-  val bg = if ieq(i, active) then col_bg() else col_side()
-  val () = rend_rect(r, bx, 4, tab_w, box_h, bg)
-  val () = ui_draw_border(r, bx, 4, tab_w, box_h, 1, if ieq(i, active) then col_line() else col_bar())
-  val () = if ieq(i, active) then rend_rect(r, bx, 4, tab_w, 2, col_accent()) else ()
-  val close_pad = if ige(tab_w, 44) then 30 else if ieq(i, active) then 18 else 10
-  val text_w = imax(0, isub(tab_w, close_pad))
-  val tcol = if ieq(i, active) then col_white() else col_text()
-  val () = rend_clip_push(r, iadd(bx, 6), 4, text_w, box_h)
-  val () = draw_tab_title_clipped(f, r, title, bx, ty, text_w, tcol)
-  val () = rend_clip_pop(r)
-  val show_close = ige(tab_w, 44) orelse ieq(i, active)
-  val close_x = isub(iadd(bx, tab_w), if ige(tab_w, 44) then 18 else 14)
+  val is_act = ieq(i, active)
+  val is_hov = tab_is_hovered(bx, tab_w, tb_h, hx, hy)
+  val () = draw_tab_bg_and_sep(r, bx, tab_w, tb_h, is_act, is_hov, show_left_sep)
+  val pad_r = if is_hov then 26 else 8
+  val tcol = if is_act then col_white() else if is_hov then col_heading() else col_muted()
+  val () = ui_draw_fitted_buf(f, r, bx, 4, tab_w, isub(tb_h, 8), 8, pad_r, Off, title, tcol)
 in
-  if show_close then ui_draw_icon(f, r, UI_ICON_CLOSE, close_x, close_y, 8, col_muted()) else ()
+  draw_tab_close_btn(f, r, bx, tab_w, tb_h, hx, hy, is_hov)
 end
+
+fun draw_tab_frame(f: !Font, r: !Rend, title: !Buf, bx: int, tab_w: int, i: int, active: int): void =
+  draw_tab_frame_hover(f, r, title, bx, tab_w, i, active, ~1, ~1, false)
 
 fun tab_pane_match(filter: int, tab_pane: !Buf, i: int): bool =
   if filter < 0 then true
@@ -288,11 +293,6 @@ fun count_pane_tabs_with_fuel {recfuel:nat} .<recfuel>. (
       end
   ) else acc
 
-fun tab_box_width_for_bar(avail_w: int, pane_tabs: int): int =
+implement tab_box_width_for_bar(avail_w, pane_tabs) =
   if ile(avail_w, 0) orelse ile(pane_tabs, 0) then UI_TAB_FIXED_WIDTH
-  else let
-    val slot_w = idiv(avail_w, pane_tabs)
-    val fit_w = imax(28, isub(slot_w, 4))
-  in
-    imin(UI_TAB_FIXED_WIDTH, fit_w)
-  end
+  else imin(UI_TAB_FIXED_WIDTH, imax(44, idiv(avail_w, pane_tabs)))

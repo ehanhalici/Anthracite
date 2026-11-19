@@ -10,6 +10,7 @@ fun ev_text_buf(ev: &event, dst: !Buf, n: int): int =
   ev_text(ev, buf_ptr(dst), n)
 
 typedef SearchDocumentStamp = @{document=ptr,generation=int}
+datatype SettingsTab = SetVault | SetAppearance | SetShortcuts
 vtypedef App_record = @{
   vault= Buf, tabs= Tabs, cache= Cache, closed= ClosedDocs,
   active= int, righti= int, split= Toggle, focus= Toggle, side= Sidebar, fontpx= int, doc_fontpx= int,
@@ -40,7 +41,11 @@ vtypedef App_record = @{
   pan_start_y= int, pan_start_scroll= int,
   tree_drag_pending= Toggle, last_w= int, last_h= int,
   last_click_ns= lint, last_click_x= int, last_click_y= int,
-  last_click_pos= int, last_click_tab= int
+  last_click_pos= int, last_click_tab= int,
+  settings_open= Toggle, settings_tab= SettingsTab, settings_scroll= int,
+  menu_var= MenuVariant, menu_sub= SubmenuL1,
+  menu_sub_x= int, menu_sub_y= int, menu_sub_w= int,
+  menu_tree_idx= int, paste_plain= Toggle
 }
 datavtype App_ = APP of App_record
 (* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)
@@ -233,13 +238,10 @@ fun tree_top_y_of(s: &App_record): int =
   iadd(doc_top_y_of(s), 8)
 
 fun tree_row_h(fontpx: int): int =
-  imax(UI_TREE_ROW_HEIGHT, iadd(fontpx, 8))
+  imax(UI_TREE_ROW_HEIGHT, iadd(fontpx, 14))
 
-fun topbar_tabs_x0(s: &App_record): int = let
-  val ox = if not(is_side_none(s.side)) then s.sidew else 0
-in
-  imax(iadd(imul(3, s.btnw), 8), if igt(ox, 0) then iadd(ox, 6) else 0)
-end
+fun topbar_tabs_x0(s: &App_record): int =
+  if not(is_side_none(s.side)) then imax(124, s.sidew) else 124
 
 fun side_divider_hovered(s: &App_record): bool =
   not(is_side_none(s.side)) andalso ige(s.hovery, s.tb_h)
@@ -258,31 +260,32 @@ typedef CfgLayout = @{
 fun config_layout_tail(
   top_y: int, lh: int, btn_h: int, frow_h: int, vb_y: int, vb_w: int, kb_w: int, sidew: int, fcnt: int
 ): CfgLayout = let
-  val ed_ly = iadd(vb_y, iadd(btn_h, 12))
-  val ed_sy = iadd(ed_ly, iadd(lh, 10))
-  val doc_ly = iadd(ed_sy, 20)
-  val doc_sy = iadd(doc_ly, iadd(lh, 10))
-  val eng_y = iadd(doc_sy, 22)
-  val fl_y = iadd(eng_y, iadd(lh, 4))
-  val kb_y = iadd(fl_y, iadd(imul(imin(fcnt, 12), frow_h), 10))
+  val ed_ly = iadd(vb_y, iadd(btn_h, 16))
+  val ed_sy = iadd(ed_ly, iadd(lh, 12))
+  val doc_ly = iadd(ed_sy, 24)
+  val doc_sy = iadd(doc_ly, iadd(lh, 12))
+  val eng_y = iadd(doc_sy, 26)
+  val fl_y = iadd(eng_y, iadd(lh, 6))
+  val kb_y = iadd(fl_y, iadd(imul(fcnt, frow_h), 14))
 in @{
   lh= lh, btn_h= btn_h, frow_h= frow_h,
-  vault_lbl_y= top_y, vault_path_y= iadd(top_y, iadd(lh, 2)), vault_btn_y= vb_y, vault_btn_w= vb_w,
+  vault_lbl_y= top_y, vault_path_y= iadd(top_y, iadd(lh, 4)), vault_btn_y= vb_y, vault_btn_w= vb_w,
   ed_lbl_y= ed_ly, ed_sldr_y= ed_sy, doc_lbl_y= doc_ly, doc_sldr_y= doc_sy,
-  eng_title_y= eng_y, font_list_y= fl_y, kb_y= kb_y, kb_rows_y= iadd(kb_y, iadd(btn_h, 6)),
+  eng_title_y= eng_y, font_list_y= fl_y, kb_y= kb_y, kb_rows_y= iadd(kb_y, iadd(btn_h, 8)),
   kb_btn_x= imax(12, isub(sidew, iadd(kb_w, 12))), kb_btn_w= kb_w
 } end
 
 fun config_layout_step(top_y: int, lh: int, fontpx: int, sidew: int, fcnt: int): CfgLayout = let
-  val btn_h = imax(22, iadd(lh, 6))
-  val frow_h = imax(22, iadd(lh, 4))
-  val vb_y = iadd(iadd(top_y, iadd(lh, 2)), iadd(lh, 6))
+  val () = seen_int(fontpx)
+  val btn_h = imax(28, iadd(lh, 8))
+  val frow_h = imax(28, iadd(lh, 6))
+  val vb_y = iadd(iadd(top_y, iadd(lh, 4)), iadd(lh, 8))
   val max_bw = imax(80, isub(sidew, 24))
-  val vb_w = imin(max_bw, imax(150, iadd(imul(fontpx, 10), 24)))
-  val kb_w = imin(max_bw, imax(88, iadd(imul(fontpx, 4), 24)))
+  val vb_w = max_bw
+  val kb_w = imin(max_bw, 92)
 in
   config_layout_tail(top_y, lh, btn_h, frow_h, vb_y, vb_w, kb_w, sidew, fcnt)
 end
 
 fun config_layout(f: !Font, s: &App_record): CfgLayout =
-  config_layout_step(iadd(doc_top_y_of(s), 12), imax(18, font_line_h(f)), s.fontpx, s.sidew, s.fcnt)
+  config_layout_step(isub(iadd(doc_top_y_of(s), 12), s.settings_scroll), imax(18, font_line_h(f)), s.fontpx, s.sidew, s.fcnt)

@@ -117,10 +117,43 @@ fun resolve_vault_buffer(vb: &Buf >> Buf, out_vsel: &int >> int): void =
     ()
   end
 
-fun pick_first_font(fpath: &Buf >> Buf, fpaths: !Buf, fmeta: !Buf, fcnt: int): void =
+fun font_byte_lower(b: int): int =
+  if ige(b, 65) andalso ile(b, 90) then iadd(b, 32) else b
+
+fun fname_has_regular_at(b: !Buf, off: int): bool =
+  ieq(font_byte_lower(buf_get(b, off)), 114) andalso
+  ieq(font_byte_lower(buf_get(b, iadd(off, 1))), 101) andalso
+  ieq(font_byte_lower(buf_get(b, iadd(off, 2))), 103) andalso
+  ieq(font_byte_lower(buf_get(b, iadd(off, 3))), 117) andalso
+  ieq(font_byte_lower(buf_get(b, iadd(off, 4))), 108) andalso
+  ieq(font_byte_lower(buf_get(b, iadd(off, 5))), 97) andalso
+  ieq(font_byte_lower(buf_get(b, iadd(off, 6))), 114)
+
+fun fname_has_regular_m {n:nat} .<n>. (
+  rem: int(n), b: !Buf, off: int, len: int, p: int
+): bool =
+  if rem = 0 then false
+  else if igt(iadd(p, 7), len) then false
+  else if fname_has_regular_at(b, iadd(off, p)) then true
+  else fname_has_regular_m(rem - 1, b, off, len, iadd(p, 1))
+
+fun pick_regular_font_idx_m {n:nat} .<n>. (
+  rem: int(n), fnames: !Buf, fmeta: !Buf, i: int
+): int =
+  if rem = 0 then 0
+  else let
+    val noff = buf_get32(fmeta, iadd(imul(i, 4), 2))
+    val nlen = buf_get32(fmeta, iadd(imul(i, 4), 3))
+    val ok = ige(nlen, 7) andalso fname_has_regular_m(airlock_nat(isub(nlen, 6)), fnames, noff, nlen, 0)
+  in
+    if ok then i else pick_regular_font_idx_m(rem - 1, fnames, fmeta, iadd(i, 1))
+  end
+
+fun pick_first_font(fpath: &Buf >> Buf, fnames: !Buf, fpaths: !Buf, fmeta: !Buf, fcnt: int): void =
   if ieq(buf_len(fpath), 0) andalso igt(fcnt, 0) then let
-    val poff = buf_get32(fmeta, 0)
-    val plen = buf_get32(fmeta, 1)
+    val sel = pick_regular_font_idx_m(airlock_nat(fcnt), fnames, fmeta, 0)
+    val poff = buf_get32(fmeta, imul(sel, 4))
+    val plen = buf_get32(fmeta, iadd(imul(sel, 4), 1))
     val () = buffer_append_range(fpath, fpaths, poff, iadd(poff, plen))
   in
     ()
@@ -156,7 +189,7 @@ in
 end
 
 fun open_init_session(
-  vb: !Buf, f_vsel: Toggle, fpaths: !Buf, fmeta: !Buf, fcnt: int,
+  vb: !Buf, f_vsel: Toggle, fnames: !Buf, fpaths: !Buf, fmeta: !Buf, fcnt: int,
   tab_pane: &Buf >> Buf, open_dirs: &Buf >> Buf
 ): @(Tabs, Buf, int, int, int, int, int, int, int, int) = let
   var fpath = buf_make(OPEN_INIT_SESSION_FPATH_INITIAL_BYTES)
@@ -170,7 +203,7 @@ fun open_init_session(
   var sidew: int = UI_SIDEBAR_WIDTH
   val tabs = init_vault_tabs(vb, f_vsel, fpath, fpx, dfpx, vmode, sp, act_idx, right_idx, side_open, sidew, tab_pane, open_dirs)
   val _ = conf_load_prefs(fpath, fpx, dfpx, sidew)
-  val () = pick_first_font(fpath, fpaths, fmeta, fcnt)
+  val () = pick_first_font(fpath, fnames, fpaths, fmeta, fcnt)
 in
   @(tabs, fpath, fpx, dfpx, vmode, sp, act_idx, right_idx, side_open, sidew)
 end
@@ -212,7 +245,11 @@ in @{
   chord_active= Off, chord_mods= 0, chord_key= 0, doc_h_left= 0, doc_h_right= 0, doc_vh= 600, doc_top_y= UI_DOC_TOP_Y,
   scroll_drag_pane= 0, scroll_drag_grab_y= 0, pan_start_y= 0, pan_start_scroll= 0,
   tree_drag_pending= Off, last_w= 1100, last_h= 720,
-  last_click_ns= 0L, last_click_x= ~1, last_click_y= ~1, last_click_pos= ~1, last_click_tab= ~1
+  last_click_ns= 0L, last_click_x= ~1, last_click_y= ~1, last_click_pos= ~1, last_click_tab= ~1,
+  settings_open= Off, settings_tab= SetVault, settings_scroll= 0,
+  menu_var= MenuVarEditText, menu_sub= SubNone,
+  menu_sub_x= 0, menu_sub_y= 0, menu_sub_w= 200,
+  menu_tree_idx= ~1, paste_plain= Off
 } end
 
 fun app_fsm_step(s: &App_record >> _, act: EditorAction): void = let
@@ -230,7 +267,7 @@ implement app_open(vault) = let
   var tab_pane = buf_make(APP_OPEN_TAB_PANE_INITIAL_BYTES)
   var open_dirs = buf_make(APP_OPEN_OPEN_DIRS_INITIAL_BYTES)
   val @(tabs, fpath, fpx, dfpx, vmode, sp, act_idx, right_idx, side_open, sidew) =
-    open_init_session(vb, toggle_of(ieq(f_vsel, 1)), fpaths, fmeta, fcnt, tab_pane, open_dirs)
+    open_init_session(vb, toggle_of(ieq(f_vsel, 1)), fnames, fpaths, fmeta, fcnt, tab_pane, open_dirs)
   val r = app_record_make(
     vb, tabs, fpaths, fnames, fmeta, fcnt, vpaths, vnames, vmeta, vcnt,
     tab_pane, open_dirs, fpath, fpx, dfpx, vmode, sp, act_idx, right_idx,

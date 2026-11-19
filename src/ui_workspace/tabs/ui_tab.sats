@@ -66,3 +66,6 @@ fun tabs_caret(ts: !Tabs, idx: int): int
 fun tabs_anchor(ts: !Tabs, idx: int): int
 fun tabs_copy_doc_text(ts: !Tabs, p: !Buf, dst: &Buf >> _): int
 fun tabs_sync_cursor_focus(ts: !Tabs, focused: bool, active_idx: int): void
+fun tabs_wrap(ts: Tabs, idx: int, pre: string, plen: int, suf: string, suflen: int): Tabs
+fun tabs_set_line_prefix(ts: Tabs, idx: int, pre: string, plen: int): Tabs
+fun tabs_discard_matching(ts: Tabs, target: !Buf, is_dir: bool): Tabs

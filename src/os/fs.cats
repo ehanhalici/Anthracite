@@ -15,6 +15,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 #include <dirent.h>
 
 static inline int anth_open_read(const char *p) { return open(p, O_RDONLY); }
@@ -109,6 +110,43 @@ static inline void anth_remove_tree(const char *path) {
     closedir(d);
   }
   rmdir(path);
+}
+
+static inline int anth_copy_file(const char *src, const char *dst) {
+  if (!src || !dst) return -1;
+  struct stat st;
+  if (lstat(src, &st) != 0 || !S_ISREG(st.st_mode)) return -1;
+  int rfd = open(src, O_RDONLY);
+  if (rfd < 0) return -1;
+  int wfd = open(dst, O_WRONLY | O_CREAT | O_EXCL, (mode_t)(st.st_mode & 0777) | 0600);
+  if (wfd < 0) { close(rfd); return -1; }
+  char buf[4096];
+  int ok = 0;
+  for (;;) {
+    ssize_t nr = read(rfd, buf, sizeof(buf));
+    if (nr == 0) break;
+    if (nr < 0) {
+      if (errno == EINTR) continue;
+      ok = -1;
+      break;
+    }
+    ssize_t off = 0;
+    while (off < nr) {
+      ssize_t nw = write(wfd, buf + off, (size_t)(nr - off));
+      if (nw < 0) {
+        if (errno == EINTR) continue;
+        ok = -1;
+        break;
+      }
+      off += nw;
+    }
+    if (ok < 0) break;
+  }
+  close(rfd);
+  if (ok == 0 && fsync(wfd) != 0) ok = -1;
+  if (close(wfd) != 0) ok = -1;
+  if (ok != 0) unlink(dst);
+  return ok;
 }
 
 static char anth_selftest_temp_dir[64];
@@ -308,6 +346,47 @@ static inline void anth_open_url(const char *url) {
   }
   if (pid > 0) {
     waitpid(pid, NULL, 0);
+  }
+}
+
+/* Exclusive non-blocking advisory lock so only one Anthracite instance runs per config dir. */
+static inline int anth_instance_lock(const char *path, int *owner_pid) {
+  if (owner_pid) *owner_pid = 0;
+  if (!path || !path[0]) return -2;
+  int fd = open(path, O_CREAT | O_RDWR | O_CLOEXEC, 0644);
+  if (fd < 0) return -2;
+  if (flock(fd, LOCK_EX | LOCK_NB) != 0) {
+    int err = errno;
+    if (err == EWOULDBLOCK || err == EAGAIN) {
+      if (owner_pid) {
+        char buf[32];
+        ssize_t n = pread(fd, buf, sizeof(buf) - 1, 0);
+        if (n > 0) {
+          buf[n] = '\0';
+          *owner_pid = atoi(buf);
+        }
+      }
+      close(fd);
+      return -1;
+    }
+    close(fd);
+    return -2;
+  }
+  if (ftruncate(fd, 0) == 0) {
+    char pidbuf[32];
+    int n = snprintf(pidbuf, sizeof(pidbuf), "%ld\n", (long)getpid());
+    if (n > 0) {
+      ssize_t w = pwrite(fd, pidbuf, (size_t)n, 0);
+      (void)w;
+    }
+  }
+  return fd;
+}
+
+static inline void anth_instance_unlock(int fd) {
+  if (fd >= 0) {
+    flock(fd, LOCK_UN);
+    close(fd);
   }
 }
 

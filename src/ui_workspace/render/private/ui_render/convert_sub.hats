@@ -181,13 +181,13 @@ in
 end
 
 fun leaf_color_for(d: !Doc, i: int, k: NodeKind, style: int, is_read: bool): uint =
-  if is_read andalso is_bullet_mark(d, i) then col_accent()
+  if is_read andalso is_bullet_mark(d, i) then col_task()
   else if is_kind(k, KMark) then col_muted()
   else if is_kind(k, KTag) then col_tag()
   else if iand(style, STYLE_LINK) != 0 then col_link()
   else if iand(style, STYLE_HIGH) != 0 then col_hightxt()
   else if iand(style, STYLE_BOLD) != 0 then col_white()
-  else if iand(style, STYLE_ITALIC) != 0 then col_accent()
+  else if iand(style, STYLE_ITALIC) != 0 then col_task()
   else if iand(style, STYLE_STRIKE) != 0 then col_muted()
   else if iand(style, STYLE_MATH) != 0 then col_math()
   else if iand(style, STYLE_CODE) != 0 then col_code()

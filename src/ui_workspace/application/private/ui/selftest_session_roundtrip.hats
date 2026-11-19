@@ -95,7 +95,10 @@ fun selftest_nav_and_scroll(fnt: !Font, r: !Rend): int = let
   val () = tab_hover_info(fnt, r, dummy, 80, 120, 0, tp, ti, bx, ov)
   val d2 = draw_tabrow_pane(fnt, r, dummy, 80, 0, 0, 0, tp)
   val () = ui_scroll_bar(r, 780, UI_DOC_TOP_Y, UI_SCROLLBAR_IDLE_WIDTH, 400, Vertical, 2000, 400, sc, On, Off)
-  val ok = if ige(ti, 0) andalso igt(tlen, 0) andalso igt(UI_TAB_FIXED_WIDTH, 0) then 1 else 0
+  val cw_wide = editor_colw(fnt, r, 0, 1400)
+  val cw_narrow = editor_colw(fnt, r, 0, 400)
+  val col_ok = igt(cw_wide, 300) andalso ile(cw_wide, 960) andalso ilt(cw_narrow, cw_wide) andalso igt(cw_narrow, 200)
+  val ok = if ige(ti, 0) andalso igt(tlen, 0) andalso igt(UI_TAB_FIXED_WIDTH, 0) andalso col_ok then 1 else 0
   val () = tabs_free(d2)
   val () = buf_free(tp)
 in ok end
@@ -160,6 +163,171 @@ in
   (if is_on(search_ok) andalso is_on(flow_ok) andalso is_on(chrome_ok) andalso is_on(files_ok) then 1 else 0)
 end
 
+fun chk_var_rows_m {n:nat} .<n>. (
+  rem: int(n), fnt: !Font, r: !Rend, mv: MenuVariant, mw: int, i: int
+): bool =
+  if rem = 0 then true
+  else let
+    val lbl = menu_var_label(mv, i)
+    val tw = font_width(fnt, r, c_str_ptr(lbl), c_strlen(lbl))
+    val has_sub = not(is_sub_none(menu_var_submenu(mv, i)))
+    val pr = if has_sub then UI_MENU_SUB_PAD_R else UI_MENU_PAD_R
+    val fits = ile(iadd(UI_MENU_PAD_L, iadd(tw, pr)), mw)
+    val ry = iadd(40, menu_var_row_y(mv, i))
+    val mid_y = iadd(ry, idiv(UI_MENU_ITEM_HEIGHT, 2))
+    val hit_ok = ieq(menu_hit_root(mv, 40, 40, mw, 50, mid_y), i)
+  in
+    if fits andalso hit_ok then chk_var_rows_m(rem - 1, fnt, r, mv, mw, iadd(i, 1))
+    else false
+  end
+
+fun chk_var_one(fnt: !Font, r: !Rend, mv: MenuVariant): bool = let
+  val mw = menu_var_measure_width(fnt, r, mv)
+  val n = menu_var_count(mv)
+in
+  chk_var_rows_m(airlock_nat(n), fnt, r, mv, mw, 0)
+end
+
+fun chk_sub_rows_m {n:nat} .<n>. (
+  rem: int(n), fnt: !Font, r: !Rend, sub: SubmenuL1, sw: int, i: int
+): bool =
+  if rem = 0 then true
+  else let
+    val lbl = menu_sub_label(sub, i)
+    val tw = font_width(fnt, r, c_str_ptr(lbl), c_strlen(lbl))
+    val fits = ile(iadd(UI_MENU_PAD_L, iadd(tw, UI_MENU_PAD_R)), sw)
+    val ry = iadd(100, menu_sub_row_y(sub, i))
+    val mid_y = iadd(ry, idiv(UI_MENU_ITEM_HEIGHT, 2))
+    val hit_ok = ieq(menu_hit_sub(sub, 100, 100, sw, 110, mid_y), i)
+  in
+    if fits andalso hit_ok then chk_sub_rows_m(rem - 1, fnt, r, sub, sw, iadd(i, 1))
+    else false
+  end
+
+fun chk_sub_vp_one(fnt: !Font, r: !Rend, sub: SubmenuL1, mx: int, my: int, w: int, h: int): bool = let
+  val mw = menu_var_measure_width(fnt, r, MenuVarEditText)
+  val sw_meas = menu_sub_measure_width(fnt, r, sub)
+  val sh = menu_sub_height(sub)
+  var sx: int = 0; var sy: int = 0; var sw: int = 0
+  val () = menu_sub_pos(MenuVarEditText, sub, mx, my, mw, sw_meas, w, h, sx, sy, sw)
+  val w_ok = if ile(sw_meas, isub(w, 8)) then ige(sw, sw_meas) else ile(sw, isub(w, 8))
+in
+  ige(sx, 4) andalso ile(iadd(sx, sw), isub(w, 4))
+    andalso ige(sy, 4) andalso ile(iadd(sy, sh), isub(h, 4))
+    andalso w_ok
+end
+
+fun chk_sub_one(fnt: !Font, r: !Rend, sub: SubmenuL1): bool = let
+  val sw = menu_sub_measure_width(fnt, r, sub)
+  val rows_ok = chk_sub_rows_m(airlock_nat(menu_sub_count(sub)), fnt, r, sub, sw, 0)
+  val vp1 = chk_sub_vp_one(fnt, r, sub, 4, 40, 640, 480)
+  val vp2 = chk_sub_vp_one(fnt, r, sub, 500, 300, 1100, 720)
+  val vp3 = chk_sub_vp_one(fnt, r, sub, 1820, 1000, 1920, 1080)
+in
+  rows_ok andalso vp1 andalso vp2 andalso vp3
+end
+
+fun chk_fit_one(fnt: !Font, r: !Rend, s: string, max_w: int): bool = let
+  val slen = c_strlen(s)
+  val fit_n = ui_fit_str_bytes(fnt, r, c_str_ptr(s), slen, max_w)
+  val fw = if igt(fit_n, 0) then font_width(fnt, r, c_str_ptr(s), fit_n) else 0
+in
+  ige(fit_n, 0) andalso ile(fit_n, slen) andalso ile(fw, max_w)
+end
+
+fun chk_fit_str_all_w(fnt: !Font, r: !Rend, s: string): bool =
+  chk_fit_one(fnt, r, s, 0)
+    andalso chk_fit_one(fnt, r, s, 1)
+    andalso chk_fit_one(fnt, r, s, 8)
+    andalso chk_fit_one(fnt, r, s, 20)
+    andalso chk_fit_one(fnt, r, s, 40)
+    andalso chk_fit_one(fnt, r, s, 72)
+    andalso chk_fit_one(fnt, r, s, 120)
+    andalso chk_fit_one(fnt, r, s, 200)
+
+fun chk_tabs_width_m {n:nat} .<n>. (
+  rem: int(n), fnt: !Font, r: !Rend, nt: int
+): bool =
+  if rem = 0 then true
+  else let
+    val tw = tab_box_width_for_bar(800, nt)
+    val text_w = imax(0, isub(tw, iadd(8, 26)))
+    val title = "Çok Uzun Türkçe Sekme Başlığı Örneği.md"
+    val tlen = c_strlen(title)
+    val ell_w = font_width(fnt, r, c_str_ptr("..."), 3)
+    val fit_ok =
+      if igt(text_w, ell_w) then let
+        val fit_n = ui_fit_str_bytes(fnt, r, c_str_ptr(title), tlen, isub(text_w, ell_w))
+        val fw = if igt(fit_n, 0) then font_width(fnt, r, c_str_ptr(title), fit_n) else 0
+      in
+        ile(iadd(fw, ell_w), text_w)
+      end else true
+    val sep_ok = ile(iadd(8, text_w), isub(tw, 22))
+  in
+    if fit_ok andalso sep_ok then chk_tabs_width_m(rem - 1, fnt, r, iadd(nt, 1))
+    else false
+  end
+
+fun chk_span_proof_one(bw: int, pl: int, pr: int): bool = let
+  val bwn = airlock_nat(imax(0, bw))
+  val (pf_span | off, cw) = ui_inner_span(bwn, airlock_nat(imax(0, pl)), airlock_nat(imax(0, pr)))
+  prval SpanFits() = pf_span
+  val off_g = g0ofg1(off)
+  val cw_g = g0ofg1(cw)
+  val dx = ui_align_in_span(cw, cw, true)
+  val dx_g = g0ofg1(dx)
+in
+  ige(off_g, 0) andalso ige(cw_g, 0) andalso ile(iadd(off_g, cw_g), bw) andalso ieq(dx_g, 0)
+end
+
+fun selftest_ui_containment_px(fnt: !Font, r: !Rend, px: int): bool = let
+  val () = font_set_px(fnt, px)
+  val v_ok =
+    chk_var_one(fnt, r, MenuVarEditText)
+    andalso chk_var_one(fnt, r, MenuVarImage)
+    andalso chk_var_one(fnt, r, MenuVarReadText)
+    andalso chk_var_one(fnt, r, MenuVarTreeItem)
+    andalso chk_var_one(fnt, r, MenuVarTreeEmpty)
+  val s_ok =
+    chk_sub_one(fnt, r, SubFormat)
+    andalso chk_sub_one(fnt, r, SubParagraph)
+    andalso chk_sub_one(fnt, r, SubInsert)
+  val mw = mode_btn_width(fnt, r)
+  val m1 = "Düzenle"
+  val m2 = "Okuma"
+  val mode_ok =
+    ile(iadd(28, iadd(font_width(fnt, r, c_str_ptr(m1), c_strlen(m1)), 8)), mw)
+    andalso ile(iadd(28, iadd(font_width(fnt, r, c_str_ptr(m2), c_strlen(m2)), 8)), mw)
+  val fit_ok =
+    chk_fit_str_all_w(fnt, r, "Madde işaretli liste")
+    andalso chk_fit_str_all_w(fnt, r, "[x] İşaretli liste")
+    andalso chk_fit_str_all_w(fnt, r, "Düz metin olarak yapıştır")
+    andalso chk_fit_str_all_w(fnt, r, "Kasayı Değiştir")
+    andalso chk_fit_str_all_w(fnt, r, "Çok Uzun Türkçe Sekme Başlığı Örneği")
+  val tab_ok = chk_tabs_width_m(airlock_nat(20), fnt, r, 1)
+  val span_ok =
+    chk_span_proof_one(0, 8, 8)
+    andalso chk_span_proof_one(10, 8, 8)
+    andalso chk_span_proof_one(16, 8, 8)
+    andalso chk_span_proof_one(200, 8, 26)
+in
+  v_ok andalso s_ok andalso mode_ok andalso fit_ok andalso tab_ok andalso span_ok
+end
+
+fun selftest_ui_containment(r: !Rend): int = let
+  val fnt = font_open()
+  val loaded = font_load_default(fnt)
+  val ok12 = selftest_ui_containment_px(fnt, r, 12)
+  val ok14 = selftest_ui_containment_px(fnt, r, 14)
+  val ok18 = selftest_ui_containment_px(fnt, r, 18)
+  val ok22 = selftest_ui_containment_px(fnt, r, 22)
+  val ok26 = selftest_ui_containment_px(fnt, r, 26)
+  val ok32 = selftest_ui_containment_px(fnt, r, 32)
+  val () = font_free(fnt)
+in
+  if loaded andalso ok12 andalso ok14 andalso ok18 andalso ok22 andalso ok26 andalso ok32 then 1 else 0
+end
+
 implement app_selftest(r, root) = let
   var d1 = buf_make(32)
   val () = buffer_append_string(d1, root)
@@ -168,10 +336,11 @@ implement app_selftest(r, root) = let
   val @(flow_ok, ih, doc, cache, vault, scratch) = selftest_flow(r, root)
   val lp_ok = selftest_live_preview_heading(r)
   val chrome_ok = selftest_tabs(d1)
+  val contain_ok = selftest_ui_containment(r)
   val files_ok = if ieq(selftest_files(root),1) andalso ieq(editor_fsm_selftest(),1)
     andalso ieq(selftest_embed_navigation(root),1) then 1 else 0
   val () = selftest_draw(r, doc, cache, vault, scratch)
   val () = buf_free(d1)
 in
-  selftest_report(toggle_of(ieq(search_ok, 1)), toggle_of(ieq(flow_ok, 1) andalso ieq(lp_ok, 1)), ih, toggle_of(ieq(chrome_ok, 1)), toggle_of(ieq(files_ok, 1)))
+  selftest_report(toggle_of(ieq(search_ok, 1)), toggle_of(ieq(flow_ok, 1) andalso ieq(lp_ok, 1)), ih, toggle_of(ieq(chrome_ok, 1) andalso ieq(contain_ok, 1)), toggle_of(ieq(files_ok, 1)))
 end

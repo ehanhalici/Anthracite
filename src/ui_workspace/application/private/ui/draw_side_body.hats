@@ -1,7 +1,7 @@
 fun draw_side_body(f: !Font, r: !Rend, s: &App_record, h: int): void =
   if is_side_search(s.side) then draw_sidebar_search(f, r, s, s.sidew,h)
   else if is_side_files(s.side) then draw_sidebar_files(f, r, s, s.sidew, h)
-  else draw_sidebar_config(f, r, s)
+  else draw_sidebar_config(f, r, s, h)
 
 fun draw_side(f: !Font, r: !Rend, a: !App, h: int): void =
   case+ a of
@@ -19,7 +19,11 @@ fun draw_side(f: !Font, r: !Rend, a: !App, h: int): void =
 fun ui_draw_menu(f: !Font, r: !Rend, a: !App): void =
   case+ a of
   | @APP(s) => let
-      val () = draw_menu(f, r, s.menu, s.menux, s.menuy, s.menuw)
+      val () = font_set_px(f, s.fontpx)
+      val mw = if igt(s.menuw, 0) then s.menuw else UI_MENU_WIDTH
+      val () = if not(is_menu_none(s.menu)) then
+        draw_menu_v2(f, r, s.menu_var, s.menu_sub, s.menux, s.menuy, mw, s.menu_sub_x, s.menu_sub_y, s.menu_sub_w, s.hoverx, s.hovery)
+      else ()
     in
       fold@(a)
     end
@@ -33,11 +37,10 @@ fun wider(a: int, b: int): int =
 fun icon_slot(f: !Font, r: !Rend, text: string): int =
   iadd(label_px(f, r, text), 44)
 
-fun side_btn_width(f: !Font, r: !Rend): int =
-  wider(icon_slot(f, r, "Ayarlar"), wider(icon_slot(f, r, "Gezgin"), icon_slot(f, r, "Arama")))
+fun side_btn_width(f: !Font, r: !Rend): int = UI_TOPBAR_ICON_SZ
 
 fun mode_slot(f: !Font, r: !Rend, text: string): int =
-  iadd(label_px(f, r, text), 28)
+  iadd(label_px(f, r, text), 38)
 
 fun mode_btn_width(f: !Font, r: !Rend): int =
   wider(mode_slot(f, r, "Düzenle"), mode_slot(f, r, "Okuma"))
@@ -57,8 +60,7 @@ fun menu_w_image(f: !Font, r: !Rend): int =
 fun menu_w_tree(f: !Font, r: !Rend): int =
   wider(menu_w_pair(f, r, "Yeni Klasör Oluştur", "Yeni Dosya Oluştur"), menu_w_pair(f, r, "Yeniden Adlandır", "Sil"))
 
-fun menu_width(f: !Font, r: !Rend): int =
-  wider(UI_MENU_WIDTH, wider(menu_w_text(f, r), wider(menu_w_image(f, r), menu_w_tree(f, r))))
+fun menu_width(f: !Font, r: !Rend): int = menu_compute_width(f, r)
 
 fun ensure_chrome(f: !Font, r: !Rend, s: &App_record >> _): void =
   if igt(s.btnw, 0) then ()
@@ -73,11 +75,17 @@ fun ensure_chrome(f: !Font, r: !Rend, s: &App_record >> _): void =
     s.menuw := menu_width(f, r)
   end
 
-fun topbar_btn_x(idx: int, btnw: int): int =
-  imul(idx, btnw)
+fun topbar_btn_x(idx: int, btnw: int): int = let
+  val () = seen_int(btnw)
+in
+  iadd(UI_TOPBAR_LEFT_PAD, imul(idx, iadd(UI_TOPBAR_ICON_SZ, UI_TOPBAR_ICON_GAP)))
+end
 
-fun topbar_tab_start_x(btnw: int): int =
-  iadd(imul(3, btnw), 8)
+fun topbar_tab_start_x(btnw: int): int = let
+  val () = seen_int(btnw)
+in
+  124
+end
 
 fun topbar_mode_btn_x(w: int, modew: int): int =
   isub(w, iadd(modew, 10))
@@ -87,26 +95,24 @@ fun bar_hovered(s: &App_record, x: int, bw: int): bool =
 
 fun draw_topbar_side_buttons(f: !Font, r: !Rend, s: &App_record): void = let
   val bw = s.btnw
-  val th = s.tb_h
+  val iy = idiv(isub(s.tb_h, bw), 2)
   val x1 = topbar_btn_x(0, bw)
   val x2 = topbar_btn_x(1, bw)
   val x3 = topbar_btn_x(2, bw)
-  val () = ui_icon_button(f, r, UI_ICON_FOLDER, "Gezgin", x1, 0, bw, th, toggle_of(is_side_files(s.side)), toggle_of(bar_hovered(s, x1, bw)))
-  val () = ui_icon_button(f, r, UI_ICON_SEARCH, "Arama", x2, 0, bw, th, toggle_of(is_side_search(s.side)), toggle_of(bar_hovered(s, x2, bw)))
-  val () = ui_icon_button(f, r, UI_ICON_SETTINGS, "Ayarlar", x3, 0, bw, th, toggle_of(is_side_config(s.side)), toggle_of(bar_hovered(s, x3, bw)))
+  val () = ui_icon_only_button(f, r, UI_ICON_SIDEBAR, x1, iy, bw, toggle_of(is_side_files(s.side)), toggle_of(bar_hovered(s, x1, bw)))
+  val () = ui_icon_only_button(f, r, UI_ICON_SEARCH, x2, iy, bw, toggle_of(is_side_search(s.side)), toggle_of(bar_hovered(s, x2, bw)))
+  val () = ui_icon_only_button(f, r, UI_ICON_SETTINGS, x3, iy, bw, toggle_of(is_side_config(s.side)), toggle_of(bar_hovered(s, x3, bw)))
 in
 end
 
 fun draw_topbar_chrome(f: !Font, r: !Rend, s: &App_record, w: int): void = let
-  val tab_sep_x = imul(3, s.btnw)
   val th = s.tb_h
   val () = rend_rect(r, 0, 0, w, th, col_bar())
   val () = ui_divider(r, 0, isub(th, 1), w, Horizontal)
   val () = draw_topbar_side_buttons(f, r, s)
-  val () = ui_divider(r, tab_sep_x, 0, th, Vertical)
-  val () = if not(is_side_none(s.side)) andalso igt(s.sidew, tab_sep_x) then
-    ui_divider(r, isub(s.sidew, 1), 0, th, Vertical)
-  else ()
+  val () =
+    if not(is_side_none(s.side)) andalso ige(s.sidew, 124) then ui_divider(r, isub(s.sidew, 1), 0, th, Vertical)
+    else ui_divider(r, 118, 8, isub(th, 16), Vertical)
 in
   seen_int(w)
 end
@@ -117,7 +123,7 @@ fun draw_chord_badge_buf(f: !Font, r: !Rend, th: int, bx: int, cb: !Buf): void =
   val cx = isub(bx, iadd(cw, 8))
   val cy = imax(2, idiv(isub(th, imax(16, font_line_h(f))), 2))
 in
-  ui_badge(f, r, cx, cy, buffer_c_string(cb), col_side(), col_accent())
+  ui_badge(f, r, cx, cy, buffer_c_string(cb), col_side(), col_accent_hi())
 end
 
 fun draw_chord_badge(f: !Font, r: !Rend, th: int, bx: int, mods: int, key: int): void = let
@@ -130,38 +136,47 @@ in
 end
 
 fun draw_topbar_mode(f: !Font, r: !Rend, s: &App_record, w: int): void = let
-  val text = if is_view_edit(s.viewmode) then "Düzenle" else "Okuma"
+  val is_edit = is_view_edit(s.viewmode)
+  val text = if is_edit then "Düzenle" else "Okuma"
+  val icon = if is_edit then UI_ICON_EDIT else UI_ICON_EYE
   val bx = topbar_mode_btn_x(w, s.modew)
+  val by = 6
+  val bh = imax(20, isub(s.tb_h, 12))
   val hover = bar_hovered(s, bx, s.modew)
+  val bg = if hover then col_surface_hi() else if not(is_edit) then col_accent_soft() else col_surface()
+  val bdr = if not(is_edit) then col_accent() else col_line()
   val () = if is_on(s.chord_active) then draw_chord_badge(f, r, s.tb_h, bx, s.chord_mods, s.chord_key) else ()
+  val () = rend_rrect_ex(r, bx, by, s.modew, bh, 6, 6, 6, 6, bg, bg, 1, bdr, 1)
+  val icol = if not(is_edit) orelse hover then col_accent_hi() else col_muted()
+  val tcol = if hover orelse not(is_edit) then col_heading() else col_text()
+  val () = ui_draw_icon(f, r, icon, iadd(bx, 10), iadd(by, idiv(isub(bh, 12), 2)), 12, icol)
 in
-  ui_button(f, r, bx, 4, s.modew, isub(s.tb_h, 8), text,
-    toggle_of(hover), toggle_of(is_view_edit(s.viewmode)))
+  ui_draw_fitted_text(f, r, bx, by, s.modew, bh, 28, 8, Off, text, tcol)
 end
 
 fun apply_jump_if(ts: Tabs, act: int, jline: int, jcol: int, jlen: int): Tabs =
   if ige(jline, 0) then tabs_jump_span(ts, act, jline, jcol, jlen) else ts
 
-fun draw_split_tabs(f: !Font, r: !Rend, ts: Tabs, th: int, tab_x0: int, mid: int, bx: int, act: int, righti: int, tab_pane: !Buf): Tabs = let
+fun draw_split_tabs(f: !Font, r: !Rend, ts: Tabs, th: int, tab_x0: int, mid: int, bx: int, act: int, righti: int, tab_pane: !Buf, hx: int, hy: int): Tabs = let
   val left_w = imax(40, isub(isub(mid, 4), tab_x0))
   val () = rend_clip_push(r, tab_x0, 0, left_w, th)
-  val ts_l = draw_tabrow_pane_w(f, r, ts, tab_x0, left_w, act, 0, 0, tab_pane)
+  val ts_l = draw_tabrow_pane_hover(f, r, ts, tab_x0, left_w, act, 0, 0, tab_pane, hx, hy)
   val () = rend_clip_pop(r)
   val right_x0 = iadd(mid, 4)
   val right_w = imax(40, isub(isub(bx, 6), right_x0))
   val () = rend_clip_push(r, right_x0, 0, right_w, th)
-  val ts_r = draw_tabrow_pane_w(f, r, ts_l, right_x0, right_w, righti, 0, 1, tab_pane)
+  val ts_r = draw_tabrow_pane_hover(f, r, ts_l, right_x0, right_w, righti, 0, 1, tab_pane, hx, hy)
   val () = rend_clip_pop(r)
 in
   ts_r
 end
 
 fun choose_tabrow(f: !Font, r: !Rend, ts: Tabs, tab_x0: int, mid: int, bx: int, s: &App_record): Tabs =
-  if is_on(s.split) then draw_split_tabs(f, r, ts, s.tb_h, tab_x0, mid, bx, s.active, s.righti, s.tab_pane)
+  if is_on(s.split) then draw_split_tabs(f, r, ts, s.tb_h, tab_x0, mid, bx, s.active, s.righti, s.tab_pane, s.hoverx, s.hovery)
   else let
     val avail_w = imax(60, isub(isub(bx, 6), tab_x0))
     val () = rend_clip_push(r, tab_x0, 0, avail_w, s.tb_h)
-    val ts_out = draw_tabrow_pane_w(f, r, ts, tab_x0, avail_w, pane_of(s.focus, s.active, s.righti), 0, ~1, s.tab_pane)
+    val ts_out = draw_tabrow_pane_hover(f, r, ts, tab_x0, avail_w, pane_of(s.focus, s.active, s.righti), 0, ~1, s.tab_pane, s.hoverx, s.hovery)
     val () = rend_clip_pop(r)
   in
     ts_out
@@ -263,11 +278,26 @@ fun ensure_dir_report(path: string): void =
   else if ieq(fs_mkdir(path), 0) then ()
   else report_failure("vault_dir_create", path)
 
+fun same_loaded_font(cur: !Buf, target: !Buf): bool = let
+  val clen = buf_len(cur)
+  val tlen = buf_len(target)
+in
+  if ile(clen, 0) orelse ile(tlen, 0) then false
+  else if ieq(c_strcmp(buffer_c_string(cur), buffer_c_string(target)), 0) then true
+  else if igt(clen, tlen) andalso ieq(buf_get(cur, isub(isub(clen, tlen), 1)), 47) then
+    ends(cur, buffer_c_string(target))
+  else false
+end
+
 fun load_font_if_needed(f: !Font, s: &App_record): void =
   if ieq(s.font_idx, 0) andalso igt(buf_len(s.font_path), 0) then let
-    val () = if not(ends(s.font_path, "SourceCodePro-Regular.ttf")) then
-      font_load_report(f, buffer_c_string(s.font_path))
-    else ()
+    var cur_prim = buf_make(256)
+    var cur_fb = buf_make(256)
+    val () = font_source_paths(f, cur_prim, cur_fb)
+    val already = same_loaded_font(cur_prim, s.font_path)
+    val () = buf_free(cur_prim)
+    val () = buf_free(cur_fb)
+    val () = if not(already) then font_load_report(f, buffer_c_string(s.font_path)) else ()
     val () = font_set_px(f, s.fontpx)
     val () = s.font_idx := 1
     val () = s.btnw := 0

@@ -134,9 +134,8 @@ in
     val ph = iadd(font_line_h(f), 10)
     val px = imax(8, imin(isub(w, iadd(pw, 8)), bx))
     val py = iadd(th, 4)
-    val () = ui_draw_shadow(r, px, py, pw, ph, 4)
-    val () = rend_rect(r, px, py, pw, ph, col_menu())
-    val () = ui_draw_border(r, px, py, pw, ph, 1, col_line())
+    val () = ui_draw_shadow(r, px, py, pw, ph, 6)
+    val () = rend_rrect_ex(r, px, py, pw, ph, 6, 6, 6, 6, col_menu(), col_menu(), 1, col_line(), 1)
   in
     seen_int(font_draw_buf(f, r, iadd(px, 10), iadd(py, 5), tbuf, tlen, col_heading()))
   end else ()
@@ -172,9 +171,8 @@ fun draw_file_drag_buf(f: !Font, r: !Rend, w: int, hx: int, hy: int, nbuf: !Buf)
   val gw = imax(48, iadd(tw, 16))
   val gx = imax(4, imin(isub(w, iadd(gw, 4)), iadd(hx, 12)))
   val gy = imax(4, iadd(hy, 8))
-  val () = ui_draw_shadow(r, gx, gy, gw, 24, 4)
-  val () = rend_rect(r, gx, gy, gw, 24, col_menu())
-  val () = ui_draw_border(r, gx, gy, gw, 24, 1, col_accent())
+  val () = ui_draw_shadow(r, gx, gy, gw, 24, 6)
+  val () = rend_rrect_ex(r, gx, gy, gw, 24, 6, 6, 6, 6, col_menu(), col_menu(), 1, col_accent(), 1)
 in
   if igt(nlen, 0) then seen_int(font_draw_buf(f, r, iadd(gx, 8), iadd(gy, 3), nbuf, nlen, col_heading())) else ()
 end

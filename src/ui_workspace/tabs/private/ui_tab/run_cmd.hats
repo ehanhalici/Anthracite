@@ -366,3 +366,121 @@ fun open_document(ts: Tabs, path: Buf): Tabs = let
   end
 implement tabs_open(ts, path) =
   if is_image_path(path) then open_image(ts, path) else open_document(ts, path)
+
+fun tabs_wrap_with_fuel {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), ts: Tabs, idx: int, pre: string, plen: int, suf: string, suflen: int
+): Tabs =
+  if recursion_fuel_available(recfuel) then (
+    case+ ts of
+    | ~TNil() => TNil()
+    | ~TCons(doc, path, title, sc, rest) => let
+        val () = if ieq(idx, 0) then doc_wrap(doc, pre, plen, suf, suflen) else ()
+      in
+        if ieq(idx, 0) then TCons(doc, path, title, sc, rest)
+        else TCons(doc, path, title, sc, tabs_wrap_with_fuel(recfuel - 1, rest, isub(idx, 1), pre, plen, suf, suflen))
+      end
+  ) else ts
+
+implement tabs_wrap(ts, idx, pre, plen, suf, suflen) =
+  tabs_wrap_with_fuel(airlock_nat(MAX_REC_FUEL), ts, idx, pre, plen, suf, suflen)
+
+fun md_digit_prefix_m {rem:nat} .<rem>. (d: !Doc, i: int, n: int, cnt: int, rem: int(rem)): int =
+  if rem = 0 then 0
+  else if ige(i, n) orelse igt(cnt, 5) then 0
+  else let
+    val c = doc_byte(d, i)
+  in
+    if ige(c, 48) andalso ile(c, 57) then md_digit_prefix_m(d, iadd(i, 1), n, iadd(cnt, 1), rem - 1)
+    else if igt(cnt, 0) andalso ieq(c, 46) andalso ilt(iadd(i, 1), n) andalso ieq(doc_byte(d, iadd(i, 1)), 32) then
+      iadd(cnt, 2)
+    else 0
+  end
+
+fun md_hash_prefix_m {rem:nat} .<rem>. (d: !Doc, i: int, n: int, cnt: int, rem: int(rem)): int =
+  if rem = 0 then 0
+  else if ige(i, n) orelse igt(cnt, 6) then 0
+  else let
+    val c = doc_byte(d, i)
+  in
+    if ieq(c, 35) then md_hash_prefix_m(d, iadd(i, 1), n, iadd(cnt, 1), rem - 1)
+    else if igt(cnt, 0) andalso ieq(c, 32) then iadd(cnt, 1)
+    else 0
+  end
+
+fun md_line_prefix_len(d: !Doc, ls: int, n: int): int =
+  if ilt(ls, 0) orelse ige(ls, n) then 0
+  else let
+    val b0 = doc_byte(d, ls)
+  in
+    if ieq(b0, 35) then md_hash_prefix_m(d, ls, n, 0, airlock_nat(8))
+    else if ieq(b0, 45) andalso ilt(iadd(ls, 5), n)
+      andalso ieq(doc_byte(d, iadd(ls, 1)), 32) andalso ieq(doc_byte(d, iadd(ls, 2)), 91)
+      andalso ieq(doc_byte(d, iadd(ls, 4)), 93) andalso ieq(doc_byte(d, iadd(ls, 5)), 32)
+    then 6
+    else if (ieq(b0, 45) orelse ieq(b0, 42) orelse ieq(b0, 62))
+      andalso ilt(iadd(ls, 1), n) andalso ieq(doc_byte(d, iadd(ls, 1)), 32)
+    then 2
+    else if ige(b0, 48) andalso ile(b0, 57) then md_digit_prefix_m(d, ls, n, 0, airlock_nat(8))
+    else 0
+  end
+
+fun doc_apply_line_prefix(d: !Doc, pre: string, plen: int): void = let
+  val c = doc_caret(d)
+  val line = doc_line_of(d, c)
+  val ls = doc_line_start(d, line)
+  val n = doc_len(d)
+  val old_len = md_line_prefix_len(d, ls, n)
+  val () = doc_set_caret_move(d, ls)
+  val () = if igt(old_len, 0) then doc_delete_range(d, ls, imin(n, iadd(ls, old_len))) else ()
+  val () = if igt(plen, 0) then doc_insert(d, c_str_ptr(pre), plen) else ()
+  val after = if ige(c, iadd(ls, old_len)) then iadd(ls, iadd(plen, isub(c, iadd(ls, old_len)))) else iadd(ls, plen)
+in
+  doc_set_caret_move(d, imax(0, imin(doc_len(d), after)))
+end
+
+fun tabs_prefix_with_fuel {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), ts: Tabs, idx: int, pre: string, plen: int
+): Tabs =
+  if recursion_fuel_available(recfuel) then (
+    case+ ts of
+    | ~TNil() => TNil()
+    | ~TCons(doc, path, title, sc, rest) => let
+        val () = if ieq(idx, 0) then doc_apply_line_prefix(doc, pre, plen) else ()
+      in
+        if ieq(idx, 0) then TCons(doc, path, title, sc, rest)
+        else TCons(doc, path, title, sc, tabs_prefix_with_fuel(recfuel - 1, rest, isub(idx, 1), pre, plen))
+      end
+  ) else ts
+
+implement tabs_set_line_prefix(ts, idx, pre, plen) =
+  tabs_prefix_with_fuel(airlock_nat(MAX_REC_FUEL), ts, idx, pre, plen)
+
+fun path_prefix_eq_m {rem:nat} .<rem>. (a: !Buf, b: !Buf, i: int, rem: int(rem)): bool =
+  if rem = 0 then true
+  else ieq(buf_get(a, i), buf_get(b, i)) andalso path_prefix_eq_m(a, b, iadd(i, 1), rem - 1)
+
+fun tab_path_matches_target(path: !Buf, target: !Buf, is_dir: bool): bool = let
+  val plen = buf_len(path)
+  val tlen = buf_len(target)
+in
+  if ile(tlen, 0) orelse ilt(plen, tlen) then false
+  else if ieq(plen, tlen) then buffer_equal_from(path, target, 0)
+  else if not(is_dir) then false
+  else ieq(buf_get(path, tlen), 47) andalso path_prefix_eq_m(path, target, 0, airlock_nat(tlen))
+end
+
+fun tabs_discard_with_fuel {recfuel:nat} .<recfuel>. (
+  recfuel: int(recfuel), ts: Tabs, target: !Buf, is_dir: bool
+): Tabs =
+  if recursion_fuel_available(recfuel) then (
+    case+ ts of
+    | ~TNil() => TNil()
+    | ~TCons(doc, path, title, sc, rest) =>
+        if tab_path_matches_target(path, target, is_dir) then (
+          doc_free(doc); buf_free(path); buf_free(title); seen_int(sc);
+          tabs_discard_with_fuel(recfuel - 1, rest, target, is_dir)
+        ) else TCons(doc, path, title, sc, tabs_discard_with_fuel(recfuel - 1, rest, target, is_dir))
+  ) else ts
+
+implement tabs_discard_matching(ts, target, is_dir) =
+  tabs_discard_with_fuel(airlock_nat(MAX_REC_FUEL), ts, target, is_dir)

@@ -1,27 +1,43 @@
-implement editor_colx(f, r, ox, pw) = let
+fun editor_min_left(f: !Font, r: !Rend, ox: int): int = let
   val aw = font_arrow_w(f, r)
   val pad = imax(4, idiv(font_line_h(f), 4))
   val gap = imax(6, idiv(aw, 2))
   val min_gw = iadd(imul(aw, 5), iadd(gap, iadd(aw, pad)))
   val gw = imax(UI_GUTTER_WIDTH, min_gw)
-  val colx = if font_text_active(f) then readable_col_x(ox, pw, font_line_h(f)) else column_x(ox, pw)
 in
-  imax(iadd(ox, iadd(gw, 16)), colx)
+  iadd(ox, iadd(gw, 16))
+end
+
+fun measure_80ch_w(f: !Font, r: !Rend): int = let
+  var gm: gmet = @{ax= 0, bx= 0, top= 0, bw= 0, bh= 0, x0= 0, y0= 0, ok= Off}
+  val () = font_glyph(f, r, 48, gm)
+  val ch_w = if igt(gm.ax, 0) then gm.ax else imax(7, idiv(font_line_h(f), 2))
+in
+  imax(320, imul(ch_w, 80))
 end
 
 implement editor_colw(f, r, ox, pw) = let
-  val colx = editor_colx(f, r, ox, pw)
-  val target_w = if font_text_active(f) then readable_col_w(pw, font_line_h(f)) else column_w(pw)
+  val min_left = editor_min_left(f, r, ox)
+  val avail = imax(1, isub(iadd(ox, pw), iadd(min_left, 16)))
+  val ch80 = measure_80ch_w(f, r)
 in
-  if font_text_active(f) then imax(1, imin(target_w, isub(iadd(ox, pw), iadd(colx, 16))))
-  else target_w
+  imin(ch80, avail)
+end
+
+implement editor_colx(f, r, ox, pw) = let
+  val min_left = editor_min_left(f, r, ox)
+  val colw = editor_colw(f, r, ox, pw)
+  val ideal_x = iadd(ox, idiv(isub(pw, colw), 2))
+  val max_x = imax(min_left, isub(iadd(ox, pw), iadd(colw, 16)))
+in
+  imin(max_x, imax(min_left, ideal_x))
 end
 
 fun draw_arrow(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind, colx: int, y: int): void =
   if doc_is_foldable(d, i) then let
     val folded = doc_node_collapsed(d, i)
     val arr = if is_on(folded) then ">" else "v"
-    val acol = if is_on(folded) then col_accent() else col_muted()
+    val acol = if is_on(folded) then col_accent_hi() else col_muted()
     val ax = arrow_pos_x(f, r, colx)
     val () = draw_s(f, r, ax, y, arr, acol)
   in
