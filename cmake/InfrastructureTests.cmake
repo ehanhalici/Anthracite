@@ -109,6 +109,9 @@ add_test(NAME selftest_no_display COMMAND "${CMAKE_COMMAND}"
   "-DEXECUTABLE=$<TARGET_FILE:anthracite>" "-DSOURCE_DIR=${CMAKE_SOURCE_DIR}"
   "-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}" -P "${CMAKE_SOURCE_DIR}/tests/runtime/verify_no_display.cmake")
 set_tests_properties(selftest_no_display PROPERTIES LABELS "runtime;negative" TIMEOUT 30)
+add_test(NAME single_instance_contracts COMMAND python3
+  "${CMAKE_SOURCE_DIR}/tests/runtime/verify_single_instance.py" "$<TARGET_FILE:anthracite>")
+set_tests_properties(single_instance_contracts PROPERTIES LABELS "runtime;negative" TIMEOUT 30)
 add_test(NAME graphics_selftest_failure COMMAND "${CMAKE_COMMAND}"
   "-DEXECUTABLE=$<TARGET_FILE:anthracite>" "-DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}"
   -P "${CMAKE_SOURCE_DIR}/tests/runtime/verify_selftest_failure.cmake")
