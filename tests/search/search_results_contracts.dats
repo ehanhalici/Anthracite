@@ -16,7 +16,8 @@ fun result_case(pattern: LiteralPattern): int = let
   var hits=buf_make(0) var meta=buf_make(0) var jumps=buf_make(0) var collapsed=buf_make(0) var rows: int=0
   val first=search_append_matches(source,path,pattern,3,hits,meta,jumps,rows)
   val positions=offsets(meta,jumps)
-  val mapped=ieq(first.matches,2) andalso ieq(rows,3) andalso positions
+  val hdr_cnt=buf_get32(meta,SEARCH_RESULT_MATCH_LENGTH)
+  val mapped=ieq(first.matches,2) andalso ieq(rows,3) andalso ieq(hdr_cnt,2) andalso positions
   val next=search_next_result(meta,~1,1) val previous=search_next_result(meta,1,~1)
   val before=search_visible_count(meta,collapsed) val closed=search_toggle_group(meta,collapsed,0)
   val hidden=search_visible_count(meta,collapsed) val missing=search_source_row(meta,collapsed,1)

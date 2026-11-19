@@ -47,19 +47,29 @@ fun selftest_search_click(s: &App_record >> _,f: !Font,r: !Rend): bool = let
   val old=s.tabs val ()=s.tabs := TNil()
   val clicked=handle_search_click(s,old,40,iadd(second,1)) val empty=s.tabs val ()=s.tabs := clicked val ()=tabs_free(empty)
   val line=s.jump_line val col=s.jump_col val ()=draw_editor_panes(f,r,s,280,520,800,600,font_line_h(f))
-  val jumped=case+ s.tabs of | TNil() => false | TCons(doc,path,title,scroll,rest) =>
+  val jumped=case+ s.tabs of | TNil() => false | TCons(doc,path,title,scroll,rest) => let
+    var fst: int = 0
+    var fen: int = 0
+    val f_line = doc_get_flash_span(doc,mono_ns(),fst,fen)
+  in
     igt(scroll,0) andalso ieq(doc_line_of(doc,doc_caret(doc)),line)
-      andalso ieq(isub(doc_caret(doc),doc_line_start(doc,line)),col) andalso ieq(doc_get_flash(doc,mono_ns()),line)
+      andalso ieq(isub(doc_caret(doc),doc_line_start(doc,line)),col)
+      andalso ieq(f_line,line) andalso ieq(isub(fen,fst),6)
+  end
   val timed=search_flash_wait(mono_ns(),s.flash_until_ns) > 0
 in jumped andalso ige(line,60) andalso timed end
 fun selftest_search_group_click(s: &App_record >> _): bool = let
+  val hdr_cnt = buf_get32(s.hmeta, SEARCH_RESULT_MATCH_LENGTH)
   val g=s.search_layout val old=s.tabs val ()=s.tabs := TNil()
   val closed=handle_search_click(s,old,12,g.resultsTop) val empty=s.tabs val ()=s.tabs := closed val ()=tabs_free(empty)
   val hidden=search_visible_count(s.hmeta,s.ixq)
   val old=s.tabs val ()=s.tabs := TNil()
   val opened=handle_search_click(s,old,12,g.resultsTop) val empty=s.tabs val ()=s.tabs := opened val ()=tabs_free(empty)
   val visible=search_visible_count(s.hmeta,s.ixq)
-in ieq(hidden,1) andalso ieq(visible,3) end
+  val old=s.tabs val ()=s.tabs := TNil()
+  val nav=handle_search_click(s,old,80,g.resultsTop) val empty=s.tabs val ()=s.tabs := nav val ()=tabs_free(empty)
+  val nav_ok = ieq(search_visible_count(s.hmeta,s.ixq),3) andalso ieq(s.jump_line,0) andalso ieq(s.selected_search_row,0)
+in ieq(hdr_cnt,2) andalso ieq(hidden,1) andalso ieq(visible,3) andalso nav_ok end
 fun selftest_search_expired(state: App_record): @(App_record,bool) = let
   var app=APP(state)
   val ()=case+ app of | @APP(s) => let val ()=s.search_state := SEARCH_IDLE
@@ -70,6 +80,7 @@ in (s,pending andalso ieq(delay,0)) end
 fun selftest_search_ui(r: !Rend,root: string): int = let
   val before=mem_live() var state: App_record=selftest_search_state(root)
   val raw=selftest_search_raw(state) val f=font_open() val native=workspace_font_start(f) val ()=font_set_px(f,18)
+  val ()=rend_begin(r,800,600) val ()=draw_sidebar_search(f,r,state,180,600)
   val click=selftest_search_click(state,f,r) val groups=selftest_search_group_click(state)
   val vault=selftest_search_query(state,SEARCH_SCOPE_VAULT,"iğne") val vault_hit=ige(state.hn,2)
   val cancelled=selftest_search_query(state,SEARCH_SCOPE_DOCUMENT,"absent") val empty=ieq(state.hn,0)

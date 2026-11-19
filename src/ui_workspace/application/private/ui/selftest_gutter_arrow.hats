@@ -129,6 +129,25 @@ in
   if ieq(l1, 2) andalso ieq(l2, 3) andalso p_ok then 1 else 0
 end
 
+fun selftest_md_and_dblclick(r: !Rend): int = let
+  val doc = doc_open()
+  val s = "- madde\n* yildiz\n+ arti\n\\- kacis\n> alinti\n> [!NOTE] uyari\n`kod`\n| a | b |\n|---|---|\n"
+  val () = doc_insert(doc, c_str_ptr(s), c_strlen(s))
+  val f = font_open()
+  val () = font_set_px(f, 16)
+  val rend_ok = selftest_error_render(f, r, doc)
+  val () = doc_set_caret_move(doc, 0)
+  val rend_raw_ok = selftest_error_render(f, r, doc)
+  var p = buf_make(4) var t = buf_make(4)
+  val ts0 = tabs_add(TNil(), doc, p, t)
+  val ts1 = tabs_select_word_at(ts0, 0, 4)
+  val dbl_ok = ieq(tabs_anchor(ts1, 0), 2) andalso ieq(tabs_caret(ts1, 0), 7)
+  val () = tabs_free(ts1)
+  val () = font_free(f)
+in
+  if ieq(rend_ok, 1) andalso ieq(rend_raw_ok, 1) andalso dbl_ok then 1 else 0
+end
+
 fun selftest_flow_checks(r: !Rend, root: string): int = let
   val rz_ok = selftest_img_resize(r, root)
   val ext_ok = selftest_external_link()
@@ -137,10 +156,11 @@ fun selftest_flow_checks(r: !Rend, root: string): int = let
   val vw_ok = selftest_visual_wrap(r)
   val err_ok = selftest_ast_error_tolerance(r)
   val math_ok = selftest_math_visualizer(r)
+  val md_ok = selftest_md_and_dblclick(r)
   val drag_ok = selftest_tab_drag_split_reorder()
 in
   if ieq(rz_ok, 1) andalso ieq(ext_ok, 1) andalso ieq(pfx_ok, 1) andalso ieq(ga_ok, 1)
-     andalso ieq(vw_ok, 1) andalso ieq(err_ok, 1) andalso ieq(math_ok, 1) andalso ieq(drag_ok, 1) then 1 else 0
+     andalso ieq(vw_ok, 1) andalso ieq(err_ok, 1) andalso ieq(math_ok, 1) andalso ieq(md_ok, 1) andalso ieq(drag_ok, 1) then 1 else 0
 end
 
 fun selftest_flow(r: !Rend, root: string): @(int, int, Doc, Cache, Buf, Buf) = let

@@ -201,20 +201,42 @@ in
   if is_file then tree_open_file(s, ts, row, is_ctrl) else ts
 end
 
-fun search_result_click(s: &App_record >> _,ts: Tabs,row: int): Tabs =
-  if ilt(row,0) orelse ige(row,s.hn) then ts else if search_row_is_header(s.hmeta,row) then let
-    val toggled=search_toggle_group(s.hmeta,s.ixq,row)
-  in ts end else let val ()=s.qfocus := Off in open_hit(s,ts,row,On) end
+fun search_result_click(s: &App_record >> _, ts: Tabs, row: int, x: int): Tabs =
+  if ilt(row, 0) orelse ige(row, s.hn) then ts
+  else if search_row_is_header(s.hmeta, row) then (
+    if ilt(x, iadd(SEARCH_LEFT_PIXELS, 20)) then let
+      val _ = search_toggle_group(s.hmeta, s.ixq, row)
+    in
+      ts
+    end else let
+      val () = s.qfocus := Off
+    in
+      open_hit(s, ts, row, On)
+    end
+  ) else let
+    val () = s.qfocus := Off
+  in
+    open_hit(s, ts, row, On)
+  end
+
 fun handle_search_click(s: &App_record >> _, ts: Tabs, x: int, y: int): Tabs = let
   val () = s.editor_focused := Off
-  val scope=search_scope_hit(s.search_layout,x,y)
-in if ige(scope,0) then let
-    val ()=if ine(s.scope,scope) then (s.scope := scope; run_query_refresh(s)) else ()
-  in ts end else if ige(y,s.search_layout.queryTop) andalso ilt(y,iadd(s.search_layout.queryTop,s.search_layout.queryHeight)) then
-    let val ()=s.qfocus := On in ts end
-  else let val visible=search_visible_hit(s.search_layout,y,s.hscroll)
-    val row=search_source_row(s.hmeta,s.ixq,visible)
-  in search_result_click(s,ts,row) end end
+  val scope = search_scope_hit(s.search_layout, x, y)
+in
+  if ige(scope, 0) then let
+    val () = s.qfocus := On
+    val () = if ine(s.scope, scope) then (s.scope := scope; run_query_refresh(s)) else ()
+  in
+    ts
+  end else if ige(y, s.search_layout.queryTop) andalso ilt(y, iadd(s.search_layout.queryTop, s.search_layout.queryHeight)) then
+    (s.qfocus := On; ts)
+  else let
+    val visible = search_visible_hit(s.search_layout, y, s.hscroll)
+    val row = search_source_row(s.hmeta, s.ixq, visible)
+  in
+    search_result_click(s, ts, row, x)
+  end
+end
 
 fun handle_config_click(s: &App_record >> _, f: !Font, ts: Tabs, x: int, y: int): Tabs = let
   val () = s.editor_focused := Off

@@ -212,7 +212,7 @@ fun draw_tab_content_ex(
 extern fun draw_focus_impl_fuel_exhausted(f: !Font, r: !Rend, ts: Tabs, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, i: int, viewmode: ViewMode): Tabs = "mac#anth_die_box"
 
 fun pending_anchor_scroll(f: !Font,r: !Rend,doc: !Doc,ox: int,pw: int,ph: int,lh: int,
-  vault: !Buf,cache: &Cache >> _,scroll: int,mode: ViewMode): int = let
+  vault: !Buf,cache: &Cache >> _,scroll: int,mode: ViewMode,scratch: &Buf >> _): int = let
   val line=doc_take_jump(doc)
 in if ilt(line,0) then scroll else let
     val colx=editor_colx(f,r,ox,pw)
@@ -222,11 +222,15 @@ in if ilt(line,0) then scroll else let
        around it instead of the whole file; lines above keep estimated heights. *)
     val state=work_state(airlock_nat(MAX_REC_FUEL),cache)
     val scope: EmbedWorkScope= @{active=state.enabled,document=doc_identity(doc),anchorLine=line,
-      scroll=isub(0,idiv(ph,3)),height=ph,foreground=true,childDelta=0,band=EmbedWorkVisible()}
+      scroll=isub(idiv(line_height,2),idiv(ph,2)),height=ph,foreground=true,childDelta=0,band=EmbedWorkVisible()}
     val ()=work_set_scope(cache,scope)
     val raw_height=prepare_document_layout(f,doc,cache,r,vault,line_height,width,mode)
     val ()=work_set_scope(cache,state.scope)
-  in imin(imax(0,isub(raw_height,line_height)),imax(0,isub(doc_line_y(doc,line),idiv(ph,3)))) end end
+    val target_y=if doc_visual_active(doc) then let
+        val pt=visual_caret_point(f,doc,colx,0,0,line_height,scratch)
+      in pt.y end else doc_line_y(doc,line)
+    val centered=isub(iadd(target_y,idiv(line_height,2)),idiv(ph,2))
+  in imin(imax(0,isub(raw_height,line_height)),imax(0,centered)) end end
 
 fun draw_focus_impl_with_fuel {recfuel:nat} .<recfuel>. (
   recfuel: int(recfuel), f: !Font, r: !Rend, ts: Tabs, idx: int, ox: int, oy: int, pw: int, ph: int, lh: int,
@@ -241,7 +245,7 @@ fun draw_focus_impl_with_fuel {recfuel:nat} .<recfuel>. (
         TNil()
       end
     | ~TCons(doc, path, title, sc, rest) => let
-        val scroll=if ieq(i,idx) then pending_anchor_scroll(f,r,doc,ox,pw,ph,lh,vault,c,sc,viewmode) else sc
+        val scroll=if ieq(i,idx) then pending_anchor_scroll(f,r,doc,ox,pw,ph,lh,vault,c,sc,viewmode,scratch) else sc
         val adjusted = if ieq(i, idx) then draw_tab_content_ex(f, r, doc, path, ox, oy, pw, ph, scroll, lh, vault, c, scratch, viewmode, shover, sdrag, out_h) else scroll
         val rest2 = draw_focus_impl_with_fuel(recfuel - 1, f, r, rest, idx, ox, oy, pw, ph, lh, vault, c, scratch, iadd(i, 1), viewmode, shover, sdrag, out_h)
       in

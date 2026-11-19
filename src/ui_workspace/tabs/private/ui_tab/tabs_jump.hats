@@ -1,4 +1,5 @@
-implement tabs_jump(ts, idx, line, col) = tabs_jump_with_fuel(airlock_nat(MAX_REC_FUEL), ts, idx, line, col)
+implement tabs_jump_span(ts, idx, line, col, mlen) = tabs_jump_with_fuel(airlock_nat(MAX_REC_FUEL), ts, idx, line, col, mlen)
+implement tabs_jump(ts, idx, line, col) = tabs_jump_span(ts, idx, line, col, 0)
 
 fun tabs_find_doc_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, idx: int, q: !Buf, from: int, dir: int): int =
   if recursion_fuel_available(recfuel) then (
@@ -32,6 +33,20 @@ fun tabs_select_range_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel)
 
 implement tabs_select_range(ts, idx, st, en) = tabs_select_range_with_fuel(airlock_nat(MAX_REC_FUEL), ts, idx, st, en)
 
+fun tabs_select_word_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: Tabs, idx: int, pos: int): Tabs =
+  if recursion_fuel_available(recfuel) then (
+    case+ ts of
+    | ~TNil() => TNil()
+    | ~TCons(doc, path, title, sc, rest) => let
+        val _ = if ieq(idx, 0) then doc_select_word_at(doc, pos) else false
+      in
+        if ieq(idx, 0) then TCons(doc, path, title, sc, rest)
+        else TCons(doc, path, title, sc, tabs_select_word_with_fuel(recfuel - 1, rest, isub(idx, 1), pos))
+      end
+  ) else ts
+
+implement tabs_select_word_at(ts, idx, pos) = tabs_select_word_with_fuel(airlock_nat(MAX_REC_FUEL), ts, idx, pos)
+
 fun tabs_find_path_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, p: !Buf, cur: int): int =
   if recursion_fuel_available(recfuel) then (
     case+ ts of
@@ -56,6 +71,17 @@ fun tabs_caret_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !
   ) else 0
 
 implement tabs_caret(ts, idx) = tabs_caret_with_fuel(airlock_nat(MAX_REC_FUEL), ts, idx)
+
+fun tabs_anchor_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, idx: int): int =
+  if recursion_fuel_available(recfuel) then (
+    case+ ts of
+    | TNil() => 0
+    | TCons(doc, path, title, sc, rest) =>
+        if ieq(idx, 0) then doc_anchor(doc)
+        else tabs_anchor_with_fuel(recfuel - 1, rest, isub(idx, 1))
+  ) else 0
+
+implement tabs_anchor(ts, idx) = tabs_anchor_with_fuel(airlock_nat(MAX_REC_FUEL), ts, idx)
 
 fun tabs_copy_doc_text_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), ts: !Tabs, p: !Buf, dst: &Buf >> _): int =
   if recursion_fuel_available(recfuel) then (

@@ -77,8 +77,11 @@ fun try_quote_callout(d: !Doc, stk: &Buf >> _, cur: int, le: int, nxt: int, len:
     end else (parse_quote(d, stk, cur, le, p); nxt)
   end else ~1
 
+fun is_ul_bullet_byte(b: int): bool =
+  ieq(b, CHAR_MINUS) orelse ieq(b, CHAR_STAR) orelse ieq(b, CHAR_PLUS)
+
 fun try_list_or_table(d: !Doc, stk: &Buf >> _, cur: int, le: int, nxt: int, len: int, p: int, b: int): int =
-  if ieq(b, CHAR_MINUS) andalso ilt(iadd(p, 1), le) andalso ieq(doc_byte(d, iadd(p, 1)), CHAR_SPACE) then (
+  if is_ul_bullet_byte(b) andalso ilt(iadd(p, 1), le) andalso is_space_or_tab(doc_byte(d, iadd(p, 1))) then (
     parse_list_item(d, stk, cur, le, p); nxt
   ) else if ieq(b, CHAR_PIPE) then let
     val l2_st = nxt

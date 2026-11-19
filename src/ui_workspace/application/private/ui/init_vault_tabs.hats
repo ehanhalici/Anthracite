@@ -211,7 +211,8 @@ in @{
   selected_search_row= ~1, flash_until_ns= 0L, fsm= StateIdle(), tab_hists= th, keymap= km,
   chord_active= Off, chord_mods= 0, chord_key= 0, doc_h_left= 0, doc_h_right= 0, doc_vh= 600, doc_top_y= UI_DOC_TOP_Y,
   scroll_drag_pane= 0, scroll_drag_grab_y= 0, pan_start_y= 0, pan_start_scroll= 0,
-  tree_drag_pending= Off, last_w= 1100, last_h= 720
+  tree_drag_pending= Off, last_w= 1100, last_h= 720,
+  last_click_ns= 0L, last_click_x= ~1, last_click_y= ~1, last_click_pos= ~1, last_click_tab= ~1
 } end
 
 fun app_fsm_step(s: &App_record >> _, act: EditorAction): void = let

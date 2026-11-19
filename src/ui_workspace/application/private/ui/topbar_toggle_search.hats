@@ -153,15 +153,57 @@ fun begin_embedded_selection(s: &App_record >> _,f: !Font,r: !Rend,tabs: !Tabs,i
     val selected=tabs_embed_select(f,r,tabs,index,hit.x,rel_y,ox,width,font_line_h(f),s.vault,s.cache,s.scratch,false)
   in () end else ()
 
+#define UI_DOUBLE_CLICK_NS 500000000L
+
+fun reset_click_track(s: &App_record >> _): void = let
+  val () = s.last_click_ns := 0L
+  val () = s.last_click_pos := ~1
+in
+end
+
+fun record_single_click(s: &App_record >> _, idx: int, x: int, y: int, pos: int, now: lint): void = let
+  val () = s.last_click_ns := now
+  val () = s.last_click_x := x
+  val () = s.last_click_y := y
+  val () = s.last_click_pos := pos
+  val () = s.last_click_tab := idx
+in
+end
+
+fun select_double_click_word(s: &App_record >> _, ts: Tabs, idx: int, cur_pos: int): Tabs = let
+  val target_pos = if ige(s.last_click_pos, 0) then s.last_click_pos else cur_pos
+  val ts1 = tabs_select_word_at(ts, idx, target_pos)
+  val ts2 = (if ieq(tabs_caret(ts1, idx), tabs_anchor(ts1, idx)) then tabs_select_word_at(ts1, idx, cur_pos) else ts1) : Tabs
+  val () = reset_click_track(s)
+  val () = s.drag := DragNone
+  val () = s.downx := ~1
+  val () = s.downy := ~1
+in
+  ts2
+end
+
+fun apply_editor_double_click(s: &App_record >> _, ts: Tabs, idx: int, x: int, y: int, keep: bool, editor: bool): Tabs =
+  if not(editor) orelse keep then (reset_click_track(s); ts)
+  else let
+    val now = mono_ns()
+    val cur_pos = tabs_caret(ts, idx)
+    val is_dbl = s.last_click_ns > 0L andalso now - s.last_click_ns <= UI_DOUBLE_CLICK_NS
+      andalso ieq(idx, s.last_click_tab) andalso ile(iabs(isub(x, s.last_click_x)), 8) andalso ile(iabs(isub(y, s.last_click_y)), 8)
+  in
+    if is_dbl then select_double_click_word(s, ts, idx, cur_pos)
+    else (record_single_click(s, idx, x, y, cur_pos, now); ts)
+  end
+
 fun handle_editor_normal_click(s: &App_record >> _, f: !Font, r: !Rend, ts: Tabs, ev: &event,
                                hit: DownHit, idx: int, ox: int, oy: int, half: int, imgdel: Toggle, clear: Toggle, editor: bool): Tabs = let
   val () = if editor then (s.drag := DragEditor; s.downx := hit.x; s.downy := hit.y) else ()
+  val keep = ine(iand(ev_mods(ev), mod_shift()), 0)
   val idx2 = pane_of(s.focus, s.active, s.righti)
   val ts4 = editor_click_hit(f, r, s, ts, ev, hit.x, hit.y, ox, oy, half, idx2, toggle_of(editor))
   val () = begin_embedded_selection(s, f, r, ts4, idx2, hit, ox, oy, half, editor, ctrl_on(ev))
   val res = editor_post_click(s, ts4, idx, idx2, imgdel, clear, false, false)
 in
-  res
+  apply_editor_double_click(s, res, idx2, hit.x, hit.y, keep, editor)
 end
 
 fun begin_editor_body_click(

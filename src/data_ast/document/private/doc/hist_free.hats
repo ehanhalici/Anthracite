@@ -64,7 +64,7 @@ datavtype Doc_ = DOC of @{
 , nlines= int, nnodes= int, span= int
 , last_op= EditOp, typing_cnt= int, is_md= Toggle
 , ver= int, folds= Buf
-, flash_line= int, flash_time= lint, embed_level= int
+, flash_line= int, flash_start= int, flash_end= int, flash_time= lint, embed_level= int
 , pending_jump= int
 , view_start= int, view_finish= int, parse_generation= int
 , regions= Buf, hidden= Buf
@@ -82,28 +82,43 @@ implement doc_open() = DOC(@{
 , nlines= 1, nnodes= 0, span= 0
 , last_op= OpNone, typing_cnt= 0, is_md= On
 , ver= 0, folds= buf_make(64 * 4)
-, flash_line= ~1, flash_time= 0L, embed_level= 0
+, flash_line= ~1, flash_start= 0, flash_end= 0, flash_time= 0L, embed_level= 0
 , pending_jump= ~1
 , view_start= 0, view_finish= ~1, parse_generation= 0
 , regions= buf_make(64 * 16), hidden= buf_make(DOC_OPEN_HIDDEN_INITIAL_BYTES)
 })
 
-implement doc_set_flash(d, line, until) =
+implement doc_set_flash_span(d, line, start, finish, until) =
   case+ d of
   | @DOC(s) => let
       val () = s.flash_line := line
+      val () = s.flash_start := start
+      val () = s.flash_end := finish
       val () = s.flash_time := until
     in
       fold@(d)
     end
 
-implement doc_get_flash(d, now) =
+implement doc_set_flash(d, line, until) =
+  doc_set_flash_span(d, line, 0, 0, until)
+
+implement doc_get_flash_span(d, now, out_st, out_en) =
   case+ d of
   | @DOC(s) => let
-      val res = (if ige(s.flash_line, 0) andalso now < s.flash_time then s.flash_line else ~1)
+      val ok = ige(s.flash_line, 0) andalso now < s.flash_time
+      val res = (if ok then s.flash_line else ~1)
+      val () = out_st := (if ok then s.flash_start else 0)
+      val () = out_en := (if ok then s.flash_end else 0)
     in
       fold@(d); res
     end
+
+implement doc_get_flash(d, now) = let
+  var st: int = 0
+  var en: int = 0
+in
+  doc_get_flash_span(d, now, st, en)
+end
 
 implement doc_is_md(d) =
   case+ d of

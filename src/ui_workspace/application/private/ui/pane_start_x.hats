@@ -90,7 +90,7 @@ fun motion_editor_drag(s: &App_record >> _, f: !Font, r: !Rend, x: int, y: int, 
   val rel_y = isub(y, isub(doc_oy, s.tb_h))
   val selected=if embedded andalso moved then tabs_embed_select(f,r,s.tabs,idx,x,rel_y,ox,half,lh,s.vault,s.cache,s.scratch,true) else false
 in
-  if embedded then () else s.tabs := tabs_click_oy(f,r,s.tabs,idx,x,y,ox,doc_oy,half,lh,s.scratch,On,hitk,hiti,0)
+  if embedded orelse not(moved) then () else s.tabs := tabs_click_oy(f,r,s.tabs,idx,x,y,ox,doc_oy,half,lh,s.scratch,On,hitk,hiti,0)
 end
 
 fun motion_drag(s: &App_record >> _, f: !Font, r: !Rend, x: int, y: int, w: int): void =
@@ -350,6 +350,8 @@ in
     val cur_len = tabs_len(s.tabs)
     val () = if ige(target_act, 0) then (
       s.editor_focused := Off;
+      s.last_click_ns := 0L;
+      s.last_click_pos := ~1;
       editor_wiki_focus_act(s, cur_len, target_act);
       assign_new_tab_pane(s, origin_pane, old_len, cur_len, target_act);
       editor_wiki_focus_act(s, cur_len, target_act);

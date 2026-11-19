@@ -57,9 +57,12 @@ fun tabs_ensure_paths(ts: Tabs, vault: !Buf): Tabs
 fun tabs_flush_paths(ts: Tabs, vault: !Buf): Tabs
 fun touch_doc(d: !Doc): void
 fun tabs_jump(ts: Tabs, idx: int, line: int, col: int): Tabs
+fun tabs_jump_span(ts: Tabs, idx: int, line: int, col: int, mlen: int): Tabs
 fun tabs_find_doc(ts: !Tabs, idx: int, q: !Buf, from: int, dir: int): int
 fun tabs_select_range(ts: Tabs, idx: int, st: int, en: int): Tabs
+fun tabs_select_word_at(ts: Tabs, idx: int, pos: int): Tabs
 fun tabs_find_path(ts: !Tabs, p: !Buf): int
 fun tabs_caret(ts: !Tabs, idx: int): int
+fun tabs_anchor(ts: !Tabs, idx: int): int
 fun tabs_copy_doc_text(ts: !Tabs, p: !Buf, dst: &Buf >> _): int
 fun tabs_sync_cursor_focus(ts: !Tabs, focused: bool, active_idx: int): void

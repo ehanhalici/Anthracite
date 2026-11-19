@@ -139,8 +139,8 @@ in
     toggle_of(hover), toggle_of(is_view_edit(s.viewmode)))
 end
 
-fun apply_jump_if(ts: Tabs, act: int, jline: int, jcol: int): Tabs =
-  if ige(jline, 0) then tabs_jump(ts, act, jline, jcol) else ts
+fun apply_jump_if(ts: Tabs, act: int, jline: int, jcol: int, jlen: int): Tabs =
+  if ige(jline, 0) then tabs_jump_span(ts, act, jline, jcol, jlen) else ts
 
 fun draw_split_tabs(f: !Font, r: !Rend, ts: Tabs, th: int, tab_x0: int, mid: int, bx: int, act: int, righti: int, tab_pane: !Buf): Tabs = let
   val left_w = imax(40, isub(isub(mid, 4), tab_x0))
@@ -213,8 +213,17 @@ in
   ts3
 end
 
+fun search_jump_match_len(s: &App_record): int = let
+  val r = s.selected_search_row
+in
+  if ige(r, 0) andalso ilt(r, s.hn) andalso not(search_row_is_header(s.hmeta, r)) then
+    buf_get32(s.hmeta, iadd(imul(r, SEARCH_RESULT_WORDS), SEARCH_RESULT_MATCH_LENGTH))
+  else 0
+end
+
 fun consume_editor_jump(s: &App_record >> _, ts0: Tabs): Tabs = let
-  val ts = apply_jump_if(ts0, pane_of(s.focus, s.active, s.righti), s.jump_line, s.jump_col)
+  val mlen = if ige(s.jump_line, 0) then search_jump_match_len(s) else 0
+  val ts = apply_jump_if(ts0, pane_of(s.focus, s.active, s.righti), s.jump_line, s.jump_col, mlen)
   val () = if ige(s.jump_line, 0) then (
     s.flash_until_ns := mono_ns() + UI_NAVIGATION_FLASH_NS;
     s.editor_focused := On;

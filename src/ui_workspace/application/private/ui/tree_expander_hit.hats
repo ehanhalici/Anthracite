@@ -27,29 +27,257 @@ macdef SEARCH_LEFT_PIXELS = 8
 macdef SEARCH_CHILD_INDENT_PIXELS = 20
 fun search_relative_prefix{n:nat} .<n>. (left: int(n),text: !Buf,off: int,vault: !Buf,i: int): bool =
   if left = 0 then true else ieq(buf_get(text,iadd(off,i)),buf_get(vault,i)) andalso search_relative_prefix(left-1,text,off,vault,iadd(i,1))
-fun draw_search_header(f: !Font,r: !Rend,s: &App_record,row: int,y: int): void = let
-  val at=imul(row,SEARCH_RESULT_WORDS) val off=buf_get32(s.hmeta,iadd(at,SEARCH_RESULT_TEXT))
-  val length=buf_get32(s.hmeta,iadd(at,SEARCH_RESULT_LENGTH)) val root=buf_len(s.vault)
-  val relative=igt(length,root) andalso search_relative_prefix(airlock_nat(imax(0,root)),s.hits,off,s.vault,0)
-  val skip=if relative then iadd(root,1) else 0 var label: Buf=buf_make(0)
-  val ()=buffer_append_range(label,s.hits,iadd(off,skip),iadd(off,length))
-  val ()=if ieq(length,0) then buffer_append_string(label,"Adsız belge") else ()
-  val expanded=if ilt(row,buf_len(s.ixq)) then ine(buf_get(s.ixq,row),1) else true
-  val g=s.search_layout
-  val ()=ui_cell(f,r,SEARCH_LEFT_PIXELS,y,isub(s.sidew,imul(2,SEARCH_LEFT_PIXELS)),g.rowHeight,0,On,
-    toggle_of(expanded),UI_ICON_FILE,buffer_c_string(label),"",Off,Off)
-in buf_free(label) end
-fun draw_search_match(f: !Font,r: !Rend,s: &App_record,row: int,y: int): void = let
-  val at=imul(row,SEARCH_RESULT_WORDS) val off=buf_get32(s.hmeta,iadd(at,SEARCH_RESULT_TEXT))
-  val length=buf_get32(s.hmeta,iadd(at,SEARCH_RESULT_LENGTH))
-  val match=imin(length,imax(0,buf_get32(s.hmeta,iadd(at,SEARCH_RESULT_MATCH))))
-  val count=imin(isub(length,match),imax(0,buf_get32(s.hmeta,iadd(at,SEARCH_RESULT_MATCH_LENGTH))))
-  val ()=if ieq(row,s.selected_search_row) then rend_rect(r,SEARCH_LEFT_PIXELS,y,
-    isub(s.sidew,imul(2,SEARCH_LEFT_PIXELS)),s.search_layout.rowHeight,col_sel()) else ()
-  val first=hit_text(s.hits,off,match,f,r,SEARCH_CHILD_INDENT_PIXELS,y,col_muted())
-  val second=hit_text(s.hits,iadd(off,match),count,f,r,iadd(SEARCH_CHILD_INDENT_PIXELS,first),y,col_hightxt())
-in seen_int(hit_text(s.hits,iadd(off,iadd(match,count)),isub(length,iadd(match,count)),f,r,
-  iadd(SEARCH_CHILD_INDENT_PIXELS,iadd(first,second)),y,col_muted())) end
+
+fun norm_search_char(b: int): int =
+  if ieq(b, 9) orelse ieq(b, 10) orelse ieq(b, 13) then 32 else b
+
+fun norm_range_loop {rem:nat} .<rem>. (
+  src: !Buf, i: int, en: int, dst: &Buf >> _, prev_sp: bool, collapse: bool, rem: int(rem)
+): bool =
+  if rem = 0 then prev_sp
+  else if ige(i, en) then prev_sp
+  else let
+    val c = norm_search_char(buf_get(src, i))
+    val is_sp = ieq(c, 32)
+    val next_sp = if collapse andalso is_sp then (if prev_sp then true else (buf_push(dst, 32); true))
+      else (buf_push(dst, c); is_sp)
+  in
+    norm_range_loop(src, iadd(i, 1), en, dst, next_sp, collapse, rem - 1)
+  end
+
+fun trim_sp_back_m {rem:nat} .<rem>. (b: !Buf, st: int, en: int, rem: int(rem)): int =
+  if rem = 0 then st
+  else if ile(en, st) then st
+  else if ieq(buf_get(b, isub(en, 1)), 32) then trim_sp_back_m(b, st, isub(en, 1), rem - 1)
+  else en
+
+fun trim_sp_back(b: !Buf, st: int, en: int): int =
+  if ilt(st, en) then trim_sp_back_m(b, st, en, airlock_span(st, en)) else st
+
+fun skip_sp_fwd_m {rem:nat} .<rem>. (b: !Buf, st: int, en: int, rem: int(rem)): int =
+  if rem = 0 then en
+  else if ige(st, en) then en
+  else if ieq(buf_get(b, st), 32) then skip_sp_fwd_m(b, iadd(st, 1), en, rem - 1)
+  else st
+
+fun skip_sp_fwd(b: !Buf, st: int, en: int): int =
+  if ilt(st, en) then skip_sp_fwd_m(b, st, en, airlock_span(st, en)) else en
+
+fun normalize_snippet(
+  src: !Buf, off: int, len: int, match: int, count: int,
+  norm: &Buf >> _, m_st: &int >> _, m_en: &int >> _
+): void = let
+  val () = buffer_clear(norm)
+  val m_off = imax(0, imin(match, len))
+  val m_cnt = imax(0, imin(count, isub(len, m_off)))
+  val p0 = iadd(off, m_off)
+  val p1 = iadd(p0, m_cnt)
+  val p2 = iadd(off, len)
+  val _ = if igt(m_off, 0) then norm_range_loop(src, off, p0, norm, true, true, airlock_span(off, p0)) else false
+  val () = m_st := buf_len(norm)
+  val _ = if igt(m_cnt, 0) then norm_range_loop(src, p0, p1, norm, false, false, airlock_span(p0, p1)) else false
+  val () = m_en := buf_len(norm)
+  val _ = if ilt(p1, p2) then norm_range_loop(src, p1, p2, norm, false, true, airlock_span(p1, p2)) else false
+  val nlen = buf_len(norm)
+  val trimmed = trim_sp_back(norm, m_en, nlen)
+in
+  buf_set_len(norm, trimmed)
+end
+
+fun slice_width(f: !Font, r: !Rend, b: !Buf, st: int, en: int, seg: &Buf >> _): int =
+  if ige(st, en) then 0
+  else let
+    val () = buffer_clear(seg)
+    val () = buffer_append_range(seg, b, st, en)
+    val slen = buf_len(seg)
+  in
+    font_width_buf(f, r, seg, slen)
+  end
+
+fun skip_utf8_cont_m {rem:nat} .<rem>. (b: !Buf, i: int, en: int, rem: int(rem)): int =
+  if rem = 0 then imin(i, en)
+  else if ige(i, en) then imin(i, en)
+  else let val c = buf_get(b, i) in
+    if ige(c, 128) andalso ile(c, 191) then skip_utf8_cont_m(b, iadd(i, 1), en, rem - 1) else i
+  end
+
+fun find_next_sp_m {rem:nat} .<rem>. (b: !Buf, i: int, en: int, rem: int(rem)): int =
+  if rem = 0 then en
+  else if ige(i, en) then en
+  else if ieq(buf_get(b, i), 32) then iadd(i, 1)
+  else find_next_sp_m(b, iadd(i, 1), en, rem - 1)
+
+fun step_suffix_cut(b: !Buf, i: int, en: int): int =
+  if ige(i, en) then en
+  else let
+    val sp_nxt = find_next_sp_m(b, i, en, airlock_span(i, en))
+    val char_nxt = skip_utf8_cont_m(b, iadd(i, 1), en, airlock_span(iadd(i, 1), en))
+  in
+    if ilt(sp_nxt, en) then sp_nxt else char_nxt
+  end
+
+fun fit_suffix_m {rem:nat} .<rem>. (
+  f: !Font, r: !Rend, b: !Buf, i: int, en: int, max_w: int, seg: &Buf >> _, rem: int(rem)
+): int =
+  if rem = 0 then en
+  else if ige(i, en) then en
+  else if ile(slice_width(f, r, b, i, en, seg), max_w) then i
+  else fit_suffix_m(f, r, b, step_suffix_cut(b, i, en), en, max_w, seg, rem - 1)
+
+fun fit_suffix_start(f: !Font, r: !Rend, b: !Buf, st: int, en: int, max_w: int, seg: &Buf >> _): int =
+  if ilt(st, en) andalso igt(max_w, 0) then fit_suffix_m(f, r, b, st, en, max_w, seg, airlock_span(st, en))
+  else en
+
+fun last_sp_m {rem:nat} .<rem>. (b: !Buf, i: int, en: int, best: int, rem: int(rem)): int =
+  if rem = 0 then best
+  else if ige(i, en) then best
+  else last_sp_m(b, iadd(i, 1), en, if ieq(buf_get(b, i), 32) then i else best, rem - 1)
+
+fun fit_prefix_end(f: !Font, r: !Rend, b: !Buf, st: int, en: int, max_w: int, seg: &Buf >> _): int =
+  if ige(st, en) orelse ile(max_w, 0) then st
+  else let
+    val () = buffer_clear(seg)
+    val () = buffer_append_range(seg, b, st, en)
+    val slen = buf_len(seg)
+    val fit = ui_fit_str_bytes(f, r, buf_ptr(seg), slen, max_w)
+  in
+    if ile(fit, 0) then st
+    else if ige(iadd(st, fit), en) then en
+    else let
+      val cut = iadd(st, fit)
+      val sp = if ieq(buf_get(b, cut), 32) then cut else last_sp_m(b, st, cut, ~1, airlock_span(st, cut))
+    in
+      if ige(sp, st) then sp else cut
+    end
+  end
+
+fun draw_buf_range(f: !Font, r: !Rend, b: !Buf, st: int, en: int, x: int, y: int, col: uint, seg: &Buf >> _): void =
+  if ilt(st, en) then let
+    val () = buffer_clear(seg)
+    val () = buffer_append_range(seg, b, st, en)
+    val slen = buf_len(seg)
+  in
+    seen_int(font_draw_buf(f, r, x, y, seg, slen, col))
+  end else ()
+
+fun draw_match_pre(
+  f: !Font, r: !Rend, norm: !Buf, m_st: int, tx: int, ty0: int, ty1: int, tw: int, mx: int, seg: &Buf >> _
+): void = let
+  val left_w = imax(0, isub(mx, tx))
+  val s1 = if igt(m_st, 0) andalso igt(left_w, 4) then fit_suffix_start(f, r, norm, 0, m_st, left_w, seg) else m_st
+  val pw1 = slice_width(f, r, norm, s1, m_st, seg)
+  val () = draw_buf_range(f, r, norm, s1, m_st, imax(tx, isub(mx, pw1)), ty1, col_text(), seg)
+  val e0 = trim_sp_back(norm, 0, s1)
+  val s0 = if igt(e0, 0) then fit_suffix_start(f, r, norm, 0, e0, tw, seg) else 0
+in
+  if ilt(s0, e0) then draw_buf_range(f, r, norm, s0, e0, tx, ty0, col_muted(), seg) else ()
+end
+
+fun draw_match_post(
+  f: !Font, r: !Rend, norm: !Buf, m_en: int, nlen: int, tx: int, ty1: int, ty2: int, tw: int, rx: int, seg: &Buf >> _
+): void = let
+  val rw = imax(0, isub(iadd(tx, tw), rx))
+  val e1 = if ilt(m_en, nlen) andalso igt(rw, 4) then fit_prefix_end(f, r, norm, m_en, nlen, rw, seg) else m_en
+  val () = draw_buf_range(f, r, norm, m_en, e1, rx, ty1, col_text(), seg)
+  val s2 = skip_sp_fwd(norm, e1, nlen)
+  val e2 = if ilt(s2, nlen) then fit_prefix_end(f, r, norm, s2, nlen, tw, seg) else s2
+in
+  if ilt(s2, e2) then draw_buf_range(f, r, norm, s2, e2, tx, ty2, col_muted(), seg) else ()
+end
+
+fun draw_search_header(f: !Font, r: !Rend, s: &App_record, row: int, y: int): void = let
+  val at = imul(row, SEARCH_RESULT_WORDS)
+  val off = buf_get32(s.hmeta, iadd(at, SEARCH_RESULT_TEXT))
+  val length = buf_get32(s.hmeta, iadd(at, SEARCH_RESULT_LENGTH))
+  val match_cnt = buf_get32(s.hmeta, iadd(at, SEARCH_RESULT_MATCH_LENGTH))
+  val root = buf_len(s.vault)
+  val relative = igt(length, root) andalso search_relative_prefix(airlock_nat(imax(0, root)), s.hits, off, s.vault, 0)
+  val skip = if relative then iadd(root, 1) else 0
+  var label: Buf = buf_make(0)
+  val () = buffer_append_range(label, s.hits, iadd(off, skip), iadd(off, length))
+  val () = if ieq(length, 0) then buffer_append_string(label, "Adsız belge") else ()
+  var cbuf: Buf = buf_make(16)
+  val () = buffer_append_integer(cbuf, imax(0, match_cnt))
+  val expanded = if ilt(row, buf_len(s.ixq)) then ine(buf_get(s.ixq, row), 1) else true
+  val g = s.search_layout
+  val hdr_h = imin(g.rowHeight, iadd(font_line_h(f), 10))
+  val hdr_y = iadd(y, idiv(imax(0, isub(g.rowHeight, hdr_h)), 2))
+  val is_sel = ieq(row, s.selected_search_row)
+  val () = ui_cell(f, r, SEARCH_LEFT_PIXELS, hdr_y, isub(s.sidew, imul(2, SEARCH_LEFT_PIXELS)), hdr_h, 0, On,
+    toggle_of(expanded), UI_ICON_FILE, buffer_c_string(label), buffer_c_string(cbuf), toggle_of(is_sel), Off)
+  val () = buf_free(cbuf)
+in
+  buf_free(label)
+end
+
+fun draw_search_card_box(r: !Rend, cx: int, cy: int, cw: int, ch: int, sel: bool): void = let
+  val () = rend_rect(r, cx, cy, cw, ch, col_rgba(14, 15, 18, 255))
+  val bcol = if sel then col_accent() else col_line()
+in
+  ui_draw_border(r, cx, cy, cw, ch, 1, bcol)
+end
+
+fun draw_search_card_keyword(
+  f: !Font, r: !Rend, kbuf: !Buf, klen: int, tx: int, ty1: int, tw: int, lh: int, mx: int, kw_w: int
+): void =
+  if igt(klen, 0) then let
+    val () = rend_rect(r, imax(tx, isub(mx, 2)), ty1, imin(tw, iadd(kw_w, 4)), lh, col_rgba(234, 179, 8, 220))
+  in
+    seen_int(font_draw_buf(f, r, mx, ty1, kbuf, klen, col_rgba(18, 19, 22, 255)))
+  end else ()
+
+fun fit_keyword_end(f: !Font, r: !Rend, b: !Buf, st: int, en: int, mw: int, seg: &Buf >> _): int =
+  if ige(st, en) then st
+  else let
+    val () = buffer_clear(seg)
+    val () = buffer_append_range(seg, b, st, en)
+    val slen = buf_len(seg)
+  in
+    iadd(st, ui_fit_str_bytes(f, r, buf_ptr(seg), slen, mw))
+  end
+
+fun draw_search_card_lines(
+  f: !Font, r: !Rend, norm: !Buf, m_st: int, m_en: int,
+  tx: int, cy: int, tw: int, text_lh: int, seg: &Buf >> _
+): void = let
+  val kfit = fit_keyword_end(f, r, norm, m_st, m_en, tw, seg)
+  val kw_w = slice_width(f, r, norm, m_st, kfit, seg)
+  val mx = iadd(tx, idiv(imax(0, isub(tw, kw_w)), 2))
+  val ty0 = iadd(cy, 4)
+  val ty1 = iadd(ty0, text_lh)
+  val ty2 = iadd(ty1, text_lh)
+  val () = draw_match_pre(f, r, norm, m_st, tx, ty0, ty1, tw, mx, seg)
+  val () = draw_match_post(f, r, norm, m_en, buf_len(norm), tx, ty1, ty2, tw, iadd(mx, kw_w), seg)
+  val () = buffer_clear(seg)
+  val () = if ilt(m_st, kfit) then buffer_append_range(seg, norm, m_st, kfit) else ()
+  val klen = buf_len(seg)
+in
+  draw_search_card_keyword(f, r, seg, klen, tx, ty1, tw, text_lh, mx, kw_w)
+end
+
+fun draw_search_match(f: !Font, r: !Rend, s: &App_record, row: int, y: int): void = let
+  val at = imul(row, SEARCH_RESULT_WORDS)
+  val off = buf_get32(s.hmeta, iadd(at, SEARCH_RESULT_TEXT))
+  val length = buf_get32(s.hmeta, iadd(at, SEARCH_RESULT_LENGTH))
+  val match = imin(length, imax(0, buf_get32(s.hmeta, iadd(at, SEARCH_RESULT_MATCH))))
+  val count = imin(isub(length, match), imax(0, buf_get32(s.hmeta, iadd(at, SEARCH_RESULT_MATCH_LENGTH))))
+  val g = s.search_layout
+  val cx = iadd(SEARCH_LEFT_PIXELS, 4)
+  val cy = iadd(y, 2)
+  val cw = imax(48, isub(s.sidew, iadd(imul(2, SEARCH_LEFT_PIXELS), 8)))
+  val ch = imax(16, isub(g.rowHeight, 4))
+  val () = draw_search_card_box(r, cx, cy, cw, ch, ieq(row, s.selected_search_row))
+  val text_lh = imin(imax(1, font_line_h(f)), idiv(imax(12, isub(ch, 8)), 3))
+  var norm: Buf = buf_make(imax(16, iadd(length, 8)))
+  var seg: Buf = buf_make(imax(16, iadd(length, 8)))
+  var m_st: int = 0
+  var m_en: int = 0
+  val () = normalize_snippet(s.hits, off, length, match, count, norm, m_st, m_en)
+  val () = draw_search_card_lines(f, r, norm, m_st, m_en, iadd(cx, 8), cy, imax(24, isub(cw, 16)), text_lh, seg)
+  val () = buf_free(seg)
+in
+  buf_free(norm)
+end
 fun draw_search_row(f: !Font,r: !Rend,s: &App_record,row: int,y: int): void = let
   val ()=rend_clip_push(r,SEARCH_LEFT_PIXELS,y,isub(s.sidew,imul(2,SEARCH_LEFT_PIXELS)),s.search_layout.rowHeight)
   val ()=if search_row_is_header(s.hmeta,row) then draw_search_header(f,r,s,row,y) else draw_search_match(f,r,s,row,y)

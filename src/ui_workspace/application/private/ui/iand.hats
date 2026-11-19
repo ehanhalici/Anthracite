@@ -38,7 +38,9 @@ vtypedef App_record = @{
   doc_h_left= int, doc_h_right= int, doc_vh= int, doc_top_y= int,
   scroll_drag_pane= int, scroll_drag_grab_y= int,
   pan_start_y= int, pan_start_scroll= int,
-  tree_drag_pending= Toggle, last_w= int, last_h= int
+  tree_drag_pending= Toggle, last_w= int, last_h= int,
+  last_click_ns= lint, last_click_x= int, last_click_y= int,
+  last_click_pos= int, last_click_tab= int
 }
 datavtype App_ = APP of App_record
 (* skill.md 1. kural istisnasi: ATS2 soyut tip gerceklemesi (sats'taki absviewtype). Kanit disi cast veya ham C yoktur. *)

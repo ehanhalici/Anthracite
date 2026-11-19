@@ -1,3 +1,24 @@
+fun selftest_word_select_at(): int = let
+  val dw = doc_open()
+  val txt = "hello   world\n\nİLK iğne\n"
+  val () = doc_insert(dw, c_str_ptr(txt), c_strlen(txt))
+  val ok1 = doc_select_word_at(dw, 2)
+  val r1 = ok1 andalso ieq(doc_anchor(dw), 0) andalso ieq(doc_caret(dw), 5)
+  val ok2 = doc_select_word_at(dw, 5)
+  val r2 = ok2 andalso ieq(doc_anchor(dw), 0) andalso ieq(doc_caret(dw), 5)
+  val ok3 = doc_select_word_at(dw, 10)
+  val r3 = ok3 andalso ieq(doc_anchor(dw), 8) andalso ieq(doc_caret(dw), 13)
+  val line2 = doc_line_start(dw, 2)
+  val igne_st = iadd(line2, 5)
+  val ok4 = doc_select_word_at(dw, iadd(igne_st, 2))
+  val r4 = ok4 andalso ieq(doc_anchor(dw), igne_st) andalso ieq(doc_caret(dw), iadd(igne_st, 5))
+  val ok_sp = doc_select_word_at(dw, 6)
+  val ok_empty = doc_select_word_at(dw, 14)
+  val () = doc_free(dw)
+in
+  if r1 andalso r2 andalso r3 andalso r4 andalso not(ok_sp) andalso not(ok_empty) then 1 else 0
+end
+
 implement doc_selftest(root) = let
   val d = doc_open()
   val a_ok = selftest_markdown_part(d)
@@ -7,10 +28,11 @@ implement doc_selftest(root) = let
   val v_ok = selftest_vfs_part(root)
   val d_ok = selftest_delete_part()
   val f_ok = selftest_folding_model()
+  val w_ok = selftest_word_select_at()
   val t_ok = ast_selftest()
   val () = doc_free(d)
 in
-  (if ieq(a_ok, 1) andalso ieq(b_ok, 1) andalso ieq(c_ok, 1) andalso ieq(v_ok, 1) andalso ieq(d_ok, 1) andalso ieq(f_ok, 1) andalso ieq(t_ok, 1) then 1 else 0)
+  (if ieq(a_ok, 1) andalso ieq(b_ok, 1) andalso ieq(c_ok, 1) andalso ieq(v_ok, 1) andalso ieq(d_ok, 1) andalso ieq(f_ok, 1) andalso ieq(w_ok, 1) andalso ieq(t_ok, 1) then 1 else 0)
 end
 
 extern fun line_node_foldable_fuel_exhausted(d: !Doc, line: int, i: int, n: int): int = "mac#anth_die_int"

@@ -164,8 +164,25 @@ fun draw_leaf_math_inline(
 in
 end
 
-fun leaf_color(k: NodeKind, style: int): uint =
-  if is_kind(k, KMark) then col_muted()
+fun is_bullet_mark(d: !Doc, i: int): bool = let
+  val k = doc_node_kind(d, i)
+  val p_idx = doc_node_parent(d, i)
+  val p_k = if ige(p_idx, 0) then doc_node_kind(d, p_idx) else KNone
+in
+  is_kind(k, KMark) andalso is_kind(p_k, KLi) andalso ilt(doc_find_child(d, p_idx, KTask), 0)
+end
+
+fun is_table_pipe_mark(d: !Doc, i: int): bool = let
+  val k = doc_node_kind(d, i)
+  val p_idx = doc_node_parent(d, i)
+  val p_k = if ige(p_idx, 0) then doc_node_kind(d, p_idx) else KNone
+in
+  is_kind(k, KMark) andalso is_kind(p_k, KTableRow)
+end
+
+fun leaf_color_for(d: !Doc, i: int, k: NodeKind, style: int, is_read: bool): uint =
+  if is_read andalso is_bullet_mark(d, i) then col_accent()
+  else if is_kind(k, KMark) then col_muted()
   else if is_kind(k, KTag) then col_tag()
   else if iand(style, STYLE_LINK) != 0 then col_link()
   else if iand(style, STYLE_HIGH) != 0 then col_hightxt()
@@ -177,19 +194,43 @@ fun leaf_color(k: NodeKind, style: int): uint =
   else if iand(style, STYLE_HEADING) != 0 then col_heading()
   else kind_col(k)
 
+fun draw_bullet_fallback(
+  f: !Font, r: !Rend, d: !Doc, st: int, oy: int, ph: int, scroll: int,
+  lh: int, colx: int, col: uint, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _
+): int = let
+  val line = doc_line_of(d, st)
+  val pl_line = pen_unpack_line(pen_line)
+  val cur_row = if ieq(line, pl_line) then pen_unpack_row(pen_line) else 0
+  val yy = isub(iadd(oy, iadd(doc_line_y(d, line), imul(cur_row, lh))), scroll)
+  val x0 = if ine(line, pl_line) then colx else pen_x
+  val () = buffer_clear(scratch)
+  val () = buffer_append_string(scratch, "• ")
+  val slen = buf_len(scratch)
+  val tw = font_width_buf(f, r, scratch, slen)
+  val () = if ilt(iadd(yy, lh), oy) orelse igt(yy, iadd(oy, ph)) then ()
+    else seen_int(font_draw_buf(f, r, x0, yy, scratch, slen, col))
+  val () = pen_x := iadd(x0, tw)
+  val () = pen_line := pen_pack(line, cur_row)
+in
+  tw
+end
+
 fun draw_leaf_content(f: !Font, r: !Rend, d: !Doc, i: int, k: NodeKind,
                       oy: int, ph: int, scroll: int, lh: int, colx: int,
-                      st: int, en: int, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _): void = let
+                      st: int, en: int, scratch: &Buf >> _, pen_x: &int >> _, pen_line: &int >> _,
+                      is_read: bool): void = let
   val style = ast_style(d, i)
-  val col = leaf_color(k, style)
+  val col = leaf_color_for(d, i, k, style, is_read)
   val line = doc_line_of(d, st)
   val pl_line = pen_unpack_line(pen_line)
   val cur_row = (if ieq(line, pl_line) then pen_unpack_row(pen_line) else 0)
   val yy = isub(iadd(oy, iadd(doc_line_y(d, line), imul(cur_row, lh))), scroll)
   val x0 = (if ine(line, pl_line) then colx else pen_x) : int
-  val ()=if doc_visual_active(d) then visual_leaf_background(f,r,d,st,en,colx,oy,scroll,lh,ph,style,scratch) else ()
-  val tw = draw_view_slice(f, r, d, st, en, colx, oy, scroll, lh, ph, col, scratch, pen_x, pen_line)
+  val () = if doc_visual_active(d) then visual_leaf_background(f, r, d, st, en, colx, oy, scroll, lh, ph, style, scratch) else ()
+  val tw = if not(doc_visual_active(d)) andalso is_read andalso is_bullet_mark(d, i)
+    then draw_bullet_fallback(f, r, d, st, oy, ph, scroll, lh, colx, col, scratch, pen_x, pen_line)
+    else draw_view_slice(f, r, d, st, en, colx, oy, scroll, lh, ph, col, scratch, pen_x, pen_line)
 in
-  if doc_visual_active(d) then visual_leaf_rules(f,r,d,st,en,colx,oy,scroll,lh,ph,style,scratch)
+  if doc_visual_active(d) then visual_leaf_rules(f, r, d, st, en, colx, oy, scroll, lh, ph, style, scratch)
   else draw_leaf_effects(r, x0, yy, tw, lh, style)
 end

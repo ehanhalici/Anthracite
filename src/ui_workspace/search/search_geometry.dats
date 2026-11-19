@@ -12,16 +12,18 @@ macdef SEARCH_BUTTON_LABEL_EMS = 6
 macdef NANOSECONDS_PER_MILLISECOND = 1000000L
 implement search_geometry_ex(lh0,topbar_h,width,height) = let
   val lh=imax(1,lh0) val top=iadd(topbar_h,SEARCH_HEADER_INSET_PIXELS)
-  val row=iadd(lh,SEARCH_PADDING_PIXELS) val available=imax(1,isub(width,imul(2,SEARCH_PADDING_PIXELS)))
+  val ctrl_row=iadd(lh,SEARCH_PADDING_PIXELS)
+  val res_row=iadd(imul(lh,3),12)
+  val available=imax(1,isub(width,imul(2,SEARCH_PADDING_PIXELS)))
   val stacked=ilt(available,imul(lh,SEARCH_BUTTON_LABEL_EMS))
   val bw=if stacked then available else idiv(isub(available,SEARCH_PADDING_PIXELS),2)
   val second_x=if stacked then SEARCH_PADDING_PIXELS else iadd(imul(2,SEARCH_PADDING_PIXELS),bw)
-  val second_y=if stacked then iadd(top,iadd(row,SEARCH_GAP_PIXELS)) else top
-  val query=iadd(second_y,iadd(row,SEARCH_GAP_PIXELS))
-  val status=iadd(query,iadd(row,SEARCH_GAP_PIXELS)) val results=iadd(status,iadd(lh,SEARCH_GAP_PIXELS))
-in @{buttonTop=top,buttonHeight=row,buttonWidth=bw,secondX=second_x,secondY=second_y,
-  queryTop=query,queryHeight=row,statusTop=status,resultsTop=results,rowHeight=row,
-  rows=idiv(imax(0,isub(height,results)),row)} end
+  val second_y=if stacked then iadd(top,iadd(ctrl_row,SEARCH_GAP_PIXELS)) else top
+  val query=iadd(second_y,iadd(ctrl_row,SEARCH_GAP_PIXELS))
+  val status=iadd(query,iadd(ctrl_row,SEARCH_GAP_PIXELS)) val results=iadd(status,iadd(lh,SEARCH_GAP_PIXELS))
+in @{buttonTop=top,buttonHeight=ctrl_row,buttonWidth=bw,secondX=second_x,secondY=second_y,
+  queryTop=query,queryHeight=ctrl_row,statusTop=status,resultsTop=results,rowHeight=res_row,
+  rows=idiv(imax(0,isub(height,results)),res_row)} end
 
 implement search_geometry(lh0,width,height) =
   search_geometry_ex(lh0,UI_TOPBAR_HEIGHT,width,height)

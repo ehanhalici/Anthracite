@@ -143,12 +143,14 @@ fun push_typed_with_fuel {recfuel:nat} .<recfuel>. (recfuel: int(recfuel), b: &B
     end else ()
   ) else push_typed_fuel_exhausted(b, scratch, j, n)
 
-fun edit_insert_typed(b: &Buf >> Buf, ev: &event, scratch: &Buf >> Buf): void = let
+fun edit_insert_typed(b: &Buf >> Buf, ev: &event, scratch: &Buf >> Buf): int = let
+  val before = buf_len(b)
   val cap = buf_cap(scratch)
   val raw_n = ev_text_buf(ev, scratch, cap)
   val n = filter_text(scratch, raw_n)
+  val () = push_typed_with_fuel(airlock_nat(MAX_REC_FUEL), b, scratch, 0, n)
 in
-  push_typed_with_fuel(airlock_nat(MAX_REC_FUEL), b, scratch, 0, n)
+  isub(buf_len(b), before)
 end
 
 implement edit_line(b, ev, scratch) =
@@ -157,9 +159,9 @@ implement edit_line(b, ev, scratch) =
   else if key_is(ev, KeyReturn) then EditSubmit
   else if key_is(ev, KeyEscape) then EditCancel
   else let
-    val () = edit_insert_typed(b, ev, scratch)
+    val added = edit_insert_typed(b, ev, scratch)
   in
-    EditNone
+    if igt(added, 0) then EditChanged else EditNone
   end
 
 implement act_prompt(dir, cur, name, kind) =

@@ -85,18 +85,41 @@ in
   end
 end
 
-fun draw_flash_line(f: !Font, r: !Rend, d: !Doc, oy: int, scroll: int, lh: int, ox: int, colx: int, pw: int): void = let
-  val fl = doc_get_flash(d, mono_ns())
+fun draw_flash_word_fallback(
+  f: !Font, r: !Rend, d: !Doc, fl: int, f_st: int, f_en: int,
+  colx: int, oy: int, scroll: int, lh: int, col: uint, scratch: &Buf >> _
+): void = let
+  val ls = doc_line_start(d, fl)
+  val le = if ilt(iadd(fl, 1), doc_nlines(d)) then doc_line_start(d, iadd(fl, 1)) else doc_len(d)
+in
+  draw_sel_line_col(f, r, d, ls, le, f_st, f_en, colx, oy, scroll, lh, col, scratch)
+end
+
+fun draw_flash_line(
+  f: !Font, r: !Rend, d: !Doc, oy: int, scroll: int, lh: int,
+  ox: int, colx: int, pw: int, ph: int, scratch: &Buf >> _
+): void = let
+  var f_st: int = 0
+  var f_en: int = 0
+  val fl = doc_get_flash_span(d, mono_ns(), f_st, f_en)
 in
   if ige(fl, 0) andalso ilt(fl, doc_nlines(d)) then let
     val fy = isub(iadd(oy, doc_line_y(d, fl)), scroll)
-    val () = rend_rect(r, colx, fy, editor_colw(f, r, ox, pw), lh, col_rgba(147, 51, 234, 110))
+    val fh = imax(lh, doc_line_step(d, fl))
+    val () = rend_rect(r, colx, fy, editor_colw(f, r, ox, pw), fh, col_rgba(147, 51, 234, 110))
+    val wcol = col_rgba(234, 179, 8, 185)
   in
+    if igt(f_en, f_st) then (
+      if doc_visual_active(d) then
+        visual_draw_band(f, r, d, f_st, f_en, colx, oy, scroll, lh, ph, 0, 0, wcol, scratch)
+      else
+        draw_flash_word_fallback(f, r, d, fl, f_st, f_en, colx, oy, scroll, lh, wcol, scratch)
+    ) else ()
   end else ()
 end
 
 fun draw_doc_content(f: !Font, r: !Rend, d: !Doc, ox: int, oy: int, pw: int, ph: int, scroll: int, lh: int, vault: !Buf, c: &Cache >> _, scratch: &Buf >> _, viewmode: ViewMode, colx: int, py: &int >> _, pa: &int >> _, pen_x: &int >> _, pen_line: &int >> _): void = let
-  val () = draw_flash_line(f, r, d, oy, scroll, lh, ox, colx, pw)
+  val () = draw_flash_line(f, r, d, oy, scroll, lh, ox, colx, pw, ph, scratch)
 in
   if doc_nnodes(d) > 0 then let
     val start_i = first_vis_node(d, scroll)

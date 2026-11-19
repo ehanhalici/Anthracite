@@ -208,9 +208,10 @@ fun take_rows(text: !Buf,meta: !Buf,jumps: !Buf,first: int,count: int,matches: i
     val shift=isub(buf_len(hits),start)
     val ()=buf_append_at(hits,text,start,isub(finish,start))
     val ()=copy_meta(airlock_nat(k),meta,first,shift,hmeta,rows)
+    val taken=imax(0,isub(k,1))
+    val ()=buf_set32(hmeta,iadd(imul(rows,SEARCH_RESULT_WORDS),SEARCH_RESULT_MATCH_LENGTH),taken)
     val ()=copy_jumps(airlock_nat(k),jumps,first,hjumps,rows)
     val ()=rows := iadd(rows,k)
-    val taken=isub(k,1)
   in @{matches=taken,truncated=ilt(taken,matches) orelse truncated} end
 
 fun catalog_path(files: !Buf,paths: !Buf,file: int): Buf = let

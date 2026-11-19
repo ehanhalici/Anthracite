@@ -128,6 +128,7 @@ fun doc_word_left_move(d: !Doc): void
 fun doc_word_left_select(d: !Doc): void
 fun doc_word_right_move(d: !Doc): void
 fun doc_word_right_select(d: !Doc): void
+fun doc_select_word_at(d: !Doc, pos: int): bool
 fun doc_del_word_left(d: !Doc): void
 fun doc_del_word_right(d: !Doc): void
 fun doc_doc_start_move(d: !Doc): void
@@ -153,7 +154,9 @@ fun doc_line_y(d: !Doc, i: int): int
 fun doc_line_step(d: !Doc, i: int): int
 fun doc_line_of(d: !Doc, off: int): int
 fun doc_set_flash(d: !Doc, line: int, until: lint): void
+fun doc_set_flash_span(d: !Doc, line: int, start: int, finish: int, until: lint): void
 fun doc_get_flash(d: !Doc, now: lint): int
+fun doc_get_flash_span(d: !Doc, now: lint, out_st: &int >> _, out_en: &int >> _): int
 fun doc_nnodes(d: !Doc): int
 fun doc_get(d: !Doc, i: int, f: int): int
 fun doc_set(d: !Doc, i: int, f: int, v: int): void
